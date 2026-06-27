@@ -6,8 +6,11 @@ UI guidance until fal.ai or HuggingFace tokens are configured.
 """
 import os
 import uuid
+import httpx
+from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -20,6 +23,29 @@ router = APIRouter(prefix='/media', tags=['media'])
 
 HF_TOKEN = os.environ.get('HF_TOKEN', '').strip()
 FAL_KEY = os.environ.get('FAL_KEY', '').strip()
+
+# On-disk cache for generated images (served back through /api/media/file/...)
+CACHE_DIR = Path(os.environ.get('MEDIA_CACHE_DIR', '/app/backend/media_cache'))
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+async def _prefetch_and_cache(remote_url: str, asset_id: str, suffix: str = '.jpg') -> Optional[str]:
+    """Download an image once and cache it locally. Returns local relative URL.
+
+    Returns None on failure so callers can gracefully fall back to the remote URL.
+    """
+    out_path = CACHE_DIR / f'{asset_id}{suffix}'
+    try:
+        async with httpx.AsyncClient(timeout=45.0, follow_redirects=True) as client:
+            r = await client.get(remote_url)
+            r.raise_for_status()
+            data = r.content
+            if not data or len(data) < 1024:  # likely an error placeholder
+                return None
+            out_path.write_bytes(data)
+            return f'/api/media/file/{asset_id}{suffix}'
+    except Exception:
+        return None
 
 
 class ImageGenIn(BaseModel):
@@ -82,14 +108,20 @@ async def gen_image(payload: ImageGenIn, user=Depends(get_current_user)):
     # Cap resolution by plan tier (free = 1024, pro = 1536, elite = 2048)
     w = min(max(payload.width, 256), 2048)
     h = min(max(payload.height, 256), 2048)
-    url = pollinations.build_url(payload.prompt, payload.style, w, h, payload.seed)
+    remote_url = pollinations.build_url(payload.prompt, payload.style, w, h, payload.seed)
+    asset_id = str(uuid.uuid4())
+    # Pre-fetch + cache so the client gets a fast, stable URL
+    local_url = await _prefetch_and_cache(remote_url, asset_id)
+    final_url = local_url or remote_url
     item = {
-        'id': str(uuid.uuid4()),
+        'id': asset_id,
         'user_id': user['id'],
         'kind': 'image',
         'prompt': payload.prompt,
         'style': payload.style,
-        'url': url,
+        'url': final_url,
+        'remote_url': remote_url,
+        'cached': bool(local_url),
         'width': w, 'height': h,
         'created_at': datetime.now(timezone.utc).isoformat(),
     }
@@ -107,13 +139,15 @@ async def gen_logo(payload: LogoGenIn, user=Depends(get_current_user)):
     prompt = f'logo for "{payload.brand_name}", {payload.style} style, {payload.palette} palette, vector mark, flat, centered, modern brand identity'
     if payload.tagline:
         prompt += f', tagline "{payload.tagline}"'
-    # Generate 4 variants
-    variants = []
-    for i in range(4):
-        url = pollinations.build_url(prompt, style='logo', width=1024, height=1024, seed=10000 + i * 17)
-        variants.append({'index': i, 'url': url})
+    # Generate 4 variants in parallel, then cache them
+    import asyncio
+    asset_id = str(uuid.uuid4())
+    remote_urls = [pollinations.build_url(prompt, style='logo', width=1024, height=1024, seed=10000 + i * 17) for i in range(4)]
+    variant_ids = [f'{asset_id}_v{i}' for i in range(4)]
+    cached = await asyncio.gather(*[_prefetch_and_cache(u, vid) for u, vid in zip(remote_urls, variant_ids)])
+    variants = [{'index': i, 'url': (cached[i] or remote_urls[i]), 'cached': bool(cached[i])} for i in range(4)]
     item = {
-        'id': str(uuid.uuid4()),
+        'id': asset_id,
         'user_id': user['id'],
         'kind': 'logo',
         'brand_name': payload.brand_name,
@@ -124,6 +158,18 @@ async def gen_logo(payload: LogoGenIn, user=Depends(get_current_user)):
     await db.media_assets.insert_one(item)
     item.pop('_id', None)
     return item
+
+
+# ===== Serve cached image bytes =====
+@router.get('/file/{filename}')
+async def serve_cached(filename: str):
+    # Basic safety: only allow simple cached filenames
+    if '/' in filename or '..' in filename:
+        raise HTTPException(status_code=400, detail='Invalid filename')
+    path = CACHE_DIR / filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail='Not found')
+    return FileResponse(str(path), media_type='image/jpeg', headers={'Cache-Control': 'public, max-age=31536000, immutable'})
 
 
 # ===== VOICE (PENDING - needs HF_TOKEN or fal.ai) =====

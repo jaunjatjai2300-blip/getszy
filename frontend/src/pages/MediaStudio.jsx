@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,6 +10,14 @@ import { Sparkles, Image as ImageIcon, Mic2, Film, RefreshCw, Download, Wand2, P
 import { toast } from "sonner";
 
 const TOOL_ICONS = { image: ImageIcon, logo: Palette, voice: Mic2, video: Film, mirror: ScanFace };
+
+// Convert relative /api/... URLs from backend into absolute URLs for <img> tags
+const resolveUrl = (u) => {
+  if (!u) return u;
+  if (u.startsWith("/api/")) return `${API_BASE.replace(/\/api$/, "")}${u}`;
+  return u;
+};
+
 const STYLES = [
   { id: "photoreal", label: "Photoreal" },
   { id: "product", label: "Product shot" },
@@ -47,11 +55,13 @@ export default function MediaStudio() {
       let r;
       if (active === "image") {
         const s = parseInt(imgSize, 10) || 1024;
+        toast.loading("Generating image... (~10-15s)", { id: "gen", duration: 30000 });
         r = await api.post("/media/image", { prompt: imgPrompt, style: imgStyle, width: s, height: s });
-        toast.success("Image generated");
+        toast.success("Image ready!", { id: "gen" });
       } else if (active === "logo") {
+        toast.loading("Creating 4 logo concepts... (~20s)", { id: "gen", duration: 45000 });
         r = await api.post("/media/logo", { brand_name: logo.brand, tagline: logo.tagline, style: logo.style, palette: logo.palette });
-        toast.success("4 logo concepts ready");
+        toast.success("4 logo concepts ready", { id: "gen" });
       } else if (active === "voice") {
         r = await api.post("/media/voice", voice);
         if (r.data.status === "pending_provider") toast.info(r.data.message); else toast.success("Voice queued");
@@ -61,7 +71,7 @@ export default function MediaStudio() {
       }
       await Promise.all([loadHistory(), loadTools()]);
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Generation failed");
+      toast.error(e?.response?.data?.detail || "Generation failed", { id: "gen" });
     } finally { setBusy(false); }
   };
 
@@ -200,7 +210,13 @@ export default function MediaStudio() {
             {/* Gallery */}
             <div>
               <h3 className="font-display text-xl mb-3">Your recent generations</h3>
-              {gallery.length === 0 ? (
+              {busy && (
+                <div className="gs-card p-4 mb-3 flex items-center gap-3 text-sm">
+                  <RefreshCw className="h-4 w-4 animate-spin text-[var(--gs-teal)]"/>
+                  <span>Generating your {active}… this usually takes 10–20 seconds. The image is cached after, so it loads instantly next time.</span>
+                </div>
+              )}
+              {gallery.length === 0 && !busy ? (
                 <div className="gs-card p-8 text-center text-sm text-[var(--gs-muted)]">Nothing yet — generate your first image above.</div>
               ) : (
                 <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4" data-testid="media-gallery">
@@ -208,17 +224,17 @@ export default function MediaStudio() {
                     <article key={g.id} className="gs-card overflow-hidden">
                       {g.kind === "logo" ? (
                         <div className="grid grid-cols-2 gap-1 p-1">
-                          {(g.variants || []).slice(0, 4).map((v) => <img key={v.index} src={v.url} alt="logo" loading="lazy" className="w-full aspect-square object-cover rounded-md"/>)}
+                          {(g.variants || []).slice(0, 4).map((v) => <img key={v.index} src={resolveUrl(v.url)} alt="logo" loading="lazy" className="w-full aspect-square object-cover rounded-md"/>)}
                         </div>
                       ) : g.url ? (
-                        <img src={g.url} alt={g.prompt} loading="lazy" className="w-full aspect-square object-cover"/>
+                        <img src={resolveUrl(g.url)} alt={g.prompt} loading="lazy" className="w-full aspect-square object-cover"/>
                       ) : (
                         <div className="aspect-square grid place-items-center bg-[var(--gs-surface-2)] text-xs text-[var(--gs-muted)]">Pending</div>
                       )}
                       <div className="p-3">
                         <div className="text-xs font-semibold capitalize">{g.kind}</div>
                         <div className="text-[11px] text-[var(--gs-muted)] line-clamp-2 mt-1">{g.prompt || g.brand_name}</div>
-                        {g.url && <a href={g.url} target="_blank" rel="noreferrer" className="text-[11px] text-[var(--gs-teal)] flex items-center gap-1 mt-2"><Download className="h-3 w-3"/>Open / Download</a>}
+                        {g.url && <a href={resolveUrl(g.url)} target="_blank" rel="noreferrer" className="text-[11px] text-[var(--gs-teal)] flex items-center gap-1 mt-2"><Download className="h-3 w-3"/>Open / Download</a>}
                       </div>
                     </article>
                   ))}

@@ -11,8 +11,12 @@ we use:
 """
 import asyncio
 import random
+import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import List, Dict
+
+import httpx
 
 from llm_provider import chat_completion
 from sourcing.markup import enforce_price, compute_margin
@@ -38,13 +42,45 @@ NICHES: List[Dict] = [
 
 _LAST_SCAN: Dict = {'at': None, 'items': []}
 
+# Use the same cache dir the media studio uses so the file endpoint can serve them.
+import os
+CACHE_DIR = Path(os.environ.get('MEDIA_CACHE_DIR', '/app/backend/media_cache'))
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _pollinations_url(niche_slug: str, idx: int) -> str:
+    seed = abs(hash(niche_slug + str(idx))) % 99999
+    prompt = f'professional minimal product photo, soft natural light, white background, {niche_slug}, premium e-commerce style'
+    enc = prompt.replace(' ', '%20').replace(',', '%2C')
+    return f'https://image.pollinations.ai/prompt/{enc}?width=800&height=800&seed={seed}&nologo=true&model=flux'
+
+
+async def _fetch_and_cache(remote_url: str, asset_id: str) -> str:
+    """Download Pollinations image once, cache to disk, return local URL.
+
+    Falls back to a deterministic Picsum image if Pollinations fails (no broken
+    images ever shown to the user).
+    """
+    out_path = CACHE_DIR / f'trend_{asset_id}.jpg'
+    if out_path.exists() and out_path.stat().st_size > 1024:
+        return f'/api/media/file/trend_{asset_id}.jpg'
+    try:
+        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+            r = await client.get(remote_url)
+            if r.status_code == 200 and len(r.content) > 1024:
+                out_path.write_bytes(r.content)
+                return f'/api/media/file/trend_{asset_id}.jpg'
+    except Exception:
+        pass
+    # Reliable fallback CDN \u2014 deterministic image per asset id
+    seed = abs(hash(asset_id)) % 9999
+    return f'https://picsum.photos/seed/getszy{seed}/800/800'
+
 
 def _hero_image(niche_slug: str, idx: int) -> str:
-    # Use Pollinations free image gen for product hero — branded, copyright safe
-    seed = abs(hash(niche_slug + str(idx))) % 99999
-    prompt = f'professional minimal product photo, soft natural light, white background, {niche_slug}, premium e-commerce style, indian audience'
-    enc = prompt.replace(' ', '%20')
-    return f'https://image.pollinations.ai/prompt/{enc}?width=800&height=800&seed={seed}&nologo=true&model=flux'
+    # Legacy synchronous helper retained for compatibility (returns Picsum fallback)
+    seed = abs(hash(niche_slug + str(idx))) % 9999
+    return f'https://picsum.photos/seed/getszy{seed}/800/800'
 
 
 async def _llm_variants(niche: str, audience: str) -> List[str]:
@@ -60,14 +96,25 @@ async def _llm_variants(niche: str, audience: str) -> List[str]:
 
 
 async def scan_trending(limit: int = 12) -> List[Dict]:
-    """Generate a fresh trending products feed."""
+    """Generate a fresh trending products feed. Pre-fetches & caches all hero
+    images in parallel so the UI loads instantly afterwards."""
     sample = random.sample(NICHES, min(limit, len(NICHES)))
     items: List[Dict] = []
-    tasks = [_llm_variants(n['niche'], n['audience']) for n in sample]
+    # 1) LLM titles in parallel
+    title_tasks = [_llm_variants(n['niche'], n['audience']) for n in sample]
+    # 2) Image fetch+cache in parallel
+    img_tasks = [
+        _fetch_and_cache(_pollinations_url(n['niche'], i), str(uuid.uuid4())[:12])
+        for i, n in enumerate(sample)
+    ]
     try:
-        variants_list = await asyncio.gather(*tasks, return_exceptions=True)
+        variants_list = await asyncio.gather(*title_tasks, return_exceptions=True)
     except Exception:
         variants_list = [[n['niche'].title()] for n in sample]
+    try:
+        image_urls = await asyncio.gather(*img_tasks, return_exceptions=True)
+    except Exception:
+        image_urls = [_hero_image(n['niche'], i) for i, n in enumerate(sample)]
 
     for i, niche in enumerate(sample):
         variants = variants_list[i] if not isinstance(variants_list[i], Exception) else [niche['niche'].title()]
@@ -75,7 +122,8 @@ async def scan_trending(limit: int = 12) -> List[Dict]:
         cost = round(random.uniform(*niche['cost_range']), 0)
         sell = enforce_price(cost, is_digital=False)
         margin = compute_margin(cost, sell)
-        score = random.randint(72, 98)  # AI-confidence score
+        score = random.randint(72, 98)
+        hero = image_urls[i] if not isinstance(image_urls[i], Exception) else _hero_image(niche['niche'], i)
         items.append({
             'id': f"trnd_{i}_{int(datetime.now(timezone.utc).timestamp())}",
             'title': title,
@@ -87,7 +135,7 @@ async def scan_trending(limit: int = 12) -> List[Dict]:
             'margin_pct': margin['margin_pct'],
             'profit_per_unit': margin['profit'],
             'trend_score': score,
-            'hero_image': _hero_image(niche['niche'], i),
+            'hero_image': hero,
             'sources': ['Google Trends IN', 'AI Niche Match', 'Audience Fit'],
             'shipping_days': '5-7',
         })

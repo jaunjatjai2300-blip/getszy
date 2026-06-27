@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, fmtINR } from "@/lib/api";
+import { api, fmtINR, API_BASE } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,11 @@ import { TrendingUp, Sparkles, Package, Truck, RefreshCw, Plus, IndianRupee, Glo
 import { toast } from "sonner";
 
 const AUDIENCE_COLORS = { women: "#9b6a3f", girls: "#c97a87", kids: "#5d8f8e" };
+const resolveUrl = (u) => {
+  if (!u) return u;
+  if (u.startsWith("/api/")) return `${API_BASE.replace(/\/api$/, "")}${u}`;
+  return u;
+};
 
 export default function AdminSourcing() {
   const [status, setStatus] = useState(null);
@@ -111,7 +116,7 @@ export default function AdminSourcing() {
             {trending.items.map((it) => (
               <article key={it.id} className="gs-card overflow-hidden flex flex-col">
                 <div className="aspect-[4/3] bg-[var(--gs-surface-2)] relative">
-                  <img src={it.hero_image} alt={it.title} loading="lazy" className="w-full h-full object-cover"/>
+                  <img src={resolveUrl(it.hero_image)} alt={it.title} loading="lazy" className="w-full h-full object-cover"/>
                   <div className="absolute top-2 left-2 flex items-center gap-1 bg-white/90 backdrop-blur px-2 py-1 rounded-full text-xs font-semibold"><TrendingUp className="h-3 w-3 text-[var(--gs-teal)]"/>{it.trend_score}</div>
                   <Badge className="absolute top-2 right-2 capitalize" style={{ background: AUDIENCE_COLORS[it.audience] || "#666", color: "white" }}>{it.audience}</Badge>
                 </div>

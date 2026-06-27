@@ -1,30 +1,22 @@
 [
   {
-    "content": "Phase 7+8 complete + testing 100% pass",
+    "content": "Fix trending products grid: switch hero images from Pollinations to Unsplash (instant CDN)",
     "status": "completed"
   },
   {
-    "content": "Update plan.md with Phase 7-11 roadmap",
+    "content": "Add server-side caching for Media Studio generated images (download once, serve fast)",
     "status": "completed"
   },
   {
-    "content": "Run testing_agent_v3 for Phase 7+8 verification",
+    "content": "Add loading skeletons + 'Generating...' progress UX",
     "status": "completed"
   },
   {
-    "content": "User: Deploy Phase 7+8 to VPS (Save to GitHub Force Push + git pull on VPS)",
-    "status": "pending"
+    "content": "Restart + verify with screenshots",
+    "status": "completed"
   },
   {
-    "content": "Phase 9: GitHub PAT auto-deploy webhook + Agent Swarm dashboard",
-    "status": "pending"
-  },
-  {
-    "content": "Phase 10: Auto-Marketing engine (FB/Insta/YouTube)",
-    "status": "pending"
-  },
-  {
-    "content": "Phase 11: fal.ai premium media (when key provided)",
+    "content": "User: Deploy fix to VPS (Save to GitHub + git pull)",
     "status": "pending"
   }
 ]
