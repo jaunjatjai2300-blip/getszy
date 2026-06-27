@@ -55,6 +55,7 @@ export function Header() {
           ))}
           <Link to="/academy" className="hover:text-[var(--gs-teal)] font-semibold text-[var(--gs-teal)]" data-testid="header-academy-link">Academy</Link>
           <Link to="/studio" className="hover:text-[var(--gs-primary-2)] font-semibold text-[var(--gs-primary-2)] flex items-center gap-1" data-testid="header-studio-link">✨ Studio</Link>
+          <Link to="/studio/media" className="hover:text-[var(--gs-primary-2)] font-semibold text-[var(--gs-primary-2)] flex items-center gap-1" data-testid="header-media-studio-link">🎨 Media AI</Link>
           <Link to="/pricing" className="hover:text-[var(--gs-ink)]" data-testid="header-pricing-link">Pricing</Link>
         </nav>
 

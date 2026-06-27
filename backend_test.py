@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Phase 5 AI Ops Dashboard + Phase 6 Monetization Backend API Tests
-Tests AI Ops Dashboard, subscription, pricing, gating, and AI provider sanitization
+Phase 5 AI Ops Dashboard + Phase 6 Monetization + Phase 7 Sourcing + Phase 8 Media Studio Backend API Tests
+Tests AI Ops Dashboard, subscription, pricing, gating, AI provider sanitization, sourcing, and media studio
 """
 import requests
 import sys
@@ -500,6 +500,330 @@ class APITester:
             )
             if success:
                 self.log(f"✅ Non-admin correctly blocked from AI Ops", Colors.GREEN)
+
+        # ===== 12. PHASE 7 SOURCING TESTS =====
+        self.log("\n" + "=" * 80, Colors.BLUE)
+        self.log("12. PHASE 7 SOURCING TESTS (ADMIN ONLY)", Colors.BLUE)
+        self.log("=" * 80, Colors.BLUE)
+
+        if self.admin_token:
+            # Test sourcing status
+            success, data = self.test(
+                "Get sourcing status (admin)",
+                "GET",
+                "/admin/sourcing/status",
+                200,
+                token=self.admin_token
+            )
+            if success:
+                self.log(f"✅ Admin can access sourcing status", Colors.GREEN)
+                if data.get('getszy_source', {}).get('enabled'):
+                    self.log(f"  ✅ Getszy Source: enabled", Colors.GREEN)
+                if not data.get('cj_dropshipping', {}).get('enabled'):
+                    self.log(f"  ✅ CJ Dropshipping: disabled (expected)", Colors.GREEN)
+                if not data.get('shiprocket', {}).get('enabled'):
+                    self.log(f"  ✅ Shiprocket: disabled (expected)", Colors.GREEN)
+
+            # Test markup check - physical product (40% margin)
+            success, data = self.test(
+                "Markup check - physical product (40% margin)",
+                "POST",
+                "/admin/sourcing/markup/check",
+                200,
+                data={"cost_price": 100, "is_digital": False},
+                token=self.admin_token
+            )
+            if success:
+                suggested = data.get('suggested_price', 0)
+                margin = data.get('margin_pct', 0)
+                if margin >= 40:
+                    self.log(f"✅ Physical margin enforced: {margin}% (cost=100, sell={suggested})", Colors.GREEN)
+                else:
+                    self.log(f"❌ Physical margin too low: {margin}% (expected >= 40%)", Colors.RED)
+
+            # Test markup check - digital product (70%+ margin)
+            success, data = self.test(
+                "Markup check - digital product (70%+ margin)",
+                "POST",
+                "/admin/sourcing/markup/check",
+                200,
+                data={"cost_price": 100, "is_digital": True},
+                token=self.admin_token
+            )
+            if success:
+                suggested = data.get('suggested_price', 0)
+                margin = data.get('margin_pct', 0)
+                if margin >= 70:
+                    self.log(f"✅ Digital margin enforced: {margin}% (cost=100, sell={suggested})", Colors.GREEN)
+                else:
+                    self.log(f"❌ Digital margin too low: {margin}% (expected >= 70%)", Colors.RED)
+
+            # Test trending scan (may take 8-15 seconds due to LLM)
+            self.log(f"\n⏳ Scanning trending products (may take 8-15 seconds)...", Colors.YELLOW)
+            success, data = self.test(
+                "Scan trending products (limit=12)",
+                "POST",
+                "/admin/sourcing/trending/scan?limit=12",
+                200,
+                token=self.admin_token
+            )
+            if success:
+                items = data.get('items', [])
+                count = data.get('count', 0)
+                if count == 12:
+                    self.log(f"✅ Trending scan returned 12 items", Colors.GREEN)
+                    # Check first item structure
+                    if items:
+                        item = items[0]
+                        if all(k in item for k in ['title', 'cost_price', 'suggested_price', 'margin_pct']):
+                            self.log(f"  ✅ Item structure valid", Colors.GREEN)
+                            if item['margin_pct'] >= 40:
+                                self.log(f"  ✅ Margin enforced: {item['margin_pct']}%", Colors.GREEN)
+                            else:
+                                self.log(f"  ⚠️  Margin: {item['margin_pct']}% (expected >= 40%)", Colors.YELLOW)
+                else:
+                    self.log(f"⚠️  Expected 12 items, got {count}", Colors.YELLOW)
+
+            # Test get cached trending
+            success, data = self.test(
+                "Get cached trending products",
+                "GET",
+                "/admin/sourcing/trending",
+                200,
+                token=self.admin_token
+            )
+            if success:
+                items = data.get('items', [])
+                if len(items) > 0:
+                    self.log(f"✅ Cached trending returned {len(items)} items", Colors.GREEN)
+
+            # Test import product
+            success, data = self.test(
+                "Import trending product",
+                "POST",
+                "/admin/sourcing/import",
+                200,
+                data={
+                    "title": "Test Product Import",
+                    "cost_price": 100,
+                    "suggested_price": 149,
+                    "category": "fashion",
+                    "hero_image": "https://example.com/image.jpg",
+                    "audience": "women",
+                    "niche": "test-niche"
+                },
+                token=self.admin_token
+            )
+            if success:
+                product = data.get('product', {})
+                margin = data.get('margin', {})
+                if product.get('id'):
+                    self.log(f"✅ Product imported: {product.get('name')}", Colors.GREEN)
+                    if margin.get('margin_pct', 0) >= 40:
+                        self.log(f"  ✅ Margin enforced: {margin.get('margin_pct')}%", Colors.GREEN)
+
+        # Test non-admin access (should fail with 403)
+        if self.customer_token:
+            success, data = self.test(
+                "Sourcing status (non-admin, should fail 403)",
+                "GET",
+                "/admin/sourcing/status",
+                403,
+                token=self.customer_token
+            )
+            if success:
+                self.log(f"✅ Non-admin correctly blocked from sourcing", Colors.GREEN)
+
+        # ===== 13. PHASE 8 MEDIA STUDIO TESTS =====
+        self.log("\n" + "=" * 80, Colors.BLUE)
+        self.log("13. PHASE 8 MEDIA STUDIO TESTS", Colors.BLUE)
+        self.log("=" * 80, Colors.BLUE)
+
+        if self.customer_token:
+            # Test media tools list
+            success, data = self.test(
+                "Get media tools list",
+                "GET",
+                "/media/tools",
+                200,
+                token=self.customer_token
+            )
+            if success:
+                tools = data.get('tools', [])
+                if len(tools) == 5:
+                    self.log(f"✅ Found 5 media tools", Colors.GREEN)
+                    for tool in tools:
+                        status = tool.get('status')
+                        badge = tool.get('badge')
+                        name = tool.get('name')
+                        if tool['id'] in ['image', 'logo']:
+                            if status == 'live' and badge == 'Free':
+                                self.log(f"  ✅ {name}: live, Free badge", Colors.GREEN)
+                            else:
+                                self.log(f"  ⚠️  {name}: status={status}, badge={badge}", Colors.YELLOW)
+                        elif tool['id'] in ['voice', 'video', 'mirror']:
+                            if status == 'pending':
+                                self.log(f"  ✅ {name}: pending (expected)", Colors.GREEN)
+                            else:
+                                self.log(f"  ⚠️  {name}: status={status} (expected pending)", Colors.YELLOW)
+                else:
+                    self.log(f"⚠️  Expected 5 tools, found {len(tools)}", Colors.YELLOW)
+
+            # Test media quota
+            success, data = self.test(
+                "Get media quota",
+                "GET",
+                "/media/quota",
+                200,
+                token=self.customer_token
+            )
+            if success:
+                plan = data.get('plan')
+                quota = data.get('quota', {})
+                self.log(f"✅ Media quota retrieved for plan: {plan}", Colors.GREEN)
+                self.log(f"  Images: {quota.get('images')}, Logos: {quota.get('logos')}", Colors.BLUE)
+
+            # Test image generation
+            success, data = self.test(
+                "Generate image (Pollinations)",
+                "POST",
+                "/media/image",
+                200,
+                data={
+                    "prompt": "A beautiful sunset over mountains",
+                    "style": "photoreal",
+                    "width": 1024,
+                    "height": 1024
+                },
+                token=self.customer_token
+            )
+            if success:
+                if data.get('id') and data.get('url'):
+                    self.log(f"✅ Image generated: {data.get('id')}", Colors.GREEN)
+                    url = data.get('url', '')
+                    if 'pollinations.ai' in url:
+                        self.log(f"  ✅ URL is Pollinations pattern", Colors.GREEN)
+                    else:
+                        self.log(f"  ⚠️  URL pattern: {url[:50]}...", Colors.YELLOW)
+
+            # Test logo generation
+            success, data = self.test(
+                "Generate logo (4 variants)",
+                "POST",
+                "/media/logo",
+                200,
+                data={
+                    "brand_name": "TestBrand",
+                    "tagline": "Innovation First",
+                    "style": "minimal",
+                    "palette": "monochrome"
+                },
+                token=self.customer_token
+            )
+            if success:
+                variants = data.get('variants', [])
+                if len(variants) == 4:
+                    self.log(f"✅ Logo generated with 4 variants", Colors.GREEN)
+                else:
+                    self.log(f"⚠️  Expected 4 variants, got {len(variants)}", Colors.YELLOW)
+
+            # Test voice generation (should return pending_provider)
+            success, data = self.test(
+                "Generate voice (should return pending_provider)",
+                "POST",
+                "/media/voice",
+                200,
+                data={
+                    "text": "Hello, this is a test voice generation",
+                    "voice": "female-warm"
+                },
+                token=self.customer_token
+            )
+            if success:
+                if data.get('status') == 'pending_provider':
+                    self.log(f"✅ Voice returns 'pending_provider' (expected)", Colors.GREEN)
+                    self.log(f"  Message: {data.get('message')}", Colors.BLUE)
+                else:
+                    self.log(f"⚠️  Voice status: {data.get('status')} (expected pending_provider)", Colors.YELLOW)
+
+            # Test video generation (should return pending_provider)
+            success, data = self.test(
+                "Generate video (should return pending_provider)",
+                "POST",
+                "/media/video",
+                200,
+                data={
+                    "prompt": "A cat playing with a ball",
+                    "duration_seconds": 5,
+                    "aspect": "16:9"
+                },
+                token=self.customer_token
+            )
+            if success:
+                if data.get('status') == 'pending_provider':
+                    self.log(f"✅ Video returns 'pending_provider' (expected)", Colors.GREEN)
+                else:
+                    self.log(f"⚠️  Video status: {data.get('status')} (expected pending_provider)", Colors.YELLOW)
+
+            # Test media history
+            success, data = self.test(
+                "Get media history",
+                "GET",
+                "/media/history",
+                200,
+                token=self.customer_token
+            )
+            if success:
+                items = data.get('items', [])
+                self.log(f"✅ Media history retrieved: {len(items)} items", Colors.GREEN)
+
+        # Test quota enforcement (create fresh user and hit limit)
+        timestamp4 = datetime.now().strftime("%H%M%S%f")
+        fresh_email4 = f"quota-test-{timestamp4}@example.com"
+        success, data = self.test(
+            "Create fresh user for quota test",
+            "POST",
+            "/auth/signup",
+            200,
+            data={
+                "name": "Quota Test User",
+                "email": fresh_email4,
+                "password": "Test@123",
+                "phone": "6666666666"
+            }
+        )
+        fresh_token4 = None
+        if success and 'token' in data:
+            fresh_token4 = data['token']
+            self.log(f"✅ Fresh user created: {fresh_email4}", Colors.GREEN)
+
+        if fresh_token4:
+            # Generate 5 images (free plan limit)
+            self.log(f"\n⏳ Testing quota enforcement (generating 5 images)...", Colors.YELLOW)
+            for i in range(5):
+                success, data = self.test(
+                    f"Generate image {i+1}/5",
+                    "POST",
+                    "/media/image",
+                    200,
+                    data={"prompt": f"Test image {i+1}", "style": "photoreal"},
+                    token=fresh_token4
+                )
+                if not success:
+                    self.log(f"⚠️  Image {i+1} failed", Colors.YELLOW)
+                    break
+
+            # Try 6th image (should fail with 402)
+            success, data = self.test(
+                "Generate 6th image (should fail 402)",
+                "POST",
+                "/media/image",
+                402,
+                data={"prompt": "This should fail", "style": "photoreal"},
+                token=fresh_token4
+            )
+            if success:
+                self.log(f"✅ Quota enforcement working (6th image blocked)", Colors.GREEN)
 
         # ===== SUMMARY =====
         self.log("\n" + "=" * 80, Colors.BLUE)

@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
-import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Sparkles, LogOut, Store, GraduationCap, Activity } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Sparkles, LogOut, Store, GraduationCap, Activity, TrendingUp } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 const NAV = [
@@ -10,6 +10,7 @@ const NAV = [
   { to: "/admin/suppliers", label: "Suppliers", icon: Truck },
   { to: "/admin/customers", label: "Customers", icon: Users },
   { to: "/admin/courses", label: "Courses", icon: GraduationCap },
+  { to: "/admin/sourcing", label: "Sourcing", icon: TrendingUp, accent: true },
   { to: "/admin/ai-ops", label: "AI Ops", icon: Activity, accent: true },
   { to: "/admin/chat", label: "AI Chat", icon: Sparkles, accent: true },
 ];
@@ -50,7 +51,7 @@ export default function AdminLayout() {
       <main className="p-4 md:p-8 overflow-x-hidden">
         <Outlet/>
       </main>
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 grid grid-cols-8 border-t bg-white" style={{ borderColor: "var(--gs-border)" }}>
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 grid grid-cols-9 border-t bg-white" style={{ borderColor: "var(--gs-border)" }}>
         {NAV.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `flex flex-col items-center py-2 text-[10px] ${isActive ? "text-[var(--gs-primary-2)]" : "text-[var(--gs-muted)]"}`}><n.icon className="h-4 w-4 mb-0.5"/>{n.label}</NavLink>
         ))}
