@@ -1,18 +1,22 @@
 [
   {
-    "content": "Phase 4: Backend - BuilderProject model + routes_builder.py + generation logic",
-    "status": "in_progress"
+    "content": "Phase 4: Backend - BuilderProject + routes_builder",
+    "status": "completed"
   },
   {
-    "content": "Phase 4: Frontend - /studio page with chat + preview + project sidebar",
-    "status": "pending"
+    "content": "Phase 4: Frontend - /studio page",
+    "status": "completed"
   },
   {
-    "content": "Phase 4: Add Studio nav link in Header",
-    "status": "pending"
+    "content": "Phase 4: Studio nav link",
+    "status": "completed"
   },
   {
-    "content": "Phase 4: Test end-to-end + fix bugs",
-    "status": "pending"
+    "content": "Phase 4: Test end-to-end",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 4: Deliver + deploy guide for VPS",
+    "status": "completed"
   }
 ]
