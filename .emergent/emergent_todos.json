@@ -4,7 +4,7 @@
     "status": "completed"
   },
   {
-    "content": "Add Mirror AI virtual try-on to product detail pages (physical products)",
+    "content": "Add Mirror AI virtual try-on to product detail pages",
     "status": "completed"
   },
   {
@@ -13,6 +13,10 @@
   },
   {
     "content": "Run testing_agent_v3 to verify bug fix + new features",
-    "status": "in_progress"
+    "status": "completed"
+  },
+  {
+    "content": "User: Deploy to VPS (Save to GitHub Force Push + git pull)",
+    "status": "pending"
   }
 ]
