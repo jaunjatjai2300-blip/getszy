@@ -2,114 +2,77 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-    margin: 0;
-    font-family:
-        -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
-        "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-        sans-serif;
+@layer base {
+  :root {
+    --background: 30 43% 97%;
+    --foreground: 30 10% 10%;
+    --card: 30 60% 99%;
+    --card-foreground: 30 10% 10%;
+    --popover: 30 60% 99%;
+    --popover-foreground: 30 10% 10%;
+    --primary: 14 33% 62%;
+    --primary-foreground: 30 60% 99%;
+    --secondary: 28 35% 92%;
+    --secondary-foreground: 30 10% 12%;
+    --muted: 28 30% 93%;
+    --muted-foreground: 25 10% 40%;
+    --accent: 174 35% 92%;
+    --accent-foreground: 30 10% 12%;
+    --destructive: 6 72% 45%;
+    --destructive-foreground: 30 60% 99%;
+    --border: 22 28% 86%;
+    --input: 22 28% 86%;
+    --ring: 14 33% 62%;
+    --chart-1: 14 33% 62%;
+    --chart-2: 174 45% 35%;
+    --chart-3: 28 35% 55%;
+    --chart-4: 40 65% 55%;
+    --chart-5: 6 72% 45%;
+    --radius: 0.9rem;
+
+    --gs-bg: #FBF7F2;
+    --gs-surface: #FFFDFB;
+    --gs-surface-2: #F1E7DD;
+    --gs-border: #E7D9CE;
+    --gs-ink: #1B1A18;
+    --gs-muted: #6B625B;
+    --gs-primary: #C58B7A;
+    --gs-primary-2: #A86B5B;
+    --gs-champagne: #F3E2C7;
+    --gs-teal: #2F7E7A;
+    --gs-teal-soft: #D7F0EE;
+    --gs-shadow-sm: 0 1px 2px rgba(27,26,24,0.06);
+    --gs-shadow-md: 0 10px 30px rgba(27,26,24,0.10);
+    --gs-shadow-lg: 0 18px 60px rgba(27,26,24,0.14);
+    --gs-focus: 0 0 0 4px rgba(197,139,122,0.22);
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  html, body { background: var(--gs-bg); color: var(--gs-ink); }
+  body {
+    font-family: 'Manrope', ui-sans-serif, system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+  }
+  h1, h2, .font-display { font-family: 'Gloock', serif; letter-spacing: -0.01em; }
+  ::selection { background: rgba(197,139,122,0.25); }
 }
 
-code {
-    font-family:
-        source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+@layer components {
+  .gs-container { @apply max-w-[1180px] mx-auto px-4 sm:px-6; }
+  .gs-section { @apply py-10 sm:py-14 lg:py-20; }
+  .gs-card { background: var(--gs-surface); border: 1px solid var(--gs-border); border-radius: 16px; box-shadow: var(--gs-shadow-sm); }
+  .gs-card-hover { transition: box-shadow .2s ease, transform .2s ease; }
+  .gs-card-hover:hover { box-shadow: var(--gs-shadow-md); transform: translateY(-2px); }
+  .gs-btn-primary { background: var(--gs-primary); color: #fff; border-radius: 14px; padding: 12px 20px; font-weight: 600; transition: background-color .2s ease; }
+  .gs-btn-primary:hover { background: var(--gs-primary-2); }
+  .gs-link { color: var(--gs-primary-2); text-decoration: none; }
+  .gs-link:hover { text-decoration: underline; }
+  .gs-hero-wash { background: linear-gradient(135deg, rgba(243,226,199,0.55) 0%, rgba(215,240,238,0.45) 55%, rgba(251,247,242,0.0) 100%); }
+  .gs-ai-glow { background: radial-gradient(600px circle at 20% 0%, rgba(47,126,122,0.18), transparent 55%), radial-gradient(600px circle at 80% 10%, rgba(197,139,122,0.14), transparent 55%); }
 }
 
-@layer base {
-    :root {
-        --background: 0 0% 100%;
-        --foreground: 0 0% 3.9%;
-        --card: 0 0% 100%;
-        --card-foreground: 0 0% 3.9%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 0 0% 3.9%;
-        --primary: 0 0% 9%;
-        --primary-foreground: 0 0% 98%;
-        --secondary: 0 0% 96.1%;
-        --secondary-foreground: 0 0% 9%;
-        --muted: 0 0% 96.1%;
-        --muted-foreground: 0 0% 45.1%;
-        --accent: 0 0% 96.1%;
-        --accent-foreground: 0 0% 9%;
-        --destructive: 0 84.2% 60.2%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 89.8%;
-        --input: 0 0% 89.8%;
-        --ring: 0 0% 3.9%;
-        --chart-1: 12 76% 61%;
-        --chart-2: 173 58% 39%;
-        --chart-3: 197 37% 24%;
-        --chart-4: 43 74% 66%;
-        --chart-5: 27 87% 67%;
-        --radius: 0.5rem;
-    }
-    .dark {
-        --background: 0 0% 3.9%;
-        --foreground: 0 0% 98%;
-        --card: 0 0% 3.9%;
-        --card-foreground: 0 0% 98%;
-        --popover: 0 0% 3.9%;
-        --popover-foreground: 0 0% 98%;
-        --primary: 0 0% 98%;
-        --primary-foreground: 0 0% 9%;
-        --secondary: 0 0% 14.9%;
-        --secondary-foreground: 0 0% 98%;
-        --muted: 0 0% 14.9%;
-        --muted-foreground: 0 0% 63.9%;
-        --accent: 0 0% 14.9%;
-        --accent-foreground: 0 0% 98%;
-        --destructive: 0 62.8% 30.6%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 14.9%;
-        --input: 0 0% 14.9%;
-        --ring: 0 0% 83.1%;
-        --chart-1: 220 70% 50%;
-        --chart-2: 160 60% 45%;
-        --chart-3: 30 80% 55%;
-        --chart-4: 280 65% 60%;
-        --chart-5: 340 75% 55%;
-    }
-}
-
-@layer base {
-    * {
-        @apply border-border;
-    }
-    body {
-        @apply bg-background text-foreground;
-    }
-}
-
-@layer base {
-    [data-debug-wrapper="true"] {
-        display: contents !important;
-    }
-
-    [data-debug-wrapper="true"] > * {
-        margin-left: inherit;
-        margin-right: inherit;
-        margin-top: inherit;
-        margin-bottom: inherit;
-        padding-left: inherit;
-        padding-right: inherit;
-        padding-top: inherit;
-        padding-bottom: inherit;
-        column-gap: inherit;
-        row-gap: inherit;
-        gap: inherit;
-        border-left-width: inherit;
-        border-right-width: inherit;
-        border-top-width: inherit;
-        border-bottom-width: inherit;
-        border-left-style: inherit;
-        border-right-style: inherit;
-        border-top-style: inherit;
-        border-bottom-style: inherit;
-        border-left-color: inherit;
-        border-right-color: inherit;
-        border-top-color: inherit;
-        border-bottom-color: inherit;
-    }
-}
+[data-debug-wrapper="true"] { display: contents !important; }
