@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { api, fmtINR } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Package } from "lucide-react";
+import { Package, GraduationCap, ArrowRight } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 
 const STATUS_COLORS = { pending: "bg-amber-100 text-amber-800", forwarded: "bg-sky-100 text-sky-800", shipped: "bg-blue-100 text-blue-800", delivered: "bg-emerald-100 text-emerald-800", cancelled: "bg-rose-100 text-rose-800" };
 
@@ -12,10 +14,14 @@ export default function Account() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
+  const [enrollments, setEnrollments] = useState([]);
 
   useEffect(() => {
     if (!loading && !user) navigate("/login");
-    if (user) api.get("/orders/mine").then(({ data }) => setOrders(data));
+    if (user) {
+      api.get("/orders/mine").then(({ data }) => setOrders(data));
+      api.get("/me/enrollments").then(({ data }) => setEnrollments(data));
+    }
   }, [user, loading, navigate]);
 
   if (!user) return null;
@@ -23,22 +29,39 @@ export default function Account() {
   return (
     <div className="gs-container gs-section" data-testid="account-page">
       <h1 className="font-display text-3xl mb-6">My Account</h1>
-      <Tabs defaultValue="orders" data-testid="account-tabs">
-        <TabsList><TabsTrigger value="orders">Orders</TabsTrigger><TabsTrigger value="profile">Profile</TabsTrigger></TabsList>
+      <Tabs defaultValue="orders">
+        <TabsList>
+          <TabsTrigger value="orders">Orders</TabsTrigger>
+          <TabsTrigger value="learning" data-testid="account-learning-tab">Learning</TabsTrigger>
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+        </TabsList>
         <TabsContent value="orders" className="mt-6">
           {orders.length === 0 ? (
             <div className="text-center py-12 text-[var(--gs-muted)]"><Package className="h-10 w-10 mx-auto mb-2"/>No orders yet</div>
           ) : (
             <div className="space-y-3">{orders.map((o) => (
-              <div key={o.id} className="gs-card p-5 flex flex-wrap items-center gap-4" data-testid={`order-${o.order_number}`}>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold">{o.order_number}</div>
-                  <div className="text-xs text-[var(--gs-muted)]">{new Date(o.created_at).toLocaleDateString()} · {o.items.length} item(s)</div>
-                  {o.tracking_number && <div className="text-xs mt-1">Tracking: <span className="font-mono">{o.tracking_number}</span></div>}
-                </div>
+              <div key={o.id} className="gs-card p-5 flex flex-wrap items-center gap-4">
+                <div className="flex-1 min-w-0"><div className="font-semibold">{o.order_number}</div><div className="text-xs text-[var(--gs-muted)]">{new Date(o.created_at).toLocaleDateString()} · {o.items.length} item(s)</div>{o.tracking_number && <div className="text-xs mt-1">Tracking: <span className="font-mono">{o.tracking_number}</span></div>}</div>
                 <Badge className={`${STATUS_COLORS[o.status] || ""} hover:opacity-100 capitalize`}>{o.status}</Badge>
                 <div className="font-semibold">{fmtINR(o.total)}</div>
               </div>
+            ))}</div>
+          )}
+        </TabsContent>
+        <TabsContent value="learning" className="mt-6">
+          {enrollments.length === 0 ? (
+            <div className="text-center py-12 text-[var(--gs-muted)]"><GraduationCap className="h-10 w-10 mx-auto mb-2"/><p>No enrollments yet</p><Link to="/academy"><Button className="mt-3 bg-[var(--gs-primary)] hover:bg-[var(--gs-primary-2)]">Browse Academy <ArrowRight className="h-4 w-4 ml-2"/></Button></Link></div>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-4" data-testid="account-enrollments">{enrollments.map((e) => (
+              <Link key={e.id} to={`/academy/${e.course_slug}/learn`} className="gs-card gs-card-hover overflow-hidden">
+                {e.course?.thumbnail && <img src={e.course.thumbnail} alt="" className="w-full h-32 object-cover"/>}
+                <div className="p-4">
+                  <div className="font-semibold mb-1">{e.course?.title}</div>
+                  <div className="text-xs text-[var(--gs-muted)] mb-2">{e.course?.level}</div>
+                  <Progress value={(e.progress || 0) * 100} className="h-1.5 mb-1"/>
+                  <div className="text-xs text-[var(--gs-muted)]">{Math.round((e.progress || 0) * 100)}% complete</div>
+                </div>
+              </Link>
             ))}</div>
           )}
         </TabsContent>

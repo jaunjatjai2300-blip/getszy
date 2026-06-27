@@ -9,14 +9,19 @@ import Checkout from "@/pages/Checkout";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import Account from "@/pages/Account";
+import Academy from "@/pages/Academy";
+import CourseDetail from "@/pages/CourseDetail";
+import Learn from "@/pages/Learn";
 import AdminLayout from "@/components/AdminLayout";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminProducts from "@/pages/admin/Products";
 import AdminOrders from "@/pages/admin/Orders";
 import AdminSuppliers from "@/pages/admin/Suppliers";
 import AdminCustomers from "@/pages/admin/Customers";
+import AdminCourses from "@/pages/admin/Courses";
 import AdminAIChat from "@/pages/admin/AIChat";
 import StorefrontLayout from "@/components/StorefrontLayout";
+import LearnLayout from "@/components/LearnLayout";
 
 export default function App() {
   return (
@@ -33,6 +38,11 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/account" element={<Account />} />
+            <Route path="/academy" element={<Academy />} />
+            <Route path="/academy/:slug" element={<CourseDetail />} />
+          </Route>
+          <Route element={<LearnLayout />}>
+            <Route path="/academy/:slug/learn" element={<Learn />} />
           </Route>
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboard />} />
@@ -40,6 +50,7 @@ export default function App() {
             <Route path="orders" element={<AdminOrders />} />
             <Route path="suppliers" element={<AdminSuppliers />} />
             <Route path="customers" element={<AdminCustomers />} />
+            <Route path="courses" element={<AdminCourses />} />
             <Route path="chat" element={<AdminAIChat />} />
           </Route>
         </Routes>

@@ -49,9 +49,10 @@ export function Header() {
 
         <nav className="hidden md:flex items-center gap-5 ml-6 text-sm">
           <Link to="/shop" className="hover:text-[var(--gs-primary-2)]">Shop</Link>
-          {cats.slice(0, 5).map((c) => (
+          {cats.slice(0, 4).map((c) => (
             <Link key={c.slug} to={`/category/${c.slug}`} className="hover:text-[var(--gs-primary-2)]">{c.name}</Link>
           ))}
+          <Link to="/academy" className="hover:text-[var(--gs-teal)] font-semibold text-[var(--gs-teal)]" data-testid="header-academy-link">Academy</Link>
         </nav>
 
         <form onSubmit={submitSearch} className="flex-1 hidden md:flex justify-center max-w-md ml-4">

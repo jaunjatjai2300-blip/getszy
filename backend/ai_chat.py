@@ -1,14 +1,11 @@
 """AI Admin Chat — natural language to structured admin actions, then execute."""
-import os
 import re
 import json
 import uuid
 from datetime import datetime, timezone, timedelta
-from emergentintegrations.llm.chat import LlmChat, UserMessage
 from db import db
-from models import Product, Supplier, Category
-
-EMERGENT_LLM_KEY = os.environ['EMERGENT_LLM_KEY']
+from models import Product, Supplier, Category, Course
+from llm_provider import chat_completion
 
 SYSTEM_PROMPT = """
 You are getszy.com's AI Admin assistant. You convert natural-language admin commands
@@ -16,27 +13,30 @@ into a SINGLE JSON object that the backend will execute. NEVER produce prose, NE
 in markdown — output ONLY a raw JSON object with this shape:
 
 {
-  "intent": "<one of: add_product | update_product | delete_product | list_products | add_category | list_categories | list_orders | update_order_status | add_supplier | list_suppliers | show_stats | low_stock | clarify | reject | chat>",
+  "intent": "<one of: add_product | update_product | delete_product | list_products | add_category | list_categories | list_orders | update_order_status | add_supplier | list_suppliers | show_stats | low_stock | create_course | list_courses | show_enrollments | clarify | reject | chat>",
   "params": { ...intent-specific fields... },
   "reply": "<short friendly confirmation message in Hinglish for the admin>"
 }
 
 Intent param schemas:
-- add_product: { name (str), price (number), category (str), cost_price? (number), stock? (int, default 10), supplier? (str), description? (str), image? (str URL) }
-- update_product: { product_query (str: name), updates: { price?, stock?, category?, supplier?, description? } }
-- delete_product: { product_query (str) }
-- list_products: { category? (str), search? (str), limit? (int) }
-- add_category: { name (str) }
+- add_product: { name, price, category, cost_price?, stock?, supplier?, description?, image? }
+- update_product: { product_query, updates: { price?, stock?, category?, supplier?, description? } }
+- delete_product: { product_query }
+- list_products: { category?, search?, limit? }
+- add_category: { name }
 - list_categories: {}
-- list_orders: { status? (str), date_range? (str: today|week|month) }
-- update_order_status: { order_id (str), status (str), tracking_number? (str) }
-- add_supplier: { name (str), contact? (str), notes? (str) }
+- list_orders: { status?, date_range?: today|week|month }
+- update_order_status: { order_id, status, tracking_number? }
+- add_supplier: { name, contact?, notes? }
 - list_suppliers: {}
-- show_stats: { range? (str: today|week|month|all) }
-- low_stock: { threshold? (int, default 5) }
-- clarify: { question (str) }
-- reject: { reason (str) }
-- chat: { message (str) }
+- show_stats: { range?: today|week|month|all }
+- low_stock: { threshold? }
+- create_course: { title, subtitle?, level?: Beginner|Intermediate|Advanced, description?, outcomes?: [str] }
+- list_courses: {}
+- show_enrollments: { course?: slug or title }
+- clarify: { question }
+- reject: { reason }
+- chat: { message }
 
 Rules: refuse bulk-destructive ("delete all"), ask clarify if required fields missing, output ONLY valid JSON.
 """
@@ -64,12 +64,7 @@ def _extract_json(text: str):
 
 
 async def parse_intent(message: str, session_id: str):
-    chat = LlmChat(
-        api_key=EMERGENT_LLM_KEY,
-        session_id=session_id,
-        system_message=SYSTEM_PROMPT,
-    ).with_model('openai', 'gpt-4o-mini')
-    raw = await chat.send_message(UserMessage(text=message))
+    raw = await chat_completion(system=SYSTEM_PROMPT, user=message, session_id=session_id, temperature=0.2)
     parsed = _extract_json(raw)
     if not parsed:
         return {'intent': 'chat', 'params': {'message': raw}, 'reply': raw}
@@ -97,29 +92,23 @@ async def execute_intent(parsed: dict) -> dict:
     p = parsed.get('params', {}) or {}
     try:
         if intent == 'add_product':
-            name = p.get('name')
-            price = float(p.get('price', 0))
+            name = p.get('name'); price = float(p.get('price', 0))
             if not name or not price:
                 return {'ok': False, 'error': 'Name & price required'}
             cat_slug = await _ensure_category(p.get('category') or 'fashion')
             image = p.get('image') or 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600'
             prod = Product(
-                name=name,
-                slug=_slug(name),
-                description=p.get('description', ''),
-                images=[image],
-                price=price,
+                name=name, slug=_slug(name), description=p.get('description', ''),
+                images=[image], price=price,
                 cost_price=float(p.get('cost_price', 0) or 0),
                 stock=int(p.get('stock', 10) or 10),
-                category=cat_slug,
-                supplier=p.get('supplier'),
+                category=cat_slug, supplier=p.get('supplier'),
             )
             await db.products.insert_one(prod.model_dump())
             return {'ok': True, 'type': 'product', 'data': prod.model_dump()}
 
         if intent == 'update_product':
-            q = p.get('product_query', '')
-            updates = p.get('updates', {}) or {}
+            q = p.get('product_query', ''); updates = p.get('updates', {}) or {}
             if not q:
                 return {'ok': False, 'error': 'product_query required'}
             prod = await db.products.find_one({'name': {'$regex': q, '$options': 'i'}}, {'_id': 0})
@@ -209,14 +198,43 @@ async def execute_intent(parsed: dict) -> dict:
             prods = await db.products.find({'stock': {'$lte': threshold}}, {'_id': 0}).to_list(100)
             return {'ok': True, 'type': 'product_list', 'data': prods, 'count': len(prods)}
 
+        if intent == 'create_course':
+            title = p.get('title')
+            if not title:
+                return {'ok': False, 'error': 'title required'}
+            slug = _slug(title)
+            if await db.courses.find_one({'slug': slug}):
+                return {'ok': False, 'error': 'Course with this title already exists'}
+            course = Course(
+                slug=slug, title=title, subtitle=p.get('subtitle', ''),
+                description=p.get('description', ''), level=p.get('level', 'Beginner'),
+                outcomes=p.get('outcomes', []),
+                thumbnail=p.get('thumbnail') or 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800',
+            )
+            await db.courses.insert_one(course.model_dump())
+            return {'ok': True, 'type': 'course', 'data': course.model_dump()}
+
+        if intent == 'list_courses':
+            cs = await db.courses.find({}, {'_id': 0}).to_list(100)
+            return {'ok': True, 'type': 'course_list', 'data': cs, 'count': len(cs)}
+
+        if intent == 'show_enrollments':
+            q = {}
+            if p.get('course'):
+                slug = _slug(p['course'])
+                q['course_slug'] = slug
+            enrs = await db.enrollments.find(q, {'_id': 0}).sort('enrolled_at', -1).limit(50).to_list(50)
+            for e in enrs:
+                u = await db.users.find_one({'id': e['user_id']}, {'_id': 0, 'password_hash': 0})
+                e['user_name'] = u['name'] if u else 'Unknown'
+            return {'ok': True, 'type': 'enrollment_list', 'data': enrs, 'count': len(enrs)}
+
         if intent == 'clarify':
             return {'ok': True, 'type': 'clarify', 'data': p}
 
         if intent == 'reject':
             return {'ok': True, 'type': 'reject', 'data': p}
 
-        # chat / fallback
         return {'ok': True, 'type': 'chat', 'data': p}
-
     except Exception as e:
         return {'ok': False, 'error': str(e)}

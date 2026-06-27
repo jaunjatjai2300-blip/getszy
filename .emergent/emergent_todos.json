@@ -1,30 +1,26 @@
 [
   {
-    "content": "Phase 1 POC: Emergent LLM tool-calling for AI admin chat",
-    "status": "completed"
+    "content": "Phase 2: LLM provider abstraction (Emergent now, Ollama-ready)",
+    "status": "in_progress"
   },
   {
-    "content": "Phase 2: Design guidelines via design_agent",
-    "status": "completed"
+    "content": "Phase 2: Backend - Courses, Modules, Lessons, Enrollments, Progress, AI Tutor",
+    "status": "pending"
   },
   {
-    "content": "Phase 2: Backend (FastAPI + MongoDB)",
-    "status": "completed"
+    "content": "Phase 2: Frontend - Academy catalog, course detail, learn UI with AI Tutor sidebar",
+    "status": "pending"
   },
   {
-    "content": "Phase 2: Frontend (React) - storefront, admin panel, AI chat UI",
-    "status": "completed"
+    "content": "Phase 2: Admin - course management + new AI chat intents",
+    "status": "pending"
   },
   {
-    "content": "Phase 2: Seed demo data + admin user",
-    "status": "completed"
+    "content": "Phase 2: Seed sample AI courses (AI for Beginners, ChatGPT Mastery, Build with AI No-Code, AI for Side Income)",
+    "status": "pending"
   },
   {
-    "content": "Phase 2: testing_agent_v3 end-to-end test + fix all bugs",
-    "status": "completed"
-  },
-  {
-    "content": "Phase 2: User stories covered & deliver",
-    "status": "completed"
+    "content": "Phase 2: Test end-to-end",
+    "status": "pending"
   }
 ]

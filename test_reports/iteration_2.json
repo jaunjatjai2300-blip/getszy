@@ -1,0 +1,110 @@
+{
+  "summary": "Completed Phase 2 testing for getszy.com AI Learning Academy. Backend 100% functional (55/55 tests passed) including all Phase 1 regression tests and Phase 2 new features (courses, enrollment, AI Tutor, admin CRUD, extended AI chat intents). Frontend has 2 critical rendering issues: course cards not displaying on Academy page and Admin Courses page despite backend API returning data correctly. Learn page 3-column layout working perfectly. AI Tutor functional but send button has overlay issue.",
+
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Academy page (/academy)",
+        "issue": "Course grid shows 'No courses found' even though backend API returns 5 courses correctly. The course cards are not rendering.",
+        "affected_selectors": ["[data-testid='academy-course-grid']"],
+        "fix_priority": "CRITICAL",
+        "evidence": "Backend API GET /api/courses returns 5 courses, but frontend shows 0 course cards. Direct navigation to course detail page works, suggesting data exists but grid rendering is broken."
+      },
+      {
+        "component": "Admin Courses page (/admin/courses)",
+        "issue": "Admin Courses page shows '0 courses' and no course cards render, even though backend API returns 5 courses correctly.",
+        "affected_selectors": ["[data-testid='admin-courses-page']"],
+        "fix_priority": "CRITICAL",
+        "evidence": "Backend API GET /api/admin/courses returns 5 courses, but frontend shows '0 courses' subtitle and empty list. Toggle button works (Add lesson button appears), suggesting some functionality is working."
+      },
+      {
+        "component": "Learn page - AI Tutor (/academy/:slug/learn)",
+        "issue": "AI Tutor send button blocked by 'Made with Emergent' badge overlay. Button is not clickable due to z-index/overlay issue.",
+        "affected_selectors": ["[data-testid='learn-tutor-send-button']"],
+        "fix_priority": "HIGH",
+        "evidence": "Playwright error: '<p>Made with Emergent</p> from <a target=\"_blank\" id=\"emergent-badge\"> subtree intercepts pointer events'. The badge needs higher z-index or the tutor panel needs to be above it."
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": [
+    "Backend Phase 1 Regression: Health endpoint returns ok with llm.provider=emergent",
+    "Backend Phase 1 Regression: Categories endpoint returns 7 categories",
+    "Backend Phase 1 Regression: Products endpoint returns 16 products (14 original + 2 from tests)",
+    "Backend Phase 1 Regression: Auth signup and login working for admin and customer",
+    "Backend Phase 1 Regression: Customer flow (cart, checkout, orders) working",
+    "Backend Phase 1 Regression: Admin stats, orders, customers, product CRUD, supplier CRUD all working",
+    "Backend Phase 1 Regression: AI Admin Chat - 8/8 old intents passed (add_product, list_orders, show_stats, low_stock, add_supplier, list_products, reject, clarify)",
+    "Backend Phase 2 NEW: GET /api/courses returns 4 courses (5 with test course)",
+    "Backend Phase 2 NEW: Filter by level=Beginner returns 1 course",
+    "Backend Phase 2 NEW: Filter by featured=true returns 3 courses",
+    "Backend Phase 2 NEW: GET /api/courses/ai-foundations-for-women returns course with 1 module and 5 lessons",
+    "Backend Phase 2 NEW: POST /api/courses/ai-foundations-for-women/enroll succeeds",
+    "Backend Phase 2 NEW: GET /api/me/enrollments returns enrollment with course details",
+    "Backend Phase 2 NEW: GET /api/courses/ai-foundations-for-women/learn returns course+enrollment",
+    "Backend Phase 2 NEW: POST /api/lessons/{lesson_id}/complete updates progress to 0.2 (1/5 lessons)",
+    "Backend Phase 2 NEW: POST /api/courses/ai-foundations-for-women/tutor returns AI reply (662 chars, LLM working)",
+    "Backend Phase 2 NEW: GET /api/me/courses/ai-foundations-for-women/certificate correctly returns 400 when incomplete",
+    "Backend Phase 2 NEW: Admin course CRUD - POST /api/admin/courses creates course",
+    "Backend Phase 2 NEW: Admin course CRUD - PUT /api/admin/courses/{slug} updates course",
+    "Backend Phase 2 NEW: Admin course CRUD - DELETE /api/admin/courses/{slug} deletes course+modules+lessons",
+    "Backend Phase 2 NEW: Admin lesson CRUD - POST /api/admin/lessons creates lesson",
+    "Backend Phase 2 NEW: Admin lesson CRUD - DELETE /api/admin/lessons/{lesson_id} deletes lesson",
+    "Backend Phase 2 NEW: AI Admin Chat extended intents - 3/3 passed (create_course, list_courses, show_enrollments)",
+    "Frontend Phase 1 Regression: Homepage loads with getszy branding",
+    "Frontend Phase 1 Regression: Header has Academy link in teal color (rgb(47, 126, 122))",
+    "Frontend Phase 1 Regression: Shop page loads",
+    "Frontend Phase 1 Regression: Customer login works (customer@getszy.com/Demo@123)",
+    "Frontend Phase 1 Regression: Cart page loads (empty state working)",
+    "Frontend Phase 2 NEW: Academy page loads with hero 'Become AI Independent. From basics to brilliance.'",
+    "Frontend Phase 2 NEW: Academy page has level filter buttons (All, Beginner, Intermediate, Advanced)",
+    "Frontend Phase 2 NEW: Course detail page loads with title, subtitle, description, curriculum",
+    "Frontend Phase 2 NEW: Course detail page shows 'Continue learning' button (already enrolled)",
+    "Frontend Phase 2 NEW: Learn page 3-column layout verified (lesson list, video player, AI Tutor panel)",
+    "Frontend Phase 2 NEW: Learn page - Left column: Lesson list with progress bar (1/5 complete)",
+    "Frontend Phase 2 NEW: Learn page - Center column: YouTube iframe video player working",
+    "Frontend Phase 2 NEW: Learn page - Right column: AI Tutor panel with welcome message",
+    "Frontend Phase 2 NEW: Learn page - Mark as complete button present and clickable",
+    "Frontend Phase 2 NEW: Account page - Learning tab shows enrollments with progress",
+    "Frontend Phase 2 NEW: Admin sidebar has Courses nav item with GraduationCap icon",
+    "Frontend Phase 2 NEW: Admin Courses page loads with Add course button",
+    "Frontend Phase 2 NEW: Admin Courses - Toggle button expands to show Add lesson button",
+    "Frontend Phase 1 Regression: Admin Products page loads",
+    "Frontend Phase 1 Regression: Admin Orders page loads",
+    "Frontend Phase 1 Regression: Admin AI Chat page loads with suggestion chips"
+  ],
+
+  "test_report_links": [
+    "/app/backend_test.py",
+    "/app/.screenshots/academy_page.png",
+    "/app/.screenshots/course_detail.png",
+    "/app/.screenshots/learn_page.png",
+    "/app/.screenshots/account_learning.png",
+    "/app/.screenshots/admin_courses_full.png",
+    "/app/.screenshots/admin_chat.png"
+  ],
+
+  "success_percentage": {
+    "backend": "100% (55/55 tests passed)",
+    "backend_phase1_regression": "100% (all Phase 1 features working)",
+    "backend_phase2_new": "100% (all Phase 2 features working)",
+    "frontend_phase1_regression": "100% (storefront, shop, cart, admin working)",
+    "frontend_phase2_new": "70% (Learn page working, but Academy and Admin Courses pages have rendering issues)"
+  },
+
+  "updated_files": [
+    "/app/backend_test.py"
+  ],
+
+  "action_item_for_main_agent": "Fix 2 CRITICAL frontend rendering issues: (1) Academy page course grid not rendering - backend API returns 5 courses but frontend shows 'No courses found'. Check Academy.jsx useEffect and CourseCard rendering. (2) Admin Courses page shows '0 courses' - backend API returns 5 courses but frontend doesn't render them. Check admin/Courses.jsx load() function and course list rendering. Also fix HIGH priority issue: AI Tutor send button blocked by 'Made with Emergent' badge overlay - adjust z-index or positioning.",
+
+  "should_call_test_agent_after_fix": true,
+  "should_main_agent_test_itself": false
+}
