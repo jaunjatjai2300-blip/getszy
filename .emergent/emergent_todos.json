@@ -1,22 +1,22 @@
 [
   {
-    "content": "Backend: subscription model + plan gating + studio quota",
-    "status": "in_progress"
+    "content": "Backend subscription + gating",
+    "status": "completed"
   },
   {
-    "content": "Backend: hide AI provider branding (sanitize public endpoints) + clear YouTube URLs migration",
-    "status": "pending"
+    "content": "Backend AI provider sanitization + video migration",
+    "status": "completed"
   },
   {
-    "content": "Frontend: /pricing page + getszy video placeholder + Account subscription tab",
-    "status": "pending"
+    "content": "Frontend /pricing + VideoPlaceholder + Account subscription tab",
+    "status": "completed"
   },
   {
-    "content": "Frontend: gate Advanced courses + Studio + show plan badge in header",
-    "status": "pending"
+    "content": "Frontend gate Advanced + Studio + plan badge",
+    "status": "completed"
   },
   {
-    "content": "Test end-to-end + deploy",
-    "status": "pending"
+    "content": "Test end-to-end",
+    "status": "completed"
   }
 ]
