@@ -2,11 +2,12 @@
 
 ## 1) Objectives
 - Deliver a production-ready **women-first commerce platform** (physical + digital products) with **dropshipping ops**.
-- Provide a **Natural-Language “AI Admin Chat”** (talk-to-manage) that safely executes admin actions (already shipped in Phase 1).
-- Build the next major growth module: **AI Learning Academy for women** with an **AI Tutor**.
-- Introduce a **provider-agnostic LLM layer** so the whole platform can switch from **Emergent LLM → VPS Ollama** by flipping environment variables (no code rewrite).
-- Prepare foundations for monetization modules: **AI Studio (fal.ai + subscriptions)** and **ECC-style Talk-to-Build** multi-agent code generation.
-- Ensure clean ops: secrets in env only, seed data, audit logs, and full end-to-end testing.
+- Provide a Natural-Language **“AI Admin Chat”** (talk-to-manage) that safely executes admin actions.
+- Provide an **AI Learning Academy for women** (courses + progress + certificate) with a context-aware **AI Tutor**.
+- Run AI on the user’s own infrastructure: **provider-agnostic LLM layer** with **VPS Ollama** as the primary runtime (free, CPU-only).
+- Build the next growth engine: **Talk-to-Build Studio** (ECC-inspired) — natural language → AI multi-agent pipeline → website/app artifacts.
+- Prepare monetization foundations (later): **Razorpay subscriptions + credit limits**, and then **fal.ai media studio** (image/video/voice) when the user is ready.
+- Maintain clean ops: secrets in env only, seed data, audit logs, deployment docs, and full end-to-end testing at each phase.
 
 ---
 
@@ -16,9 +17,9 @@
 **Goal achieved:** Natural-language admin commands reliably mapped to safe structured actions.
 
 Completed:
-1. Built strict JSON intent schema + safety rules.
+1. Strict JSON intent schema + safety rules.
 2. Validated tool outputs and refusal/clarification behavior.
-3. Confirmed intent parsing is stable.
+3. Confirmed intent parsing stability.
 
 Exit criteria met:
 - POC succeeded consistently.
@@ -31,205 +32,174 @@ Exit criteria met:
 Delivered:
 - Storefront pages: Home, Shop, Category, Product Detail, Cart, Checkout (COD UI), Login/Signup, Account (orders)
 - Admin: Dashboard KPIs + charts, Products CRUD, Orders CRUD (status + tracking), Suppliers CRUD, Customers list
-- **AI Admin Chat (Hero Feature):** Executes real DB actions; shows result cards; sessions + history
+- **AI Admin Chat (Hero Feature):** Executes DB actions; sessions + history; result cards
 - Seed data: categories, suppliers, demo products, admin + customer
 - **testing_agent_v3:** 100% pass
 
 Notes:
-- Payments not integrated yet (planned for later).
+- Payments not integrated yet.
 
 ---
 
-### Phase 3 — Hardening + Dropshipping Workflow Upgrades ✅ **MERGED INTO PHASE 1/2 (DONE)**
-Status update:
-- Core dropshipping fields (supplier, cost_price, profit) are already implemented in V1.
-- Order lifecycle states exist (pending/forwarded/shipped/delivered/cancelled).
+### Phase 3 — AI Learning Academy + LLM Provider Abstraction ✅ **COMPLETED**
+**Goal achieved:** Academy shipped end-to-end and LLM runtime abstracted.
 
-Remaining hardening tasks (will be folded into later phases as needed):
-1. Stronger AI action confirmations for destructive actions.
-2. Expanded audit views (admin activity log UI).
+Delivered:
+- `/academy` catalog + filters
+- `/academy/:slug` course detail + curriculum
+- `/academy/:slug/learn` learning UI (lesson list + video + AI tutor)
+- Progress tracking + certificate JSON payload
+- Account “Learning” tab
+- Admin Courses manager `/admin/courses` (course CRUD + lesson CRUD)
+- AI Admin Chat extended intents (create_course, list_courses, show_enrollments)
 
----
-
-### Phase 4 — **AI Learning Academy + LLM Provider Abstraction** ⭐ **CURRENT PHASE (Start now)**
-**Goal:** Build the AI Learning Academy for women and make LLM usage provider-agnostic so we can swap **Emergent → VPS Ollama** with env vars.
-
-#### Context updates
-- User VPS is upgraded: **8 vCPU, 32GB RAM, 400GB NVMe, AlmaLinux 9**, **no GPU**.
-- fal.ai key will be provided later; proceed without it.
-- ECC inspiration confirmed for later multi-agent system.
-
-### Phase 4A — LLM Provider Layer (Backend)
-1. Add `llm_provider.py` abstraction with two backends:
-   - `LLM_PROVIDER=emergent` (default now): uses `emergentintegrations` (`gpt-4o-mini`).
-   - `LLM_PROVIDER=ollama` (future): uses HTTP calls to Ollama.
-2. Env vars:
-   - `LLM_PROVIDER=emergent|ollama`
-   - `OLLAMA_BASE_URL=http://localhost:11434`
-   - `OLLAMA_MODEL=qwen2.5:7b`
-3. Refactor existing `ai_chat.py` to call the abstraction function (no behavior change expected).
-
-**Exit criteria:**
-- AI Admin Chat works exactly as before with `LLM_PROVIDER=emergent`.
-
-### Phase 4B — Learning Academy Data Models + APIs (Backend)
-Add a new module `routes_learning.py` + collections:
-- `Course`: title, slug, level (Beginner/Intermediate/Advanced), description, outcomes, prerequisites, total_duration, thumbnail
-- `Module`: course_slug, title, order
-- `Lesson`: module_id, title, description, video_url, duration_min, order, resources
-- `Enrollment`: user_id, course_slug, enrolled_at
-- `LessonProgress`: user_id, lesson_id, completed_at
-- `TutorMessage`: session_id, user_id, course_slug, lesson_id (optional), role, text, created_at
-
-Endpoints:
-- Public:
-  - `GET /api/courses`
-  - `GET /api/courses/{slug}`
-- Auth (customer):
-  - `POST /api/courses/{slug}/enroll` (free for Phase 4)
-  - `GET /api/me/enrollments`
-  - `GET /api/courses/{slug}/learn` (returns modules/lessons + progress)
-  - `POST /api/lessons/{lesson_id}/complete`
-  - `POST /api/courses/{slug}/tutor` (context-aware tutor)
-  - `GET /api/me/courses/{slug}/certificate` (JSON certificate payload)
-- Admin:
-  - `POST/PUT/DELETE /api/admin/courses`
-  - `POST/PUT/DELETE /api/admin/modules`
-  - `POST/PUT/DELETE /api/admin/lessons`
-
-AI Tutor behavior:
-- Uses provider layer (`LLM_PROVIDER`) + course/lesson context in system prompt.
-- Simple RAG-lite initially: include course outcomes + current lesson summary in prompt.
-- Upgrade to real vector RAG in later iteration if needed.
-
-### Phase 4C — Seed Academy Content
-Seed 4 courses tailored for women (basic → advanced):
-1. **AI Foundations for Women** (Beginner, 5 lessons)
-2. **ChatGPT & Prompting Mastery** (Intermediate, 6 lessons)
-3. **Build Income with AI — No Code** (Practical, 7 lessons)
-4. **Become AI Independent — Career Path** (Advanced, 8 lessons)
-
-Each lesson includes:
-- Title, 2–4 line description, YouTube embed URL (placeholder/royalty-safe), duration, order
-
-### Phase 4D — Frontend Learning Academy
-New routes/pages:
-- `/academy` (catalog)
-- `/academy/:slug` (course detail)
-- `/academy/:slug/learn` (learning UI: lesson list + video + AI Tutor)
-
-UI requirements:
-- Progress bar (X/Y lessons)
-- Lesson lock/unlock based on enrollment
-- Mark Complete button updates progress
-- Certificate view available at 100%
-
-Account updates:
-- Add a **Learning** tab: enrolled courses + progress
-
-Admin updates:
-- Add `/admin/courses` UI: create/edit courses, modules, lessons
-
-Navigation updates:
-- Header: add **Academy** link
-- Home: add section for **AI Learning Academy**
-
-### Phase 4E — Extend AI Admin Chat with Learning Intents
-Add intents (admin-only):
-- `create_course`
-- `add_lesson_to_course`
-- `list_courses`
-- `show_enrollments`
-
-### Phase 4 Testing
-- Run `testing_agent_v3` for:
-  - Browse academy → enroll → learn → tutor chat → complete lessons → certificate
-  - Admin courses CRUD + admin chat intents
-
-**Phase 4 Exit criteria:**
-- Academy works end-to-end, tutor responds, progress persists, certificate available.
-- AI Admin Chat uses provider layer and remains stable.
-
----
-
-### Phase 5 — AI Studio (fal.ai) + Subscriptions (Razorpay) ⏳ **NEXT (Waiting for fal.ai key)**
-**Trigger to start:** user provides `FAL_KEY` + (optionally) Razorpay test keys.
-
-Planned:
-1. fal.ai integration endpoints:
-   - Image: Flux
-   - Video: Kling/Veo/Luma (short clips)
-   - Voice: ElevenLabs (via fal.ai)
-2. Credit-based subscription tiers:
-   - Starter ₹499, Pro ₹1499, Studio ₹3999, Cinematic ₹9999
-3. Razorpay payments + webhooks
-4. Usage metering + spend caps + admin cost dashboard
+LLM provider layer:
+- Added `llm_provider.py` with env-driven provider swap:
+  - `LLM_PROVIDER=emergent` (initial)
+  - `LLM_PROVIDER=ollama` (VPS)
 
 Testing:
-- Subscribe (test mode) → generate → credit decrement → gallery/history
+- Backend: 55/55 passed in staging.
+- Frontend: verified working.
 
 ---
 
-### Phase 6 — Talk-to-Build App Generator + ECC-Style Multi-Agent Team ⏳
-**Goal:** natural-language → multi-agent pipeline generates working apps.
+### Phase 3B — Production Deployment to getszy.com + VPS Ollama ✅ **COMPLETED**
+**Goal achieved:** Live production deployment on user VPS with SSL, Docker, and Ollama.
 
-Design:
-- Agents: Planner → Coder → Reviewer → Tester → Deployer
-- Default models on VPS Ollama (CPU):
-  - `qwen2.5-coder:7b` (coding)
-  - `qwen2.5:7b` or `llama3.1:8b` (planning/review)
-- Outputs:
-  - Project templates (React/FastAPI)
-  - ZIP download
-  - Optional GitHub push
-  - Live preview
+Delivered:
+- Domain live: **https://getszy.com**
+- Docker stack: MongoDB + FastAPI backend + React frontend + Caddy SSL proxy
+- VPS bootstrap script + compose files added
+- Fixed deployment issues:
+  - Private repo access (made public for deploy)
+  - `.env.example` omitted by GitHub sync → created `.env` manually
+  - `yarn.lock` missing → patched Dockerfile.frontend to not require it
+  - `emergentintegrations` install in Docker → added `--extra-index-url`
+  - Ollama binding issue (127.0.0.1) → set `OLLAMA_HOST=0.0.0.0:11434`
 
----
-
-### Phase 7 — Master Multi-Agent Dashboard ⏳
-- Job queue, real-time logs, agent status
-- Output previews, retry, rollback
-- Auditing and cost tracking
+Current runtime:
+- `LLM_PROVIDER=ollama`
+- `OLLAMA_MODEL=qwen2.5:7b`
+- AI Admin Chat and AI Tutor working on VPS (free).
 
 ---
 
-### Phase 8 — Deployment to User VPS (getszy.com) ⏳
-**Target VPS:** AlmaLinux 9, 8 vCPU, 32GB RAM, no GPU.
+### Phase 4 — TALK-TO-BUILD Studio (ECC-style Multi-Agent Website Generator) ⭐ **CURRENT PHASE**
+**Goal:** Logged-in user describes a website in natural language → AI multi-agent pipeline generates a **single-page website** (one HTML file) → **live preview iframe**, iterative refinements, ZIP download, project history.
 
-Deployment stack:
-1. Docker + Docker Compose
-2. Containers:
-   - Frontend (Nginx static)
-   - Backend (uvicorn)
-   - MongoDB
-   - (Optional) Ollama service on host or container
-3. Nginx reverse proxy + Let’s Encrypt SSL
-4. Domain/DNS: `getszy.com` → VPS IP
-5. GitHub push to `jaunjatjai2300-blip/getszy`
+#### Context updates
+- Production is live at **https://getszy.com**.
+- VPS: **8 vCPU, 32GB RAM, 400GB NVMe, AlmaLinux 9**, **no GPU**.
+- Ollama is live and reachable from Docker.
+- fal.ai will be integrated **last** (user needs time for cost/pricing clarity).
 
-LLM swap final:
-- Set:
-  - `LLM_PROVIDER=ollama`
-  - `OLLAMA_BASE_URL=http://localhost:11434`
-  - `OLLAMA_MODEL=qwen2.5:7b`
+#### Realistic Scope (CPU-only)
+- Use **single-file HTML** with inline Tailwind (CDN) + minimal JS for speed.
+- Multi-agent UX (Planner → Coder → Reviewer) simulated as stages (all via `chat_completion`).
+- Generation timeout: ~5 minutes max.
+- Refinement: follow-up prompt passes previous HTML + change request (diff-style guidance).
+- Full-stack React/FastAPI generators deferred to later (needs heavier models / more time).
 
-**VPS capability notes:**
-- Can run: `llama3.1:8b`, `qwen2.5:7b`, `qwen2.5-coder:7b` (CPU inference)
-- Cannot run: image/video/voice generation (no GPU) → keep fal.ai
+### Phase 4A — Backend: Builder Models + APIs
+Add `routes_builder.py` + Mongo collections:
+- `BuilderProject`:
+  - `id`, `user_id`, `name`, `prompt`
+  - `html_content`
+  - `history[]` (timestamp, prompt, html_snapshot)
+  - `created_at`, `updated_at`
+
+Endpoints (auth required):
+- `POST /api/builder/projects` → create project and generate HTML
+- `GET /api/builder/projects` → list user projects
+- `GET /api/builder/projects/{id}` → fetch project + history
+- `POST /api/builder/projects/{id}/refine` → refine current HTML
+- `DELETE /api/builder/projects/{id}`
+- `GET /api/builder/projects/{id}/download` → ZIP with `index.html`
+- `GET /api/builder/projects/{id}/preview` → raw HTML for iframe
+
+LLM usage:
+- Uses `chat_completion()` from `llm_provider.py` (currently Ollama qwen2.5:7b).
+
+Safety:
+- Sanitize output (no secrets).
+- Add guardrails: disallow malicious JS, external POST beacons.
+- Ensure preview endpoint sets safe headers; iframe uses sandbox.
+
+### Phase 4B — Frontend: /studio Talk-to-Build UI
+New route/pages:
+- `/studio`
+
+UI layout (responsive):
+- Left sidebar: project list + “New project”
+- Middle: chat prompt + stage progress UI (Planning → Coding → Reviewing)
+- Right: Live preview iframe + toggle Code/Preview
+
+Core actions:
+- Prompt suggestions (portfolio, restaurant, AI tool landing)
+- Create project → show build stages → render result in preview
+- Refinement chat → updates preview
+- Download ZIP button
+- Delete project
+
+Navigation:
+- Header: add **Studio** link
+
+### Phase 4 Testing
+- `testing_agent_v3`:
+  - Login → open /studio → generate site → refine → download zip → multiple projects
+  - Regression: Phase 1–3 features still work (storefront, admin, academy)
+
+**Phase 4 Exit criteria:**
+- User can build/refine/download multiple single-page sites reliably.
+- Preview is safe (sandboxed) and fast enough for CPU.
+- No regressions.
+
+---
+
+### Phase 5 — Multi-Agent Job Dashboard (visual orchestration UI) ⏳ **NEXT**
+- Job queue for long-running generations
+- Real-time stage logs and retries
+- Audit trail for admin + builder operations
+
+---
+
+### Phase 6 — Razorpay Subscriptions + Credit System (Gating) ⏳
+**Goal:** Monetize builder and future AI studio with plans + quotas.
+- Razorpay integration + webhooks
+- Plans (draft): Starter/Pro/Studio/Cinematic
+- Credit ledger + usage caps
+- Admin finance dashboard: revenue vs infra cost
+
+---
+
+### Phase 7 — fal.ai AI Studio (Image/Video/Voice) ⏳ **LAST**
+**Trigger to start:** user provides `FAL_KEY` + decided pricing/credits.
+
+Planned:
+- fal.ai generation endpoints (image/video/voice/music)
+- Credit decrement per generation
+- Gallery/history + downloads
+- Spend caps + abuse prevention
+
+Testing:
+- Subscribe → generate → credits decrement → history
 
 ---
 
 ## 3) Next Actions (Immediate)
-1. Start **Phase 4A**: implement LLM provider abstraction + refactor AI Admin Chat to use it.
-2. Start **Phase 4B–4D**: build Learning Academy backend + frontend.
-3. Seed 4 courses + lesson content.
+1. Start **Phase 4A**: implement `routes_builder.py` + BuilderProject model + preview/download endpoints.
+2. Start **Phase 4B**: build `/studio` UI with projects sidebar + chat + iframe preview.
+3. Add stage-based multi-agent prompting (planner/coder/reviewer) using `chat_completion`.
 4. Run `testing_agent_v3` and fix until green.
-5. In parallel (when user ready): collect fal.ai key for Phase 5.
+5. After Phase 4 stable: proceed Phase 5 (job dashboard) → Phase 6 (Razorpay) → Phase 7 (fal.ai).
 
 ---
 
 ## 4) Success Criteria
 - Phase 1–2: ✅ Done — stable V1 commerce + admin + AI Admin Chat.
-- Phase 4: Academy shipped with AI Tutor; progress + certificate works; LLM provider can be swapped by env vars.
-- Phase 5: fal.ai studio monetization works with spend caps + credit accounting.
-- Phase 8: Production deployment to **getszy.com** with SSL, stable uptime, and secrets safe.
+- Phase 3: ✅ Done — Academy shipped; provider layer shipped.
+- Phase 3B: ✅ Done — Production deploy on **https://getszy.com** with SSL + Docker + Ollama.
+- Phase 4: Talk-to-Build Studio shipped (generate/refine/preview/download; multi-project; safe iframe).
+- Phase 6: Subscriptions + credits gate usage safely.
+- Phase 7: fal.ai AI Studio integrated last with spend caps and profitable pricing.

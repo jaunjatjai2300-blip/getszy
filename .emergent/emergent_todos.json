@@ -1,30 +1,18 @@
 [
   {
-    "content": "Phase 2: LLM provider abstraction",
-    "status": "completed"
+    "content": "Phase 4: Backend - BuilderProject model + routes_builder.py + generation logic",
+    "status": "in_progress"
   },
   {
-    "content": "Phase 2: Backend - Courses, Enrollments, AI Tutor",
-    "status": "completed"
+    "content": "Phase 4: Frontend - /studio page with chat + preview + project sidebar",
+    "status": "pending"
   },
   {
-    "content": "Phase 2: Frontend - Academy, course detail, learn UI with AI Tutor",
-    "status": "completed"
+    "content": "Phase 4: Add Studio nav link in Header",
+    "status": "pending"
   },
   {
-    "content": "Phase 2: Admin - course management + new AI chat intents",
-    "status": "completed"
-  },
-  {
-    "content": "Phase 2: Seed sample AI courses",
-    "status": "completed"
-  },
-  {
-    "content": "Phase 2: Test end-to-end + fix bugs",
-    "status": "completed"
-  },
-  {
-    "content": "Phase 2: Deliver",
-    "status": "completed"
+    "content": "Phase 4: Test end-to-end + fix bugs",
+    "status": "pending"
   }
 ]

@@ -12,6 +12,7 @@ import Account from "@/pages/Account";
 import Academy from "@/pages/Academy";
 import CourseDetail from "@/pages/CourseDetail";
 import Learn from "@/pages/Learn";
+import Studio from "@/pages/Studio";
 import AdminLayout from "@/components/AdminLayout";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminProducts from "@/pages/admin/Products";
@@ -43,6 +44,7 @@ export default function App() {
           </Route>
           <Route element={<LearnLayout />}>
             <Route path="/academy/:slug/learn" element={<Learn />} />
+            <Route path="/studio" element={<Studio />} />
           </Route>
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboard />} />

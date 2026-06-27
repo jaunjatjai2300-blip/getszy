@@ -14,6 +14,7 @@ from routes_catalog import router as catalog_router
 from routes_cart_orders import router as cart_router
 from routes_admin import router as admin_router
 from routes_learning import router as learning_router
+from routes_builder import router as builder_router
 from llm_provider import provider_info
 
 app = FastAPI(title='getszy API')
@@ -39,6 +40,7 @@ api_router.include_router(catalog_router)
 api_router.include_router(cart_router)
 api_router.include_router(admin_router)
 api_router.include_router(learning_router)
+api_router.include_router(builder_router)
 
 app.include_router(api_router)
 

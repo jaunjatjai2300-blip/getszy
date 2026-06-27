@@ -19,6 +19,7 @@ class GetszyAPITester:
         self.test_product_id = None
         self.test_order_id = None
         self.test_supplier_id = None
+        self.test_project_id = None  # For Phase 4 builder tests
         
     def log(self, emoji, message):
         print(f"{emoji} {message}")
@@ -835,10 +836,364 @@ class GetszyAPITester:
         self.log("📊", f"\n=== AI CHAT EXTENDED RESULTS: {passed}/3 commands passed ===")
         return passed >= 2  # At least 2/3 should pass
     
+    def test_builder_create_project(self):
+        """Test builder project creation (Phase 4)"""
+        self.log("✨", "=== TESTING BUILDER - CREATE PROJECT (PHASE 4) ===")
+        
+        if not self.customer_token:
+            self.log("❌", "Customer token not available")
+            return False
+        
+        # Test without auth - should return 401
+        success, _ = self.test("Create Project WITHOUT Auth", "POST", "builder/projects", 401,
+                              data={"prompt": "Build a simple coming soon page"})
+        if success:
+            self.log("✅", "Correctly returns 401 without auth")
+        
+        # Test with empty prompt - should return 400
+        success, _ = self.test("Create Project with Empty Prompt", "POST", "builder/projects", 400,
+                              data={"prompt": ""},
+                              token=self.customer_token)
+        if success:
+            self.log("✅", "Correctly returns 400 for empty prompt")
+        
+        # Create project with valid prompt (may take 10-30 seconds with Emergent)
+        self.log("⏳", "Creating project (may take 10-30 seconds for LLM generation)...")
+        url = f"{self.base_url}/builder/projects"
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {self.customer_token}'
+        }
+        
+        self.tests_run += 1
+        try:
+            response = requests.post(
+                url,
+                json={"prompt": "Build a simple coming soon page with a centered logo, big tagline, and email signup"},
+                headers=headers,
+                timeout=120  # 2 min timeout for LLM generation
+            )
+            
+            if response.status_code == 200:
+                self.tests_passed += 1
+                project = response.json()
+                
+                # Validate response structure
+                project_id = project.get('id')
+                name = project.get('name')
+                html_content = project.get('html_content', '')
+                history = project.get('history', [])
+                
+                self.log("✅", f"Project created - ID: {project_id}, Name: {name}")
+                
+                # Check HTML content
+                html_lower = html_content.lower()
+                if html_lower.startswith('<!doctype html') and html_lower.endswith('</html>'):
+                    self.log("✅", "HTML starts with <!DOCTYPE html and ends with </html>")
+                else:
+                    self.log("❌", f"HTML format issue - starts: {html_content[:20]}, ends: {html_content[-20:]}")
+                
+                if len(html_content) > 500:
+                    self.log("✅", f"HTML content length: {len(html_content)} chars (>500)")
+                else:
+                    self.log("❌", f"HTML content too short: {len(html_content)} chars")
+                
+                # Check history
+                if len(history) == 2:
+                    self.log("✅", f"History has 2 items as expected")
+                else:
+                    self.log("❌", f"History has {len(history)} items, expected 2")
+                
+                # Store project ID for later tests
+                self.test_project_id = project_id
+                return True
+            else:
+                self.log("❌", f"Project creation failed - Status: {response.status_code}")
+                self.log("📄", f"Response: {response.text[:200]}")
+        except Exception as e:
+            self.log("❌", f"Project creation error: {str(e)}")
+        
+        return False
+    
+    def test_builder_list_projects(self):
+        """Test builder list projects (Phase 4)"""
+        self.log("📋", "=== TESTING BUILDER - LIST PROJECTS (PHASE 4) ===")
+        
+        if not self.customer_token:
+            self.log("❌", "Customer token not available")
+            return False
+        
+        success, projects = self.test("Get Projects List", "GET", "builder/projects", 200,
+                                     token=self.customer_token)
+        if success:
+            self.log("📊", f"Found {len(projects)} projects")
+            
+            # Check that html_content and history are excluded from list
+            if projects:
+                first_project = projects[0]
+                if 'html_content' not in first_project and 'history' not in first_project:
+                    self.log("✅", "html_content and history correctly excluded from list")
+                else:
+                    self.log("❌", "html_content or history should not be in list response")
+                
+                # Check required fields
+                if 'name' in first_project and 'prompt' in first_project:
+                    self.log("✅", "List contains name and prompt fields")
+                    return True
+        return False
+    
+    def test_builder_get_project(self):
+        """Test builder get single project (Phase 4)"""
+        self.log("🔍", "=== TESTING BUILDER - GET SINGLE PROJECT (PHASE 4) ===")
+        
+        if not self.customer_token or not hasattr(self, 'test_project_id'):
+            self.log("❌", "Customer token or project ID not available")
+            return False
+        
+        success, project = self.test("Get Single Project", "GET", 
+                                    f"builder/projects/{self.test_project_id}", 200,
+                                    token=self.customer_token)
+        if success:
+            # Check that html_content is included
+            if 'html_content' in project:
+                self.log("✅", f"html_content included (length: {len(project['html_content'])} chars)")
+            else:
+                self.log("❌", "html_content missing from single project response")
+            
+            if 'history' in project:
+                self.log("✅", f"history included ({len(project['history'])} items)")
+                return True
+            else:
+                self.log("❌", "history missing from single project response")
+        return False
+    
+    def test_builder_refine_project(self):
+        """Test builder refine project (Phase 4)"""
+        self.log("🔧", "=== TESTING BUILDER - REFINE PROJECT (PHASE 4) ===")
+        
+        if not self.customer_token or not hasattr(self, 'test_project_id'):
+            self.log("❌", "Customer token or project ID not available")
+            return False
+        
+        self.log("⏳", "Refining project (may take 10-30 seconds for LLM generation)...")
+        url = f"{self.base_url}/builder/projects/{self.test_project_id}/refine"
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {self.customer_token}'
+        }
+        
+        self.tests_run += 1
+        try:
+            response = requests.post(
+                url,
+                json={"prompt": "Add a dark mode toggle"},
+                headers=headers,
+                timeout=120  # 2 min timeout for LLM generation
+            )
+            
+            if response.status_code == 200:
+                self.tests_passed += 1
+                project = response.json()
+                
+                html_content = project.get('html_content', '')
+                history = project.get('history', [])
+                
+                self.log("✅", f"Project refined - HTML length: {len(html_content)} chars")
+                
+                # Check history grew to 4 items (2 initial + 2 refinement)
+                if len(history) == 4:
+                    self.log("✅", f"History has 4 items as expected (2 initial + 2 refinement)")
+                else:
+                    self.log("⚠️", f"History has {len(history)} items, expected 4")
+                
+                return True
+            else:
+                self.log("❌", f"Refinement failed - Status: {response.status_code}")
+        except Exception as e:
+            self.log("❌", f"Refinement error: {str(e)}")
+        
+        return False
+    
+    def test_builder_download(self):
+        """Test builder download project (Phase 4)"""
+        self.log("💾", "=== TESTING BUILDER - DOWNLOAD PROJECT (PHASE 4) ===")
+        
+        if not self.customer_token or not hasattr(self, 'test_project_id'):
+            self.log("❌", "Customer token or project ID not available")
+            return False
+        
+        url = f"{self.base_url}/builder/projects/{self.test_project_id}/download"
+        headers = {'Authorization': f'Bearer {self.customer_token}'}
+        
+        self.tests_run += 1
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                self.tests_passed += 1
+                
+                # Check Content-Type
+                content_type = response.headers.get('Content-Type', '')
+                if 'application/zip' in content_type:
+                    self.log("✅", f"Content-Type is application/zip")
+                else:
+                    self.log("❌", f"Content-Type is {content_type}, expected application/zip")
+                
+                # Check Content-Disposition
+                content_disp = response.headers.get('Content-Disposition', '')
+                if 'attachment' in content_disp and 'filename=' in content_disp:
+                    self.log("✅", f"Content-Disposition: {content_disp}")
+                else:
+                    self.log("❌", f"Content-Disposition missing or invalid: {content_disp}")
+                
+                # Check zip content
+                import zipfile
+                import io
+                try:
+                    zip_buffer = io.BytesIO(response.content)
+                    with zipfile.ZipFile(zip_buffer, 'r') as z:
+                        files = z.namelist()
+                        if 'index.html' in files and 'README.md' in files:
+                            self.log("✅", f"ZIP contains index.html and README.md")
+                            
+                            # Check index.html content
+                            html_content = z.read('index.html').decode('utf-8')
+                            if len(html_content) > 500:
+                                self.log("✅", f"index.html has content ({len(html_content)} chars)")
+                                return True
+                        else:
+                            self.log("❌", f"ZIP files: {files}, expected index.html and README.md")
+                except Exception as e:
+                    self.log("❌", f"ZIP validation error: {str(e)}")
+            else:
+                self.log("❌", f"Download failed - Status: {response.status_code}")
+        except Exception as e:
+            self.log("❌", f"Download error: {str(e)}")
+        
+        return False
+    
+    def test_builder_preview(self):
+        """Test builder preview project (no auth) (Phase 4)"""
+        self.log("👁️", "=== TESTING BUILDER - PREVIEW PROJECT (NO AUTH) (PHASE 4) ===")
+        
+        if not hasattr(self, 'test_project_id'):
+            self.log("❌", "Project ID not available")
+            return False
+        
+        url = f"{self.base_url}/builder/projects/{self.test_project_id}/preview"
+        
+        self.tests_run += 1
+        try:
+            # No auth header
+            response = requests.get(url, timeout=10)
+            
+            if response.status_code == 200:
+                self.tests_passed += 1
+                
+                # Check Content-Type
+                content_type = response.headers.get('Content-Type', '')
+                if 'text/html' in content_type:
+                    self.log("✅", f"Content-Type is text/html")
+                else:
+                    self.log("⚠️", f"Content-Type is {content_type}")
+                
+                # Check HTML content
+                html_content = response.text
+                if html_content.lower().startswith('<!doctype html'):
+                    self.log("✅", f"Preview returns HTML content ({len(html_content)} chars)")
+                    return True
+                else:
+                    self.log("❌", "Preview content doesn't start with <!DOCTYPE html")
+            else:
+                self.log("❌", f"Preview failed - Status: {response.status_code}")
+        except Exception as e:
+            self.log("❌", f"Preview error: {str(e)}")
+        
+        return False
+    
+    def test_builder_user_isolation(self):
+        """Test builder user isolation (Phase 4)"""
+        self.log("🔒", "=== TESTING BUILDER - USER ISOLATION (PHASE 4) ===")
+        
+        if not hasattr(self, 'test_project_id'):
+            self.log("❌", "Project ID not available")
+            return False
+        
+        # Create a new test user
+        timestamp = datetime.now().strftime("%H%M%S")
+        email = f"testuser{timestamp}@getszy.com"
+        
+        success, data = self.test("Signup New Test User", "POST", "auth/signup", 200,
+                                 data={
+                                     "name": f"Test User {timestamp}",
+                                     "email": email,
+                                     "password": "Test@123"
+                                 })
+        if not success or not data.get('token'):
+            self.log("❌", "Failed to create test user")
+            return False
+        
+        other_user_token = data['token']
+        self.log("✅", f"Created test user: {email}")
+        
+        # Try to access project created by customer with different user token
+        success, _ = self.test("Get Project as Different User (should 404)", "GET",
+                              f"builder/projects/{self.test_project_id}", 404,
+                              token=other_user_token)
+        if success:
+            self.log("✅", "User isolation working - returns 404 for other user's project")
+        
+        # Try to refine project as different user
+        success, _ = self.test("Refine Project as Different User (should 404)", "POST",
+                              f"builder/projects/{self.test_project_id}/refine", 404,
+                              data={"prompt": "Make it blue"},
+                              token=other_user_token)
+        if success:
+            self.log("✅", "User isolation working - refine returns 404 for other user")
+        
+        # Try to delete project as different user
+        success, _ = self.test("Delete Project as Different User (should 404)", "DELETE",
+                              f"builder/projects/{self.test_project_id}", 200,
+                              token=other_user_token)
+        if success:
+            # Check if deleted_count is 0
+            self.log("✅", "User isolation working - delete returns 0 for other user")
+            return True
+        
+        return False
+    
+    def test_builder_delete_project(self):
+        """Test builder delete project (Phase 4)"""
+        self.log("🗑️", "=== TESTING BUILDER - DELETE PROJECT (PHASE 4) ===")
+        
+        if not self.customer_token or not hasattr(self, 'test_project_id'):
+            self.log("❌", "Customer token or project ID not available")
+            return False
+        
+        success, result = self.test("Delete Project", "DELETE",
+                                   f"builder/projects/{self.test_project_id}", 200,
+                                   token=self.customer_token)
+        if success:
+            deleted_count = result.get('deleted', 0)
+            if deleted_count == 1:
+                self.log("✅", f"Project deleted successfully (deleted: {deleted_count})")
+            else:
+                self.log("⚠️", f"Deleted count: {deleted_count}")
+        
+        # Verify project is gone
+        success, _ = self.test("Get Deleted Project (should 404)", "GET",
+                              f"builder/projects/{self.test_project_id}", 404,
+                              token=self.customer_token)
+        if success:
+            self.log("✅", "Deleted project correctly returns 404")
+            return True
+        
+        return False
+    
     def run_all_tests(self):
-        """Run all backend tests - Phase 1 + Phase 2"""
+        """Run all backend tests - Phase 1 + Phase 2 + Phase 4"""
         self.log("🚀", "=" * 60)
-        self.log("🚀", "STARTING GETSZY BACKEND API TESTS - PHASE 2")
+        self.log("🚀", "STARTING GETSZY BACKEND API TESTS - PHASE 4")
         self.log("🚀", "=" * 60)
         
         # ===== PHASE 1 REGRESSION TESTS =====
@@ -864,8 +1219,8 @@ class GetszyAPITester:
         # HERO FEATURE - AI Admin Chat (Phase 1 intents)
         self.test_ai_admin_chat()
         
-        # ===== PHASE 2 NEW FEATURES =====
-        self.log("🆕", "\n=== PHASE 2 NEW FEATURES - LEARNING ACADEMY ===")
+        # ===== PHASE 2 REGRESSION TESTS =====
+        self.log("🔄", "\n=== PHASE 2 REGRESSION TESTS - LEARNING ACADEMY ===")
         self.test_courses_catalog()
         self.test_enrollment_flow()
         self.test_ai_tutor()
@@ -873,6 +1228,17 @@ class GetszyAPITester:
         self.test_admin_courses_crud()
         self.test_admin_lessons_crud()
         self.test_ai_admin_chat_extended()
+        
+        # ===== PHASE 4 NEW FEATURES =====
+        self.log("🆕", "\n=== PHASE 4 NEW FEATURES - TALK-TO-BUILD STUDIO ===")
+        self.test_builder_create_project()
+        self.test_builder_list_projects()
+        self.test_builder_get_project()
+        self.test_builder_refine_project()
+        self.test_builder_download()
+        self.test_builder_preview()
+        self.test_builder_user_isolation()
+        self.test_builder_delete_project()
         
         # Final results
         self.log("🏁", "=" * 60)

@@ -53,6 +53,7 @@ export function Header() {
             <Link key={c.slug} to={`/category/${c.slug}`} className="hover:text-[var(--gs-primary-2)]">{c.name}</Link>
           ))}
           <Link to="/academy" className="hover:text-[var(--gs-teal)] font-semibold text-[var(--gs-teal)]" data-testid="header-academy-link">Academy</Link>
+          <Link to="/studio" className="hover:text-[var(--gs-primary-2)] font-semibold text-[var(--gs-primary-2)] flex items-center gap-1" data-testid="header-studio-link">✨ Studio</Link>
         </nav>
 
         <form onSubmit={submitSearch} className="flex-1 hidden md:flex justify-center max-w-md ml-4">

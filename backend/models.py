@@ -251,3 +251,32 @@ class LessonIn(BaseModel):
     duration_min: int = 10
     order: int = 0
     resources: List[Dict[str, str]] = []
+
+
+
+# ===== Talk-to-Build Studio =====
+class BuilderProjectIn(BaseModel):
+    prompt: str
+    name: Optional[str] = None
+
+
+class BuilderRefineIn(BaseModel):
+    prompt: str
+
+
+class BuilderHistoryItem(BaseModel):
+    timestamp: str
+    prompt: str
+    role: str = 'user'  # user | assistant
+    snapshot: Optional[str] = None  # html
+
+
+class BuilderProject(BaseModel):
+    id: str = Field(default_factory=_id)
+    user_id: str
+    name: str
+    prompt: str  # latest / initial
+    html_content: str = ''
+    history: List[BuilderHistoryItem] = []
+    created_at: str = Field(default_factory=_now)
+    updated_at: str = Field(default_factory=_now)
