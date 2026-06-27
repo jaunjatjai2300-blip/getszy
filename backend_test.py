@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Phase 6 Monetization Backend API Tests
-Tests subscription, pricing, gating, and AI provider sanitization
+Phase 5 AI Ops Dashboard + Phase 6 Monetization Backend API Tests
+Tests AI Ops Dashboard, subscription, pricing, gating, and AI provider sanitization
 """
 import requests
 import sys
@@ -93,7 +93,7 @@ class APITester:
 
     def run_all_tests(self):
         self.log("=" * 80, Colors.BLUE)
-        self.log("PHASE 6 MONETIZATION BACKEND TESTS", Colors.BLUE)
+        self.log("PHASE 5 AI OPS + PHASE 6 MONETIZATION BACKEND TESTS", Colors.BLUE)
         self.log("=" * 80, Colors.BLUE)
 
         # ===== 1. SANITIZATION TESTS =====
@@ -451,6 +451,55 @@ class APITester:
             if success:
                 self.log(f"✅ Admin can grant plans", Colors.GREEN)
                 self.log(f"  Granted to: {data.get('user')}", Colors.BLUE)
+
+        # ===== 11. AI OPS DASHBOARD (PHASE 5) =====
+        self.log("\n" + "=" * 80, Colors.BLUE)
+        self.log("11. AI OPS DASHBOARD (PHASE 5) TESTS", Colors.BLUE)
+        self.log("=" * 80, Colors.BLUE)
+
+        if self.admin_token:
+            # Test admin access to AI Ops stats
+            success, data = self.test(
+                "Get AI Ops stats (admin)",
+                "GET",
+                "/admin/ai-ops/stats",
+                200,
+                token=self.admin_token
+            )
+            if success:
+                self.log(f"✅ Admin can access AI Ops stats", Colors.GREEN)
+                
+                # Verify response structure
+                if 'engine' in data:
+                    self.log(f"  Engine: {data['engine'].get('provider')} / {data['engine'].get('model')}", Colors.BLUE)
+                
+                if 'agents' in data and isinstance(data['agents'], list):
+                    self.log(f"✅ Found {len(data['agents'])} agents", Colors.GREEN)
+                    for agent in data['agents']:
+                        self.log(f"  - {agent.get('name')}: {agent.get('total')} total, {agent.get('today')} today", Colors.BLUE)
+                else:
+                    self.log(f"⚠️  No agents data in response", Colors.YELLOW)
+                
+                if 'intents' in data:
+                    self.log(f"✅ Intents data present ({len(data.get('intents', []))} intents)", Colors.GREEN)
+                
+                if 'feed' in data:
+                    self.log(f"✅ Activity feed present ({len(data.get('feed', []))} items)", Colors.GREEN)
+                
+                if 'series_7d' in data:
+                    self.log(f"✅ 7-day series data present ({len(data.get('series_7d', []))} days)", Colors.GREEN)
+
+        if self.customer_token:
+            # Test non-admin access (should fail with 403)
+            success, data = self.test(
+                "Get AI Ops stats (non-admin, should fail 403)",
+                "GET",
+                "/admin/ai-ops/stats",
+                403,
+                token=self.customer_token
+            )
+            if success:
+                self.log(f"✅ Non-admin correctly blocked from AI Ops", Colors.GREEN)
 
         # ===== SUMMARY =====
         self.log("\n" + "=" * 80, Colors.BLUE)

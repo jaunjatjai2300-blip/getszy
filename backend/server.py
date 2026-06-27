@@ -16,6 +16,7 @@ from routes_admin import router as admin_router
 from routes_learning import router as learning_router
 from routes_builder import router as builder_router
 from routes_subscription import router as sub_router
+from routes_ai_ops import router as ai_ops_router
 
 app = FastAPI(title='getszy API')
 api_router = APIRouter(prefix='/api')
@@ -42,6 +43,7 @@ api_router.include_router(admin_router)
 api_router.include_router(learning_router)
 api_router.include_router(builder_router)
 api_router.include_router(sub_router)
+api_router.include_router(ai_ops_router)
 
 app.include_router(api_router)
 

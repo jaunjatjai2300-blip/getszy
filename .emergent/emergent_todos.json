@@ -1,22 +1,14 @@
 [
   {
-    "content": "Backend subscription + gating",
-    "status": "completed"
+    "content": "Phase 5: Backend - AI Ops aggregated stats endpoint",
+    "status": "in_progress"
   },
   {
-    "content": "Backend AI provider sanitization + video migration",
-    "status": "completed"
+    "content": "Phase 5: Frontend - admin AI Ops dashboard with agent pipeline + activity feed",
+    "status": "pending"
   },
   {
-    "content": "Frontend /pricing + VideoPlaceholder + Account subscription tab",
-    "status": "completed"
-  },
-  {
-    "content": "Frontend gate Advanced + Studio + plan badge",
-    "status": "completed"
-  },
-  {
-    "content": "Test end-to-end",
-    "status": "completed"
+    "content": "Phase 5: Test + deploy",
+    "status": "pending"
   }
 ]
