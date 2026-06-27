@@ -825,6 +825,264 @@ class APITester:
             if success:
                 self.log(f"✅ Quota enforcement working (6th image blocked)", Colors.GREEN)
 
+        # ===== 14. PHASE 9 DEPLOY DASHBOARD TESTS =====
+        self.log("\n" + "=" * 80, Colors.BLUE)
+        self.log("14. PHASE 9 DEPLOY DASHBOARD TESTS", Colors.BLUE)
+        self.log("=" * 80, Colors.BLUE)
+
+        if self.admin_token:
+            # Test deploy status
+            success, data = self.test(
+                "Get deploy status (admin)",
+                "GET",
+                "/admin/deploy/status",
+                200,
+                token=self.admin_token
+            )
+            if success:
+                github = data.get('github', {})
+                webhook = data.get('webhook', {})
+                if github.get('configured'):
+                    self.log(f"✅ GitHub configured: repo={github.get('repo')}", Colors.GREEN)
+                    token_preview = github.get('token_preview', '')
+                    if token_preview and '...' in token_preview:
+                        self.log(f"  ✅ Token redacted: {token_preview}", Colors.GREEN)
+                    else:
+                        self.log(f"  ⚠️  Token preview: {token_preview}", Colors.YELLOW)
+                else:
+                    self.log(f"⚠️  GitHub not configured", Colors.YELLOW)
+                
+                if not webhook.get('configured'):
+                    self.log(f"✅ Webhook not configured (expected)", Colors.GREEN)
+                else:
+                    self.log(f"⚠️  Webhook configured: {webhook.get('url')}", Colors.YELLOW)
+
+            # Test agent swarm build
+            self.log(f"\n⏳ Running agent swarm (may take 15-30 seconds)...", Colors.YELLOW)
+            success, data = self.test(
+                "Run agent swarm build",
+                "POST",
+                "/admin/deploy/build",
+                200,
+                data={
+                    "brief": "Add a simple contact form to the homepage",
+                    "target": "page",
+                    "autopush": False
+                },
+                token=self.admin_token
+            )
+            job_id = None
+            if success:
+                job_id = data.get('id')
+                agents = data.get('agents', {})
+                if job_id:
+                    self.log(f"✅ Agent swarm completed: job_id={job_id}", Colors.GREEN)
+                
+                # Check all 4 agents
+                required_agents = ['planner', 'designer', 'coder', 'reviewer']
+                for agent in required_agents:
+                    if agent in agents and agents[agent]:
+                        self.log(f"  ✅ {agent.capitalize()}: {len(agents[agent])} chars", Colors.GREEN)
+                    else:
+                        self.log(f"  ❌ {agent.capitalize()}: missing or empty", Colors.RED)
+
+            # Test get jobs list
+            success, data = self.test(
+                "Get deploy jobs list",
+                "GET",
+                "/admin/deploy/jobs",
+                200,
+                token=self.admin_token
+            )
+            if success:
+                items = data.get('items', [])
+                if len(items) > 0:
+                    self.log(f"✅ Found {len(items)} deploy jobs", Colors.GREEN)
+                else:
+                    self.log(f"⚠️  No deploy jobs found", Colors.YELLOW)
+
+            # Test push to GitHub (if job_id exists)
+            if job_id:
+                success, data = self.test(
+                    "Push job to GitHub",
+                    "POST",
+                    f"/admin/deploy/{job_id}/push",
+                    200,
+                    token=self.admin_token
+                )
+                if success:
+                    if data.get('ok'):
+                        self.log(f"✅ GitHub push succeeded: commit_sha={data.get('commit_sha', '')[:8]}", Colors.GREEN)
+                    else:
+                        # Dry run or error is also acceptable
+                        mode = data.get('mode', 'unknown')
+                        message = data.get('message', '')
+                        self.log(f"  Mode: {mode}, Message: {message[:100]}", Colors.BLUE)
+
+                # Test webhook trigger (should return 'not configured')
+                success, data = self.test(
+                    "Trigger webhook (should return not configured)",
+                    "POST",
+                    f"/admin/deploy/{job_id}/webhook",
+                    200,
+                    token=self.admin_token
+                )
+                if success:
+                    if not data.get('ok') and 'not configured' in data.get('message', '').lower():
+                        self.log(f"✅ Webhook correctly returns 'not configured'", Colors.GREEN)
+                    else:
+                        self.log(f"⚠️  Webhook response: {data}", Colors.YELLOW)
+
+        # Test non-admin access to deploy endpoints (should fail with 403)
+        if self.customer_token:
+            success, data = self.test(
+                "Deploy status (non-admin, should fail 403)",
+                "GET",
+                "/admin/deploy/status",
+                403,
+                token=self.customer_token
+            )
+            if success:
+                self.log(f"✅ Non-admin correctly blocked from deploy dashboard", Colors.GREEN)
+
+        # ===== 15. MIRROR AI TRY-ON TESTS =====
+        self.log("\n" + "=" * 80, Colors.BLUE)
+        self.log("15. MIRROR AI TRY-ON TESTS", Colors.BLUE)
+        self.log("=" * 80, Colors.BLUE)
+
+        if self.customer_token:
+            # Test try-on generation
+            success, data = self.test(
+                "Generate Mirror AI try-on",
+                "POST",
+                "/media/tryon",
+                200,
+                data={
+                    "product_id": "test-product-123",
+                    "product_name": "Ethnic kurti set",
+                    "setting": "studio"
+                },
+                token=self.customer_token
+            )
+            if success:
+                if data.get('id') and data.get('url') and data.get('kind') == 'tryon':
+                    self.log(f"✅ Try-on generated: {data.get('id')}", Colors.GREEN)
+                    url = data.get('url', '')
+                    if 'pollinations.ai' in url or '/api/media/file/' in url:
+                        self.log(f"  ✅ URL is valid pattern", Colors.GREEN)
+                    else:
+                        self.log(f"  ⚠️  URL pattern: {url[:50]}...", Colors.YELLOW)
+                else:
+                    self.log(f"⚠️  Try-on response incomplete: {data}", Colors.YELLOW)
+
+        # Test quota enforcement for Mirror AI (free user should get 402)
+        timestamp5 = datetime.now().strftime("%H%M%S%f")
+        fresh_email5 = f"mirror-test-{timestamp5}@example.com"
+        success, data = self.test(
+            "Create fresh user for Mirror AI quota test",
+            "POST",
+            "/auth/signup",
+            200,
+            data={
+                "name": "Mirror Test User",
+                "email": fresh_email5,
+                "password": "Test@123",
+                "phone": "5555555555"
+            }
+        )
+        fresh_token5 = None
+        if success and 'token' in data:
+            fresh_token5 = data['token']
+            self.log(f"✅ Fresh user created: {fresh_email5}", Colors.GREEN)
+
+        if fresh_token5:
+            # Free user should get 402 (mirror quota is 0 for free plan)
+            success, data = self.test(
+                "Try-on as free user (should fail 402)",
+                "POST",
+                "/media/tryon",
+                402,
+                data={
+                    "product_id": "test-product-456",
+                    "product_name": "Test product",
+                    "setting": "outdoor"
+                },
+                token=fresh_token5
+            )
+            if success:
+                self.log(f"✅ Mirror AI quota enforcement working (free user blocked)", Colors.GREEN)
+
+        # ===== 16. TRENDING IMAGES BUG FIX VERIFICATION =====
+        self.log("\n" + "=" * 80, Colors.BLUE)
+        self.log("16. TRENDING IMAGES BUG FIX VERIFICATION (CRITICAL)", Colors.BLUE)
+        self.log("=" * 80, Colors.BLUE)
+
+        if self.admin_token:
+            # Test GET /admin/sourcing/trending - verify NO picsum URLs
+            success, data = self.test(
+                "Get trending products (verify NO picsum URLs)",
+                "GET",
+                "/admin/sourcing/trending",
+                200,
+                token=self.admin_token
+            )
+            if success:
+                items = data.get('items', [])
+                picsum_found = False
+                pollinations_count = 0
+                cached_count = 0
+                
+                for item in items:
+                    hero_image = item.get('hero_image', '')
+                    if 'picsum.photos' in hero_image:
+                        picsum_found = True
+                        self.log(f"❌ CRITICAL BUG: Picsum URL found in item '{item.get('title')}': {hero_image}", Colors.RED)
+                    elif 'pollinations.ai' in hero_image:
+                        pollinations_count += 1
+                        # Check if niche is in URL
+                        niche = item.get('niche', '').lower()
+                        if niche and niche.replace(' ', '%20') not in hero_image and niche.replace(' ', '+') not in hero_image:
+                            self.log(f"⚠️  Pollinations URL may not contain niche '{niche}': {hero_image[:80]}...", Colors.YELLOW)
+                    elif '/api/media/file/' in hero_image:
+                        cached_count += 1
+                
+                if not picsum_found:
+                    self.log(f"✅ CRITICAL BUG FIXED: NO picsum URLs found in {len(items)} items", Colors.GREEN)
+                    self.log(f"  Pollinations URLs: {pollinations_count}, Cached URLs: {cached_count}", Colors.BLUE)
+                else:
+                    self.log(f"❌ CRITICAL BUG NOT FIXED: Picsum URLs still present", Colors.RED)
+
+            # Test POST /admin/sourcing/trending/scan - verify NO picsum URLs
+            self.log(f"\n⏳ Scanning trending products to verify bug fix (may take 8-15 seconds)...", Colors.YELLOW)
+            success, data = self.test(
+                "Scan trending products (verify NO picsum URLs)",
+                "POST",
+                "/admin/sourcing/trending/scan?limit=6",
+                200,
+                token=self.admin_token
+            )
+            if success:
+                items = data.get('items', [])
+                picsum_found = False
+                pollinations_count = 0
+                cached_count = 0
+                
+                for item in items:
+                    hero_image = item.get('hero_image', '')
+                    if 'picsum.photos' in hero_image:
+                        picsum_found = True
+                        self.log(f"❌ CRITICAL BUG: Picsum URL found in scanned item '{item.get('title')}': {hero_image}", Colors.RED)
+                    elif 'pollinations.ai' in hero_image:
+                        pollinations_count += 1
+                    elif '/api/media/file/' in hero_image:
+                        cached_count += 1
+                
+                if not picsum_found:
+                    self.log(f"✅ CRITICAL BUG FIXED: NO picsum URLs in scan results ({len(items)} items)", Colors.GREEN)
+                    self.log(f"  Pollinations URLs: {pollinations_count}, Cached URLs: {cached_count}", Colors.BLUE)
+                else:
+                    self.log(f"❌ CRITICAL BUG NOT FIXED: Picsum URLs still in scan results", Colors.RED)
+
         # ===== SUMMARY =====
         self.log("\n" + "=" * 80, Colors.BLUE)
         self.log("TEST SUMMARY", Colors.BLUE)

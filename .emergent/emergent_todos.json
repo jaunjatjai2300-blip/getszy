@@ -1,22 +1,18 @@
 [
   {
-    "content": "Fix trending products grid: switch hero images from Pollinations to Unsplash (instant CDN)",
+    "content": "FIX BUG: Trending images must MATCH products",
     "status": "completed"
   },
   {
-    "content": "Add server-side caching for Media Studio generated images (download once, serve fast)",
+    "content": "Add Mirror AI virtual try-on to product detail pages (physical products)",
     "status": "completed"
   },
   {
-    "content": "Add loading skeletons + 'Generating...' progress UX",
+    "content": "Phase 9: Master Build-&-Deploy Dashboard with GitHub PAT",
     "status": "completed"
   },
   {
-    "content": "Restart + verify with screenshots",
-    "status": "completed"
-  },
-  {
-    "content": "User: Deploy fix to VPS (Save to GitHub + git pull)",
-    "status": "pending"
+    "content": "Run testing_agent_v3 to verify bug fix + new features",
+    "status": "in_progress"
   }
 ]

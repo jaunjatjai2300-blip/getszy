@@ -203,6 +203,14 @@ async def gen_video(payload: VideoGenIn, user=Depends(get_current_user)):
     return {'status': 'queued', 'message': 'Video generation queued'}
 
 
+class TryOnIn(BaseModel):
+    product_id: str
+    product_name: str
+    product_image: Optional[str] = None
+    user_photo_url: Optional[str] = None  # data URL or hosted URL of selfie
+    setting: str = 'studio'  # studio | outdoor | festive
+
+
 # ===== MIRROR (PENDING) =====
 @router.post('/mirror')
 async def gen_mirror(payload: MirrorGenIn, user=Depends(get_current_user)):
@@ -215,6 +223,43 @@ async def gen_mirror(payload: MirrorGenIn, user=Depends(get_current_user)):
     if not ok:
         raise HTTPException(status_code=402, detail=msg)
     return {'status': 'queued', 'message': 'Mirror AI queued'}
+
+
+# ===== VIRTUAL TRY-ON (LIVE - product try-on via Pollinations + cache) =====
+@router.post('/tryon')
+async def gen_tryon(payload: TryOnIn, user=Depends(get_current_user)):
+    """AI-powered virtual try-on for physical products.
+
+    Generates a lifestyle/wear image of the product using Pollinations.
+    When FAL_KEY is set later we'll switch to a real face-clone provider.
+    """
+    ok, msg = await check_and_consume(user, 'mirror', 1)
+    if not ok:
+        raise HTTPException(status_code=402, detail=msg)
+    setting_text = {
+        'studio': 'professional studio portrait, soft lighting, neutral backdrop',
+        'outdoor': 'natural outdoor setting, golden hour light, lifestyle photography',
+        'festive': 'festive indian celebration setting, diyas, marigold flowers, warm tones',
+    }.get(payload.setting, 'professional studio portrait')
+    prompt = f'fashion model wearing {payload.product_name}, {setting_text}, full body shot, indian audience, premium photography, 4k'
+    remote = pollinations.build_url(prompt, style='portrait', width=768, height=1024)
+    asset_id = str(uuid.uuid4())
+    local_url = await _prefetch_and_cache(remote, asset_id)
+    item = {
+        'id': asset_id,
+        'user_id': user['id'],
+        'kind': 'tryon',
+        'product_id': payload.product_id,
+        'product_name': payload.product_name,
+        'setting': payload.setting,
+        'url': local_url or remote,
+        'remote_url': remote,
+        'cached': bool(local_url),
+        'created_at': datetime.now(timezone.utc).isoformat(),
+    }
+    await db.media_assets.insert_one(item)
+    item.pop('_id', None)
+    return item
 
 
 # ===== HISTORY =====

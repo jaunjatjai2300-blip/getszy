@@ -50,9 +50,9 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 def _pollinations_url(niche_slug: str, idx: int) -> str:
     seed = abs(hash(niche_slug + str(idx))) % 99999
-    prompt = f'professional minimal product photo, soft natural light, white background, {niche_slug}, premium e-commerce style'
+    prompt = f'{niche_slug}, isolated product photography, studio lighting, white seamless background, premium e-commerce hero shot, ultra sharp, 4k'
     enc = prompt.replace(' ', '%20').replace(',', '%2C')
-    return f'https://image.pollinations.ai/prompt/{enc}?width=800&height=800&seed={seed}&nologo=true&model=flux'
+    return f'https://image.pollinations.ai/prompt/{enc}?width=800&height=800&seed={seed}&nologo=true&model=flux&enhance=true'
 
 
 async def _fetch_and_cache(remote_url: str, asset_id: str) -> str:
@@ -65,22 +65,21 @@ async def _fetch_and_cache(remote_url: str, asset_id: str) -> str:
     if out_path.exists() and out_path.stat().st_size > 1024:
         return f'/api/media/file/trend_{asset_id}.jpg'
     try:
-        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=90.0, follow_redirects=True) as client:
             r = await client.get(remote_url)
             if r.status_code == 200 and len(r.content) > 1024:
                 out_path.write_bytes(r.content)
                 return f'/api/media/file/trend_{asset_id}.jpg'
     except Exception:
         pass
-    # Reliable fallback CDN \u2014 deterministic image per asset id
-    seed = abs(hash(asset_id)) % 9999
-    return f'https://picsum.photos/seed/getszy{seed}/800/800'
+    # No random fallback - return the AI-matched Pollinations URL directly so
+    # the product image always matches the prompt (browser keeps retrying).
+    return remote_url
 
 
 def _hero_image(niche_slug: str, idx: int) -> str:
-    # Legacy synchronous helper retained for compatibility (returns Picsum fallback)
-    seed = abs(hash(niche_slug + str(idx))) % 9999
-    return f'https://picsum.photos/seed/getszy{seed}/800/800'
+    # Last-resort - still niche-matched AI URL
+    return _pollinations_url(niche_slug, idx)
 
 
 async def _llm_variants(niche: str, audience: str) -> List[str]:
@@ -102,9 +101,13 @@ async def scan_trending(limit: int = 12) -> List[Dict]:
     items: List[Dict] = []
     # 1) LLM titles in parallel
     title_tasks = [_llm_variants(n['niche'], n['audience']) for n in sample]
-    # 2) Image fetch+cache in parallel
+    # 2) Image fetch+cache in parallel, using a STABLE cache key per niche so
+    # repeated scans reuse the same on-disk image (no extra downloads).
+    import hashlib
+    def _niche_key(niche_slug: str, i: int) -> str:
+        return hashlib.md5(f'{niche_slug}_{i}'.encode()).hexdigest()[:16]
     img_tasks = [
-        _fetch_and_cache(_pollinations_url(n['niche'], i), str(uuid.uuid4())[:12])
+        _fetch_and_cache(_pollinations_url(n['niche'], i), _niche_key(n['niche'], i))
         for i, n in enumerate(sample)
     ]
     try:

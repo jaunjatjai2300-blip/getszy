@@ -24,6 +24,7 @@ import AdminCourses from "@/pages/admin/Courses";
 import AdminAIChat from "@/pages/admin/AIChat";
 import AdminAiOps from "@/pages/admin/AiOps";
 import AdminSourcing from "@/pages/admin/Sourcing";
+import AdminDeploy from "@/pages/admin/Deploy";
 import MediaStudio from "@/pages/MediaStudio";
 import StorefrontLayout from "@/components/StorefrontLayout";
 import LearnLayout from "@/components/LearnLayout";
@@ -60,6 +61,7 @@ export default function App() {
             <Route path="customers" element={<AdminCustomers />} />
             <Route path="courses" element={<AdminCourses />} />
             <Route path="sourcing" element={<AdminSourcing />} />
+            <Route path="deploy" element={<AdminDeploy />} />
             <Route path="ai-ops" element={<AdminAiOps />} />
             <Route path="chat" element={<AdminAIChat />} />
           </Route>

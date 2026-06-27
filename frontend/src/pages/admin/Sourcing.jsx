@@ -115,8 +115,11 @@ export default function AdminSourcing() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="trending-grid">
             {trending.items.map((it) => (
               <article key={it.id} className="gs-card overflow-hidden flex flex-col">
-                <div className="aspect-[4/3] bg-[var(--gs-surface-2)] relative">
-                  <img src={resolveUrl(it.hero_image)} alt={it.title} loading="lazy" className="w-full h-full object-cover"/>
+                <div className="aspect-[4/3] bg-[var(--gs-surface-2)] relative overflow-hidden">
+                  <div className="absolute inset-0 grid place-items-center text-[var(--gs-muted)]">
+                    <Sparkles className="h-8 w-8 animate-pulse opacity-40"/>
+                  </div>
+                  <img src={resolveUrl(it.hero_image)} alt={it.title} loading="lazy" className="relative w-full h-full object-cover" onLoad={(e) => e.currentTarget.classList.add("opacity-100")} onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ opacity: 0, transition: "opacity 300ms" }}/>
                   <div className="absolute top-2 left-2 flex items-center gap-1 bg-white/90 backdrop-blur px-2 py-1 rounded-full text-xs font-semibold"><TrendingUp className="h-3 w-3 text-[var(--gs-teal)]"/>{it.trend_score}</div>
                   <Badge className="absolute top-2 right-2 capitalize" style={{ background: AUDIENCE_COLORS[it.audience] || "#666", color: "white" }}>{it.audience}</Badge>
                 </div>
