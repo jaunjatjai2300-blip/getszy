@@ -10,6 +10,7 @@ from db import db
 from models import BuilderProject, BuilderProjectIn, BuilderRefineIn, BuilderHistoryItem
 from auth import get_current_user, get_optional_user
 from llm_provider import chat_completion
+from subscription import can_use_studio, increment_studio_builds
 
 logger = logging.getLogger('getszy.builder')
 router = APIRouter(prefix='/builder', tags=['builder'])
@@ -114,6 +115,9 @@ def _derive_name(prompt: str) -> str:
 async def create_project(body: BuilderProjectIn, user=Depends(get_current_user)):
     if not body.prompt.strip():
         raise HTTPException(400, 'Prompt required')
+    ok, msg, _ = await can_use_studio(user)
+    if not ok:
+        raise HTTPException(402, msg)
     try:
         html = await _generate_site(body.prompt)
     except Exception as e:
@@ -126,6 +130,7 @@ async def create_project(body: BuilderProjectIn, user=Depends(get_current_user))
     ]
     project = BuilderProject(user_id=user['id'], name=name, prompt=body.prompt, html_content=html, history=history)
     await db.builder_projects.insert_one(project.model_dump())
+    await increment_studio_builds(user['id'])
     return project.model_dump()
 
 
@@ -148,6 +153,9 @@ async def refine_project(pid: str, body: BuilderRefineIn, user=Depends(get_curre
     p = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
     if not p:
         raise HTTPException(404, 'Project not found')
+    ok, msg, _ = await can_use_studio(user)
+    if not ok:
+        raise HTTPException(402, msg)
     try:
         new_html = await _generate_site(body.prompt, current_html=p.get('html_content'), session_id=f"builder-{pid}")
     except Exception as e:
@@ -161,6 +169,7 @@ async def refine_project(pid: str, body: BuilderRefineIn, user=Depends(get_curre
         {'id': pid},
         {'$set': {'html_content': new_html, 'history': new_history, 'updated_at': _now(), 'prompt': body.prompt}},
     )
+    await increment_studio_builds(user['id'])
     return await db.builder_projects.find_one({'id': pid}, {'_id': 0})
 
 

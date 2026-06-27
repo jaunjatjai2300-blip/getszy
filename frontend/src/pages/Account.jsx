@@ -4,9 +4,10 @@ import { useAuth } from "@/lib/auth";
 import { api, fmtINR } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Package, GraduationCap, ArrowRight } from "lucide-react";
+import { Package, GraduationCap, ArrowRight, Crown } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 const STATUS_COLORS = { pending: "bg-amber-100 text-amber-800", forwarded: "bg-sky-100 text-sky-800", shipped: "bg-blue-100 text-blue-800", delivered: "bg-emerald-100 text-emerald-800", cancelled: "bg-rose-100 text-rose-800" };
 
@@ -15,14 +16,23 @@ export default function Account() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
+  const [sub, setSub] = useState(null);
 
   useEffect(() => {
     if (!loading && !user) navigate("/login");
     if (user) {
       api.get("/orders/mine").then(({ data }) => setOrders(data));
       api.get("/me/enrollments").then(({ data }) => setEnrollments(data));
+      api.get("/me/subscription").then(({ data }) => setSub(data));
     }
   }, [user, loading, navigate]);
+
+  const cancelSub = async () => {
+    if (!window.confirm("Cancel subscription? You'll keep access until period end.")) return;
+    await api.post("/me/subscription/cancel");
+    const { data } = await api.get("/me/subscription"); setSub(data);
+    toast.success("Subscription cancelled");
+  };
 
   if (!user) return null;
 
@@ -33,6 +43,7 @@ export default function Account() {
         <TabsList>
           <TabsTrigger value="orders">Orders</TabsTrigger>
           <TabsTrigger value="learning" data-testid="account-learning-tab">Learning</TabsTrigger>
+          <TabsTrigger value="subscription" data-testid="account-subscription-tab">Subscription</TabsTrigger>
           <TabsTrigger value="profile">Profile</TabsTrigger>
         </TabsList>
         <TabsContent value="orders" className="mt-6">
@@ -71,6 +82,27 @@ export default function Account() {
             <div className="text-sm text-[var(--gs-muted)]">Email</div><div className="font-semibold mb-3">{user.email}</div>
             <div className="text-sm text-[var(--gs-muted)]">Role</div><div className="font-semibold capitalize">{user.role}</div>
           </div>
+        </TabsContent>
+        <TabsContent value="subscription" className="mt-6">
+          {sub ? (
+            <div className="gs-card p-6 max-w-md" data-testid="account-subscription-card">
+              <div className="flex items-center gap-2 mb-3"><Crown className="h-5 w-5 text-[var(--gs-teal)]"/><h3 className="font-display text-2xl capitalize">{sub.plan}</h3></div>
+              <div className="text-sm text-[var(--gs-muted)] mb-1">Status: <span className="font-semibold capitalize text-[var(--gs-ink)]">{sub.status}</span></div>
+              {sub.trial_ends_at && <div className="text-sm text-[var(--gs-muted)] mb-1">Trial ends: <span className="text-[var(--gs-ink)]">{new Date(sub.trial_ends_at).toLocaleDateString()}</span></div>}
+              {sub.current_period_end && <div className="text-sm text-[var(--gs-muted)] mb-1">Renews: <span className="text-[var(--gs-ink)]">{new Date(sub.current_period_end).toLocaleDateString()}</span></div>}
+              <div className="text-sm text-[var(--gs-muted)] mb-4">Studio builds: <span className="text-[var(--gs-ink)]">{sub.studio_builds_used || 0} / {sub.quota?.studio_builds === 9999 ? "∞" : sub.quota?.studio_builds || 0}</span> this month</div>
+              <div className="flex gap-2">
+                {sub.plan === "free" ? (
+                  <Link to="/pricing"><Button className="bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]/90">Upgrade <ArrowRight className="h-4 w-4 ml-2"/></Button></Link>
+                ) : (
+                  <>
+                    <Link to="/pricing"><Button variant="outline">Change plan</Button></Link>
+                    {sub.status !== "cancelled" && <Button variant="outline" onClick={cancelSub} className="text-rose-600">Cancel</Button>}
+                  </>
+                )}
+              </div>
+            </div>
+          ) : <div className="py-12 text-center text-[var(--gs-muted)]">Loading…</div>}
         </TabsContent>
       </Tabs>
     </div>

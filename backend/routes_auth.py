@@ -34,4 +34,8 @@ async def login(body: LoginIn):
 
 @router.get('/me')
 async def me(user=Depends(get_current_user)):
-    return UserOut(**user).model_dump()
+    from subscription import effective_subscription, plan_features
+    sub = await effective_subscription(user)
+    out = UserOut(**user).model_dump()
+    out['subscription'] = {**sub, 'quota': plan_features(sub['plan'])}
+    return out

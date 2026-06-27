@@ -34,13 +34,14 @@ export default function Studio() {
   const [busy, setBusy] = useState(false);
   const [stageIdx, setStageIdx] = useState(0);
   const [view, setView] = useState("preview"); // preview | code
+  const [sub, setSub] = useState(null);
   const stageTimer = useRef(null);
 
   useEffect(() => {
     if (!loading && !user) navigate("/login");
   }, [user, loading, navigate]);
 
-  useEffect(() => { if (user) loadProjects(); }, [user]);
+  useEffect(() => { if (user) { loadProjects(); api.get("/me/subscription").then(({ data }) => setSub(data)).catch(() => {}); } }, [user]);
 
   const loadProjects = async () => {
     const { data } = await api.get("/builder/projects");
@@ -83,7 +84,12 @@ export default function Studio() {
       }
       setPrompt("");
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Generation failed — try again");
+      if (e?.response?.status === 402) {
+        toast.error(e.response.data.detail || "Upgrade required");
+        navigate("/pricing");
+      } else {
+        toast.error(e?.response?.data?.detail || "Generation failed — try again");
+      }
     } finally { stopStages(); setBusy(false); }
   };
 
@@ -114,6 +120,11 @@ export default function Studio() {
         <div className="p-4 border-b" style={{ borderColor: "var(--gs-border)" }}>
           <div className="font-display text-xl">Studio</div>
           <div className="text-xs text-[var(--gs-muted)]">Talk-to-Build · Powered by your VPS</div>
+          {sub && (
+            <div className="text-xs text-[var(--gs-muted)] mt-2">
+              <span className="capitalize font-semibold text-[var(--gs-ink)]">{sub.plan}</span> · {sub.studio_builds_used || 0}/{sub.quota?.studio_builds === 9999 ? "∞" : sub.quota?.studio_builds || 0} builds
+            </div>
+          )}
         </div>
         <div className="p-3">
           <Button onClick={newChat} className="w-full bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]/90" data-testid="studio-new-button"><Plus className="h-4 w-4 mr-2"/>New project</Button>

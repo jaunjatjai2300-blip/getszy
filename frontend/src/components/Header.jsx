@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/cart";
 import { api } from "@/lib/api";
+import { PlanBadge } from "@/components/PlanBadge";
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -54,6 +55,7 @@ export function Header() {
           ))}
           <Link to="/academy" className="hover:text-[var(--gs-teal)] font-semibold text-[var(--gs-teal)]" data-testid="header-academy-link">Academy</Link>
           <Link to="/studio" className="hover:text-[var(--gs-primary-2)] font-semibold text-[var(--gs-primary-2)] flex items-center gap-1" data-testid="header-studio-link">✨ Studio</Link>
+          <Link to="/pricing" className="hover:text-[var(--gs-ink)]" data-testid="header-pricing-link">Pricing</Link>
         </nav>
 
         <form onSubmit={submitSearch} className="flex-1 hidden md:flex justify-center max-w-md ml-4">
@@ -72,6 +74,7 @@ export function Header() {
               <DropdownMenuContent align="end" className="w-56">
                 <div className="px-2 py-1.5 text-sm font-medium">{user.name}</div>
                 <div className="px-2 pb-1.5 text-xs text-[var(--gs-muted)]">{user.email}</div>
+                <div className="px-2 pb-2"><PlanBadge plan={user.subscription?.plan || "free"} status={user.subscription?.status}/></div>
                 <DropdownMenuSeparator/>
                 <DropdownMenuItem onClick={() => navigate("/account")} data-testid="header-account-item"><User className="h-4 w-4 mr-2"/>My Account</DropdownMenuItem>
                 {user.role === "admin" && (

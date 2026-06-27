@@ -1,22 +1,22 @@
 [
   {
-    "content": "Phase 4: Backend - BuilderProject + routes_builder",
-    "status": "completed"
+    "content": "Backend: subscription model + plan gating + studio quota",
+    "status": "in_progress"
   },
   {
-    "content": "Phase 4: Frontend - /studio page",
-    "status": "completed"
+    "content": "Backend: hide AI provider branding (sanitize public endpoints) + clear YouTube URLs migration",
+    "status": "pending"
   },
   {
-    "content": "Phase 4: Studio nav link",
-    "status": "completed"
+    "content": "Frontend: /pricing page + getszy video placeholder + Account subscription tab",
+    "status": "pending"
   },
   {
-    "content": "Phase 4: Test end-to-end",
-    "status": "completed"
+    "content": "Frontend: gate Advanced courses + Studio + show plan badge in header",
+    "status": "pending"
   },
   {
-    "content": "Phase 4: Deliver + deploy guide for VPS",
-    "status": "completed"
+    "content": "Test end-to-end + deploy",
+    "status": "pending"
   }
 ]

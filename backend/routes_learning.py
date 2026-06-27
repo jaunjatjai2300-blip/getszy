@@ -8,6 +8,7 @@ from models import (
 )
 from auth import get_current_user, get_current_admin
 from llm_provider import chat_completion
+from subscription import can_access_advanced, effective_subscription
 
 router = APIRouter(tags=['learning'])
 
@@ -50,6 +51,11 @@ async def enroll(slug: str, user=Depends(get_current_user)):
     course = await db.courses.find_one({'slug': slug}, {'_id': 0})
     if not course:
         raise HTTPException(404, 'Course not found')
+    # Gate Advanced (premium) courses
+    if course.get('level') == 'Advanced' or course.get('is_premium'):
+        allowed = await can_access_advanced(user)
+        if not allowed:
+            raise HTTPException(402, 'This is a Pro course. Upgrade to enroll.')
     existing = await db.enrollments.find_one({'user_id': user['id'], 'course_slug': slug}, {'_id': 0})
     if existing:
         return existing

@@ -8,6 +8,7 @@ import { CheckCircle2, Circle, ArrowLeft, Sparkles, Send, Loader2, Award, PlayCi
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { Progress } from "@/components/ui/progress";
+import { VideoPlaceholder } from "@/components/VideoPlaceholder";
 
 export default function Learn() {
   const { slug } = useParams();
@@ -107,13 +108,7 @@ export default function Learn() {
       <main className="overflow-y-auto">
         <div className="max-w-3xl mx-auto p-4 sm:p-8">
           <div className="aspect-video rounded-2xl overflow-hidden bg-black mb-4" data-testid="learn-video-player">
-            {active.video_url ? (
-              <iframe src={active.video_url} title={active.title} className="w-full h-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen/>
-            ) : (
-              <div className="w-full h-full grid place-items-center text-white">
-                <div className="text-center"><PlayCircle className="h-16 w-16 mx-auto mb-2 opacity-50"/><p>Video coming soon</p></div>
-              </div>
-            )}
+            <VideoPlaceholder title={active.title} duration={active.duration_min} isPremium={data.course.level === "Advanced"}/>
           </div>
           <h1 className="font-display text-2xl sm:text-3xl mb-2">{active.title}</h1>
           <div className="flex items-center gap-3 text-sm text-[var(--gs-muted)] mb-4"><span className="flex items-center gap-1"><BookOpen className="h-3.5 w-3.5"/>{active.duration_min} min</span></div>

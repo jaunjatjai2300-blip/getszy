@@ -1,4 +1,3 @@
-"""LLM Provider abstraction — swap Emergent → VPS Ollama via env vars."""
 import os
 import httpx
 import uuid
@@ -12,10 +11,9 @@ EMERGENT_MODEL = os.environ.get('EMERGENT_MODEL', 'gpt-4o-mini')
 
 
 async def chat_completion(system: str, user: str, session_id: str | None = None, temperature: float = 0.4) -> str:
-    """Provider-agnostic chat completion. Returns assistant text."""
     session_id = session_id or str(uuid.uuid4())
     if PROVIDER == 'ollama':
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:
             r = await client.post(
                 f"{OLLAMA_BASE_URL}/api/chat",
                 json={
@@ -30,8 +28,6 @@ async def chat_completion(system: str, user: str, session_id: str | None = None,
             )
             r.raise_for_status()
             return r.json().get('message', {}).get('content', '')
-
-    # default emergent
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
         session_id=session_id,
@@ -41,8 +37,8 @@ async def chat_completion(system: str, user: str, session_id: str | None = None,
 
 
 def provider_info() -> dict:
+    # Admin-only context. Public endpoints should NOT expose this.
     return {
         'provider': PROVIDER,
         'model': OLLAMA_MODEL if PROVIDER == 'ollama' else EMERGENT_MODEL,
-        'ollama_base_url': OLLAMA_BASE_URL if PROVIDER == 'ollama' else None,
     }

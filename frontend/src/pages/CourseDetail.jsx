@@ -4,8 +4,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, BookOpen, CheckCircle2, PlayCircle, Award, Sparkles, ArrowRight, Lock } from "lucide-react";
-import { toast } from "sonner";
+import { Clock, BookOpen, CheckCircle2, PlayCircle, Award, Sparkles, ArrowRight, Lock } from "lucide-react";import { toast } from "sonner";
 
 const LEVEL_COLOR = { Beginner: "bg-emerald-100 text-emerald-800", Intermediate: "bg-amber-100 text-amber-800", Advanced: "bg-rose-100 text-rose-800" };
 
@@ -29,9 +28,14 @@ export default function CourseDetail() {
     if (!user) { navigate("/login"); return; }
     setBusy(true);
     try { await api.post(`/courses/${slug}/enroll`); setEnrolled(true); toast.success(`Enrolled in ${course.title}!`); navigate(`/academy/${slug}/learn`); }
-    catch (e) { toast.error("Failed to enroll"); }
+    catch (e) {
+      if (e?.response?.status === 402) { toast.error("This is a Pro course"); navigate("/pricing"); }
+      else toast.error("Failed to enroll");
+    }
     finally { setBusy(false); }
   };
+
+  const isPremium = course.level === "Advanced" || course.is_premium;
 
   return (
     <div data-testid="course-detail-page">
@@ -51,10 +55,12 @@ export default function CourseDetail() {
           <div className="gs-card overflow-hidden md:sticky md:top-24">
             <img src={course.thumbnail} alt="" className="w-full aspect-video object-cover"/>
             <div className="p-5">
-              <div className="font-display text-2xl mb-1">Free</div>
-              <p className="text-xs text-[var(--gs-muted)] mb-4">Premium plans coming soon</p>
+              <div className="font-display text-2xl mb-1">{isPremium ? "Pro" : "Free"}</div>
+              <p className="text-xs text-[var(--gs-muted)] mb-4">{isPremium ? "Available with Pro subscription" : "No subscription needed"}</p>
               {enrolled ? (
                 <Button onClick={() => navigate(`/academy/${slug}/learn`)} className="w-full h-12 bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]/90" data-testid="course-continue-button">Continue learning <ArrowRight className="h-4 w-4 ml-2"/></Button>
+              ) : isPremium ? (
+                <Button onClick={() => navigate("/pricing")} className="w-full h-12 bg-[var(--gs-ink)] hover:bg-black text-white" data-testid="course-upgrade-button"><Lock className="h-4 w-4 mr-2"/>Upgrade to Pro</Button>
               ) : (
                 <Button onClick={enroll} disabled={busy} className="w-full h-12 bg-[var(--gs-primary)] hover:bg-[var(--gs-primary-2)]" data-testid="course-enroll-button">{busy ? "Enrolling…" : "Enroll for free"}</Button>
               )}
