@@ -34,11 +34,6 @@ export default function Login() {
           <Button type="submit" disabled={busy} className="w-full h-12 bg-[var(--gs-primary)] hover:bg-[var(--gs-primary-2)]" data-testid="login-form-submit-button">{busy ? "Signing in…" : "Sign in"}</Button>
         </form>
         <div className="mt-4 text-sm text-center text-[var(--gs-muted)]">No account? <Link to="/signup" className="gs-link font-semibold">Sign up</Link></div>
-        <div className="mt-6 p-3 rounded-xl text-xs" style={{ background: "var(--gs-teal-soft)" }}>
-          <div className="font-semibold mb-1">Demo credentials</div>
-          <div>Admin: admin@getszy.com / Admin@123</div>
-          <div>Customer: customer@getszy.com / Demo@123</div>
-        </div>
       </div>
     </div>
   );
