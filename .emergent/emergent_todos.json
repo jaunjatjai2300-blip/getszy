@@ -1,42 +1,30 @@
 [
   {
-    "content": "Phase 7A: Getszy Source - Trending Products AI Agent + Indian supplier models",
+    "content": "Phase 7+8 complete + testing 100% pass",
     "status": "completed"
   },
   {
-    "content": "Phase 7B: CJ Dropshipping integration scaffolding (key-gated)",
-    "status": "completed"
-  },
-  {
-    "content": "Phase 7C: Shiprocket free shipping integration",
-    "status": "completed"
-  },
-  {
-    "content": "Phase 8A: Open-source Image Gen (Pollinations.ai - free, no key)",
-    "status": "completed"
-  },
-  {
-    "content": "Phase 8B: Open-source Voice Clone (Coqui TTS) + Logo/Brand Kit",
-    "status": "completed"
-  },
-  {
-    "content": "Phase 8C: Video Gen + Mirror AI (HuggingFace free tier scaffolding)",
-    "status": "completed"
-  },
-  {
-    "content": "Margin enforcement (40% physical, 70%+ digital) in sourcing/markup.py",
+    "content": "Update plan.md with Phase 7-11 roadmap",
     "status": "completed"
   },
   {
     "content": "Run testing_agent_v3 for Phase 7+8 verification",
-    "status": "in_progress"
+    "status": "completed"
+  },
+  {
+    "content": "User: Deploy Phase 7+8 to VPS (Save to GitHub Force Push + git pull on VPS)",
+    "status": "pending"
   },
   {
     "content": "Phase 9: GitHub PAT auto-deploy webhook + Agent Swarm dashboard",
     "status": "pending"
   },
   {
-    "content": "Update plan.md with Phase 7-10 roadmap",
+    "content": "Phase 10: Auto-Marketing engine (FB/Insta/YouTube)",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 11: fal.ai premium media (when key provided)",
     "status": "pending"
   }
 ]
