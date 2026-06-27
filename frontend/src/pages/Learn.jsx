@@ -144,7 +144,7 @@ export default function Learn() {
           {tutorBusy && (<div className="flex justify-start"><div className="px-3 py-2 rounded-2xl flex items-center gap-2 text-sm" style={{ background: "var(--gs-teal-soft)" }}><Loader2 className="h-3.5 w-3.5 animate-spin"/>Thinking…</div></div>)}
           <div ref={tutorEnd}/>
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); sendTutor(tutorInput); }} className="p-3 border-t flex gap-2" style={{ borderColor: "var(--gs-border)" }}>
+        <form onSubmit={(e) => { e.preventDefault(); sendTutor(tutorInput); }} className="p-3 border-t flex gap-2" style={{ borderColor: "var(--gs-border)", paddingBottom: "60px" }}>
           <Textarea rows={1} value={tutorInput} onChange={(e) => setTutorInput(e.target.value)} placeholder="Ask your tutor…" className="resize-none min-h-[40px] max-h-24 text-sm" onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendTutor(tutorInput); } }} data-testid="learn-tutor-input"/>
           <Button type="submit" disabled={tutorBusy || !tutorInput.trim()} className="h-10 w-10 bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]/90" data-testid="learn-tutor-send-button">{tutorBusy ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4"/>}</Button>
         </form>

@@ -138,7 +138,7 @@ export default function AdminAIChat() {
           <div ref={endRef}/>
         </div>
 
-        <div className="border-t p-3 sm:p-4" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)" }} data-testid="admin-ai-chat-composer">
+        <div className="border-t p-3 sm:p-4" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)", paddingBottom: "60px" }} data-testid="admin-ai-chat-composer">
           <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="flex items-end gap-2 max-w-3xl mx-auto">
             <Textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a command. e.g., Add product Floral Dress 1299 in fashion…" rows={1} className="resize-none min-h-[48px] max-h-32" onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }} data-testid="admin-ai-chat-input"/>
             <Button type="submit" disabled={busy || !input.trim()} className="h-12 w-12 bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]/90" data-testid="admin-ai-chat-send-button">{busy ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4"/>}</Button>
