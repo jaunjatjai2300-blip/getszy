@@ -1083,6 +1083,365 @@ class APITester:
                 else:
                     self.log(f"❌ CRITICAL BUG NOT FIXED: Picsum URLs still in scan results", Colors.RED)
 
+        # ===== 17. PHASE 11 SKILLS MARKETPLACE TESTS =====
+        self.log("\n" + "=" * 80, Colors.BLUE)
+        self.log("17. PHASE 11 SKILLS MARKETPLACE TESTS", Colors.BLUE)
+        self.log("=" * 80, Colors.BLUE)
+
+        if self.admin_token:
+            # Test list skills
+            success, data = self.test(
+                "Get skills list (admin)",
+                "GET",
+                "/admin/skills",
+                200,
+                token=self.admin_token
+            )
+            if success:
+                count = data.get('count', 0)
+                by_category = data.get('by_category', {})
+                if count == 15:
+                    self.log(f"✅ Found 15 skills total", Colors.GREEN)
+                else:
+                    self.log(f"⚠️  Expected 15 skills, found {count}", Colors.YELLOW)
+                
+                # Check categories
+                expected_categories = {'commerce': 5, 'media': 4, 'analytics': 3, 'devops': 3}
+                for cat, expected_count in expected_categories.items():
+                    actual_count = len(by_category.get(cat, []))
+                    if actual_count == expected_count:
+                        self.log(f"  ✅ {cat}: {actual_count} skills", Colors.GREEN)
+                    else:
+                        self.log(f"  ⚠️  {cat}: {actual_count} skills (expected {expected_count})", Colors.YELLOW)
+
+            # Test run health_check skill (no params)
+            success, data = self.test(
+                "Run health_check skill",
+                "POST",
+                "/admin/skills/health_check/run",
+                200,
+                data={"params": {}},
+                token=self.admin_token
+            )
+            if success:
+                if data.get('status') == 'ok' and data.get('result'):
+                    self.log(f"✅ health_check skill executed", Colors.GREEN)
+                    checks = data.get('result', {}).get('checks', {})
+                    self.log(f"  MongoDB: {checks.get('mongodb')}, LLM: {checks.get('llm')}", Colors.BLUE)
+                else:
+                    self.log(f"⚠️  health_check result: {data}", Colors.YELLOW)
+
+            # Test run scan_trending skill
+            self.log(f"\n⏳ Running scan_trending skill (may take 8-15 seconds)...", Colors.YELLOW)
+            success, data = self.test(
+                "Run scan_trending skill",
+                "POST",
+                "/admin/skills/scan_trending/run",
+                200,
+                data={"params": {"count": 6}},
+                token=self.admin_token
+            )
+            if success:
+                if data.get('status') == 'ok':
+                    result = data.get('result', {})
+                    self.log(f"✅ scan_trending executed: {result.get('count')} items", Colors.GREEN)
+                else:
+                    self.log(f"⚠️  scan_trending failed: {data.get('error')}", Colors.YELLOW)
+
+            # Test run revenue_report skill
+            success, data = self.test(
+                "Run revenue_report skill",
+                "POST",
+                "/admin/skills/revenue_report/run",
+                200,
+                data={"params": {"days": 30}},
+                token=self.admin_token
+            )
+            if success:
+                if data.get('status') == 'ok':
+                    result = data.get('result', {})
+                    self.log(f"✅ revenue_report executed: ₹{result.get('revenue')}, {result.get('orders')} orders", Colors.GREEN)
+                else:
+                    self.log(f"⚠️  revenue_report failed: {data.get('error')}", Colors.YELLOW)
+
+            # Test run enforce_margins skill with dry_run
+            success, data = self.test(
+                "Run enforce_margins skill (dry_run=true)",
+                "POST",
+                "/admin/skills/enforce_margins/run",
+                200,
+                data={"params": {"dry_run": True}},
+                token=self.admin_token
+            )
+            if success:
+                if data.get('status') == 'ok':
+                    result = data.get('result', {})
+                    self.log(f"✅ enforce_margins executed: {result.get('affected_count')} products affected", Colors.GREEN)
+                    if result.get('mode') == 'dry_run':
+                        self.log(f"  ✅ Dry run mode confirmed", Colors.GREEN)
+                else:
+                    self.log(f"⚠️  enforce_margins failed: {data.get('error')}", Colors.YELLOW)
+
+            # Test run generate_logo skill
+            success, data = self.test(
+                "Run generate_logo skill",
+                "POST",
+                "/admin/skills/generate_logo/run",
+                200,
+                data={"params": {"brand": "TestBrand", "style": "minimal"}},
+                token=self.admin_token
+            )
+            if success:
+                if data.get('status') == 'ok':
+                    result = data.get('result', {})
+                    variants = result.get('variants', [])
+                    if len(variants) == 4:
+                        self.log(f"✅ generate_logo executed: 4 variants", Colors.GREEN)
+                    else:
+                        self.log(f"⚠️  generate_logo returned {len(variants)} variants (expected 4)", Colors.YELLOW)
+                else:
+                    self.log(f"⚠️  generate_logo failed: {data.get('error')}", Colors.YELLOW)
+
+            # Test get recent skill runs
+            success, data = self.test(
+                "Get recent skill runs",
+                "GET",
+                "/admin/skills/runs/recent?limit=10",
+                200,
+                token=self.admin_token
+            )
+            if success:
+                items = data.get('items', [])
+                self.log(f"✅ Recent runs retrieved: {len(items)} items", Colors.GREEN)
+
+            # Test unknown skill (should return 404)
+            success, data = self.test(
+                "Run unknown skill (should fail 404)",
+                "POST",
+                "/admin/skills/unknown_skill/run",
+                404,
+                data={"params": {}},
+                token=self.admin_token
+            )
+            if success:
+                self.log(f"✅ Unknown skill correctly returns 404", Colors.GREEN)
+
+        # Test non-admin access to skills (should fail with 403)
+        if self.customer_token:
+            success, data = self.test(
+                "Skills list (non-admin, should fail 403)",
+                "GET",
+                "/admin/skills",
+                403,
+                token=self.customer_token
+            )
+            if success:
+                self.log(f"✅ Non-admin correctly blocked from skills", Colors.GREEN)
+
+        # ===== 18. PHASE 11 CAMPAIGN STACKS TESTS =====
+        self.log("\n" + "=" * 80, Colors.BLUE)
+        self.log("18. PHASE 11 CAMPAIGN STACKS TESTS", Colors.BLUE)
+        self.log("=" * 80, Colors.BLUE)
+
+        if self.admin_token:
+            # Test parse valid YAML
+            valid_yaml = """name: "Test Campaign"
+audience: [women, girls]
+steps:
+  - skill: health_check
+  - skill: revenue_report
+    params: { days: 7 }"""
+            
+            success, data = self.test(
+                "Parse valid YAML stack",
+                "POST",
+                "/admin/stacks/parse",
+                200,
+                data={"yaml": valid_yaml},
+                token=self.admin_token
+            )
+            if success:
+                if data.get('ok') and data.get('step_count') == 2:
+                    self.log(f"✅ Valid YAML parsed: {data.get('step_count')} steps", Colors.GREEN)
+                else:
+                    self.log(f"⚠️  Parse response: {data}", Colors.YELLOW)
+
+            # Test parse invalid YAML (should return 400)
+            invalid_yaml = "invalid: yaml: syntax: ["
+            success, data = self.test(
+                "Parse invalid YAML (should fail 400)",
+                "POST",
+                "/admin/stacks/parse",
+                400,
+                data={"yaml": invalid_yaml},
+                token=self.admin_token
+            )
+            if success:
+                self.log(f"✅ Invalid YAML correctly returns 400", Colors.GREEN)
+
+            # Test save stack
+            success, data = self.test(
+                "Save campaign stack",
+                "POST",
+                "/admin/stacks/save",
+                200,
+                data={"yaml": valid_yaml},
+                token=self.admin_token
+            )
+            saved_stack_id = None
+            if success:
+                saved_stack_id = data.get('id')
+                if saved_stack_id and data.get('name') == 'Test Campaign':
+                    self.log(f"✅ Stack saved: {saved_stack_id}", Colors.GREEN)
+                else:
+                    self.log(f"⚠️  Save response: {data}", Colors.YELLOW)
+
+            # Test list stacks
+            success, data = self.test(
+                "List saved stacks",
+                "GET",
+                "/admin/stacks",
+                200,
+                token=self.admin_token
+            )
+            if success:
+                items = data.get('items', [])
+                self.log(f"✅ Stacks list retrieved: {len(items)} items", Colors.GREEN)
+
+            # Test run-once (inline execution)
+            self.log(f"\n⏳ Running stack inline (may take 10-20 seconds)...", Colors.YELLOW)
+            success, data = self.test(
+                "Run stack inline (run-once)",
+                "POST",
+                "/admin/stacks/run-once",
+                200,
+                data={"yaml": valid_yaml},
+                token=self.admin_token
+            )
+            if success:
+                overall_status = data.get('overall_status')
+                steps = data.get('steps', [])
+                if overall_status in ['ok', 'partial']:
+                    self.log(f"✅ Stack executed: {overall_status}, {len(steps)} steps", Colors.GREEN)
+                    for step in steps:
+                        status_icon = "✅" if step.get('status') == 'ok' else "❌"
+                        self.log(f"  {status_icon} Step {step.get('index')}: {step.get('skill')} - {step.get('status')}", Colors.BLUE)
+                else:
+                    self.log(f"⚠️  Stack execution result: {data}", Colors.YELLOW)
+
+            # Test run saved stack
+            if saved_stack_id:
+                self.log(f"\n⏳ Running saved stack (may take 10-20 seconds)...", Colors.YELLOW)
+                success, data = self.test(
+                    "Run saved stack",
+                    "POST",
+                    f"/admin/stacks/{saved_stack_id}/run",
+                    200,
+                    token=self.admin_token
+                )
+                if success:
+                    overall_status = data.get('overall_status')
+                    if overall_status in ['ok', 'partial']:
+                        self.log(f"✅ Saved stack executed: {overall_status}", Colors.GREEN)
+                    else:
+                        self.log(f"⚠️  Saved stack result: {data}", Colors.YELLOW)
+
+                # Test delete stack
+                success, data = self.test(
+                    "Delete saved stack",
+                    "DELETE",
+                    f"/admin/stacks/{saved_stack_id}",
+                    200,
+                    token=self.admin_token
+                )
+                if success:
+                    if data.get('ok'):
+                        self.log(f"✅ Stack deleted successfully", Colors.GREEN)
+                    else:
+                        self.log(f"⚠️  Delete response: {data}", Colors.YELLOW)
+
+        # Test non-admin access to stacks (should fail with 403)
+        if self.customer_token:
+            success, data = self.test(
+                "Stacks list (non-admin, should fail 403)",
+                "GET",
+                "/admin/stacks",
+                403,
+                token=self.customer_token
+            )
+            if success:
+                self.log(f"✅ Non-admin correctly blocked from stacks", Colors.GREEN)
+
+        # ===== 19. PHASE 11 COPILOT TESTS =====
+        self.log("\n" + "=" * 80, Colors.BLUE)
+        self.log("19. PHASE 11 COPILOT TESTS", Colors.BLUE)
+        self.log("=" * 80, Colors.BLUE)
+
+        if self.admin_token:
+            # Test conversational message
+            self.log(f"\n⏳ Testing Copilot chat (may take 5-10 seconds)...", Colors.YELLOW)
+            success, data = self.test(
+                "Copilot chat - conversational message",
+                "POST",
+                "/admin/copilot/chat",
+                200,
+                data={"message": "Hello, how are you?"},
+                token=self.admin_token
+            )
+            if success:
+                kind = data.get('kind')
+                if kind == 'text':
+                    self.log(f"✅ Copilot returned conversational response", Colors.GREEN)
+                    self.log(f"  Response: {data.get('text', '')[:100]}...", Colors.BLUE)
+                else:
+                    self.log(f"⚠️  Copilot kind: {kind} (expected 'text')", Colors.YELLOW)
+
+            # Test action-trigger message (may return text or skill_result)
+            self.log(f"\n⏳ Testing Copilot action trigger (may take 10-20 seconds)...", Colors.YELLOW)
+            success, data = self.test(
+                "Copilot chat - action trigger",
+                "POST",
+                "/admin/copilot/chat",
+                200,
+                data={"message": "health check chalao"},
+                token=self.admin_token
+            )
+            if success:
+                kind = data.get('kind')
+                if kind == 'skill_result':
+                    self.log(f"✅ Copilot invoked skill: {data.get('skill')}", Colors.GREEN)
+                    self.log(f"  Summary: {data.get('summary')}", Colors.BLUE)
+                elif kind == 'text':
+                    self.log(f"✅ Copilot returned text (LLM chose not to invoke skill)", Colors.GREEN)
+                    self.log(f"  Response: {data.get('text', '')[:100]}...", Colors.BLUE)
+                else:
+                    self.log(f"⚠️  Copilot kind: {kind}", Colors.YELLOW)
+
+            # Test get history
+            success, data = self.test(
+                "Get Copilot history",
+                "GET",
+                "/admin/copilot/history?limit=10",
+                200,
+                token=self.admin_token
+            )
+            if success:
+                items = data.get('items', [])
+                self.log(f"✅ Copilot history retrieved: {len(items)} items", Colors.GREEN)
+
+        # Test non-admin access to copilot (should fail with 403)
+        if self.customer_token:
+            success, data = self.test(
+                "Copilot chat (non-admin, should fail 403)",
+                "POST",
+                "/admin/copilot/chat",
+                403,
+                data={"message": "test"},
+                token=self.customer_token
+            )
+            if success:
+                self.log(f"✅ Non-admin correctly blocked from copilot", Colors.GREEN)
+
         # ===== SUMMARY =====
         self.log("\n" + "=" * 80, Colors.BLUE)
         self.log("TEST SUMMARY", Colors.BLUE)

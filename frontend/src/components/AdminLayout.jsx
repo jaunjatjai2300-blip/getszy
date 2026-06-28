@@ -1,7 +1,8 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
-import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Sparkles, LogOut, Store, GraduationCap, Activity, TrendingUp, Rocket } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Sparkles, LogOut, Store, GraduationCap, Activity, TrendingUp, Rocket, Wand2, Layers } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import CopilotSidebar from "@/components/CopilotSidebar";
 
 const NAV = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -11,9 +12,10 @@ const NAV = [
   { to: "/admin/customers", label: "Customers", icon: Users },
   { to: "/admin/courses", label: "Courses", icon: GraduationCap },
   { to: "/admin/sourcing", label: "Sourcing", icon: TrendingUp, accent: true },
+  { to: "/admin/skills", label: "Skills", icon: Wand2, accent: true },
+  { to: "/admin/stacks", label: "Stacks", icon: Layers, accent: true },
   { to: "/admin/deploy", label: "Deploy", icon: Rocket, accent: true },
   { to: "/admin/ai-ops", label: "AI Ops", icon: Activity, accent: true },
-  { to: "/admin/chat", label: "AI Chat", icon: Sparkles, accent: true },
 ];
 
 export default function AdminLayout() {
@@ -52,11 +54,12 @@ export default function AdminLayout() {
       <main className="p-4 md:p-8 overflow-x-hidden">
         <Outlet/>
       </main>
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 grid grid-cols-10 border-t bg-white" style={{ borderColor: "var(--gs-border)" }}>
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 grid grid-cols-11 border-t bg-white" style={{ borderColor: "var(--gs-border)" }}>
         {NAV.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `flex flex-col items-center py-2 text-[10px] ${isActive ? "text-[var(--gs-primary-2)]" : "text-[var(--gs-muted)]"}`}><n.icon className="h-4 w-4 mb-0.5"/>{n.label}</NavLink>
         ))}
       </nav>
+      <CopilotSidebar/>
     </div>
   );
 }

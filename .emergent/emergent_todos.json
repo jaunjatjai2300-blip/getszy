@@ -1,22 +1,26 @@
 [
   {
-    "content": "FIX BUG: Trending images must MATCH products",
-    "status": "completed"
+    "content": "Phase 11A: YAML Campaign Stacks - parser, executor, models, routes",
+    "status": "in_progress"
   },
   {
-    "content": "Add Mirror AI virtual try-on to product detail pages",
-    "status": "completed"
+    "content": "Phase 11B: Skills Marketplace - registry + 15 pre-built skills",
+    "status": "pending"
   },
   {
-    "content": "Phase 9: Master Build-&-Deploy Dashboard with GitHub PAT",
-    "status": "completed"
+    "content": "Phase 11C: Getszy Copilot - natural language sidebar with skill invocation",
+    "status": "pending"
   },
   {
-    "content": "Run testing_agent_v3 to verify bug fix + new features",
-    "status": "completed"
+    "content": "Phase 11D: Frontend pages (Stacks editor, Skills grid, Copilot sidebar)",
+    "status": "pending"
   },
   {
-    "content": "User: Deploy to VPS (Save to GitHub Force Push + git pull)",
+    "content": "Phase 11E: Wire into AdminLayout + App routes",
+    "status": "pending"
+  },
+  {
+    "content": "Run testing_agent_v3 for Phase 11",
     "status": "pending"
   }
 ]
