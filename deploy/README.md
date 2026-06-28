@@ -58,15 +58,22 @@ curl http://localhost:9000/health
 
 ## 4. Expose via Caddy (HTTPS)
 
-Edit `/opt/getszy/deploy/Caddyfile` and add a route inside your existing `getszy.com` block:
+Edit `/opt/getszy/deploy/Caddyfile` and add a route inside your existing `getszy.com` block — IMPORTANT: use `strip_prefix` so `/hooks/deploy` becomes `/deploy` before reaching the listener (which only knows `/deploy`):
 
 ```
-handle /hooks/deploy {
+handle /hooks/* {
+    uri strip_prefix /hooks
     reverse_proxy host.docker.internal:9000
 }
 ```
 
-(Or use the VPS IP if Caddy can't see `host.docker.internal`.)
+Also make sure your Caddy service in `docker-compose.yml` can reach the host
+machine. Add this under the `caddy:` service:
+
+```yaml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+```
 
 Reload Caddy:
 
