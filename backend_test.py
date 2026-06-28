@@ -1442,6 +1442,94 @@ steps:
             if success:
                 self.log(f"✅ Non-admin correctly blocked from copilot", Colors.GREEN)
 
+        # ===== 20. PHASE 12 WAITLIST TESTS =====
+        self.log("\n" + "=" * 80, Colors.BLUE)
+        self.log("20. PHASE 12 WAITLIST (REELS STUDIO) TESTS", Colors.BLUE)
+        self.log("=" * 80, Colors.BLUE)
+
+        # Test valid email signup
+        timestamp6 = datetime.now().strftime("%H%M%S%f")
+        waitlist_email = f"waitlist-{timestamp6}@example.com"
+        success, data = self.test(
+            "Join waitlist with valid email",
+            "POST",
+            "/waitlist",
+            200,
+            data={"email": waitlist_email, "interest": "reels_studio"}
+        )
+        if success:
+            if data.get('ok') and data.get('status') == 'subscribed' and data.get('id'):
+                self.log(f"✅ Waitlist signup successful: {waitlist_email}", Colors.GREEN)
+                self.log(f"  ID: {data.get('id')}, Status: {data.get('status')}", Colors.BLUE)
+            else:
+                self.log(f"⚠️  Waitlist response: {data}", Colors.YELLOW)
+
+        # Test duplicate email (idempotent - should return already_subscribed)
+        success, data = self.test(
+            "Join waitlist with same email (should return already_subscribed)",
+            "POST",
+            "/waitlist",
+            200,
+            data={"email": waitlist_email, "interest": "reels_studio"}
+        )
+        if success:
+            if data.get('status') == 'already_subscribed':
+                self.log(f"✅ Idempotent behavior working: already_subscribed", Colors.GREEN)
+            else:
+                self.log(f"⚠️  Expected 'already_subscribed', got: {data.get('status')}", Colors.YELLOW)
+
+        # Test invalid email (should return 400)
+        success, data = self.test(
+            "Join waitlist with invalid email (should fail 400)",
+            "POST",
+            "/waitlist",
+            400,
+            data={"email": "invalid-email", "interest": "reels_studio"}
+        )
+        if success:
+            self.log(f"✅ Invalid email correctly rejected with 400", Colors.GREEN)
+
+        # Test empty email (should return 400)
+        success, data = self.test(
+            "Join waitlist with empty email (should fail 400)",
+            "POST",
+            "/waitlist",
+            400,
+            data={"email": "", "interest": "reels_studio"}
+        )
+        if success:
+            self.log(f"✅ Empty email correctly rejected with 400", Colors.GREEN)
+
+        # Test get waitlist count (all)
+        success, data = self.test(
+            "Get total waitlist count",
+            "GET",
+            "/waitlist/count",
+            200
+        )
+        if success:
+            count = data.get('count', 0)
+            interest = data.get('interest')
+            if count >= 1:
+                self.log(f"✅ Waitlist count retrieved: {count} total, interest: {interest}", Colors.GREEN)
+            else:
+                self.log(f"⚠️  Waitlist count: {count} (expected >= 1)", Colors.YELLOW)
+
+        # Test get waitlist count (reels_studio only)
+        success, data = self.test(
+            "Get reels_studio waitlist count",
+            "GET",
+            "/waitlist/count?interest=reels_studio",
+            200
+        )
+        if success:
+            count = data.get('count', 0)
+            interest = data.get('interest')
+            if count >= 1 and interest == 'reels_studio':
+                self.log(f"✅ Reels Studio waitlist count: {count}", Colors.GREEN)
+            else:
+                self.log(f"⚠️  Reels Studio count: {count}, interest: {interest}", Colors.YELLOW)
+
         # ===== SUMMARY =====
         self.log("\n" + "=" * 80, Colors.BLUE)
         self.log("TEST SUMMARY", Colors.BLUE)

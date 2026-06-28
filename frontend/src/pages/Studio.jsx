@@ -1,243 +1,145 @@
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { api, API_BASE } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Send, Loader2, Plus, Download, Trash2, Code2, Eye, Wand2, Bot, Zap } from "lucide-react";
-import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
+import { api } from "@/lib/api";
+import { Sparkles, Clock, Coffee, Mic2, Wand2, Loader2, CheckCircle2, ChevronRight, Youtube, Instagram, Facebook } from "lucide-react";
 
-const SUGGESTIONS = [
-  "Build a stunning portfolio website for a yoga instructor named Priya",
-  "Landing page for an AI productivity tool called FlowMind",
-  "Single-page restaurant website for Spice Garden in Mumbai",
-  "Personal coach website for a women's career mentor",
-  "Boutique online store landing for handmade jewellery brand 'Riya & Co'",
-  "Photographer portfolio with gallery and contact section",
-];
-
-const STAGES = [
-  { key: "plan", label: "Planning", icon: Bot },
-  { key: "code", label: "Coding", icon: Code2 },
-  { key: "review", label: "Reviewing", icon: Wand2 },
+const HOURS = [
+  { time: "6 AM",  task: "Trending research",          done: true },
+  { time: "8 AM",  task: "Script writing",             done: true },
+  { time: "10 AM", task: "Voice-over & B-roll",        done: true },
+  { time: "12 PM", task: "Video editing & captions",   done: true },
+  { time: "2 PM",  task: "Thumbnail A/B testing",      done: true },
+  { time: "4 PM",  task: "Multi-platform publishing",  done: true },
+  { time: "6 PM",  task: "Comments & DM replies",      done: true },
+  { time: "8 PM",  task: "Analytics & tomorrow\u2019s plan", done: true },
 ];
 
 export default function Studio() {
-  const { user, loading } = useAuth();
-  const navigate = useNavigate();
-  const [projects, setProjects] = useState([]);
-  const [active, setActive] = useState(null);
-  const [prompt, setPrompt] = useState("");
+  const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
-  const [stageIdx, setStageIdx] = useState(0);
-  const [view, setView] = useState("preview"); // preview | code
-  const [sub, setSub] = useState(null);
-  const stageTimer = useRef(null);
+  const [done, setDone] = useState(false);
 
-  useEffect(() => {
-    if (!loading && !user) navigate("/login");
-  }, [user, loading, navigate]);
-
-  useEffect(() => { if (user) { loadProjects(); api.get("/me/subscription").then(({ data }) => setSub(data)).catch(() => {}); } }, [user]);
-
-  const loadProjects = async () => {
-    const { data } = await api.get("/builder/projects");
-    setProjects(data);
-  };
-
-  const loadProject = async (id) => {
-    const { data } = await api.get(`/builder/projects/${id}`);
-    setActive(data);
-  };
-
-  const newChat = () => { setActive(null); setPrompt(""); };
-
-  const animateStages = () => {
-    setStageIdx(0);
-    let i = 0;
-    stageTimer.current = setInterval(() => {
-      i = Math.min(i + 1, STAGES.length - 1);
-      setStageIdx(i);
-    }, 8000);
-  };
-
-  const stopStages = () => {
-    if (stageTimer.current) clearInterval(stageTimer.current);
-    stageTimer.current = null;
-  };
-
-  const submit = async () => {
-    if (!prompt.trim() || busy) return;
-    setBusy(true); animateStages();
+  const join = async (e) => {
+    e?.preventDefault();
+    if (!email || !email.includes("@")) return;
+    setBusy(true);
     try {
-      if (!active) {
-        const { data } = await api.post("/builder/projects", { prompt }, { timeout: 600000 });
-        setActive(data); setProjects((p) => [data, ...p.filter((x) => x.id !== data.id)]);
-        toast.success("Project built ✨");
-      } else {
-        const { data } = await api.post(`/builder/projects/${active.id}/refine`, { prompt }, { timeout: 600000 });
-        setActive(data);
-        toast.success("Updated");
-      }
-      setPrompt("");
-    } catch (e) {
-      if (e?.response?.status === 402) {
-        toast.error(e.response.data.detail || "Upgrade required");
-        navigate("/pricing");
-      } else {
-        toast.error(e?.response?.data?.detail || "Generation failed — try again");
-      }
-    } finally { stopStages(); setBusy(false); }
+      await api.post("/waitlist", { email, interest: "reels_studio" });
+      setDone(true);
+    } catch { setDone(true); /* even on duplicate, show success */ }
+    finally { setBusy(false); }
   };
-
-  const remove = async (id) => {
-    if (!window.confirm("Delete this project?")) return;
-    await api.delete(`/builder/projects/${id}`);
-    if (active?.id === id) setActive(null);
-    await loadProjects();
-    toast.success("Deleted");
-  };
-
-  const download = async (id) => {
-    const token = localStorage.getItem("gs_token");
-    const r = await fetch(`${API_BASE}/builder/projects/${id}/download`, { headers: { Authorization: `Bearer ${token}` } });
-    if (!r.ok) return toast.error("Download failed");
-    const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `${active?.name || "project"}.zip`;
-    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  };
-
-  if (!user) return null;
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-[260px_1fr] bg-[var(--gs-bg)]" data-testid="studio-page">
-      {/* Sidebar */}
-      <aside className="hidden lg:flex flex-col border-r" style={{ background: "var(--gs-surface)", borderColor: "var(--gs-border)" }}>
-        <div className="p-4 border-b" style={{ borderColor: "var(--gs-border)" }}>
-          <div className="font-display text-xl">Studio</div>
-          <div className="text-xs text-[var(--gs-muted)]">Talk-to-Build · Powered by your VPS</div>
-          {sub && (
-            <div className="text-xs text-[var(--gs-muted)] mt-2">
-              <span className="capitalize font-semibold text-[var(--gs-ink)]">{sub.plan}</span> · {sub.studio_builds_used || 0}/{sub.quota?.studio_builds === 9999 ? "∞" : sub.quota?.studio_builds || 0} builds
-            </div>
-          )}
-        </div>
-        <div className="p-3">
-          <Button onClick={newChat} className="w-full bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]/90" data-testid="studio-new-button"><Plus className="h-4 w-4 mr-2"/>New project</Button>
-        </div>
-        <div className="flex-1 overflow-auto p-2 space-y-1">
-          {projects.length === 0 && <div className="text-xs text-[var(--gs-muted)] p-3">No projects yet. Start with a prompt below.</div>}
-          {projects.map((p) => (
-            <div key={p.id} className={`group flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[var(--gs-surface-2)] cursor-pointer ${active?.id === p.id ? "bg-[var(--gs-surface-2)]" : ""}`} onClick={() => loadProject(p.id)} data-testid={`studio-project-${p.id}`}>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{p.name}</div>
-                <div className="text-[10px] text-[var(--gs-muted)]">{new Date(p.updated_at).toLocaleDateString()}</div>
-              </div>
-              <button onClick={(e) => { e.stopPropagation(); remove(p.id); }} className="opacity-0 group-hover:opacity-100 text-[var(--gs-muted)] hover:text-rose-500"><Trash2 className="h-3.5 w-3.5"/></button>
-            </div>
-          ))}
-        </div>
-      </aside>
+    <div className="min-h-screen" style={{ background: "radial-gradient(circle at 20% 0%, var(--gs-teal-soft) 0%, #F7F5F2 45%)" }} data-testid="reels-studio-page">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
+        {/* HERO */}
+        <div className="text-center">
+          <Badge className="mb-5 text-sm px-3 py-1.5" style={{ background: "var(--gs-teal)", color: "white" }} data-testid="reels-studio-badge">
+            <Sparkles className="h-3.5 w-3.5 inline mr-1"/>Coming Soon
+          </Badge>
 
-      {/* Main */}
-      <main className="flex flex-col h-screen overflow-hidden">
-        {/* Header bar */}
-        <div className="border-b p-4 flex items-center gap-3 flex-wrap" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)" }}>
-          <div className="h-9 w-9 rounded-xl grid place-items-center" style={{ background: "var(--gs-teal-soft)" }}><Sparkles className="h-5 w-5 text-[var(--gs-teal)]"/></div>
-          <div className="flex-1 min-w-0">
-            <div className="font-semibold truncate">{active ? active.name : "Build something amazing"}</div>
-            <div className="text-xs text-[var(--gs-muted)]">{active ? "Refine via chat below" : "Describe what you want in plain English or Hinglish"}</div>
-          </div>
-          {active && (
-            <>
-              <div className="flex gap-1 rounded-lg border p-0.5" style={{ borderColor: "var(--gs-border)" }}>
-                <button onClick={() => setView("preview")} className={`px-3 py-1.5 text-xs rounded ${view === "preview" ? "bg-[var(--gs-ink)] text-white" : ""}`} data-testid="studio-view-preview"><Eye className="h-3 w-3 inline mr-1"/>Preview</button>
-                <button onClick={() => setView("code")} className={`px-3 py-1.5 text-xs rounded ${view === "code" ? "bg-[var(--gs-ink)] text-white" : ""}`} data-testid="studio-view-code"><Code2 className="h-3 w-3 inline mr-1"/>Code</button>
-              </div>
-              <Button onClick={() => download(active.id)} variant="outline" size="sm" data-testid="studio-download-button"><Download className="h-4 w-4 mr-1"/>Download</Button>
-            </>
-          )}
-        </div>
+          <h1 className="font-display text-5xl sm:text-7xl leading-tight" data-testid="reels-studio-title">
+            Getszy <span style={{ color: "var(--gs-teal)" }}>Reels Studio</span>
+          </h1>
 
-        {/* Body */}
-        <div className="flex-1 overflow-hidden grid grid-rows-[1fr_auto]">
-          <div className="overflow-auto p-4 sm:p-6 gs-ai-glow">
-            {!active && !busy && (
-              <div className="max-w-2xl mx-auto text-center py-8">
-                <div className="h-14 w-14 mx-auto rounded-2xl grid place-items-center mb-4" style={{ background: "var(--gs-teal-soft)" }}><Wand2 className="h-7 w-7 text-[var(--gs-teal)]"/></div>
-                <h1 className="font-display text-3xl sm:text-4xl mb-2">What do you want to build?</h1>
-                <p className="text-[var(--gs-muted)] mb-6">Describe your website — AI agents on YOUR VPS will plan, code, and review it. ~2-4 min build time.</p>
-                <div className="grid sm:grid-cols-2 gap-2 text-left">
-                  {SUGGESTIONS.map((s) => (
-                    <button key={s} onClick={() => setPrompt(s)} className="text-sm p-3 rounded-xl border hover:bg-[var(--gs-surface-2)] text-left" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)" }} data-testid={`studio-suggestion-${s.slice(0,15)}`}>
-                      <Zap className="h-3.5 w-3.5 text-[var(--gs-teal)] inline mr-1"/>{s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+          <p className="mt-5 text-lg sm:text-xl text-[var(--gs-muted)] max-w-2xl mx-auto">
+            Your whole creator day <span className="font-semibold text-[var(--gs-ink)]">done in minutes</span>.
+            <br className="hidden sm:block"/>One AI co-creator for YouTubers, Reel creators, Influencers &amp; Bloggers.
+          </p>
 
-            {busy && (
-              <div className="max-w-xl mx-auto text-center py-12" data-testid="studio-building-state">
-                <div className="flex items-center justify-center gap-3 mb-6">
-                  {STAGES.map((s, i) => {
-                    const Icon = s.icon;
-                    const done = i < stageIdx; const current = i === stageIdx;
-                    return (
-                      <div key={s.key} className="flex items-center gap-2">
-                        <div className={`h-10 w-10 rounded-full grid place-items-center ${done ? "bg-[var(--gs-teal)] text-white" : current ? "bg-[var(--gs-teal-soft)] text-[var(--gs-teal)] animate-pulse" : "bg-[var(--gs-surface-2)] text-[var(--gs-muted)]"}`}>
-                          {current ? <Loader2 className="h-4 w-4 animate-spin"/> : <Icon className="h-4 w-4"/>}
-                        </div>
-                        {i < STAGES.length - 1 && <div className={`w-10 h-0.5 ${done ? "bg-[var(--gs-teal)]" : "bg-[var(--gs-border)]"}`}/>}
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="font-semibold mb-1">{STAGES[stageIdx].label}…</div>
-                <p className="text-sm text-[var(--gs-muted)]">AI on your VPS is working. First build can take 2-4 min on CPU.</p>
-              </div>
-            )}
-
-            {active && !busy && (
-              view === "preview" ? (
-                <iframe
-                  title={active.name}
-                  srcDoc={active.html_content}
-                  sandbox="allow-scripts allow-same-origin allow-popups"
-                  className="w-full h-full min-h-[600px] rounded-2xl border bg-white"
-                  style={{ borderColor: "var(--gs-border)" }}
-                  data-testid="studio-preview-iframe"
-                />
-              ) : (
-                <pre className="w-full h-full min-h-[400px] rounded-2xl border p-4 overflow-auto text-xs bg-[#0f1419] text-[#f8f8f2] font-mono" style={{ borderColor: "var(--gs-border)" }} data-testid="studio-code-view">{active.html_content}</pre>
-              )
-            )}
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-2 text-sm text-[var(--gs-muted)]">
+            <span className="flex items-center gap-1"><Youtube className="h-4 w-4"/>YouTubers</span>
+            <span>·</span>
+            <span className="flex items-center gap-1"><Instagram className="h-4 w-4"/>Instagram</span>
+            <span>·</span>
+            <span className="flex items-center gap-1"><Facebook className="h-4 w-4"/>Facebook</span>
+            <span>·</span>
+            <span className="flex items-center gap-1"><Mic2 className="h-4 w-4"/>Podcasters</span>
+            <span>·</span>
+            <span>Bloggers</span>
           </div>
 
-          {/* Composer */}
-          <div className="border-t p-3 sm:p-4" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)", paddingBottom: "60px" }}>
-            <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="max-w-3xl mx-auto flex items-end gap-2">
-              <Textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                rows={1}
-                placeholder={active ? "Refine: e.g., Make hero taller, add testimonials section…" : "Describe your website…"}
-                className="resize-none min-h-[48px] max-h-32"
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
-                disabled={busy}
-                data-testid="studio-prompt-input"
-              />
-              <Button type="submit" disabled={busy || !prompt.trim()} className="h-12 w-12 bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]/90" data-testid="studio-send-button">
-                {busy ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4"/>}
+          {/* Waitlist */}
+          {!done ? (
+            <form onSubmit={join} className="mt-9 max-w-md mx-auto flex gap-2" data-testid="waitlist-form">
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                placeholder="apna email do, founder access milega" className="h-12 text-base" required data-testid="waitlist-email-input"/>
+              <Button type="submit" disabled={busy} className="h-12 px-5 bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]/90 gap-2" data-testid="waitlist-submit-button">
+                {busy ? <Loader2 className="h-4 w-4 animate-spin"/> : <ChevronRight className="h-4 w-4"/>}
+                Join waitlist
               </Button>
             </form>
-          </div>
+          ) : (
+            <div className="mt-9 max-w-md mx-auto px-4 py-3 rounded-xl text-sm flex items-center justify-center gap-2" style={{ background: "var(--gs-teal-soft)", color: "var(--gs-teal)" }} data-testid="waitlist-success">
+              <CheckCircle2 className="h-5 w-5"/>Thanks! Aapko launch se pehle pata chal jayega.
+            </div>
+          )}
+          <p className="mt-3 text-xs text-[var(--gs-muted)]">Founder waitlist · early access · no spam, promise</p>
         </div>
-      </main>
+
+        {/* DAY-LONG WORK STRIP */}
+        <section className="mt-20 sm:mt-28">
+          <div className="text-center mb-10">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs uppercase tracking-wider" style={{ background: "var(--gs-surface-2)", color: "var(--gs-muted)" }}>
+              <Clock className="h-3.5 w-3.5"/>A creator&apos;s whole day
+            </div>
+            <h2 className="font-display text-3xl sm:text-5xl mt-4">14 hours of work.<br/>Done while you sip chai.</h2>
+            <p className="text-[var(--gs-muted)] mt-3 max-w-xl mx-auto">From the morning&apos;s research to night&apos;s analytics — every repetitive task you do, our AI agents handle in the background.</p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {HOURS.map((h, i) => (
+              <div key={i} className="gs-card p-4 relative" data-testid={`day-step-${i}`}>
+                <div className="flex items-center gap-2 text-xs font-semibold text-[var(--gs-muted)] uppercase tracking-wider">
+                  <Clock className="h-3 w-3"/>{h.time}
+                </div>
+                <div className="mt-2 font-display text-lg">{h.task}</div>
+                <CheckCircle2 className="h-4 w-4 text-[var(--gs-teal)] absolute top-3 right-3"/>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* WHY BLOCK (no features list, just feel) */}
+        <section className="mt-20 sm:mt-28 text-center">
+          <Coffee className="h-10 w-10 mx-auto text-[var(--gs-teal)] mb-3"/>
+          <h2 className="font-display text-3xl sm:text-4xl">Built in India.<br/>For Indian creators.</h2>
+          <p className="mt-4 text-[var(--gs-muted)] max-w-2xl mx-auto">
+            Hindi-first. Hinglish-friendly. UPI-priced. No $99/month bills, no foreign cards, no learning curve.
+            <br/>Just — <span className="italic font-semibold text-[var(--gs-ink)]">tell it what you want</span> — your AI co-creator does the rest.
+          </p>
+        </section>
+
+        {/* FOUNDER NOTE */}
+        <section className="mt-20 sm:mt-24 max-w-2xl mx-auto">
+          <div className="gs-card p-6 sm:p-8">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-full grid place-items-center flex-shrink-0" style={{ background: "var(--gs-teal)", color: "white" }}>
+                <Wand2 className="h-5 w-5"/>
+              </div>
+              <div className="text-sm leading-relaxed text-[var(--gs-muted)]">
+                <p>Hum jaante hain creator banna kitna thakane wala kaam hai. Research, scripting, recording, editing, posting, replies—din khatam ho jaata hai, content aur grow nahi hota.</p>
+                <p className="mt-3">Getszy Reels Studio is being built so you can finally focus on the part you love. Hum baaki sab sambhalenge.</p>
+                <p className="mt-4 font-semibold text-[var(--gs-ink)]">— Team Getszy</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* SECONDARY CTA */}
+        <section className="mt-16 text-center">
+          <p className="text-sm text-[var(--gs-muted)]">Meanwhile, explore what we&apos;ve already built →</p>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            <Link to="/academy" className="px-4 py-2 rounded-full border text-sm hover:bg-white" style={{ borderColor: "var(--gs-border)" }} data-testid="reels-studio-academy-link">AI Academy</Link>
+            <Link to="/studio/media" className="px-4 py-2 rounded-full border text-sm hover:bg-white" style={{ borderColor: "var(--gs-border)" }} data-testid="reels-studio-media-link">Media Studio</Link>
+            <Link to="/shop" className="px-4 py-2 rounded-full border text-sm hover:bg-white" style={{ borderColor: "var(--gs-border)" }} data-testid="reels-studio-shop-link">Shop</Link>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

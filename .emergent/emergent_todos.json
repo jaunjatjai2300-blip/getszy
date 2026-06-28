@@ -1,30 +1,34 @@
 [
   {
-    "content": "Phase 11A: YAML Campaign Stacks - parser, executor, models, routes",
-    "status": "completed"
+    "content": "Fix 1: Add 'AI Chat' link back to AdminLayout NAV",
+    "status": "in_progress"
   },
   {
-    "content": "Phase 11B: Skills Marketplace - registry + 15 pre-built skills",
-    "status": "completed"
+    "content": "Fix 2: Add httpx explicitly to requirements.txt",
+    "status": "pending"
   },
   {
-    "content": "Phase 11C: Getszy Copilot - natural language sidebar with skill invocation",
-    "status": "completed"
+    "content": "Fix 3: Create VPS webhook listener script + systemd service + setup README",
+    "status": "pending"
   },
   {
-    "content": "Phase 11D: Frontend pages (Stacks editor, Skills grid, Copilot sidebar)",
-    "status": "completed"
+    "content": "Fix 4: Document qwen2.5-coder:14b pull command (no code change, just instruction)",
+    "status": "pending"
   },
   {
-    "content": "Phase 11E: Wire into AdminLayout + App routes",
-    "status": "completed"
+    "content": "Build: Overwrite /studio with 'Getszy Reels Studio - Coming Soon' hype page (no features/pricing) + email waitlist",
+    "status": "pending"
   },
   {
-    "content": "Run testing_agent_v3 for Phase 11",
-    "status": "completed"
+    "content": "Backend: POST /api/waitlist endpoint for email capture",
+    "status": "pending"
   },
   {
-    "content": "User: Deploy Phase 11 to VPS (Save to GitHub + git pull)",
+    "content": "Update Header: rename Studio link to 'Reels Studio' with COMING SOON pill",
+    "status": "pending"
+  },
+  {
+    "content": "Run testing_agent_v3 to verify all fixes + reels studio page",
     "status": "pending"
   }
 ]
