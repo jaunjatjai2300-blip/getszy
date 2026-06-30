@@ -265,17 +265,56 @@ Testing:
 
 ---
 
-### Phase 13 — Faceless Video Maker MVP ⭐ **NEXT**
-**Goal:** Script → Voice → Stock visuals → Auto-edited video pipeline.
+### Phase 13 — Faceless Video Studio (10x automation) ✅ **COMPLETED**
+**Goal achieved:** Topic → finished MP4 in ~60-120s, fully automated. Indian-first voice + visuals, batch mode for 10 videos.
 
-### Phase 14 — Multi-Platform Publishing
-YouTube + Instagram + Facebook scheduled auto-post (when API keys provided).
+Delivered:
+- Backend `video/` package: `shotlist.py` (LLM scene planner), `tts.py` (edge-tts with 4 Indian neural voices — Swara/Madhur/Neerja/Prabhat), `visuals.py` (Pollinations.ai + Pexels fallback), `compose.py` (FFmpeg Ken Burns + burned subtitles), `pipeline.py` (background runner with progress %)
+- `routes_video.py`: POST /video/generate, POST /video/batch (up to 10), GET /video/jobs, GET /video/jobs/{id}, DELETE, GET /video/files/{name} (serves MP4/MP3/SRT)
+- 3 orientations: 9:16 Shorts/Reels, 16:9 long-form, 1:1 Insta posts
+- GPU-ready: providers.py abstracted so fal.ai/Replicate/local GPU can replace Pollinations + edge-tts when keys arrive
+- Frontend `/admin/video` Video Studio: Single + Batch tabs, live progress bars, inline video player, MP4/SRT download
+- Testing: iteration_13 — 31/31 backend pass + frontend pass; FFmpeg auto-installed
 
-### Phase 15 — Creator Business OS
-Sponsorship CRM, invoicing, affiliate hub.
+### Phase 14 — Multi-Platform Publishing ✅ **COMPLETED**
+**Goal achieved:** Auto-generate platform-specific captions and schedule across 5 platforms; dry-run preview until credentials added.
 
-### Phase 16 — AI Workforce
-10 specialist agents (editor, designer, SEO, thumbnail, captions, …).
+Delivered:
+- Backend `publishing/` package: `adapters.py` (YouTube/Insta/FB/X/LinkedIn with env-key gating + dry-run preview), `metadata.py` (LLM-generated per-platform title/caption/hashtags/CTA)
+- `routes_publishing.py`: GET /connections, POST /schedule, GET /queue, POST /run-now, DELETE /queue/{id}
+- Auto-link to finished video jobs (Phase 13)
+- Frontend `/admin/publishing`: connection status cards, schedule form, queue with run-now & cancel
+- Testing: included in iteration_13 — all endpoints + UI verified
+
+### Phase 15 — AI Workforce (10 specialist agents) ✅ **COMPLETED**
+**Goal achieved:** 10 named AI personas to automate end-to-end creator operations.
+
+Delivered:
+- `workforce/agents.py` with 10 specialists:
+  1. Aarav the Editor (B-roll, jump cuts, captions timing)
+  2. Diya the Designer (thumbnail concepts, brand kit)
+  3. Sahil the SEO Strategist (keywords, titles, tags)
+  4. Tanvi the Thumbnail Artist (3 prompts + CTR predictions)
+  5. Kavya the Caption Writer (multi-platform captions)
+  6. Tara the Translator (7 Indian languages)
+  7. Rohan the Researcher (facts, outline, counter-arguments)
+  8. Sanaya the Channel Strategist (pillars, 30-day roadmap, monetization)
+  9. Meera the Community Manager (replies, pinned comment)
+ 10. Aman the Analyst (insights, retention flags, next-content)
+- `routes_workforce.py`: GET /agents, POST /{agent_id}/task, GET /history
+- Frontend `/admin/workforce`: 5-column agent grid, dialog with per-agent params + JSON output
+- Testing: included in iteration_13 — all endpoints + UI verified
+
+---
+
+### Phase 16 — Creator Business OS ⏳ **NEXT (planned)**
+Sponsorship CRM, invoicing, affiliate hub, brand-deal pipeline.
+
+### Phase 17 — Real social-posting SDK integration ⏳ **PENDING KEYS**
+Wire actual YouTube/Meta/X/LinkedIn SDKs once user provides OAuth tokens.
+
+### Phase 18 — Razorpay (DEFERRED per user)
+Monetization to start AFTER all advanced features land + GPU migration completes.
 
 ---
 

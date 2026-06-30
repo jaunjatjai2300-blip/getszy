@@ -1,10 +1,10 @@
 [
   {
-    "content": "Phase 13: Faceless Video pipeline (script→shotlist→visuals→tts→ffmpeg)",
+    "content": "Phase 13: Faceless Video pipeline",
     "status": "completed"
   },
   {
-    "content": "Phase 14: Multi-platform publishing adapters (5 platforms, dry-run)",
+    "content": "Phase 14: Multi-platform publishing",
     "status": "completed"
   },
   {
@@ -12,15 +12,15 @@
     "status": "completed"
   },
   {
-    "content": "Wire 3 routers + frontend routes + sidebar nav",
+    "content": "Wire routes + sidebar nav",
     "status": "completed"
   },
   {
-    "content": "Run testing_agent_v3 — all 3 new modules",
-    "status": "in_progress"
+    "content": "testing_agent_v3 — 31/31 pass",
+    "status": "completed"
   },
   {
     "content": "Update plan.md",
-    "status": "pending"
+    "status": "completed"
   }
 ]
