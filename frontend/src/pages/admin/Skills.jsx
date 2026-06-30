@@ -15,6 +15,7 @@ const CATEGORY_META = {
   analytics: { label: "Analytics & Reports", color: "#5d8f8e" },
   devops:    { label: "DevOps & Deploy", color: "#7c3aed" },
   marketing: { label: "Marketing", color: "#e0a458" },
+  creator:   { label: "Creator OS", color: "#c97a87" },
 };
 
 export default function AdminSkills() {

@@ -1530,6 +1530,267 @@ steps:
             else:
                 self.log(f"⚠️  Reels Studio count: {count}, interest: {interest}", Colors.YELLOW)
 
+        # ===== 21. PHASE 12 CREATOR OS TESTS =====
+        self.log("\n" + "=" * 80, Colors.BLUE)
+        self.log("21. PHASE 12 CREATOR OS TESTS", Colors.BLUE)
+        self.log("=" * 80, Colors.BLUE)
+
+        # Test GET /creator/formats (auth required)
+        success, data = self.test(
+            "Get creator formats list",
+            "GET",
+            "/creator/formats",
+            200,
+            token=self.customer_token
+        )
+        if success:
+            formats = data.get('formats', [])
+            if len(formats) == 7:
+                self.log(f"✅ Found 7 creator formats", Colors.GREEN)
+                format_ids = [f.get('id') for f in formats]
+                expected = ['youtube_long', 'youtube_short', 'instagram_reel', 'facebook_reel', 'blog', 'tweet_thread', 'linkedin']
+                if all(fid in format_ids for fid in expected):
+                    self.log(f"  ✅ All expected formats present", Colors.GREEN)
+            else:
+                self.log(f"⚠️  Expected 7 formats, found {len(formats)}", Colors.YELLOW)
+
+        # Test GET /creator/providers (auth required)
+        success, data = self.test(
+            "Get creator providers readiness",
+            "GET",
+            "/creator/providers",
+            200,
+            token=self.customer_token
+        )
+        if success:
+            capabilities = data.get('capabilities', {})
+            if len(capabilities) == 6:
+                self.log(f"✅ Found 6 capability providers", Colors.GREEN)
+                for cap, info in capabilities.items():
+                    self.log(f"  {cap}: {info.get('name')} ({info.get('status')})", Colors.BLUE)
+            else:
+                self.log(f"⚠️  Expected 6 capabilities, found {len(capabilities)}", Colors.YELLOW)
+
+        # Test POST /creator/script (auth required, LLM call - may take 10-30s)
+        self.log(f"\n⏳ Testing script generation (may take 10-30 seconds)...", Colors.YELLOW)
+        success, data = self.test(
+            "Generate script (YouTube Short)",
+            "POST",
+            "/creator/script",
+            200,
+            data={
+                "topic": "5 AI tools every Indian student must use",
+                "format": "youtube_short",
+                "audience": "indian creators",
+                "tone": "energetic",
+                "language": "hinglish"
+            },
+            token=self.customer_token
+        )
+        script_id = None
+        if success:
+            script_id = data.get('id')
+            if script_id and data.get('kind') == 'script':
+                self.log(f"✅ Script generated: {script_id}", Colors.GREEN)
+                script_data = data.get('data', {})
+                if 'title' in script_data and 'format' in script_data:
+                    self.log(f"  Title: {script_data.get('title', '')[:50]}...", Colors.BLUE)
+                    self.log(f"  Format: {script_data.get('format')}", Colors.BLUE)
+                else:
+                    self.log(f"⚠️  Script data incomplete: {list(script_data.keys())}", Colors.YELLOW)
+            else:
+                self.log(f"⚠️  Script response: {data}", Colors.YELLOW)
+
+        # Test POST /creator/script with short topic (should fail 400)
+        success, data = self.test(
+            "Generate script with short topic (should fail 400)",
+            "POST",
+            "/creator/script",
+            400,
+            data={"topic": "AI", "format": "youtube_short"},
+            token=self.customer_token
+        )
+        if success:
+            self.log(f"✅ Short topic correctly rejected with 400", Colors.GREEN)
+
+        # Test POST /creator/trends (auth required, LLM call - may take 10-30s)
+        self.log(f"\n⏳ Testing trend prediction (may take 10-30 seconds)...", Colors.YELLOW)
+        success, data = self.test(
+            "Predict trends for niche",
+            "POST",
+            "/creator/trends",
+            200,
+            data={"niche": "personal finance India", "count": 8, "region": "IN"},
+            token=self.customer_token
+        )
+        if success:
+            trend_id = data.get('id')
+            trend_data = data.get('data', {})
+            predictions = trend_data.get('predictions', [])
+            if trend_id and len(predictions) > 0:
+                self.log(f"✅ Trends predicted: {len(predictions)} topics", Colors.GREEN)
+                if predictions:
+                    first = predictions[0]
+                    if 'topic' in first and 'trend_score' in first:
+                        self.log(f"  Sample: {first.get('topic', '')[:50]}... (score: {first.get('trend_score')})", Colors.BLUE)
+            else:
+                self.log(f"⚠️  Trends response: {data}", Colors.YELLOW)
+
+        # Test POST /creator/score-hook (auth required, LLM call)
+        self.log(f"\n⏳ Testing hook scoring (may take 5-15 seconds)...", Colors.YELLOW)
+        success, data = self.test(
+            "Score hook",
+            "POST",
+            "/creator/score-hook",
+            200,
+            data={"hook": "Did you know AI can write your entire script in 30 seconds?"},
+            token=self.customer_token
+        )
+        if success:
+            if 'score' in data and 'rationale' in data:
+                self.log(f"✅ Hook scored: {data.get('score')}/100", Colors.GREEN)
+                self.log(f"  Rationale: {data.get('rationale', '')[:80]}...", Colors.BLUE)
+            else:
+                self.log(f"⚠️  Hook response: {data}", Colors.YELLOW)
+
+        # Test POST /creator/viral-score (auth required, LLM call)
+        self.log(f"\n⏳ Testing viral score (may take 5-15 seconds)...", Colors.YELLOW)
+        success, data = self.test(
+            "Predict viral score",
+            "POST",
+            "/creator/viral-score",
+            200,
+            data={
+                "content": {
+                    "title": "5 AI tools that will replace your job in 2025",
+                    "hook": "Your job is at risk",
+                    "format": "reel",
+                    "topic": "AI tools"
+                }
+            },
+            token=self.customer_token
+        )
+        if success:
+            if 'viral_score' in data:
+                self.log(f"✅ Viral score: {data.get('viral_score')}/100", Colors.GREEN)
+                drivers = data.get('drivers', [])
+                risks = data.get('risks', [])
+                self.log(f"  Drivers: {len(drivers)}, Risks: {len(risks)}", Colors.BLUE)
+            else:
+                self.log(f"⚠️  Viral score response: {data}", Colors.YELLOW)
+
+        # Test POST /creator/competitor-gap (auth required, LLM call)
+        self.log(f"\n⏳ Testing competitor gap analysis (may take 10-20 seconds)...", Colors.YELLOW)
+        success, data = self.test(
+            "Analyze competitor gaps",
+            "POST",
+            "/creator/competitor-gap",
+            200,
+            data={"competitor": "CA Rachana Ranade - stocks education on YouTube"},
+            token=self.customer_token
+        )
+        if success:
+            gaps = data.get('gaps', [])
+            if len(gaps) > 0:
+                self.log(f"✅ Competitor gaps found: {len(gaps)} gaps", Colors.GREEN)
+                if gaps:
+                    first_gap = gaps[0]
+                    if 'topic' in first_gap:
+                        self.log(f"  Sample gap: {first_gap.get('topic', '')[:60]}...", Colors.BLUE)
+            else:
+                self.log(f"⚠️  No gaps returned", Colors.YELLOW)
+
+        # Test POST /creator/repurpose (auth required, LLM call - may take 30-60s for multiple formats)
+        self.log(f"\n⏳ Testing multi-format repurpose (may take 30-60 seconds)...", Colors.YELLOW)
+        success, data = self.test(
+            "Repurpose content to multiple formats",
+            "POST",
+            "/creator/repurpose",
+            200,
+            data={
+                "long_script_topic": "How to start investing in India",
+                "target_formats": ["youtube_short", "instagram_reel", "tweet_thread"]
+            },
+            token=self.customer_token
+        )
+        if success:
+            repurpose_id = data.get('id')
+            outputs = data.get('outputs', {})
+            if repurpose_id and len(outputs) == 3:
+                self.log(f"✅ Repurpose completed: {len(outputs)} formats", Colors.GREEN)
+                for fmt, content in outputs.items():
+                    if 'error' in content:
+                        self.log(f"  ⚠️  {fmt}: error - {content.get('error')}", Colors.YELLOW)
+                    else:
+                        self.log(f"  ✅ {fmt}: success", Colors.GREEN)
+            else:
+                self.log(f"⚠️  Repurpose response: {data}", Colors.YELLOW)
+
+        # Test POST /creator/repurpose with empty formats (should fail 400)
+        success, data = self.test(
+            "Repurpose with empty formats (should fail 400)",
+            "POST",
+            "/creator/repurpose",
+            400,
+            data={"long_script_topic": "Test topic", "target_formats": []},
+            token=self.customer_token
+        )
+        if success:
+            self.log(f"✅ Empty formats correctly rejected with 400", Colors.GREEN)
+
+        # Test GET /creator/history (auth required)
+        success, data = self.test(
+            "Get creator history",
+            "GET",
+            "/creator/history?limit=10",
+            200,
+            token=self.customer_token
+        )
+        if success:
+            items = data.get('items', [])
+            self.log(f"✅ Creator history retrieved: {len(items)} items", Colors.GREEN)
+            if items:
+                for item in items[:3]:
+                    kind = item.get('kind', 'unknown')
+                    topic = item.get('topic', item.get('niche', 'N/A'))
+                    self.log(f"  - {kind}: {topic[:40]}...", Colors.BLUE)
+
+        # Test auth requirement - try without token (should fail 401)
+        success, data = self.test(
+            "Creator script without auth (should fail 401)",
+            "POST",
+            "/creator/script",
+            401,
+            data={"topic": "Test topic", "format": "youtube_short"}
+        )
+        if success:
+            self.log(f"✅ Auth correctly required (401 without token)", Colors.GREEN)
+
+        # Test creator skills in skills registry (admin only)
+        if self.admin_token:
+            success, data = self.test(
+                "Get skills list (check for creator skills)",
+                "GET",
+                "/admin/skills",
+                200,
+                token=self.admin_token
+            )
+            if success:
+                by_category = data.get('by_category', {})
+                creator_skills = by_category.get('creator', [])
+                if len(creator_skills) == 4:
+                    self.log(f"✅ Found 4 creator skills in registry", Colors.GREEN)
+                    skill_names = [s.get('name') for s in creator_skills]
+                    expected_skills = ['write_script', 'predict_trends', 'hook_optimizer', 'viral_score']
+                    if all(skill in skill_names for skill in expected_skills):
+                        self.log(f"  ✅ All expected creator skills present", Colors.GREEN)
+                        for skill in creator_skills:
+                            self.log(f"    - {skill.get('name')}: {skill.get('title')}", Colors.BLUE)
+                    else:
+                        self.log(f"  ⚠️  Missing skills: {set(expected_skills) - set(skill_names)}", Colors.YELLOW)
+                else:
+                    self.log(f"⚠️  Expected 4 creator skills, found {len(creator_skills)}", Colors.YELLOW)
+
         # ===== SUMMARY =====
         self.log("\n" + "=" * 80, Colors.BLUE)
         self.log("TEST SUMMARY", Colors.BLUE)

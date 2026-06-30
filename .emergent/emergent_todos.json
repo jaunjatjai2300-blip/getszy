@@ -1,38 +1,26 @@
 [
   {
-    "content": "Fix 1: Add 'AI Chat' link back to AdminLayout NAV",
+    "content": "Wire creator_router in server.py",
     "status": "completed"
   },
   {
-    "content": "Fix 2: Add httpx explicitly to requirements.txt",
+    "content": "Build CreatorOS.jsx admin page with 6 tabs (script/trends/hook/viral/repurpose/competitor)",
     "status": "completed"
   },
   {
-    "content": "Fix 3: VPS webhook listener script + systemd service + setup README",
+    "content": "Add /admin/creator route + sidebar nav",
     "status": "completed"
   },
   {
-    "content": "Fix 4: Document qwen2.5-coder:14b pull command in deploy README",
+    "content": "Add 'creator' category to Skills.jsx meta",
     "status": "completed"
   },
   {
-    "content": "Build: Reels Studio Coming Soon hype page + waitlist",
-    "status": "completed"
+    "content": "Run testing_agent_v3 — backend + frontend Phase 12",
+    "status": "in_progress"
   },
   {
-    "content": "Backend: POST /api/waitlist endpoint",
-    "status": "completed"
-  },
-  {
-    "content": "Update Header: 'Reels Studio' link with Soon pill",
-    "status": "completed"
-  },
-  {
-    "content": "Testing agent verification (97.6% pass)",
-    "status": "completed"
-  },
-  {
-    "content": "User: Deploy to VPS (Save to GitHub + git pull + setup webhook listener)",
+    "content": "Update plan.md with Phase 12 completion",
     "status": "pending"
   }
 ]
