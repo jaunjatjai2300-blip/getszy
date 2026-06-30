@@ -7,6 +7,7 @@ import json
 import os
 import shlex
 from typing import List, Dict, Any
+from video.ffmpeg_bin import FFMPEG
 
 VIDEO_DIR = os.path.join(os.path.dirname(__file__), '..', 'media_cache', 'videos')
 os.makedirs(VIDEO_DIR, exist_ok=True)
@@ -54,7 +55,7 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
                    "box=1:boxcolor=black@0.55:boxborderw=18:"
                    f"x=(w-text_w)/2:y=h-text_h-120")
         cmd = [
-            'ffmpeg', '-y', '-loop', '1', '-t', str(secs), '-i', img,
+            FFMPEG, '-y', '-loop', '1', '-t', str(secs), '-i', img,
             '-vf', vf, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25',
             '-preset', 'veryfast', '-crf', '23', '-an', clip_path,
         ]
@@ -73,7 +74,7 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
             f.write(f"file '{cp}'\n")
     silent_concat = os.path.join(tmp_dir, 'silent.mp4')
     proc = await asyncio.create_subprocess_exec(
-        'ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', concat_list,
+        FFMPEG, '-y', '-f', 'concat', '-safe', '0', '-i', concat_list,
         '-c', 'copy', silent_concat,
         stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
     )
@@ -82,7 +83,7 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
         return {'error': f'concat failed: {(err or b"")[:200].decode("utf-8", "ignore")}'}
     # 3. Mux with audio (shortest)
     final_cmd = [
-        'ffmpeg', '-y', '-i', silent_concat, '-i', audio_path,
+        FFMPEG, '-y', '-i', silent_concat, '-i', audio_path,
         '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', '-shortest', out_path,
     ]
     proc = await asyncio.create_subprocess_exec(*final_cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)

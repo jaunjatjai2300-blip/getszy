@@ -51,8 +51,9 @@ async def synth(text: str, out_path: str, voice: Optional[str] = None, rate: str
 
 
 async def _silent(out_path: str, seconds: int = 3):
+    from video.ffmpeg_bin import FFMPEG
     proc = await asyncio.create_subprocess_exec(
-        'ffmpeg', '-y', '-f', 'lavfi', '-i', f'anullsrc=r=24000:cl=mono',
+        FFMPEG, '-y', '-f', 'lavfi', '-i', f'anullsrc=r=24000:cl=mono',
         '-t', str(seconds), '-q:a', '9', out_path,
         stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
     )
