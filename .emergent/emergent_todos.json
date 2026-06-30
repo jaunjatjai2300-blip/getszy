@@ -1,26 +1,26 @@
 [
   {
-    "content": "Wire creator_router in server.py",
+    "content": "Phase 13: Faceless Video pipeline (script→shotlist→visuals→tts→ffmpeg)",
     "status": "completed"
   },
   {
-    "content": "Build CreatorOS.jsx admin page with 6 tabs",
+    "content": "Phase 14: Multi-platform publishing adapters (5 platforms, dry-run)",
     "status": "completed"
   },
   {
-    "content": "Add /admin/creator route + sidebar nav",
+    "content": "AI Workforce: 10 specialist agents",
     "status": "completed"
   },
   {
-    "content": "Add 'creator' category to Skills.jsx meta",
+    "content": "Wire 3 routers + frontend routes + sidebar nav",
     "status": "completed"
   },
   {
-    "content": "Run testing_agent_v3 — 100% pass (iteration_12)",
-    "status": "completed"
+    "content": "Run testing_agent_v3 — all 3 new modules",
+    "status": "in_progress"
   },
   {
-    "content": "Update plan.md with Phase 12 completion",
-    "status": "completed"
+    "content": "Update plan.md",
+    "status": "pending"
   }
 ]

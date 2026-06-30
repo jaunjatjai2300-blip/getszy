@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
-import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Sparkles, LogOut, Store, GraduationCap, Activity, TrendingUp, Rocket, Wand2, Layers, MessageCircle, PenTool } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Sparkles, LogOut, Store, GraduationCap, Activity, TrendingUp, Rocket, Wand2, Layers, MessageCircle, PenTool, Film, Share2, Briefcase } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import CopilotSidebar from "@/components/CopilotSidebar";
 
@@ -13,6 +13,9 @@ const NAV = [
   { to: "/admin/courses", label: "Courses", icon: GraduationCap },
   { to: "/admin/sourcing", label: "Sourcing", icon: TrendingUp, accent: true },
   { to: "/admin/creator", label: "Creator OS", icon: PenTool, accent: true },
+  { to: "/admin/video", label: "Video Studio", icon: Film, accent: true },
+  { to: "/admin/publishing", label: "Publishing", icon: Share2, accent: true },
+  { to: "/admin/workforce", label: "AI Workforce", icon: Briefcase, accent: true },
   { to: "/admin/skills", label: "Skills", icon: Wand2, accent: true },
   { to: "/admin/stacks", label: "Stacks", icon: Layers, accent: true },
   { to: "/admin/deploy", label: "Deploy", icon: Rocket, accent: true },

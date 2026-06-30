@@ -25,6 +25,9 @@ from routes_stacks import router as stacks_router
 from routes_copilot import router as copilot_router
 from routes_waitlist import router as waitlist_router
 from routes_creator import router as creator_router
+from routes_video import router as video_router
+from routes_publishing import router as publishing_router
+from routes_workforce import router as workforce_router
 import skills.creator_skills  # noqa: F401 - register creator skills
 
 app = FastAPI(title='getszy API')
@@ -61,6 +64,9 @@ api_router.include_router(stacks_router)
 api_router.include_router(copilot_router)
 api_router.include_router(waitlist_router)
 api_router.include_router(creator_router)
+api_router.include_router(video_router)
+api_router.include_router(publishing_router)
+api_router.include_router(workforce_router)
 
 app.include_router(api_router)
 

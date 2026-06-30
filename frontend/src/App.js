@@ -28,6 +28,9 @@ import AdminDeploy from "@/pages/admin/Deploy";
 import AdminSkills from "@/pages/admin/Skills";
 import AdminStacks from "@/pages/admin/Stacks";
 import AdminCreatorOS from "@/pages/admin/CreatorOS";
+import AdminVideoStudio from "@/pages/admin/VideoStudio";
+import AdminPublishing from "@/pages/admin/Publishing";
+import AdminWorkforce from "@/pages/admin/Workforce";
 import MediaStudio from "@/pages/MediaStudio";
 import StorefrontLayout from "@/components/StorefrontLayout";
 import LearnLayout from "@/components/LearnLayout";
@@ -68,6 +71,9 @@ export default function App() {
             <Route path="skills" element={<AdminSkills />} />
             <Route path="stacks" element={<AdminStacks />} />
             <Route path="creator" element={<AdminCreatorOS />} />
+            <Route path="video" element={<AdminVideoStudio />} />
+            <Route path="publishing" element={<AdminPublishing />} />
+            <Route path="workforce" element={<AdminWorkforce />} />
             <Route path="ai-ops" element={<AdminAiOps />} />
             <Route path="chat" element={<AdminAIChat />} />
           </Route>
