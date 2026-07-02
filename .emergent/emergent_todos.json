@@ -1,18 +1,18 @@
 [
   {
-    "content": "Build backend /builder package (webapp, channel, agents, starters)",
+    "content": "Backend /builder studio (channel, agents, starters, hub)",
     "status": "completed"
   },
   {
-    "content": "Build unified /admin/build page with 6 category tabs",
+    "content": "Unified /admin/build page with 6 category tabs",
     "status": "completed"
   },
   {
-    "content": "Wire routes + sidebar + preview modals",
+    "content": "Wire routes + sidebar + admin quota bypass",
     "status": "completed"
   },
   {
-    "content": "Test end-to-end",
-    "status": "in_progress"
+    "content": "Testing 25/26 backend + 100% frontend",
+    "status": "completed"
   }
 ]

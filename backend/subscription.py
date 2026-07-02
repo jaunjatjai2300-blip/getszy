@@ -142,6 +142,10 @@ async def can_access_advanced(user: dict) -> bool:
 
 
 async def can_use_studio(user: dict) -> tuple[bool, str, dict]:
+    # Admins bypass studio quota entirely
+    if user.get('role') == 'admin':
+        sub = await effective_subscription(user)
+        return True, '', sub
     sub = await effective_subscription(user)
     feats = plan_features(sub['plan'])
     quota = feats['studio_builds']

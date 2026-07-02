@@ -307,8 +307,39 @@ Delivered:
 
 ---
 
-### Phase 16 — Creator Business OS ⏳ **NEXT (planned)**
-Sponsorship CRM, invoicing, affiliate hub, brand-deal pipeline.
+### Phase 16 — Universal Build Studio ✅ **COMPLETED**
+**Goal achieved:** User complained dashboard adha-adhura tha — banaya UNIFIED `/admin/build` hub jismein 6 categories mein sab kuch prompt-to-build:
+
+1. **Web App / Landing Page** — LLM → single-file HTML → iframe live preview + ZIP download
+2. **Faceless Video Channel** — 30-day content calendar planner → batch trigger existing Video Studio pipeline
+3. **Custom AI Agent Factory** — user-defined agents (name/persona/system_prompt/params) beyond preset 10 workforce
+4. **Mobile App Starter** — LLM-customized Expo/React Native zip
+5. **Full-Stack Website Starter** — LLM-customized FastAPI + React + MongoDB zip with domain-specific model
+6. **Blog/Content Site** — 4-post static HTML blog zip
+
+Backend added to `routes_builder.py`:
+- `POST /builder/channel/plan` + `/execute` + list + delete
+- `POST /builder/agent` + `/{id}/run` + `/history` + delete
+- `POST /builder/starter` (mobileapp/fullstack/blog) + `/{id}/download` + list + delete
+- `GET /builder/hub` — dashboard aggregation
+
+New helper: `builder_starters.py` — real zip generators for RN, FastAPI+React, static blog
+
+Admin bypass: `can_use_studio` now returns True for `role=admin` (no quota block).
+
+Frontend `/admin/build`:
+- Stats grid (webapps, channels, agents, starters, videos)
+- 6 category cards → each opens a dialog with its own builder UI
+- Web App: live iframe preview + download
+- Channel: calendar view + one-click "Execute 5" batch
+- Agent: create + inline runner with JSON output
+- Starters: download zips with per-kind quick-run instructions
+
+Sidebar: "Build Studio" (Wand2 icon) added.
+
+Testing: iteration_14 — 25/26 backend + 100% frontend + admin bypass verified via curl end-to-end (5.2KB HTML generated).
+
+---
 
 ### Phase 17 — Real social-posting SDK integration ⏳ **PENDING KEYS**
 Wire actual YouTube/Meta/X/LinkedIn SDKs once user provides OAuth tokens.
