@@ -40,30 +40,43 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
             continue
         clip_path = os.path.join(tmp_dir, f'clip_{i:03d}.mp4')
         motion = sc.get('motion', 'static')
-        # Ken Burns via zoompan
-        zoom_expr = {
-            'ken-burns-in': f"zoompan=z='min(zoom+0.0015,1.15)':d={secs*25}:s={w}x{h}:fps=25",
-            'ken-burns-out': f"zoompan=z='if(eq(on,1),1.15,max(1.0,zoom-0.0015))':d={secs*25}:s={w}x{h}:fps=25",
-            'static': f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,fps=25"
-        }.get(motion, f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,fps=25")
-        # Subtitle overlay
-        vf = f"scale={w*2}:{h*2}:force_original_aspect_ratio=increase,crop={w*2}:{h*2},{zoom_expr}"
-        if subtitles and sc.get('narration_chunk'):
-            line = _escape_drawtext(sc['narration_chunk'][:120])
-            # Bottom-middle, large bold white with shadow
-            vf += (",drawtext=text='" + line + "':fontcolor=white:fontsize=48:"
-                   "box=1:boxcolor=black@0.55:boxborderw=18:"
-                   f"x=(w-text_w)/2:y=h-text_h-120")
+        # Simple scale + light Ken Burns (heavy zoompan drops on aarch64 bundled ffmpeg)
+        base_scale = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1"
+        motion_zoom = {
+            'ken-burns-in':  f",zoompan=z='min(1+0.0006*on,1.10)':d={secs*25}:s={w}x{h}:fps=25",
+            'ken-burns-out': f",zoompan=z='max(1.10-0.0006*on,1.0)':d={secs*25}:s={w}x{h}:fps=25",
+            'static': '',
+        }.get(motion, '')
+        vf = base_scale + motion_zoom + f",fps=25"
         cmd = [
             FFMPEG, '-y', '-loop', '1', '-t', str(secs), '-i', img,
             '-vf', vf, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25',
-            '-preset', 'veryfast', '-crf', '23', '-an', clip_path,
+            '-preset', 'ultrafast', '-crf', '26', '-an', clip_path,
         ]
         proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
-        _, err = await proc.communicate()
+        try:
+            _, err = await asyncio.wait_for(proc.communicate(), timeout=45)
+        except asyncio.TimeoutError:
+            try: proc.kill()
+            except Exception: pass
+            err = b'timeout'
         if proc.returncode != 0:
-            print(f'[compose] clip {i} failed: {(err or b"")[:300]}')
-            continue
+            # Simpler fallback: static scale only (no zoompan)
+            fallback_cmd = [
+                FFMPEG, '-y', '-loop', '1', '-t', str(secs), '-i', img,
+                '-vf', base_scale + ',fps=25', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25',
+                '-preset', 'ultrafast', '-crf', '28', '-an', clip_path,
+            ]
+            proc = await asyncio.create_subprocess_exec(*fallback_cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
+            try:
+                _, err2 = await asyncio.wait_for(proc.communicate(), timeout=30)
+            except asyncio.TimeoutError:
+                try: proc.kill()
+                except Exception: pass
+                err2 = b'timeout'
+            if proc.returncode != 0:
+                print(f'[compose] clip {i} FAILED. err1={(err or b"")[:200]!r} err2={(err2 or b"")[:200]!r}')
+                continue
         clip_paths.append(clip_path)
     if not clip_paths:
         return {'error': 'no scenes composed'}
@@ -78,19 +91,32 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
         '-c', 'copy', silent_concat,
         stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
     )
-    _, err = await proc.communicate()
+    try:
+        _, err = await asyncio.wait_for(proc.communicate(), timeout=45)
+    except asyncio.TimeoutError:
+        try: proc.kill()
+        except Exception: pass
+        err = b'concat timeout'
     if proc.returncode != 0:
         return {'error': f'concat failed: {(err or b"")[:200].decode("utf-8", "ignore")}'}
     # 3. Mux with audio (shortest)
     final_cmd = [
         FFMPEG, '-y', '-i', silent_concat, '-i', audio_path,
-        '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', '-shortest', out_path,
+        '-c:v', 'copy', '-c:a', 'aac', '-b:a', '96k', '-shortest', out_path,
     ]
     proc = await asyncio.create_subprocess_exec(*final_cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
-    _, err = await proc.communicate()
+    try:
+        _, err = await asyncio.wait_for(proc.communicate(), timeout=45)
+    except asyncio.TimeoutError:
+        try: proc.kill()
+        except Exception: pass
+        err = b'mux timeout'
     if proc.returncode != 0:
-        # If no audio, just copy silent
-        os.replace(silent_concat, out_path)
+        # If mux failed, at least save the silent version
+        try:
+            os.replace(silent_concat, out_path)
+        except Exception:
+            return {'error': f'mux failed: {(err or b"")[:200].decode("utf-8", "ignore")}'}
     # Cleanup tmp
     for cp in clip_paths:
         try: os.remove(cp)

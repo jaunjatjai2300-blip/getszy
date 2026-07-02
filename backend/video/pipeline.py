@@ -38,6 +38,10 @@ async def run_job(job_id: str, params: Dict[str, Any]):
         scenes = shotlist.get('scenes') or []
         if not scenes:
             raise RuntimeError('empty shotlist')
+        # Cap scenes for CPU-only VPS (each clip = ~10-20s ffmpeg render on aarch64 bundled binary)
+        MAX_SCENES = 6
+        if len(scenes) > MAX_SCENES:
+            scenes = scenes[:MAX_SCENES]
 
         await step('generating_visuals', 35)
         # Parallel image generation (limit concurrency)
