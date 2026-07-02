@@ -12,6 +12,7 @@ const NAV = [
   { to: "/admin/customers", label: "Customers", icon: Users },
   { to: "/admin/courses", label: "Courses", icon: GraduationCap },
   { to: "/admin/sourcing", label: "Sourcing", icon: TrendingUp, accent: true },
+  { to: "/admin/build", label: "Build Studio", icon: Wand2, accent: true },
   { to: "/admin/creator", label: "Creator OS", icon: PenTool, accent: true },
   { to: "/admin/video", label: "Video Studio", icon: Film, accent: true },
   { to: "/admin/publishing", label: "Publishing", icon: Share2, accent: true },

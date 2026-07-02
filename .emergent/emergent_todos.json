@@ -1,26 +1,18 @@
 [
   {
-    "content": "Phase 13: Faceless Video pipeline",
+    "content": "Build backend /builder package (webapp, channel, agents, starters)",
     "status": "completed"
   },
   {
-    "content": "Phase 14: Multi-platform publishing",
+    "content": "Build unified /admin/build page with 6 category tabs",
     "status": "completed"
   },
   {
-    "content": "AI Workforce: 10 specialist agents",
+    "content": "Wire routes + sidebar + preview modals",
     "status": "completed"
   },
   {
-    "content": "Wire routes + sidebar nav",
-    "status": "completed"
-  },
-  {
-    "content": "testing_agent_v3 — 31/31 pass",
-    "status": "completed"
-  },
-  {
-    "content": "Update plan.md",
-    "status": "completed"
+    "content": "Test end-to-end",
+    "status": "in_progress"
   }
 ]
