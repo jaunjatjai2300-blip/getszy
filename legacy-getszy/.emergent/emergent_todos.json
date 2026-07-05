@@ -1,0 +1,46 @@
+[
+  {
+    "content": "Sprint 21 deployed to getszy.com",
+    "status": "completed"
+  },
+  {
+    "content": "22A: Backend AI Video Factory agents (Prompt Enhancer, Research, Scripts x5, Hooks, Storyboard, Visuals)",
+    "status": "completed"
+  },
+  {
+    "content": "22A: routes_video_factory.py + video_projects collection + scene lock/regen",
+    "status": "completed"
+  },
+  {
+    "content": "22A: Customer /dashboard/video-studio UI with 6 tabs, auto-poll, project sidebar",
+    "status": "completed"
+  },
+  {
+    "content": "22A: Dockerfile.backend fix (--extra-index-url) committed to preview + VPS",
+    "status": "completed"
+  },
+  {
+    "content": "Push 22A to GitHub (needs PAT-C) + VPS pull + docker rebuild",
+    "status": "pending"
+  },
+  {
+    "content": "22B: Visual/Asset generation (Pollinations wiring per scene, voice picking, music)",
+    "status": "pending"
+  },
+  {
+    "content": "22C: Timeline Editor UI + Scene reordering",
+    "status": "pending"
+  },
+  {
+    "content": "22D: Brand Kit + Thumbnail AI + SEO Package + QC Score",
+    "status": "pending"
+  },
+  {
+    "content": "22E: Batch mode (CSV) + Repurpose (1 video → 10 shorts)",
+    "status": "pending"
+  },
+  {
+    "content": "22F: Templates Marketplace + Credits Dashboard",
+    "status": "pending"
+  }
+]

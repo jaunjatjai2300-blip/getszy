@@ -1,0 +1,18 @@
+[Unit]
+Description=Getszy Deploy Webhook Listener
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/getszy/deploy
+Environment="WEBHOOK_TOKEN=CHANGE_ME_TO_A_LONG_RANDOM_STRING"
+Environment="REPO_DIR=/opt/getszy"
+Environment="WEBHOOK_PORT=9000"
+ExecStart=/usr/bin/python3 /opt/getszy/deploy/webhook_listener.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

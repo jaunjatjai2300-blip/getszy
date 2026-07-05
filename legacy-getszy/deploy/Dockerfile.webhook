@@ -1,0 +1,31 @@
+# Optional: run the webhook listener inside a tiny Docker container
+# instead of installing pip + systemd on the host.
+#
+# Build:
+#   docker build -f deploy/Dockerfile.webhook -t getszy-webhook deploy/
+#
+# Run (the docker.sock mount is required so the listener can run
+# 'docker compose' against the parent stack):
+#   docker run -d --name getszy-webhook --restart=always \
+#     -p 9000:9000 \
+#     -e WEBHOOK_TOKEN="<your-secret>" \
+#     -e REPO_DIR=/repo \
+#     -v /var/run/docker.sock:/var/run/docker.sock \
+#     -v /opt/getszy:/repo \
+#     getszy-webhook
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl git docker-compose-plugin \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Docker CLI so we can call `docker compose` from inside
+RUN curl -fsSL https://get.docker.com | sh
+
+RUN pip install --no-cache-dir fastapi 'uvicorn[standard]'
+
+WORKDIR /app
+COPY webhook_listener.py /app/
+
+EXPOSE 9000
+CMD ["python3", "webhook_listener.py"]

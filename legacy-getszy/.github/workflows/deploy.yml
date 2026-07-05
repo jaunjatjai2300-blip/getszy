@@ -1,0 +1,23 @@
+name: Auto-Deploy to Getszy VPS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger VPS deploy webhook
+        run: |
+          RESPONSE=$(curl -s -w "\nHTTP:%{http_code}" -X POST \
+            https://getszy.com/hooks/deploy \
+            -H "X-Token: ${{ secrets.WEBHOOK_TOKEN }}" \
+            --max-time 600)
+          echo "$RESPONSE"
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1 | cut -d: -f2)
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Webhook returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "✅ Deploy triggered successfully"
