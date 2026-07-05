@@ -314,7 +314,9 @@ async def health_skill(p: Dict[str, Any], ctx: Dict[str, Any]):
     except Exception as e:
         checks['llm'] = f'fail: {e}'
     from pathlib import Path
-    checks['media_cache'] = 'ok' if Path('/app/backend/media_cache').exists() else 'missing'
+    import os as _os
+    media_cache_dir = _os.environ.get('MEDIA_CACHE_DIR', str(Path(__file__).resolve().parent.parent / 'media_cache'))
+    checks['media_cache'] = 'ok' if Path(media_cache_dir).exists() else 'missing'
     return {'status': 'healthy' if all(v == 'ok' for v in checks.values()) else 'degraded', 'checks': checks}
 
 

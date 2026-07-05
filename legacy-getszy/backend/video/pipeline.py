@@ -11,10 +11,15 @@ from video.shotlist import build as build_shotlist
 from video.tts import synth as tts_synth, pick_voice
 from video.visuals import fetch_scene_image
 from video.compose import build_video, build_srt, VIDEO_DIR
+from credits import refund
 
 
-async def run_job(job_id: str, params: Dict[str, Any]):
-    """Background runner; updates job status in mongo as it progresses."""
+async def run_job(job_id: str, params: Dict[str, Any], user_id: Optional[str] = None, credit_qty: int = 1):
+    """Background runner; updates job status in mongo as it progresses.
+
+    If the job fails after credits were already deducted by the route handler,
+    refund those credits since the user never got a usable video.
+    """
     async def step(name: str, percent: int):
         await db.video_jobs.update_one({'id': job_id}, {'$set': {'status': name, 'percent': percent, 'updated_at': datetime.now(timezone.utc).isoformat()}})
 
@@ -80,6 +85,8 @@ async def run_job(job_id: str, params: Dict[str, Any]):
             'status': 'failed', 'error': str(e)[:500], 'percent': 0,
             'completed_at': datetime.now(timezone.utc).isoformat(),
         }})
+        if user_id:
+            await refund(user_id, 'faceless_video', qty=credit_qty, reason='generation_failed')
 
 
 def _flatten_script(script: Dict[str, Any]) -> str:

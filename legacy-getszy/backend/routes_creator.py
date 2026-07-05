@@ -10,6 +10,7 @@ from db import db
 from creator.scripts import generate as gen_script, score_hook, viral_score, FORMATS
 from creator.trends import predict as predict_trends, competitor_gap
 from creator.providers import readiness, active_provider
+from credits import deduct, refund
 
 router = APIRouter(prefix='/creator', tags=['creator'])
 
@@ -61,15 +62,22 @@ async def list_formats(_=Depends(get_current_user)):
 async def script(payload: ScriptIn, user=Depends(get_current_user)):
     if len(payload.topic.strip()) < 4:
         raise HTTPException(status_code=400, detail='Topic is too short')
-    data = await gen_script(payload.topic, payload.format, payload.audience, payload.tone, payload.language)
-    asset = {
-        'id': str(uuid.uuid4()), 'user_id': user['id'], 'kind': 'script',
-        'topic': payload.topic, 'format': payload.format, 'data': data,
-        'created_at': datetime.now(timezone.utc).isoformat(),
-    }
-    await db.creator_assets.insert_one(asset)
-    asset.pop('_id', None)
-    return asset
+    ok, msg, _ = await deduct(user['id'], 'script')
+    if not ok:
+        raise HTTPException(status_code=402, detail=msg)
+    try:
+        data = await gen_script(payload.topic, payload.format, payload.audience, payload.tone, payload.language)
+        asset = {
+            'id': str(uuid.uuid4()), 'user_id': user['id'], 'kind': 'script',
+            'topic': payload.topic, 'format': payload.format, 'data': data,
+            'created_at': datetime.now(timezone.utc).isoformat(),
+        }
+        await db.creator_assets.insert_one(asset)
+        asset.pop('_id', None)
+        return asset
+    except Exception:
+        await refund(user['id'], 'script', reason='generation_failed')
+        raise
 
 
 @router.post('/score-hook')
@@ -105,12 +113,19 @@ async def gap_endpoint(payload: CompetitorIn, _=Depends(get_current_user)):
 async def repurpose(payload: RepurposeIn, user=Depends(get_current_user)):
     if not payload.target_formats:
         raise HTTPException(status_code=400, detail='target_formats required')
+    ok, msg, _ = await deduct(user['id'], 'repurpose_format', qty=len(payload.target_formats))
+    if not ok:
+        raise HTTPException(status_code=402, detail=msg)
     outputs = {}
+    failed_count = 0
     for fmt in payload.target_formats:
         try:
             outputs[fmt] = await gen_script(payload.long_script_topic, fmt)
         except Exception as e:
             outputs[fmt] = {'error': str(e)}
+            failed_count += 1
+    if failed_count:
+        await refund(user['id'], 'repurpose_format', qty=failed_count, reason='generation_failed')
     rec = {
         'id': str(uuid.uuid4()), 'user_id': user['id'], 'kind': 'repurpose',
         'topic': payload.long_script_topic, 'outputs': outputs,

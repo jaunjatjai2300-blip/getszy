@@ -15,7 +15,7 @@ import logging
 import os
 import uuid
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from db import db
 from video.visuals import fetch_scene_image
@@ -24,7 +24,7 @@ from video.compose import build_video
 
 logger = logging.getLogger('getszy.vf.renderer')
 
-MEDIA_DIR = Path('/app/backend/media/video_factory')
+MEDIA_DIR = Path(os.environ.get('MEDIA_DIR', str(Path(__file__).resolve().parent.parent / 'media' / 'video_factory')))
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -38,12 +38,20 @@ async def _update(project_id: str, patch: dict):
     await db.video_projects.update_one({'id': project_id}, {'$set': patch})
 
 
+async def _refund_assets(project_id: str, user_id: Optional[str], reason: str):
+    if not user_id:
+        return
+    from credits import refund
+    await refund(user_id, 'video_factory_assets', reason=reason)
+
+
 async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dict[str, Any]:
     """End-to-end: fetch storyboard + visual_plan from DB, generate images + voice + assemble video."""
     p = await db.video_projects.find_one({'id': project_id}, {'_id': 0})
     if not p:
         return {'error': 'project not found'}
 
+    owner_id = p.get('user_id')
     stages = p.get('stages') or {}
     scenes = stages.get('storyboard') or []
     visual_plan = stages.get('visual_plan') or []
@@ -112,6 +120,7 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
     except Exception as e:
         logger.exception('voice fail')
         await _update(project_id, {'render_status': 'error', 'render_error': f'voice: {str(e)[:200]}'})
+        await _refund_assets(project_id, owner_id, 'voice_generation_failed')
         return {'error': f'voice generation failed: {e}'}
 
     await _update(project_id, {'render_status': 'assembling', 'render_progress': 70,
@@ -145,6 +154,7 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
     if not compose_scenes:
         await _update(project_id, {'render_status': 'error',
                                    'render_error': f'no valid scene images — all {len(scenes)} scene image fetches failed. Check Pollinations reachability from server.'})
+        await _refund_assets(project_id, owner_id, 'no_scene_images')
         return {'error': 'no scene images generated successfully — check server network / Pollinations access'}
 
     try:
@@ -152,6 +162,7 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
     except Exception as e:
         logger.exception('assembly fail')
         await _update(project_id, {'render_status': 'error', 'render_error': f'assembly exception: {str(e)[:300]}'})
+        await _refund_assets(project_id, owner_id, 'assembly_exception')
         return {'error': f'assembly failed: {e}'}
 
     # CRITICAL FIX: build_video returns dict — MUST check for 'error' key (it does NOT raise)
@@ -159,6 +170,7 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
         err = compose_result['error']
         logger.error(f'compose returned error: {err}')
         await _update(project_id, {'render_status': 'error', 'render_error': f'ffmpeg: {str(err)[:300]}'})
+        await _refund_assets(project_id, owner_id, 'ffmpeg_error')
         return {'error': f'ffmpeg composition failed: {err}'}
 
     size_bytes = final_path.stat().st_size if final_path.exists() else 0
@@ -176,6 +188,7 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
         except Exception:
             pass
         await _update(project_id, {'render_status': 'error', 'render_error': error_msg, 'final_video_path': None})
+        await _refund_assets(project_id, owner_id, 'output_too_small')
         return {'error': error_msg}
     
     result = {
