@@ -44,7 +44,7 @@ _LAST_SCAN: Dict = {'at': None, 'items': []}
 
 # Use the same cache dir the media studio uses so the file endpoint can serve them.
 import os
-CACHE_DIR = Path(os.environ.get('MEDIA_CACHE_DIR', '/app/backend/media_cache'))
+CACHE_DIR = Path(os.environ.get('MEDIA_CACHE_DIR', str(Path(__file__).resolve().parent.parent / 'media_cache')))
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 

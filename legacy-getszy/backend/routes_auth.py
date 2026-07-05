@@ -38,4 +38,5 @@ async def me(user=Depends(get_current_user)):
     sub = await effective_subscription(user)
     out = UserOut(**user).model_dump()
     out['subscription'] = {**sub, 'quota': plan_features(sub['plan'])}
+    out['credits'] = int(user.get('credits', 0) or 0)
     return out

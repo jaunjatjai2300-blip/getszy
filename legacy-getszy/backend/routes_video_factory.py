@@ -30,6 +30,7 @@ from video_factory.agents import (
     build_storyboard, plan_visuals, run_factory_chain,
 )
 from video_factory.renderer import generate_all_assets
+from credits import deduct, refund
 
 logger = logging.getLogger('getszy.video_factory')
 router = APIRouter(prefix='/video-factory', tags=['video-factory'])
@@ -63,6 +64,10 @@ class CreateProjectIn(BaseModel):
 
 @router.post('/project')
 async def create_project(body: CreateProjectIn, background: BackgroundTasks, user=Depends(get_current_user)):
+    if body.auto_run:
+        ok, msg, _ = await deduct(user['id'], 'video_factory_chain')
+        if not ok:
+            raise HTTPException(status_code=402, detail=msg)
     pid = str(uuid.uuid4())
     doc = {
         'id': pid,
@@ -101,6 +106,7 @@ async def _run_chain_bg(project_id: str, raw_prompt: str, language: str, user_id
         await _update(project_id, patch)
     except Exception as e:
         await _update(project_id, {'status': 'error', 'errors': {'chain': str(e)[:300]}})
+        await refund(user_id, 'video_factory_chain', reason='chain_failed')
 
 
 @router.get('/project/{project_id}')
@@ -306,6 +312,9 @@ async def generate_assets(project_id: str, body: GenerateAssetsIn, background: B
         raise HTTPException(400, 'storyboard + visual_plan required — run pipeline first')
     if p.get('render_status') in ('generating_images', 'generating_voice', 'assembling'):
         return {'ok': True, 'already_running': True, 'render_status': p.get('render_status')}
+    ok, msg, _ = await deduct(user['id'], 'video_factory_assets')
+    if not ok:
+        raise HTTPException(status_code=402, detail=msg)
     await _update(project_id, {'render_status': 'queued', 'render_progress': 0, 'render_error': None})
     background.add_task(generate_all_assets, project_id, body.orientation)
     return {'ok': True, 'status': 'queued', 'poll_url': f'/api/video-factory/project/{project_id}'}
