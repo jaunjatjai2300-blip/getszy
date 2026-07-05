@@ -13,6 +13,7 @@ from db import db
 from video.pipeline import run_job
 from video.compose import VIDEO_DIR
 from video.tts import LIST_VOICES
+from credits import deduct, refund
 
 router = APIRouter(prefix='/video', tags=['video'])
 
@@ -48,6 +49,9 @@ async def voices(_=Depends(get_current_user)):
 async def generate(payload: GenerateIn, bg: BackgroundTasks, user=Depends(get_current_user)):
     if len(payload.topic.strip()) < 4:
         raise HTTPException(status_code=400, detail='Topic too short')
+    ok, msg, _ = await deduct(user['id'], 'faceless_video')
+    if not ok:
+        raise HTTPException(status_code=402, detail=msg)
     job_id = str(uuid.uuid4())
     await db.video_jobs.insert_one({
         'id': job_id, 'user_id': user['id'], 'topic': payload.topic,
@@ -55,7 +59,7 @@ async def generate(payload: GenerateIn, bg: BackgroundTasks, user=Depends(get_cu
         'status': 'queued', 'percent': 0, 'params': payload.model_dump(),
         'created_at': datetime.now(timezone.utc).isoformat(),
     })
-    bg.add_task(run_job, job_id, payload.model_dump())
+    bg.add_task(run_job, job_id, payload.model_dump(), user['id'], 1)
     return {'id': job_id, 'status': 'queued'}
 
 
@@ -65,6 +69,9 @@ async def batch(payload: BatchIn, bg: BackgroundTasks, user=Depends(get_current_
         raise HTTPException(status_code=400, detail='topics required')
     if len(payload.topics) > 10:
         raise HTTPException(status_code=400, detail='max 10 topics per batch')
+    ok, msg, _ = await deduct(user['id'], 'faceless_video', qty=len(payload.topics))
+    if not ok:
+        raise HTTPException(status_code=402, detail=msg)
     ids = []
     base = payload.model_dump()
     base.pop('topics')
@@ -78,7 +85,7 @@ async def batch(payload: BatchIn, bg: BackgroundTasks, user=Depends(get_current_
             'created_at': datetime.now(timezone.utc).isoformat(),
             'batch_id': str(uuid.uuid4())[:8] if not ids else ids[0]['batch_id'],
         })
-        bg.add_task(run_job, job_id, params)
+        bg.add_task(run_job, job_id, params, user['id'], 1)
         ids.append({'id': job_id, 'topic': t, 'batch_id': 'b'})
     return {'jobs': ids, 'count': len(ids)}
 

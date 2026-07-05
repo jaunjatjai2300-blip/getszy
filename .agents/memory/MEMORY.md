@@ -1,0 +1,2 @@
+- [Bash sandbox kills background processes](bash-sandbox-background-processes.md) — mongod/uvicorn started with setsid+disown still die between tool calls; run full test sequences in one bash call.
+- [Getszy credit system refund pattern](getszy-credit-refund-pattern.md) — deduct-before-work routes must wrap the work in try/except (or background-task except) and call `refund()` on failure, incl. bg tasks.

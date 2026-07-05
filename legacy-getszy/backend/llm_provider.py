@@ -1,7 +1,6 @@
 import os
 import httpx
 import uuid
-from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 PROVIDER = os.environ.get('LLM_PROVIDER', 'emergent').lower()
 OLLAMA_BASE_URL = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
@@ -28,6 +27,13 @@ async def chat_completion(system: str, user: str, session_id: str | None = None,
             )
             r.raise_for_status()
             return r.json().get('message', {}).get('content', '')
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except ImportError:
+        raise RuntimeError(
+            'LLM provider not configured. Set LLM_PROVIDER=ollama for local testing, '
+            'or wire up the Claude/Anthropic integration (emergentintegrations is not installed).'
+        )
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
         session_id=session_id,

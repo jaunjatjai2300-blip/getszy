@@ -11,6 +11,7 @@ from models import BuilderProject, BuilderProjectIn, BuilderRefineIn, BuilderHis
 from auth import get_current_user, get_optional_user
 from llm_provider import chat_completion
 from subscription import can_use_studio, increment_studio_builds
+from credits import deduct, refund
 
 logger = logging.getLogger('getszy.builder')
 router = APIRouter(prefix='/builder', tags=['builder'])
@@ -115,13 +116,14 @@ def _derive_name(prompt: str) -> str:
 async def create_project(body: BuilderProjectIn, user=Depends(get_current_user)):
     if not body.prompt.strip():
         raise HTTPException(400, 'Prompt required')
-    ok, msg, _ = await can_use_studio(user)
+    ok, msg, _ = await deduct(user['id'], 'builder_website')
     if not ok:
         raise HTTPException(402, msg)
     try:
         html = await _generate_site(body.prompt)
     except Exception as e:
         logger.exception('generate failed')
+        await refund(user['id'], 'builder_website', reason='generation_failed')
         raise HTTPException(500, f'Generation failed: {e}')
     name = (body.name or _derive_name(body.prompt))[:80]
     history = [
@@ -153,13 +155,14 @@ async def refine_project(pid: str, body: BuilderRefineIn, user=Depends(get_curre
     p = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
     if not p:
         raise HTTPException(404, 'Project not found')
-    ok, msg, _ = await can_use_studio(user)
+    ok, msg, _ = await deduct(user['id'], 'builder_refine')
     if not ok:
         raise HTTPException(402, msg)
     try:
         new_html = await _generate_site(body.prompt, current_html=p.get('html_content'), session_id=f"builder-{pid}")
     except Exception as e:
         logger.exception('refine failed')
+        await refund(user['id'], 'builder_refine', reason='generation_failed')
         raise HTTPException(500, f'Refinement failed: {e}')
     new_history = p.get('history', []) + [
         {'timestamp': _now(), 'prompt': body.prompt, 'role': 'user', 'snapshot': None},

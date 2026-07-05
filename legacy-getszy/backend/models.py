@@ -20,6 +20,7 @@ class User(BaseModel):
     password_hash: str
     role: str = 'customer'
     phone: Optional[str] = None
+    credits: int = 0
     created_at: str = Field(default_factory=_now)
 
 
@@ -41,6 +42,7 @@ class UserOut(BaseModel):
     email: str
     role: str
     phone: Optional[str] = None
+    credits: int = 0
 
 
 class Category(BaseModel):
