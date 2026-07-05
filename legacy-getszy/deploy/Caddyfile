@@ -1,0 +1,34 @@
+# Caddy v2 — auto HTTPS + reverse proxy
+# Replace getszy.com with your actual domain when DNS is ready
+
+{$DOMAIN:getszy.com} {
+    encode gzip
+
+    # API → backend
+    handle /api/* {
+        reverse_proxy backend:8001
+    }
+
+    # Phase 9 - VPS auto-deploy webhook (Caddy strips /hooks prefix before
+    # forwarding to the host-side webhook_listener on :9000)
+    handle /hooks/* {
+        uri strip_prefix /hooks
+        reverse_proxy host.docker.internal:9000
+    }
+
+    # Everything else → frontend (nginx serving React build)
+    handle {
+        reverse_proxy frontend:80
+    }
+
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+}
+
+# Optional: www redirect to apex
+www.{$DOMAIN:getszy.com} {
+    redir https://{$DOMAIN:getszy.com}{uri} permanent
+}

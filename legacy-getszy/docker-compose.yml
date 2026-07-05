@@ -1,0 +1,91 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: getszy-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    networks: [getszy]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: getszy-backend
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      MONGO_URL: "mongodb://mongo:27017"
+      DB_NAME: "getszy_db"
+      CORS_ORIGINS: "*"
+      JWT_SECRET: "${JWT_SECRET}"
+      EMERGENT_LLM_KEY: "${EMERGENT_LLM_KEY}"
+      EMERGENT_MODEL: "${EMERGENT_MODEL:-gpt-4o-mini}"
+      LLM_PROVIDER: "${LLM_PROVIDER:-emergent}"
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434}"
+      OLLAMA_MODEL: "${OLLAMA_MODEL:-qwen2.5:7b}"
+      # --- GitHub deploy dashboard (add to VPS /opt/getszy/.env) ---
+      GITHUB_TOKEN: "${GITHUB_TOKEN:-}"
+      GITHUB_REPO: "${GITHUB_REPO:-jaunjatjai2300-blip/getszy}"
+      GITHUB_BRANCH: "${GITHUB_BRANCH:-main}"
+      DEPLOY_WEBHOOK_URL: "${DEPLOY_WEBHOOK_URL:-}"
+      DEPLOY_WEBHOOK_TOKEN: "${DEPLOY_WEBHOOK_TOKEN:-}"
+      # --- Razorpay (subscriptions; add real keys to activate billing) ---
+      RAZORPAY_KEY_ID: "${RAZORPAY_KEY_ID:-}"
+      RAZORPAY_KEY_SECRET: "${RAZORPAY_KEY_SECRET:-}"
+      RAZORPAY_WEBHOOK_SECRET: "${RAZORPAY_WEBHOOK_SECRET:-}"
+      RAZORPAY_PLAN_PRO: "${RAZORPAY_PLAN_PRO:-}"
+      RAZORPAY_PLAN_ELITE: "${RAZORPAY_PLAN_ELITE:-}"
+    networks: [getszy]
+    volumes:
+      - backend_media:/app/backend/media
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        REACT_APP_BACKEND_URL: "${PUBLIC_URL}"
+    container_name: getszy-frontend
+    restart: unless-stopped
+    depends_on: [backend]
+    networks: [getszy]
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: getszy-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: "${DOMAIN}"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on: [backend, frontend]
+    networks: [getszy]
+
+volumes:
+  mongo_data:
+  caddy_data:
+  caddy_config:
+  backend_media:
+
+networks:
+  getszy:
+    driver: bridge

@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 30 43% 97%;
+    --foreground: 30 10% 10%;
+    --card: 30 60% 99%;
+    --card-foreground: 30 10% 10%;
+    --popover: 30 60% 99%;
+    --popover-foreground: 30 10% 10%;
+    --primary: 14 33% 62%;
+    --primary-foreground: 30 60% 99%;
+    --secondary: 28 35% 92%;
+    --secondary-foreground: 30 10% 12%;
+    --muted: 28 30% 93%;
+    --muted-foreground: 25 10% 40%;
+    --accent: 174 35% 92%;
+    --accent-foreground: 30 10% 12%;
+    --destructive: 6 72% 45%;
+    --destructive-foreground: 30 60% 99%;
+    --border: 22 28% 86%;
+    --input: 22 28% 86%;
+    --ring: 14 33% 62%;
+    --chart-1: 14 33% 62%;
+    --chart-2: 174 45% 35%;
+    --chart-3: 28 35% 55%;
+    --chart-4: 40 65% 55%;
+    --chart-5: 6 72% 45%;
+    --radius: 0.9rem;
+
+    --gs-bg: #FBF7F2;
+    --gs-surface: #FFFDFB;
+    --gs-surface-2: #F1E7DD;
+    --gs-border: #E7D9CE;
+    --gs-ink: #1B1A18;
+    --gs-muted: #6B625B;
+    --gs-primary: #C58B7A;
+    --gs-primary-2: #A86B5B;
+    --gs-champagne: #F3E2C7;
+    --gs-teal: #2F7E7A;
+    --gs-teal-soft: #D7F0EE;
+    --gs-shadow-sm: 0 1px 2px rgba(27,26,24,0.06);
+    --gs-shadow-md: 0 10px 30px rgba(27,26,24,0.10);
+    --gs-shadow-lg: 0 18px 60px rgba(27,26,24,0.14);
+    --gs-focus: 0 0 0 4px rgba(197,139,122,0.22);
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  html, body { background: var(--gs-bg); color: var(--gs-ink); }
+  body {
+    font-family: 'Manrope', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+  }
+  h1, h2, .font-display { font-family: 'Gloock', serif; letter-spacing: -0.01em; }
+  ::selection { background: rgba(197,139,122,0.25); }
+}
+
+@layer components {
+  .gs-container { @apply max-w-[1180px] mx-auto px-4 sm:px-6; }
+  .gs-section { @apply py-10 sm:py-14 lg:py-20; }
+  .gs-card { background: var(--gs-surface); border: 1px solid var(--gs-border); border-radius: 16px; box-shadow: var(--gs-shadow-sm); }
+  .gs-card-hover { transition: box-shadow .2s ease, transform .2s ease; }
+  .gs-card-hover:hover { box-shadow: var(--gs-shadow-md); transform: translateY(-2px); }
+  .gs-btn-primary { background: var(--gs-primary); color: #fff; border-radius: 14px; padding: 12px 20px; font-weight: 600; transition: background-color .2s ease; }
+  .gs-btn-primary:hover { background: var(--gs-primary-2); }
+  .gs-link { color: var(--gs-primary-2); text-decoration: none; }
+  .gs-link:hover { text-decoration: underline; }
+  .gs-hero-wash { background: linear-gradient(135deg, rgba(243,226,199,0.55) 0%, rgba(215,240,238,0.45) 55%, rgba(251,247,242,0.0) 100%); }
+  .gs-ai-glow { background: radial-gradient(600px circle at 20% 0%, rgba(47,126,122,0.18), transparent 55%), radial-gradient(600px circle at 80% 10%, rgba(197,139,122,0.14), transparent 55%); }
+}
+
+[data-debug-wrapper="true"] { display: contents !important; }
+
+/* --- Accessibility (a11y) --- */
+/* Consistent focus-visible ring across all interactive elements */
+:where(a, button, input, select, textarea, [role="button"], [role="tab"], [tabindex="0"]):focus-visible {
+  outline: 2px solid var(--gs-teal);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Screen-reader-only utility */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+/* Skip-to-content link */
+.skip-to-content {
+  position: absolute; top: -60px; left: 8px; z-index: 9999;
+  background: var(--gs-teal); color: white;
+  padding: 10px 16px; border-radius: 8px;
+  font-weight: 600; text-decoration: none;
+  transition: top 0.15s ease-out;
+}
+.skip-to-content:focus { top: 8px; }
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Improve contrast for muted text on light bg (was 4.3:1, now 4.6+:1) */
+:root { --gs-muted: #5F5951; }
+
