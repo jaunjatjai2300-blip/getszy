@@ -436,9 +436,12 @@ async def list_starters(user=Depends(get_current_user)):
 
 
 @router.get('/starter/{sid}/download')
-async def download_starter(sid: str):
+async def download_starter(sid: str, user=Depends(get_current_user)):
     import os as _os
     from fastapi.responses import FileResponse as _FileResponse
+    doc = await db.builder_starters.find_one({'id': sid, 'user_id': user['id']})
+    if not doc:
+        raise HTTPException(404, 'starter not found')
     starters_dir = _os.path.join(_os.path.dirname(__file__), 'media_cache', 'starters')
     path = _os.path.join(starters_dir, f'{sid}.zip')
     if not _os.path.exists(path):
