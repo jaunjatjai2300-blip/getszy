@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from auth import get_current_user
 from db import db
@@ -19,7 +19,7 @@ router = APIRouter(prefix='/video', tags=['video'])
 
 
 class GenerateIn(BaseModel):
-    topic: str
+    topic: str = Field(..., min_length=1, max_length=500)
     orientation: str = '9:16'        # 9:16 / 16:9 / 1:1
     language: str = 'hinglish'
     voice_gender: str = 'female'
@@ -92,6 +92,7 @@ async def batch(payload: BatchIn, bg: BackgroundTasks, user=Depends(get_current_
 
 @router.get('/jobs')
 async def jobs(limit: int = 30, user=Depends(get_current_user)):
+    limit = max(1, min(limit, 100))
     cur = db.video_jobs.find({'user_id': user['id']}, {'_id': 0, 'script': 0, 'scenes': 0}).sort('created_at', -1).limit(limit)
     return {'items': [doc async for doc in cur]}
 

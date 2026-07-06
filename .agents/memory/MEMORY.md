@@ -3,3 +3,4 @@
 - [Legacy-getszy backend verification](legacy-getszy-verification.md) — sandbox can't reliably boot mongod/uvicorn; verify via py_compile + `import server` + `yarn build` instead.
 - [ffmpeg drawtext captions](ffmpeg-drawtext-captions.md) — no fontconfig in this sandbox; must pass `fontfile=` explicitly (DejaVuSans-Bold path) or drawtext silently fails/uses no font.
 - [Pollinations free-tier reliability](pollinations-reliability.md) — free image API times out/errors intermittently under load; always retry once with a different seed before falling back.
+- [Legacy-getszy frontend resilience gaps](legacy-getszy-frontend-resilience.md) — no global error boundary/404/catch-all originally; many `useEffect` data loads had no `.catch()`, causing infinite loading spinners on API failure.

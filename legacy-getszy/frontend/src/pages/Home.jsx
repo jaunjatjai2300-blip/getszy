@@ -11,8 +11,8 @@ export default function Home() {
   const [trending, setTrending] = useState([]);
 
   useEffect(() => {
-    api.get("/categories").then(({ data }) => setCats(data));
-    api.get("/products?featured=true&limit=8").then(({ data }) => setTrending(data));
+    api.get("/categories").then(({ data }) => setCats(data)).catch(() => setCats([]));
+    api.get("/products?featured=true&limit=8").then(({ data }) => setTrending(data)).catch(() => setTrending([]));
   }, []);
 
   return (
