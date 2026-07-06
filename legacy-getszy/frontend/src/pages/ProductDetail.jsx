@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, fmtINR, API_BASE } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,8 +34,10 @@ export default function ProductDetail() {
   const [setting, setSetting] = useState("studio");
   const [tryOnBusy, setTryOnBusy] = useState(false);
   const [tryOnResult, setTryOnResult] = useState(null);
+  const [tryOnCost, setTryOnCost] = useState(null);
 
   useEffect(() => { api.get(`/products/${id}`).then(({ data }) => setP(data)).catch(() => setP(false)); }, [id]);
+  useEffect(() => { if (user) api.get("/credits/costs").then(({ data }) => setTryOnCost(data.costs?.tryon)).catch(() => {}); }, [user]);
 
   if (p === null) return <div className="gs-container py-20 text-center">Loading…</div>;
   if (!p) return <div className="gs-container py-20 text-center">Product not found</div>;
@@ -140,7 +142,7 @@ export default function ProductDetail() {
                   {tryOnBusy ? <RefreshCw className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4"/>}
                   {tryOnResult ? "Try another look" : "Generate Mirror AI"}
                 </Button>
-                <p className="text-[10px] text-center text-[var(--gs-muted)]">Free plan: 0 try-ons/day. Pro: 20/day. Elite: 200/day.</p>
+                <p className="text-[10px] text-center text-[var(--gs-muted)]">{tryOnCost != null ? `Costs ${tryOnCost} credits per try-on.` : "Uses AI credits from your balance."} <Link to="/pricing" className="underline text-[var(--gs-teal)]">Top up</Link></p>
               </div>
             </DialogContent>
           </Dialog>
