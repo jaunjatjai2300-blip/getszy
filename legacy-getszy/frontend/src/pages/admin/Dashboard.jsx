@@ -16,11 +16,18 @@ const KPIS = [
 export default function AdminDashboard() {
   const [range, setRange] = useState("month");
   const [stats, setStats] = useState(null);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    api.get(`/admin/stats?range=${range}`).then(({ data }) => setStats(data));
+    setError(false);
+    api.get(`/admin/stats?range=${range}`).then(({ data }) => setStats(data)).catch(() => setError(true));
   }, [range]);
 
+  if (error) return (
+    <div className="p-6 text-center text-[var(--gs-muted)]">
+      Could not load dashboard stats. Please refresh the page.
+    </div>
+  );
   if (!stats) return <div className="p-6 text-center">Loading…</div>;
 
   return (

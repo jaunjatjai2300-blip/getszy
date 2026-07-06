@@ -258,12 +258,12 @@ class LessonIn(BaseModel):
 
 # ===== Talk-to-Build Studio =====
 class BuilderProjectIn(BaseModel):
-    prompt: str
-    name: Optional[str] = None
+    prompt: str = Field(..., min_length=1, max_length=4000)
+    name: Optional[str] = Field(None, max_length=120)
 
 
 class BuilderRefineIn(BaseModel):
-    prompt: str
+    prompt: str = Field(..., min_length=1, max_length=4000)
 
 
 class BuilderHistoryItem(BaseModel):
