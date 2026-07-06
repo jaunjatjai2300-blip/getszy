@@ -16,10 +16,16 @@ export function Header() {
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [cats, setCats] = useState([]);
+  const [credits, setCredits] = useState(null);
 
   useEffect(() => {
     api.get("/categories").then(({ data }) => setCats(data)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (user) api.get("/credits/me").then(({ data }) => setCredits(data.credits)).catch(() => {});
+    else setCredits(null);
+  }, [user]);
 
   const submitSearch = (e) => {
     e.preventDefault();
@@ -72,7 +78,14 @@ export function Header() {
               <DropdownMenuContent align="end" className="w-56">
                 <div className="px-2 py-1.5 text-sm font-medium">{user.name}</div>
                 <div className="px-2 pb-1.5 text-xs text-[var(--gs-muted)]">{user.email}</div>
-                <div className="px-2 pb-2"><PlanBadge plan={user.subscription?.plan || "free"} status={user.subscription?.status}/></div>
+                <div className="px-2 pb-2 flex items-center gap-2 flex-wrap">
+                  <PlanBadge plan={user.subscription?.plan || "free"} status={user.subscription?.status}/>
+                  {credits !== null && (
+                    <Link to="/pricing" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--gs-teal-soft)] text-[var(--gs-teal)]" data-testid="header-credit-balance">
+                      <Sparkles className="h-3 w-3"/>{credits} credits
+                    </Link>
+                  )}
+                </div>
                 <DropdownMenuSeparator/>
                 <DropdownMenuItem onClick={() => navigate("/account")} data-testid="header-account-item"><User className="h-4 w-4 mr-2"/>My Account</DropdownMenuItem>
                 {user.role === "admin" && (

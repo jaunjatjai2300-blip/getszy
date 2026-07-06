@@ -30,7 +30,7 @@ const STYLES = [
 export default function MediaStudio() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const [tools, setTools] = useState({ tools: [], quota: null });
+  const [tools, setTools] = useState({ tools: [], credits: null });
   const [active, setActive] = useState("image");
   const [busy, setBusy] = useState(false);
   const [gallery, setGallery] = useState([]);
@@ -71,7 +71,9 @@ export default function MediaStudio() {
       }
       await Promise.all([loadHistory(), loadTools()]);
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Generation failed", { id: "gen" });
+      const msg = e?.response?.data?.detail || "Generation failed";
+      toast.error(msg, { id: "gen" });
+      if (e?.response?.status === 402) navigate("/pricing");
     } finally { setBusy(false); }
   };
 
@@ -79,7 +81,7 @@ export default function MediaStudio() {
 
   const activeTool = tools.tools.find((t) => t.id === active);
   const isPending = activeTool?.status === "pending";
-  const q = tools.quota;
+  const credits = tools.credits;
 
   return (
     <div className="min-h-screen" style={{ background: "#F7F5F2" }} data-testid="media-studio-page">
@@ -90,14 +92,13 @@ export default function MediaStudio() {
             <h1 className="font-display text-4xl">Media Studio</h1>
             <p className="text-sm text-[var(--gs-muted)] mt-1">Generate 4K images, logos, voiceovers, videos & mirror clones</p>
           </div>
-          {q && (
-            <div className="gs-card px-4 py-3 flex items-center gap-4 text-xs">
-              <span className="font-semibold uppercase" style={{ color: "var(--gs-teal)" }}>{q.plan}</span>
-              <Quota label="Images" used={q.used.images} total={q.quota.images}/>
-              <Quota label="Logos" used={q.used.logos} total={q.quota.logos}/>
-              <Quota label="Voice" used={q.used.voice_min} total={q.quota.voice_min}/>
-              <Quota label="Videos" used={q.used.videos} total={q.quota.videos}/>
-            </div>
+          {credits !== null && (
+            <button onClick={() => navigate("/pricing")} className="gs-card px-4 py-3 flex items-center gap-2 text-xs hover:bg-[var(--gs-surface-2)]" data-testid="media-studio-credits">
+              <span className="text-[var(--gs-muted)]">Balance</span>
+              <span className="font-bold text-base" style={{ color: "var(--gs-teal)" }}>{credits}</span>
+              <span className="text-[var(--gs-muted)]">credits</span>
+              <span className="ml-2 text-[10px] underline text-[var(--gs-teal)]">Top up</span>
+            </button>
           )}
         </div>
 
@@ -119,7 +120,7 @@ export default function MediaStudio() {
                       </div>
                       <div className="text-[11px] text-[var(--gs-muted)] mt-0.5">{t.tagline}</div>
                       <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{t.badge}</Badge>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{t.cost} cr</Badge>
                         <span className="text-[10px] text-[var(--gs-muted)]">{t.provider}</span>
                       </div>
                     </div>
@@ -201,10 +202,15 @@ export default function MediaStudio() {
                 </div>
               )}
 
-              <Button onClick={generate} disabled={busy} className="mt-6 gap-2" data-testid="media-generate-button">
-                {busy ? <RefreshCw className="h-4 w-4 animate-spin"/> : <Wand2 className="h-4 w-4"/>}
-                {busy ? "Generating…" : isPending ? "Try in preview" : "Generate"}
-              </Button>
+              <div className="mt-6 flex items-center gap-3">
+                <Button onClick={generate} disabled={busy} className="gap-2" data-testid="media-generate-button">
+                  {busy ? <RefreshCw className="h-4 w-4 animate-spin"/> : <Wand2 className="h-4 w-4"/>}
+                  {busy ? "Generating…" : isPending ? "Try in preview" : "Generate"}
+                </Button>
+                {activeTool?.cost != null && !isPending && (
+                  <span className="text-xs text-[var(--gs-muted)]">Costs <b>{activeTool.cost} credits</b></span>
+                )}
+              </div>
             </div>
 
             {/* Gallery */}
@@ -244,15 +250,6 @@ export default function MediaStudio() {
           </main>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Quota({ label, used, total }) {
-  return (
-    <div className="text-[10px]">
-      <div className="text-[var(--gs-muted)] uppercase tracking-wider">{label}</div>
-      <div className="font-bold">{used}<span className="text-[var(--gs-muted)]">/{total >= 9999 ? "∞" : total}</span></div>
     </div>
   );
 }
