@@ -46,8 +46,8 @@ export default function AdminProducts() {
         <div><h1 className="font-display text-3xl">Products</h1><p className="text-sm text-[var(--gs-muted)]">{items.length} total</p></div>
         <Button onClick={startCreate} className="bg-[var(--gs-primary)] hover:bg-[var(--gs-primary-2)]" data-testid="admin-add-product-button"><Plus className="h-4 w-4 mr-2"/>Add product</Button>
       </div>
-      <div className="gs-card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="gs-card overflow-x-auto">
+        <table className="w-full text-sm min-w-[560px]">
           <thead className="text-left text-xs uppercase tracking-wider text-[var(--gs-muted)] border-b" style={{ borderColor: "var(--gs-border)" }}><tr><th className="p-4">Product</th><th className="p-4 hidden md:table-cell">Category</th><th className="p-4">Price</th><th className="p-4 hidden md:table-cell">Cost</th><th className="p-4">Stock</th><th className="p-4 w-24"></th></tr></thead>
           <tbody>{items.map((p) => (
             <tr key={p.id} className="border-b last:border-0" style={{ borderColor: "var(--gs-border)" }}>

@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { ShoppingBag, Search, User, Menu, Sparkles, LogOut, LayoutDashboard } from "lucide-react";
+import { ShoppingBag, Search, User, Menu, Sparkles, LogOut, LayoutDashboard, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -17,6 +17,7 @@ export function Header() {
   const [q, setQ] = useState("");
   const [cats, setCats] = useState([]);
   const [credits, setCredits] = useState(null);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   useEffect(() => {
     api.get("/categories").then(({ data }) => setCats(data)).catch(() => {});
@@ -70,6 +71,9 @@ export function Header() {
         </form>
 
         <div className="ml-auto flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileSearchOpen((v) => !v)} data-testid="header-mobile-search-button">
+            {mobileSearchOpen ? <X className="h-5 w-5"/> : <Search className="h-5 w-5"/>}
+          </Button>
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -106,6 +110,16 @@ export function Header() {
           </Link>
         </div>
       </div>
+      {mobileSearchOpen && (
+        <div className="md:hidden px-4 pb-3 border-t" style={{ borderColor: "var(--gs-border)" }}>
+          <form onSubmit={(e) => { submitSearch(e); setMobileSearchOpen(false); }} className="pt-3">
+            <div className="relative w-full">
+              <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--gs-muted)]"/>
+              <Input autoFocus data-testid="header-mobile-search-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search dresses, jewellery, gadgets..." className="pl-9 h-10"/>
+            </div>
+          </form>
+        </div>
+      )}
     </header>
   );
 }
