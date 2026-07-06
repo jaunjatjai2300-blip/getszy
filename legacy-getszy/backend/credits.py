@@ -33,6 +33,15 @@ CREDIT_COSTS = {
     'builder_refine': 3,         # Talk-to-Build Studio — refine existing site
 }
 
+# ===== Paid credit packs (Razorpay monthly subscriptions) =====
+# Keep in sync with routes_razorpay.py — this is the single source of truth
+# for what each recurring pack charges and how many credits it grants per cycle.
+CREDIT_PACKS = {
+    'lite':  {'name': 'Lite',  'price_inr': 799,  'credits': 40},
+    'pro':   {'name': 'Pro',   'price_inr': 2499, 'credits': 125},
+    'ultra': {'name': 'Ultra', 'price_inr': 5999, 'credits': 300},
+}
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()

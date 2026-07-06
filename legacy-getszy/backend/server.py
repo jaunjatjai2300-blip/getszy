@@ -117,6 +117,9 @@ async def startup():
     # Ensure all premium-level courses are flagged
     await db.courses.update_many({'level': 'Advanced'}, {'$set': {'is_premium': True}})
     await db.courses.update_many({'level': {'$in': ['Beginner', 'Intermediate']}}, {'$set': {'is_premium': False}})
+    # Unique index so a Razorpay payment_id can only ever grant credits once
+    # (guards against webhook retries / verify+webhook double-firing on the same charge)
+    await db.billing_processed_payments.create_index('payment_id', unique=True)
 
 
 @app.on_event('shutdown')

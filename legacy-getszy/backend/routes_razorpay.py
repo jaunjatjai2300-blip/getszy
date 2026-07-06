@@ -1,21 +1,27 @@
-"""Razorpay integration — Subscriptions only (monthly).
+"""Razorpay integration — Credit pack subscriptions only (monthly).
 
-Design:
+Design (per founder decision, July 2026 — credit system is the product's
+single gate for AI actions; see credits.py):
 - Works in UNCONFIGURED mode when RAZORPAY_KEY_ID / SECRET / WEBHOOK_SECRET are missing.
   All endpoints return `{ configured: False, ... }` so frontend can render a graceful
   "Coming soon" state. When keys are added and backend restarted, endpoints activate.
 
-- Uses Razorpay Subscriptions API (monthly interval).
-- Plans (Razorpay plan_ids) can be created either via the Razorpay dashboard
-  and set via env `RAZORPAY_PLAN_PRO` / `RAZORPAY_PLAN_ELITE`, OR auto-created via
-  `POST /billing/admin/create-plans` (admin-only) once the user decides the ₹price.
+- Uses Razorpay Subscriptions API (monthly interval). Each successful charge
+  (initial + every renewal) grants that pack's credit amount via
+  `credits.add_credits()` — credits do NOT roll over automatically into a
+  "plan"; they just top up the user's balance every billing cycle.
+- Packs are defined in `credits.CREDIT_PACKS` (lite/pro/ultra). Razorpay
+  plan_ids can be created either via the Razorpay dashboard and set via env
+  `RAZORPAY_PLAN_LITE` / `RAZORPAY_PLAN_PRO` / `RAZORPAY_PLAN_ULTRA`, OR
+  auto-created via `POST /billing/admin/create-plans` (admin-only).
 
 Env vars:
   RAZORPAY_KEY_ID
   RAZORPAY_KEY_SECRET
   RAZORPAY_WEBHOOK_SECRET
-  RAZORPAY_PLAN_PRO         (optional, "plan_..." id from Razorpay)
-  RAZORPAY_PLAN_ELITE       (optional)
+  RAZORPAY_PLAN_LITE        (optional, "plan_..." id from Razorpay)
+  RAZORPAY_PLAN_PRO         (optional)
+  RAZORPAY_PLAN_ULTRA       (optional)
 """
 import os
 import uuid
@@ -29,7 +35,7 @@ from pydantic import BaseModel
 
 from auth import get_current_user, get_current_admin
 from db import db
-from subscription import PLAN_FREE, PLAN_PRO, PLAN_ELITE, PRICING, grant_plan, cancel_subscription, effective_subscription
+from credits import CREDIT_PACKS, add_credits
 
 logger = logging.getLogger('getszy.billing')
 router = APIRouter(prefix='/billing', tags=['billing'])
@@ -37,8 +43,8 @@ router = APIRouter(prefix='/billing', tags=['billing'])
 KEY_ID = os.environ.get('RAZORPAY_KEY_ID', '').strip()
 KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', '').strip()
 WEBHOOK_SECRET = os.environ.get('RAZORPAY_WEBHOOK_SECRET', '').strip()
-PLAN_PRO_ID = os.environ.get('RAZORPAY_PLAN_PRO', '').strip()
-PLAN_ELITE_ID = os.environ.get('RAZORPAY_PLAN_ELITE', '').strip()
+PLAN_ENV_KEYS = {'lite': 'RAZORPAY_PLAN_LITE', 'pro': 'RAZORPAY_PLAN_PRO', 'ultra': 'RAZORPAY_PLAN_ULTRA'}
+PLAN_IDS = {pack: os.environ.get(env_key, '').strip() for pack, env_key in PLAN_ENV_KEYS.items()}
 
 
 def _is_configured() -> bool:
@@ -56,45 +62,44 @@ def _iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _plan_id_for(plan: str) -> Optional[str]:
-    if plan == PLAN_PRO:
-        return PLAN_PRO_ID or None
-    if plan == PLAN_ELITE:
-        return PLAN_ELITE_ID or None
-    return None
+def _plan_id_for(pack: str) -> Optional[str]:
+    return PLAN_IDS.get(pack) or None
 
 
 # ---------- Status ----------
 @router.get('/status')
 async def status(user=Depends(get_current_user)):
-    sub = await effective_subscription(user)
     return {
         'configured': _is_configured(),
         'webhook_configured': bool(WEBHOOK_SECRET),
-        'plans_configured': {
-            'pro': bool(PLAN_PRO_ID),
-            'elite': bool(PLAN_ELITE_ID),
-        },
+        'plans_configured': {pack: bool(pid) for pack, pid in PLAN_IDS.items()},
         'key_id_preview': (KEY_ID[:8] + '…') if KEY_ID else '',
-        'current': sub,
-        'pricing': PRICING,
     }
 
 
 # ---------- Public pricing (no auth) ----------
 @router.get('/pricing')
 async def pricing_public():
-    return {'plans': PRICING, 'currency': 'INR', 'interval': 'monthly'}
+    plans = [
+        {
+            'id': pack,
+            'name': info['name'],
+            'price_monthly': info['price_inr'],
+            'credits': info['credits'],
+        }
+        for pack, info in CREDIT_PACKS.items()
+    ]
+    return {'plans': plans, 'currency': 'INR', 'interval': 'monthly'}
 
 
 # ---------- Create Subscription ----------
 class SubscribeIn(BaseModel):
-    plan: str  # 'pro' | 'elite'
+    plan: str  # 'lite' | 'pro' | 'ultra'
 
 
 @router.post('/subscribe')
 async def subscribe(body: SubscribeIn, user=Depends(get_current_user)):
-    if body.plan not in (PLAN_PRO, PLAN_ELITE):
+    if body.plan not in CREDIT_PACKS:
         raise HTTPException(400, 'Invalid plan')
     if not _is_configured():
         return {
@@ -145,6 +150,28 @@ class VerifyIn(BaseModel):
     razorpay_signature: str
 
 
+async def _grant_pack_credits_once(user_id: str, pack: str, payment_id: str, source: str) -> Optional[int]:
+    """Grant a pack's credits for a given Razorpay payment_id, but only once.
+    Guards against Razorpay webhook retries and double-firing (verify + webhook
+    both reporting the same charge) double-crediting the user."""
+    if pack not in CREDIT_PACKS:
+        logger.warning('Unknown credit pack %s for payment %s', pack, payment_id)
+        return None
+    try:
+        await db.billing_processed_payments.insert_one({
+            'payment_id': payment_id,
+            'user_id': user_id,
+            'pack': pack,
+            'source': source,
+            'created_at': _iso(),
+        })
+    except Exception:
+        # Duplicate key (unique index on payment_id) => already processed, skip.
+        return None
+    amount = CREDIT_PACKS[pack]['credits']
+    return await add_credits(user_id, amount, reason='razorpay_subscription_charge', meta={'pack': pack, 'payment_id': payment_id, 'source': source})
+
+
 @router.post('/verify')
 async def verify(body: VerifyIn, user=Depends(get_current_user)):
     if not _is_configured():
@@ -160,13 +187,12 @@ async def verify(body: VerifyIn, user=Depends(get_current_user)):
     if not rec:
         raise HTTPException(404, 'Subscription record not found')
 
-    # Grant plan
-    await grant_plan(user, rec['plan'], interval='monthly')
+    balance = await _grant_pack_credits_once(user['id'], rec['plan'], body.razorpay_payment_id, source='verify')
     await db.billing_subscriptions.update_one(
         {'razorpay_subscription_id': body.razorpay_subscription_id},
         {'$set': {'status': 'active', 'last_payment_id': body.razorpay_payment_id, 'updated_at': _iso()}}
     )
-    return {'ok': True, 'plan': rec['plan']}
+    return {'ok': True, 'plan': rec['plan'], 'credits_granted': CREDIT_PACKS[rec['plan']]['credits'] if balance is not None else 0, 'balance': balance}
 
 
 # ---------- Webhook (server-to-server truth) ----------
@@ -205,16 +231,12 @@ async def webhook(request: Request):
     # Handle key events
     if event in ('subscription.charged', 'subscription.activated', 'subscription.resumed') and user_id and sub_id:
         rec = await db.billing_subscriptions.find_one({'razorpay_subscription_id': sub_id})
+        payment_entity = (payload.get('payload') or {}).get('payment', {}).get('entity', {})
+        payment_id = payment_entity.get('id') or f'{sub_id}:{event}:{entity.get("current_end", "")}'
         if rec:
-            user = await db.users.find_one({'id': user_id})
-            if user:
-                await grant_plan(user, rec['plan'], interval='monthly')
+            await _grant_pack_credits_once(user_id, rec['plan'], payment_id, source='webhook')
         await db.billing_subscriptions.update_one({'razorpay_subscription_id': sub_id}, {'$set': {'status': 'active', 'updated_at': _iso()}})
     elif event in ('subscription.paused', 'subscription.cancelled', 'subscription.completed'):
-        if user_id:
-            user = await db.users.find_one({'id': user_id})
-            if user:
-                await cancel_subscription(user)
         await db.billing_subscriptions.update_one({'razorpay_subscription_id': sub_id}, {'$set': {'status': event.split('.')[-1], 'updated_at': _iso()}})
 
     return {'ok': True, 'event': event}
@@ -229,44 +251,42 @@ async def history(user=Depends(get_current_user)):
 
 @router.post('/cancel')
 async def cancel(user=Depends(get_current_user)):
-    """Cancel latest active Razorpay subscription (best-effort) + downgrade user."""
+    """Cancel latest active Razorpay subscription (best-effort). Credits already
+    granted are NOT clawed back — cancelling just stops future monthly charges."""
     rec = await db.billing_subscriptions.find_one({'user_id': user['id'], 'status': 'active'}, {'_id': 0})
-    if _is_configured() and rec and rec.get('razorpay_subscription_id'):
+    if not rec:
+        return {'ok': True, 'cancelled': False}
+    if _is_configured() and rec.get('razorpay_subscription_id'):
         try:
             _client().subscription.cancel(rec['razorpay_subscription_id'])
         except Exception as e:
             logger.warning('Razorpay cancel failed: %s', e)
-    sub = await cancel_subscription(user)
-    if rec:
-        await db.billing_subscriptions.update_one({'razorpay_subscription_id': rec['razorpay_subscription_id']}, {'$set': {'status': 'cancelled', 'updated_at': _iso()}})
-    return {'ok': True, 'subscription': sub}
+    await db.billing_subscriptions.update_one({'razorpay_subscription_id': rec['razorpay_subscription_id']}, {'$set': {'status': 'cancelled', 'updated_at': _iso()}})
+    return {'ok': True, 'cancelled': True}
 
 
 # ---------- Admin: create Razorpay plans (one-time bootstrap when prices are decided) ----------
-class CreatePlansIn(BaseModel):
-    pro_amount_inr: int   # e.g. 499
-    elite_amount_inr: int  # e.g. 1999
-
-
 @router.post('/admin/create-plans')
-async def admin_create_plans(body: CreatePlansIn, admin=Depends(get_current_admin)):
+async def admin_create_plans(admin=Depends(get_current_admin)):
     if not _is_configured():
         raise HTTPException(400, 'Razorpay not configured — set RAZORPAY_KEY_ID / SECRET first')
     client = _client()
+    created = {}
     try:
-        pro = client.plan.create({
-            'period': 'monthly', 'interval': 1,
-            'item': {'name': 'Getszy Pro (Monthly)', 'amount': body.pro_amount_inr * 100, 'currency': 'INR'},
-        })
-        elite = client.plan.create({
-            'period': 'monthly', 'interval': 1,
-            'item': {'name': 'Getszy Elite (Monthly)', 'amount': body.elite_amount_inr * 100, 'currency': 'INR'},
-        })
+        for pack, info in CREDIT_PACKS.items():
+            plan = client.plan.create({
+                'period': 'monthly', 'interval': 1,
+                'item': {
+                    'name': f'Getszy {info["name"]} (Monthly, {info["credits"]} credits)',
+                    'amount': info['price_inr'] * 100,
+                    'currency': 'INR',
+                },
+            })
+            created[pack] = plan['id']
     except Exception as e:
         raise HTTPException(500, f'Razorpay plan.create failed: {e}')
     return {
         'ok': True,
-        'pro_plan_id': pro['id'],
-        'elite_plan_id': elite['id'],
-        'next_step': 'Set RAZORPAY_PLAN_PRO and RAZORPAY_PLAN_ELITE in backend .env, then restart backend.',
+        'plan_ids': created,
+        'next_step': 'Set ' + ', '.join(PLAN_ENV_KEYS[p] for p in created) + ' in backend .env, then restart backend.',
     }
