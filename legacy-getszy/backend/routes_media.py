@@ -18,6 +18,7 @@ from auth import get_current_user
 from db import db
 from media import pollinations
 from credits import deduct, refund, get_balance, CREDIT_COSTS
+from video.tts import synth as tts_synth, pick_voice
 
 router = APIRouter(prefix='/media', tags=['media'])
 
@@ -27,6 +28,8 @@ FAL_KEY = os.environ.get('FAL_KEY', '').strip()
 # On-disk cache for generated images (served back through /api/media/file/...)
 CACHE_DIR = Path(os.environ.get('MEDIA_CACHE_DIR', str(Path(__file__).resolve().parent / 'media_cache')))
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
+AUDIO_CACHE_DIR = CACHE_DIR / 'audio'
+AUDIO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 async def _prefetch_and_cache(remote_url: str, asset_id: str, suffix: str = '.jpg') -> Optional[str]:
@@ -66,6 +69,8 @@ class LogoGenIn(BaseModel):
 class VoiceGenIn(BaseModel):
     text: str
     voice: str = 'female-warm'
+    language: str = 'hinglish'
+    gender: str = 'female'
 
 
 class VideoGenIn(BaseModel):
@@ -85,7 +90,7 @@ async def list_tools(user=Depends(get_current_user)):
     tools = [
         {'id': 'image', 'name': '4K Image Studio', 'tagline': 'Photoreal, art, product shots', 'status': 'live', 'cost': CREDIT_COSTS['image'], 'provider': 'Pollinations AI'},
         {'id': 'logo',  'name': 'Logo & Brand Kit', 'tagline': 'Vector-style brand marks', 'status': 'live', 'cost': CREDIT_COSTS['logo'], 'provider': 'Pollinations AI'},
-        {'id': 'voice', 'name': 'Voice Studio',     'tagline': 'Studio narration & dubbing', 'status': 'pending' if not HF_TOKEN else 'live', 'cost': CREDIT_COSTS['voice_min'], 'provider': 'Coqui XTTS (HF)'},
+        {'id': 'voice', 'name': 'Voice Studio',     'tagline': 'Studio narration & dubbing', 'status': 'live', 'cost': CREDIT_COSTS['voice_min'], 'provider': 'Edge Neural TTS (free)'},
         {'id': 'video', 'name': '4K Video Studio',  'tagline': 'AI clips & reels', 'status': 'pending' if not (HF_TOKEN or FAL_KEY) else 'live', 'cost': CREDIT_COSTS['video_quick'], 'provider': 'AnimateDiff / Kling'},
         {'id': 'mirror','name': 'Mirror AI',         'tagline': 'Face mirror & swap', 'status': 'pending' if not (HF_TOKEN or FAL_KEY) else 'live', 'cost': CREDIT_COSTS['mirror'], 'provider': 'Live Portrait'},
     ]
@@ -175,20 +180,46 @@ async def serve_cached(filename: str):
     return FileResponse(str(path), media_type='image/jpeg', headers={'Cache-Control': 'public, max-age=31536000, immutable'})
 
 
-# ===== VOICE (PENDING - needs HF_TOKEN or fal.ai) =====
+# ===== Serve cached voice audio =====
+@router.get('/audio/{filename}')
+async def serve_audio(filename: str):
+    if '/' in filename or '..' in filename:
+        raise HTTPException(status_code=400, detail='Invalid filename')
+    path = AUDIO_CACHE_DIR / filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail='Not found')
+    return FileResponse(str(path), media_type='audio/mpeg', headers={'Cache-Control': 'public, max-age=31536000, immutable'})
+
+
+# ===== VOICE (LIVE - free, Edge Neural TTS, no key needed) =====
 @router.post('/voice')
 async def gen_voice(payload: VoiceGenIn, user=Depends(get_current_user)):
-    if not (HF_TOKEN or FAL_KEY):
-        return {
-            'status': 'pending_provider',
-            'message': 'Voice Studio is launching soon. Configure HF_TOKEN or FAL_KEY to enable.',
-            'preview_text': payload.text[:200],
-        }
-    ok, msg, _ = await deduct(user['id'], 'voice_min', max(1, len(payload.text) // 800))
+    if len(payload.text.strip()) < 2:
+        raise HTTPException(status_code=400, detail='Text is too short')
+    qty = max(1, len(payload.text) // 800)
+    ok, msg, _ = await deduct(user['id'], 'voice_min', qty)
     if not ok:
         raise HTTPException(status_code=402, detail=msg)
-    # TODO: hook up HF Inference / fal.ai when key provided
-    return {'status': 'queued', 'message': 'Voice generation queued', 'text': payload.text}
+    try:
+        voice_id = pick_voice(payload.language, payload.gender)
+        asset_id = str(uuid.uuid4())
+        out_path = AUDIO_CACHE_DIR / f'{asset_id}.mp3'
+        await tts_synth(payload.text[:6000], str(out_path), voice=voice_id)
+        item = {
+            'id': asset_id,
+            'user_id': user['id'],
+            'kind': 'voice',
+            'text': payload.text[:6000],
+            'voice': voice_id,
+            'url': f'/api/media/audio/{asset_id}.mp3',
+            'created_at': datetime.now(timezone.utc).isoformat(),
+        }
+        await db.media_assets.insert_one(item)
+        item.pop('_id', None)
+        return {'status': 'done', **item}
+    except Exception:
+        await refund(user['id'], 'voice_min', qty=qty, reason='generation_failed')
+        raise
 
 
 # ===== VIDEO (PENDING) =====

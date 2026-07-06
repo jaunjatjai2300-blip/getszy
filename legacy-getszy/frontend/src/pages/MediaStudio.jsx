@@ -63,8 +63,9 @@ export default function MediaStudio() {
         r = await api.post("/media/logo", { brand_name: logo.brand, tagline: logo.tagline, style: logo.style, palette: logo.palette });
         toast.success("4 logo concepts ready", { id: "gen" });
       } else if (active === "voice") {
+        toast.loading("Synthesizing narration... (~5-10s)", { id: "gen", duration: 20000 });
         r = await api.post("/media/voice", voice);
-        if (r.data.status === "pending_provider") toast.info(r.data.message); else toast.success("Voice queued");
+        if (r.data.status === "pending_provider") toast.info(r.data.message, { id: "gen" }); else toast.success("Voice ready!", { id: "gen" });
       } else if (active === "video") {
         r = await api.post("/media/video", video);
         if (r.data.status === "pending_provider") toast.info(r.data.message); else toast.success("Video queued");
@@ -232,6 +233,10 @@ export default function MediaStudio() {
                         <div className="grid grid-cols-2 gap-1 p-1">
                           {(g.variants || []).slice(0, 4).map((v) => <img key={v.index} src={resolveUrl(v.url)} alt="logo" loading="lazy" className="w-full aspect-square object-cover rounded-md"/>)}
                         </div>
+                      ) : g.kind === "voice" ? (
+                        <div className="aspect-square grid place-items-center bg-[var(--gs-surface-2)] p-4">
+                          <audio controls src={resolveUrl(g.url)} className="w-full"/>
+                        </div>
                       ) : g.url ? (
                         <img src={resolveUrl(g.url)} alt={g.prompt} loading="lazy" className="w-full aspect-square object-cover"/>
                       ) : (
@@ -239,7 +244,7 @@ export default function MediaStudio() {
                       )}
                       <div className="p-3">
                         <div className="text-xs font-semibold capitalize">{g.kind}</div>
-                        <div className="text-[11px] text-[var(--gs-muted)] line-clamp-2 mt-1">{g.prompt || g.brand_name}</div>
+                        <div className="text-[11px] text-[var(--gs-muted)] line-clamp-2 mt-1">{g.prompt || g.brand_name || g.text}</div>
                         {g.url && <a href={resolveUrl(g.url)} target="_blank" rel="noreferrer" className="text-[11px] text-[var(--gs-teal)] flex items-center gap-1 mt-2"><Download className="h-3 w-3"/>Open / Download</a>}
                       </div>
                     </article>

@@ -40,14 +40,20 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
             continue
         clip_path = os.path.join(tmp_dir, f'clip_{i:03d}.mp4')
         motion = sc.get('motion', 'static')
-        # Simple scale + light Ken Burns (heavy zoompan drops on aarch64 bundled ffmpeg)
         base_scale = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1"
+        # Pan/tilt need extra headroom beyond target frame so the crop can slide without revealing edges
+        pan_scale = f"scale={int(w*1.15)}:{int(h*1.15)}:force_original_aspect_ratio=increase,crop={int(w*1.15)}:{int(h*1.15)},setsar=1"
         motion_zoom = {
             'ken-burns-in':  f",zoompan=z='min(1+0.0006*on,1.10)':d={secs*25}:s={w}x{h}:fps=25",
             'ken-burns-out': f",zoompan=z='max(1.10-0.0006*on,1.0)':d={secs*25}:s={w}x{h}:fps=25",
+            'pan-left':      f",zoompan=z=1.06:x='max(0,iw*0.06-on*2)':y='ih/2-(ih/zoom/2)':d={secs*25}:s={w}x{h}:fps=25",
+            'pan-right':     f",zoompan=z=1.06:x='min(iw*0.06,on*2)':y='ih/2-(ih/zoom/2)':d={secs*25}:s={w}x{h}:fps=25",
+            'tilt-up':       f",zoompan=z=1.06:x='iw/2-(iw/zoom/2)':y='max(0,ih*0.06-on*2)':d={secs*25}:s={w}x{h}:fps=25",
+            'tilt-down':     f",zoompan=z=1.06:x='iw/2-(iw/zoom/2)':y='min(ih*0.06,on*2)':d={secs*25}:s={w}x{h}:fps=25",
             'static': '',
         }.get(motion, '')
-        vf = base_scale + motion_zoom + f",fps=25"
+        is_pan = motion in ('pan-left', 'pan-right', 'tilt-up', 'tilt-down')
+        vf = (pan_scale if is_pan else base_scale) + motion_zoom + f",fps=25"
         cmd = [
             FFMPEG, '-y', '-loop', '1', '-t', str(secs), '-i', img,
             '-vf', vf, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25',
