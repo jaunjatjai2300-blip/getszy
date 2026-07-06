@@ -28,18 +28,23 @@ async def fetch_scene_image(prompt: str, orientation: str = '9:16', seed: int = 
     path = os.path.join(MEDIA_DIR, f'{key}.jpg')
     if os.path.exists(path) and os.path.getsize(path) > 2000:
         return path
-    # Try Pollinations first (no key)
+    # Try Pollinations first (no key). Free tier is occasionally flaky under load, so retry once
+    # with a fresh seed before falling through to Pexels/solid-color — this alone fixes most
+    # "blank scene" failures users would otherwise see in finished videos.
     safe_prompt = urllib.parse.quote(prompt[:380])
-    p_url = f'https://image.pollinations.ai/prompt/{safe_prompt}?width={w}&height={h}&nologo=true&seed={seed or 42}&model=flux'
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            r = await client.get(p_url)
-            if r.status_code == 200 and len(r.content) > 2000:
-                with open(path, 'wb') as f:
-                    f.write(r.content)
-                return path
-    except Exception as e:
-        print(f'[visuals] pollinations failed: {e}')
+    for attempt in range(2):
+        attempt_seed = (seed or 42) + (attempt * 777)
+        p_url = f'https://image.pollinations.ai/prompt/{safe_prompt}?width={w}&height={h}&nologo=true&enhance=true&seed={attempt_seed}&model=flux'
+        try:
+            async with httpx.AsyncClient(timeout=45.0) as client:
+                r = await client.get(p_url)
+                if r.status_code == 200 and len(r.content) > 2000:
+                    with open(path, 'wb') as f:
+                        f.write(r.content)
+                    return path
+        except Exception as e:
+            print(f'[visuals] pollinations attempt {attempt + 1} failed: {e}')
+        await asyncio.sleep(1.5)
     # Fallback: Pexels (if key)
     if PEXELS_KEY:
         try:

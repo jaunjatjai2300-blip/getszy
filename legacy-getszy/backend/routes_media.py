@@ -4,6 +4,7 @@ Production-ready: image + logo work today via Pollinations.ai (free, no key).
 Voice / Video / Mirror return graceful 'pending provider' responses with clear
 UI guidance until fal.ai or HuggingFace tokens are configured.
 """
+import asyncio
 import os
 import uuid
 import httpx
@@ -35,20 +36,24 @@ AUDIO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 async def _prefetch_and_cache(remote_url: str, asset_id: str, suffix: str = '.jpg') -> Optional[str]:
     """Download an image once and cache it locally. Returns local relative URL.
 
-    Returns None on failure so callers can gracefully fall back to the remote URL.
+    Retries once on failure since the free Pollinations tier occasionally times out under load.
+    Returns None only if both attempts fail, so callers can gracefully fall back to the remote URL.
     """
     out_path = CACHE_DIR / f'{asset_id}{suffix}'
-    try:
-        async with httpx.AsyncClient(timeout=45.0, follow_redirects=True) as client:
-            r = await client.get(remote_url)
-            r.raise_for_status()
-            data = r.content
-            if not data or len(data) < 1024:  # likely an error placeholder
-                return None
-            out_path.write_bytes(data)
-            return f'/api/media/file/{asset_id}{suffix}'
-    except Exception:
-        return None
+    for attempt in range(2):
+        try:
+            async with httpx.AsyncClient(timeout=45.0, follow_redirects=True) as client:
+                r = await client.get(remote_url)
+                r.raise_for_status()
+                data = r.content
+                if not data or len(data) < 1024:  # likely an error placeholder
+                    continue
+                out_path.write_bytes(data)
+                return f'/api/media/file/{asset_id}{suffix}'
+        except Exception:
+            if attempt == 0:
+                await asyncio.sleep(1.5)
+    return None
 
 
 class ImageGenIn(BaseModel):

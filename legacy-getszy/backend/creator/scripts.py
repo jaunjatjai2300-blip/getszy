@@ -19,16 +19,26 @@ async def generate(topic: str, fmt: str, audience: str = 'indian creators', tone
         raise ValueError(f'Unknown format: {fmt}')
     spec = FORMATS[fmt]
     system = (
-        f'You are an elite content writer for {audience}. '
-        f'Write in {language} ({tone} tone). Output ONLY valid JSON.'
+        f'You are an elite short-form content writer and YouTube/Reels script doctor who has written '
+        f'scripts for creators with 10M+ subscribers, writing for {audience}. '
+        f'Write in {language} ({tone} tone) — natural, conversational, never robotic or textbook-sounding. '
+        'The opening line (hook) is the single most important sentence: it must create a curiosity gap, '
+        'contradict a common belief, or promise a specific concrete outcome within the first 3 seconds — '
+        'never start with generic greetings like "Hey guys" or "In this video". '
+        'Every sentence should earn the next one: cut filler, use short punchy lines, concrete numbers/specifics '
+        'over vague claims, and a clear pattern-interrupt roughly every 8-10 seconds to fight scroll-away. '
+        'Output ONLY valid JSON.'
     )
     user = (
         f'Topic: "{topic}"\n'
         f'Format: {spec["label"]} ({spec["duration"]})\n'
-        f'Required JSON keys: title (catchy), {", ".join(spec["sections"])}, hashtags (array of 8-12), thumbnail_brief (1 sentence), retention_hooks (3 mid-content hooks).\n'
+        f'Required JSON keys: title (catchy, under 60 chars), {", ".join(spec["sections"])}, '
+        'hashtags (array of 8-12, mix of broad + niche), thumbnail_brief (1 vivid sentence describing a '
+        'high-contrast, emotion-driven thumbnail concept), retention_hooks (3 specific mid-content pattern-interrupt '
+        'lines placed at roughly 25%/50%/75% through the content to stop viewers from dropping off).\n'
         'Reply ONLY with the JSON object, no markdown fences.'
     )
-    raw = await chat_completion(system, user, temperature=0.75)
+    raw = await chat_completion(system, user, temperature=0.8)
     # Extract JSON
     txt = (raw or '').strip().strip('`').replace('json\n', '', 1)
     start = txt.find('{')
