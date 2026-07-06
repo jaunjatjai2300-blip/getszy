@@ -8,8 +8,8 @@ export default function AdminCustomers() {
   return (
     <div data-testid="admin-customers-page">
       <h1 className="font-display text-3xl mb-6">Customers</h1>
-      <div className="gs-card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="gs-card overflow-x-auto">
+        <table className="w-full text-sm min-w-[520px]">
           <thead className="text-left text-xs uppercase tracking-wider text-[var(--gs-muted)] border-b" style={{ borderColor: "var(--gs-border)" }}><tr><th className="p-4">Name</th><th className="p-4">Email</th><th className="p-4">Orders</th><th className="p-4">Lifetime Value</th><th className="p-4 hidden md:table-cell">Joined</th></tr></thead>
           <tbody>{items.map((u) => (
             <tr key={u.id} className="border-b last:border-0" style={{ borderColor: "var(--gs-border)" }}>
