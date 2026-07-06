@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 import { ArrowRight, Sparkles, Bot, GraduationCap, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -9,11 +10,36 @@ import { CategoryCard } from "@/components/CategoryCard";
 export default function Home() {
   const [cats, setCats] = useState([]);
   const [trending, setTrending] = useState([]);
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterLoading, setNewsletterLoading] = useState(false);
 
   useEffect(() => {
     api.get("/categories").then(({ data }) => setCats(data)).catch(() => setCats([]));
     api.get("/products?featured=true&limit=8").then(({ data }) => setTrending(data)).catch(() => setTrending([]));
   }, []);
+
+  const handleNewsletterSubmit = async (e) => {
+    e.preventDefault();
+    const email = newsletterEmail.trim();
+    if (!email || !email.includes("@")) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+    setNewsletterLoading(true);
+    try {
+      const { data } = await api.post("/waitlist", { email, interest: "newsletter", source: "home_newsletter" });
+      if (data?.status === "already_subscribed") {
+        toast.info("You're already on the list!");
+      } else {
+        toast.success("You're subscribed! We'll keep you posted.");
+      }
+      setNewsletterEmail("");
+    } catch {
+      toast.error("Couldn't subscribe right now. Please try again.");
+    } finally {
+      setNewsletterLoading(false);
+    }
+  };
 
   return (
     <div>
@@ -97,9 +123,20 @@ export default function Home() {
             <h3 className="font-display text-2xl sm:text-3xl">Be first to know</h3>
             <p className="text-sm text-[var(--gs-muted)] mt-1">New drops, AI launches, women-first stories — straight to your inbox.</p>
           </div>
-          <form onSubmit={(e) => { e.preventDefault(); }} className="flex gap-2 w-full sm:w-auto">
-            <input type="email" placeholder="Your email" className="h-12 px-4 rounded-xl bg-white border min-w-[240px]" style={{ borderColor: "var(--gs-border)" }} data-testid="newsletter-email-input"/>
-            <Button className="bg-[var(--gs-ink)] hover:bg-black h-12 px-6" data-testid="newsletter-submit-button">Subscribe</Button>
+          <form onSubmit={handleNewsletterSubmit} className="flex gap-2 w-full sm:w-auto">
+            <input
+              type="email"
+              placeholder="Your email"
+              value={newsletterEmail}
+              onChange={(e) => setNewsletterEmail(e.target.value)}
+              disabled={newsletterLoading}
+              className="h-12 px-4 rounded-xl bg-white border min-w-[240px]"
+              style={{ borderColor: "var(--gs-border)" }}
+              data-testid="newsletter-email-input"
+            />
+            <Button type="submit" disabled={newsletterLoading} className="bg-[var(--gs-ink)] hover:bg-black h-12 px-6" data-testid="newsletter-submit-button">
+              {newsletterLoading ? "Subscribing…" : "Subscribe"}
+            </Button>
           </form>
         </div>
       </section>
