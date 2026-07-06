@@ -31,7 +31,7 @@ export default function AdminDeploy() {
   const [commits, setCommits] = useState([]);
   const [commitsMsg, setCommitsMsg] = useState("");
 
-  const loadStatus = async () => { try { const r = await api.get("/admin/deploy/status"); setStatus(r.data); } catch (e) {} };
+  const loadStatus = async () => { try { const r = await api.get("/admin/deploy/status"); setStatus(r.data); } catch (e) { toast.error("Couldn't load deploy status — refresh to retry"); } };
   const loadJobs = async () => { try { const r = await api.get("/admin/deploy/jobs?limit=10"); setJobs(r.data.items || []); } catch (e) {} };
   const loadCommits = async () => {
     try {

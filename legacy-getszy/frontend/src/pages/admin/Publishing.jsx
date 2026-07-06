@@ -70,7 +70,7 @@ export default function Publishing() {
       await load();
     } catch (e) { toast.error("Post failed", { id }); }
   };
-  const cancel = async (id) => { try { await api.delete(`/publishing/queue/${id}`); toast.success("Removed"); load(); } catch (e) {} };
+  const cancel = async (id) => { try { await api.delete(`/publishing/queue/${id}`); toast.success("Removed"); load(); } catch (e) { toast.error("Couldn't remove — please retry"); } };
 
   return (
     <div className="space-y-6" data-testid="admin-publishing-page">

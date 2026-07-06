@@ -6,3 +6,4 @@
 - [Legacy-getszy frontend resilience gaps](legacy-getszy-frontend-resilience.md) — no global error boundary/404/catch-all originally; many `useEffect` data loads had no `.catch()`, causing infinite loading spinners on API failure.
 - [Legacy-getszy is not a running artifact](legacy-getszy-not-live.md) — lives in `legacy-getszy/` but isn't registered as a workflow/artifact; no uvicorn/mongod process runs in this workspace, so e2e/browser testing (`runTest`) is not usable here — verify via static compile/build only.
 - [Legacy-getszy mobile nav pattern](legacy-getszy-mobile-nav-pattern.md) — extract sidebar nav into a NavContent component, reuse in desktop aside + mobile Sheet, to avoid duplicating nav markup.
+- [Legacy-getszy fake-AI-output audit](legacy-getszy-fake-ai-audit.md) — user explicitly rejects any randomized/templated data presented as "AI analysis"; audit checklist + fixed example (Sourcing trend score) for future sweeps.
