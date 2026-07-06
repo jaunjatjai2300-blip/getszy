@@ -4,3 +4,4 @@
 - [ffmpeg drawtext captions](ffmpeg-drawtext-captions.md) — no fontconfig in this sandbox; must pass `fontfile=` explicitly (DejaVuSans-Bold path) or drawtext silently fails/uses no font.
 - [Pollinations free-tier reliability](pollinations-reliability.md) — free image API times out/errors intermittently under load; always retry once with a different seed before falling back.
 - [Legacy-getszy frontend resilience gaps](legacy-getszy-frontend-resilience.md) — no global error boundary/404/catch-all originally; many `useEffect` data loads had no `.catch()`, causing infinite loading spinners on API failure.
+- [Legacy-getszy is not a running artifact](legacy-getszy-not-live.md) — lives in `legacy-getszy/` but isn't registered as a workflow/artifact; no uvicorn/mongod process runs in this workspace, so e2e/browser testing (`runTest`) is not usable here — verify via static compile/build only.
