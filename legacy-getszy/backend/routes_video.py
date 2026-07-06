@@ -1,5 +1,6 @@
 """Faceless Video Studio - REST routes."""
 import asyncio
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -14,6 +15,8 @@ from video.pipeline import run_job
 from video.compose import VIDEO_DIR
 from video.tts import LIST_VOICES
 from credits import deduct, refund
+
+logger = logging.getLogger('getszy.video')
 
 router = APIRouter(prefix='/video', tags=['video'])
 
@@ -115,7 +118,8 @@ async def delete_job(job_id: str, user=Depends(get_current_user)):
         p = os.path.join(VIDEO_DIR, f'{job_id}.{ext}')
         try:
             if os.path.exists(p): os.remove(p)
-        except Exception: pass
+        except Exception:
+            logger.warning('Failed to delete video file %s', p, exc_info=True)
     return {'ok': True}
 
 

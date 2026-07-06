@@ -1,6 +1,9 @@
 """Subscription helpers and gating logic."""
+import logging
 from datetime import datetime, timezone, timedelta
 from db import db
+
+logger = logging.getLogger('getszy.subscription')
 
 PLAN_FREE = 'free'
 PLAN_PRO = 'pro'
@@ -103,7 +106,7 @@ async def effective_subscription(user: dict) -> dict:
                 sub['plan'] = PLAN_FREE
                 changed = True
         except Exception:
-            pass
+            logger.warning('Failed to parse trial_ends_at=%r for user %s', sub.get('trial_ends_at'), user.get('id'))
 
     # Paid expiry
     if sub.get('status') == STATUS_ACTIVE and sub.get('plan') in (PLAN_PRO, PLAN_ELITE) and sub.get('current_period_end'):
@@ -114,7 +117,7 @@ async def effective_subscription(user: dict) -> dict:
                 sub['plan'] = PLAN_FREE
                 changed = True
         except Exception:
-            pass
+            logger.warning('Failed to parse current_period_end=%r for user %s', sub.get('current_period_end'), user.get('id'))
 
     # Monthly quota reset
     if sub.get('studio_builds_reset_at'):
@@ -125,7 +128,7 @@ async def effective_subscription(user: dict) -> dict:
                 sub['studio_builds_reset_at'] = _iso(_next_month_start(now))
                 changed = True
         except Exception:
-            pass
+            logger.warning('Failed to parse studio_builds_reset_at=%r for user %s', sub.get('studio_builds_reset_at'), user.get('id'))
 
     if changed:
         await db.users.update_one({'id': user['id']}, {'$set': {'subscription': sub}})

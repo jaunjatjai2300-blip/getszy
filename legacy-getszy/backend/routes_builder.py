@@ -460,7 +460,8 @@ async def del_starter(sid: str, user=Depends(get_current_user)):
     path = _os.path.join(starters_dir, f'{sid}.zip')
     try:
         if _os.path.exists(path): _os.remove(path)
-    except Exception: pass
+    except Exception:
+        logger.warning('Failed to delete starter file %s', path, exc_info=True)
     return {'ok': True}
 
 
