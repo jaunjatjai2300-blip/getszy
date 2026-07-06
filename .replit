@@ -11,6 +11,57 @@ env = { "CI" = "true" }
 [workflows]
 runButton = "Project"
 
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Legacy Mongo"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Legacy Backend"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Legacy Frontend"
+
+[[workflows.workflow]]
+name = "Legacy Mongo"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "mongod --dbpath /tmp/mongo-data --port 27017 --bind_ip 127.0.0.1"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Legacy Backend"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd legacy-getszy/backend && python3 -m uvicorn server:app --host 0.0.0.0 --port 8000"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Legacy Frontend"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd legacy-getszy/frontend && PORT=3000 HOST=0.0.0.0 yarn start"
+waitForPort = 3000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
