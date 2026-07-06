@@ -17,8 +17,7 @@ from typing import Optional, List
 from auth import get_current_user
 from db import db
 from media import pollinations
-from media.quota import get_quota
-from credits import deduct, refund
+from credits import deduct, refund, get_balance, CREDIT_COSTS
 
 router = APIRouter(prefix='/media', tags=['media'])
 
@@ -80,22 +79,17 @@ class MirrorGenIn(BaseModel):
     target_image_url: str
 
 
-@router.get('/quota')
-async def quota(user=Depends(get_current_user)):
-    return await get_quota(user)
-
-
 @router.get('/tools')
 async def list_tools(user=Depends(get_current_user)):
-    q = await get_quota(user)
+    balance = await get_balance(user['id'])
     tools = [
-        {'id': 'image', 'name': '4K Image Studio', 'tagline': 'Photoreal, art, product shots', 'status': 'live', 'badge': 'Free', 'provider': 'Pollinations AI'},
-        {'id': 'logo',  'name': 'Logo & Brand Kit', 'tagline': 'Vector-style brand marks', 'status': 'live', 'badge': 'Free', 'provider': 'Pollinations AI'},
-        {'id': 'voice', 'name': 'Voice Studio',     'tagline': 'Studio narration & dubbing', 'status': 'pending' if not HF_TOKEN else 'live', 'badge': 'Pro', 'provider': 'Coqui XTTS (HF)'},
-        {'id': 'video', 'name': '4K Video Studio',  'tagline': 'AI clips & reels', 'status': 'pending' if not (HF_TOKEN or FAL_KEY) else 'live', 'badge': 'Pro', 'provider': 'AnimateDiff / Kling'},
-        {'id': 'mirror','name': 'Mirror AI',         'tagline': 'Face mirror & swap', 'status': 'pending' if not (HF_TOKEN or FAL_KEY) else 'live', 'badge': 'Pro', 'provider': 'Live Portrait'},
+        {'id': 'image', 'name': '4K Image Studio', 'tagline': 'Photoreal, art, product shots', 'status': 'live', 'cost': CREDIT_COSTS['image'], 'provider': 'Pollinations AI'},
+        {'id': 'logo',  'name': 'Logo & Brand Kit', 'tagline': 'Vector-style brand marks', 'status': 'live', 'cost': CREDIT_COSTS['logo'], 'provider': 'Pollinations AI'},
+        {'id': 'voice', 'name': 'Voice Studio',     'tagline': 'Studio narration & dubbing', 'status': 'pending' if not HF_TOKEN else 'live', 'cost': CREDIT_COSTS['voice_min'], 'provider': 'Coqui XTTS (HF)'},
+        {'id': 'video', 'name': '4K Video Studio',  'tagline': 'AI clips & reels', 'status': 'pending' if not (HF_TOKEN or FAL_KEY) else 'live', 'cost': CREDIT_COSTS['video_quick'], 'provider': 'AnimateDiff / Kling'},
+        {'id': 'mirror','name': 'Mirror AI',         'tagline': 'Face mirror & swap', 'status': 'pending' if not (HF_TOKEN or FAL_KEY) else 'live', 'cost': CREDIT_COSTS['mirror'], 'provider': 'Live Portrait'},
     ]
-    return {'tools': tools, 'quota': q}
+    return {'tools': tools, 'credits': balance}
 
 
 # ===== IMAGE (LIVE - Free, Pollinations) =====
