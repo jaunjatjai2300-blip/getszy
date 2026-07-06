@@ -1,2 +1,5 @@
 - [Bash sandbox kills background processes](bash-sandbox-background-processes.md) — mongod/uvicorn started with setsid+disown still die between tool calls; run full test sequences in one bash call.
 - [Getszy credit system refund pattern](getszy-credit-refund-pattern.md) — deduct-before-work routes must wrap the work in try/except (or background-task except) and call `refund()` on failure, incl. bg tasks.
+- [Legacy-getszy backend verification](legacy-getszy-verification.md) — sandbox can't reliably boot mongod/uvicorn; verify via py_compile + `import server` + `yarn build` instead.
+- [ffmpeg drawtext captions](ffmpeg-drawtext-captions.md) — no fontconfig in this sandbox; must pass `fontfile=` explicitly (DejaVuSans-Bold path) or drawtext silently fails/uses no font.
+- [Pollinations free-tier reliability](pollinations-reliability.md) — free image API times out/errors intermittently under load; always retry once with a different seed before falling back.

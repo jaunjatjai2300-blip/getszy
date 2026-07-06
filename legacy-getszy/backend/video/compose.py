@@ -12,6 +12,9 @@ from video.ffmpeg_bin import FFMPEG
 VIDEO_DIR = os.path.join(os.path.dirname(__file__), '..', 'media_cache', 'videos')
 os.makedirs(VIDEO_DIR, exist_ok=True)
 
+FONT_PATH = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
+FONT_ARG = f":fontfile='{FONT_PATH}'" if os.path.exists(FONT_PATH) else ''
+
 
 DIMS = {
     '9:16': (1080, 1920),
@@ -23,6 +26,23 @@ DIMS = {
 def _escape_drawtext(s: str) -> str:
     return (s.replace('\\', '\\\\').replace("'", "\\'").replace(':', '\\:')
              .replace('%', '\\%').replace(',', '\\,').replace('[', '\\[').replace(']', '\\]'))
+
+
+def _wrap_caption(text: str, width_chars: int = 28) -> str:
+    """Simple greedy word-wrap so drawtext (no auto-wrap) stays readable on vertical video."""
+    words = text.split()
+    lines: List[str] = []
+    cur = ''
+    for w in words:
+        if len(cur) + len(w) + 1 > width_chars:
+            if cur:
+                lines.append(cur)
+            cur = w
+        else:
+            cur = f'{cur} {w}'.strip()
+    if cur:
+        lines.append(cur)
+    return '\n'.join(lines[:4])  # cap to 4 lines so it never overflows the safe area
 
 
 async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: str,
@@ -54,6 +74,16 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
         }.get(motion, '')
         is_pan = motion in ('pan-left', 'pan-right', 'tilt-up', 'tilt-down')
         vf = (pan_scale if is_pan else base_scale) + motion_zoom + f",fps=25"
+        caption_vf = ''
+        if subtitles and sc.get('narration_chunk'):
+            caption = _escape_drawtext(_wrap_caption(sc['narration_chunk']))
+            fontsize = max(28, int(w / 22))
+            caption_vf = (
+                f",drawtext=text='{caption}'{FONT_ARG}:fontcolor=white:fontsize={fontsize}"
+                f":borderw=4:bordercolor=black@0.9:box=1:boxcolor=black@0.4:boxborderw=18"
+                f":line_spacing=6:x=(w-text_w)/2:y=h-(h*0.16)-text_h"
+            )
+        vf = vf + caption_vf
         cmd = [
             FFMPEG, '-y', '-loop', '1', '-t', str(secs), '-i', img,
             '-vf', vf, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25',
@@ -67,10 +97,10 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
             except Exception: pass
             err = b'timeout'
         if proc.returncode != 0:
-            # Simpler fallback: static scale only (no zoompan)
+            # Simpler fallback: static scale only (no zoompan), still keep captions if requested
             fallback_cmd = [
                 FFMPEG, '-y', '-loop', '1', '-t', str(secs), '-i', img,
-                '-vf', base_scale + ',fps=25', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25',
+                '-vf', base_scale + ',fps=25' + caption_vf, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25',
                 '-preset', 'ultrafast', '-crf', '28', '-an', clip_path,
             ]
             proc = await asyncio.create_subprocess_exec(*fallback_cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
