@@ -10,6 +10,7 @@ we use:
   - A small in-memory cache so repeated scans are fast.
 """
 import asyncio
+import json
 import random
 import uuid
 from datetime import datetime, timezone
@@ -94,13 +95,44 @@ async def _llm_variants(niche: str, audience: str) -> List[str]:
     return lines or [niche.title()]
 
 
+async def _llm_demand_score(niche: str, audience: str, category: str) -> Dict:
+    """Ask the LLM for a genuine demand assessment instead of a random number.
+
+    Falls back to a neutral, clearly-labelled default (not a random guess) if
+    the LLM call fails, so we never present a fabricated precise score.
+    """
+    system = (
+        'You are an e-commerce market analyst for the Indian D2C market. '
+        'Given a product niche, assess current demand honestly and concisely.'
+    )
+    user = (
+        f'Niche: "{niche}"\nAudience: {audience}\nCategory: {category}\n'
+        'Reply ONLY as JSON: {"demand_score": <integer 0-100>, "reasoning": "<one short sentence>"}. '
+        'demand_score should reflect realistic current Indian market demand for this niche, not a generic high number.'
+    )
+    try:
+        raw = await chat_completion(system, user, temperature=0.4)
+        start = (raw or '').find('{')
+        end = (raw or '').rfind('}')
+        if start == -1:
+            raise ValueError('no json in LLM response')
+        data = json.loads(raw[start:end + 1])
+        score = int(data.get('demand_score', 70))
+        score = max(0, min(100, score))
+        reasoning = str(data.get('reasoning', '') or '')[:200]
+        return {'score': score, 'reasoning': reasoning, 'ai_generated': True}
+    except Exception:
+        return {'score': 70, 'reasoning': 'AI demand analysis unavailable — showing a neutral baseline score.', 'ai_generated': False}
+
+
 async def scan_trending(limit: int = 12) -> List[Dict]:
     """Generate a fresh trending products feed. Pre-fetches & caches all hero
     images in parallel so the UI loads instantly afterwards."""
     sample = random.sample(NICHES, min(limit, len(NICHES)))
     items: List[Dict] = []
-    # 1) LLM titles in parallel
+    # 1) LLM titles + genuine AI demand scoring, in parallel
     title_tasks = [_llm_variants(n['niche'], n['audience']) for n in sample]
+    score_tasks = [_llm_demand_score(n['niche'], n['audience'], n['category']) for n in sample]
     # 2) Image fetch+cache in parallel, using a STABLE cache key per niche so
     # repeated scans reuse the same on-disk image (no extra downloads).
     import hashlib
@@ -115,6 +147,10 @@ async def scan_trending(limit: int = 12) -> List[Dict]:
     except Exception:
         variants_list = [[n['niche'].title()] for n in sample]
     try:
+        score_list = await asyncio.gather(*score_tasks, return_exceptions=True)
+    except Exception:
+        score_list = [{'score': 70, 'reasoning': 'AI demand analysis unavailable.', 'ai_generated': False} for _ in sample]
+    try:
         image_urls = await asyncio.gather(*img_tasks, return_exceptions=True)
     except Exception:
         image_urls = [_hero_image(n['niche'], i) for i, n in enumerate(sample)]
@@ -122,10 +158,12 @@ async def scan_trending(limit: int = 12) -> List[Dict]:
     for i, niche in enumerate(sample):
         variants = variants_list[i] if not isinstance(variants_list[i], Exception) else [niche['niche'].title()]
         title = (variants or [niche['niche'].title()])[0]
+        # Cost is a realistic sourcing-cost estimate (range from curated niche data),
+        # not presented as an AI trend signal.
         cost = round(random.uniform(*niche['cost_range']), 0)
         sell = enforce_price(cost, is_digital=False)
         margin = compute_margin(cost, sell)
-        score = random.randint(72, 98)
+        demand = score_list[i] if not isinstance(score_list[i], Exception) else {'score': 70, 'reasoning': 'AI demand analysis unavailable.', 'ai_generated': False}
         hero = image_urls[i] if not isinstance(image_urls[i], Exception) else _hero_image(niche['niche'], i)
         items.append({
             'id': f"trnd_{i}_{int(datetime.now(timezone.utc).timestamp())}",
@@ -137,9 +175,11 @@ async def scan_trending(limit: int = 12) -> List[Dict]:
             'suggested_price': sell,
             'margin_pct': margin['margin_pct'],
             'profit_per_unit': margin['profit'],
-            'trend_score': score,
+            'trend_score': demand['score'],
+            'trend_reasoning': demand['reasoning'],
+            'ai_generated_score': demand['ai_generated'],
             'hero_image': hero,
-            'sources': ['Google Trends IN', 'AI Niche Match', 'Audience Fit'],
+            'sources': ['AI demand analysis'] if demand['ai_generated'] else ['Baseline estimate (AI unavailable)'],
             'shipping_days': '5-7',
         })
 
