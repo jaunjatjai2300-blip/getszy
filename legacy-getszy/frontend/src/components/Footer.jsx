@@ -21,7 +21,7 @@ export function Footer() {
         <div>
           <div className="font-semibold mb-3 text-sm">Company</div>
           <ul className="space-y-2 text-sm text-[var(--gs-muted)]">
-            <li><a href="#" className="hover:text-[var(--gs-ink)]">About</a></li>
+            <li><Link to="/about" className="hover:text-[var(--gs-ink)]">About</Link></li>
             <li><Link to="/support" className="hover:text-[var(--gs-ink)]">Contact</Link></li>
             <li><Link to="/privacy" className="hover:text-[var(--gs-ink)]">Privacy</Link></li>
             <li><Link to="/terms" className="hover:text-[var(--gs-ink)]">Terms</Link></li>
