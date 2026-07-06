@@ -218,11 +218,11 @@ async def preview_project(pid: str):
 import json as _json
 import uuid as _uuid
 from typing import List as _List, Dict as _Dict, Any as _Any
-from pydantic import BaseModel as _BaseModel
+from pydantic import BaseModel as _BaseModel, Field as _Field
 
 
 class ChannelPlanIn(_BaseModel):
-    niche: str
+    niche: str = _Field(..., min_length=1, max_length=300)
     audience: str = 'Indian creators'
     style: str = 'energetic'
     posts_per_week: int = 5

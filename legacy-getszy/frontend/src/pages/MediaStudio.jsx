@@ -43,8 +43,14 @@ export default function MediaStudio() {
   const [voice, setVoice] = useState({ text: "Welcome to Getszy AI — your everything store, powered by intelligent agents.", voice: "female-warm" });
   const [video, setVideo] = useState({ prompt: "a dreamy boho jewellery model walking through soft golden light", duration_seconds: 5, aspect: "16:9" });
 
-  const loadTools = async () => { const r = await api.get("/media/tools"); setTools(r.data); };
-  const loadHistory = async () => { const r = await api.get("/media/history?limit=12"); setGallery(r.data.items || []); };
+  const loadTools = async () => {
+    try { const r = await api.get("/media/tools"); setTools(r.data); }
+    catch { toast.error("Couldn't load tools. Please refresh the page."); }
+  };
+  const loadHistory = async () => {
+    try { const r = await api.get("/media/history?limit=12"); setGallery(r.data.items || []); }
+    catch { toast.error("Couldn't load your gallery. Please refresh the page."); }
+  };
 
   useEffect(() => { if (!loading && !user) navigate("/login"); }, [user, loading, navigate]);
   useEffect(() => { if (user) { loadTools(); loadHistory(); } }, [user]);

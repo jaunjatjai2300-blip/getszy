@@ -13,14 +13,19 @@ export default function Shop() {
   const [sort, setSort] = useState("featured");
   const [cat, setCat] = useState(null);
 
+  const [error, setError] = useState(false);
+
   useEffect(() => {
     setLoading(true);
+    setError(false);
     const q = {};
     if (slug) q.category = slug;
     if (search) q.search = search;
     const qs = new URLSearchParams(q).toString();
-    api.get(`/products${qs ? `?${qs}` : ""}`).then(({ data }) => { setProducts(data); setLoading(false); });
-    if (slug) api.get("/categories").then(({ data }) => setCat(data.find((c) => c.slug === slug)));
+    api.get(`/products${qs ? `?${qs}` : ""}`)
+      .then(({ data }) => { setProducts(data); setLoading(false); })
+      .catch(() => { setProducts([]); setLoading(false); setError(true); });
+    if (slug) api.get("/categories").then(({ data }) => setCat(data.find((c) => c.slug === slug))).catch(() => setCat(null));
     else setCat(null);
   }, [slug, search]);
 
@@ -50,6 +55,8 @@ export default function Shop() {
       </div>
       {loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="aspect-[3/4] rounded-2xl animate-pulse" style={{ background: "var(--gs-surface-2)" }}/>)}</div>
+      ) : error ? (
+        <div className="text-center py-20 text-[var(--gs-muted)]">Couldn't load products. Please refresh the page.</div>
       ) : sorted.length === 0 ? (
         <div className="text-center py-20 text-[var(--gs-muted)]">No products found.</div>
       ) : (

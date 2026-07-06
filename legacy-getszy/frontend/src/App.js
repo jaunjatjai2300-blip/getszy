@@ -39,9 +39,12 @@ import CommandPalette from "@/components/ux/CommandPalette";
 import OnboardingTour from "@/components/onboarding/OnboardingTour";
 import CookieConsent from "@/components/legal/CookieConsent";
 import StorefrontLayout from "@/components/StorefrontLayout";
+import NotFound from "@/pages/NotFound";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <AuthProvider>
       <BrowserRouter>
         <a href="#main-content" className="skip-to-content" data-testid="skip-to-content">Skip to main content</a>
@@ -98,6 +101,8 @@ export default function App() {
             <Route index element={<LabsHome />} />
             <Route path="chat/:sessionId" element={<AdminChatHome />} />
           </Route>
+
+          <Route path="*" element={<NotFound />} />
         </Routes>
         <CommandPalette />
         <OnboardingTour />
@@ -105,5 +110,6 @@ export default function App() {
       </BrowserRouter>
       <Toaster position="top-right" richColors />
     </AuthProvider>
+    </ErrorBoundary>
   );
 }

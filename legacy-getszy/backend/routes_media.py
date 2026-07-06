@@ -12,7 +12,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 
 from auth import get_current_user
@@ -57,7 +57,7 @@ async def _prefetch_and_cache(remote_url: str, asset_id: str, suffix: str = '.jp
 
 
 class ImageGenIn(BaseModel):
-    prompt: str
+    prompt: str = Field(..., min_length=1, max_length=1000)
     style: str = 'photoreal'
     width: int = 1024
     height: int = 1024
@@ -65,14 +65,14 @@ class ImageGenIn(BaseModel):
 
 
 class LogoGenIn(BaseModel):
-    brand_name: str
-    tagline: Optional[str] = ''
+    brand_name: str = Field(..., min_length=1, max_length=120)
+    tagline: Optional[str] = Field('', max_length=200)
     style: str = 'minimal'
     palette: Optional[str] = 'monochrome'
 
 
 class VoiceGenIn(BaseModel):
-    text: str
+    text: str = Field(..., min_length=1, max_length=6000)
     voice: str = 'female-warm'
     language: str = 'hinglish'
     gender: str = 'female'
@@ -308,5 +308,6 @@ async def gen_tryon(payload: TryOnIn, user=Depends(get_current_user)):
 # ===== HISTORY =====
 @router.get('/history')
 async def history(limit: int = 24, user=Depends(get_current_user)):
+    limit = max(1, min(limit, 100))
     cur = db.media_assets.find({'user_id': user['id']}, {'_id': 0}).sort('created_at', -1).limit(limit)
     return {'items': [doc async for doc in cur]}
