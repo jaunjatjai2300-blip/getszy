@@ -15,7 +15,7 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 
 function useHub() {
   const [hub, setHub] = useState({ counts: {}, categories: [] });
-  const load = async () => { try { const r = await api.get("/builder/hub"); setHub(r.data); } catch (e) {} };
+  const load = async () => { try { const r = await api.get("/builder/hub"); setHub(r.data); } catch (e) { toast.error("Couldn't load Build Studio — refresh to retry"); } };
   useEffect(() => { load(); }, []);
   return { hub, reload: load };
 }
@@ -98,7 +98,7 @@ function WebAppBuilder({ color }) {
   const [projects, setProjects] = useState([]);
   const [previewId, setPreviewId] = useState(null);
 
-  const load = async () => { try { const r = await api.get("/builder/projects"); setProjects(r.data || []); } catch (e) {} };
+  const load = async () => { try { const r = await api.get("/builder/projects"); setProjects(r.data || []); } catch (e) { toast.error("Couldn't load projects — refresh to retry"); } };
   useEffect(() => { load(); }, []);
 
   const build = async () => {
@@ -112,7 +112,7 @@ function WebAppBuilder({ color }) {
     finally { setBusy(false); }
   };
 
-  const del = async (pid) => { try { await api.delete(`/builder/projects/${pid}`); load(); toast.success("Deleted"); } catch (e) {} };
+  const del = async (pid) => { try { await api.delete(`/builder/projects/${pid}`); load(); toast.success("Deleted"); } catch (e) { toast.error("Delete failed — please retry"); } };
 
   return (
     <div className="space-y-4 mt-4">
@@ -169,7 +169,7 @@ function ChannelBuilder({ color }) {
   const [channels, setChannels] = useState([]);
   const [active, setActive] = useState(null);
 
-  const load = async () => { try { const r = await api.get("/builder/channel"); setChannels(r.data.items || []); } catch (e) {} };
+  const load = async () => { try { const r = await api.get("/builder/channel"); setChannels(r.data.items || []); } catch (e) { toast.error("Couldn't load channels — refresh to retry"); } };
   useEffect(() => { load(); }, []);
 
   const plan = async () => {
@@ -191,7 +191,7 @@ function ChannelBuilder({ color }) {
       load();
     } catch (e) { toast.error("Execute failed", { id: `ex${cid}` }); }
   };
-  const del = async (cid) => { try { await api.delete(`/builder/channel/${cid}`); load(); toast.success("Deleted"); } catch (e) {} };
+  const del = async (cid) => { try { await api.delete(`/builder/channel/${cid}`); load(); toast.success("Deleted"); } catch (e) { toast.error("Delete failed — please retry"); } };
 
   return (
     <div className="space-y-4 mt-4">
@@ -278,7 +278,7 @@ function AgentBuilder({ color }) {
   const [runOut, setRunOut] = useState(null);
   const [running, setRunning] = useState(false);
 
-  const load = async () => { try { const r = await api.get("/builder/agent"); setAgents(r.data.items || []); } catch (e) {} };
+  const load = async () => { try { const r = await api.get("/builder/agent"); setAgents(r.data.items || []); } catch (e) { toast.error("Couldn't load agents — refresh to retry"); } };
   useEffect(() => { load(); }, []);
 
   const create = async () => {
@@ -393,7 +393,7 @@ function StarterBuilder({ color, kind, placeholder }) {
   const [busy, setBusy] = useState(false);
   const [items, setItems] = useState([]);
 
-  const load = async () => { try { const r = await api.get("/builder/starter"); setItems((r.data.items || []).filter(x => x.kind === kind)); } catch (e) {} };
+  const load = async () => { try { const r = await api.get("/builder/starter"); setItems((r.data.items || []).filter(x => x.kind === kind)); } catch (e) { toast.error("Couldn't load starters — refresh to retry"); } };
   useEffect(() => { load(); }, [kind]);
 
   const build = async () => {
@@ -407,7 +407,7 @@ function StarterBuilder({ color, kind, placeholder }) {
     finally { setBusy(false); }
   };
 
-  const del = async (sid) => { try { await api.delete(`/builder/starter/${sid}`); load(); toast.success("Deleted"); } catch (e) {} };
+  const del = async (sid) => { try { await api.delete(`/builder/starter/${sid}`); load(); toast.success("Deleted"); } catch (e) { toast.error("Delete failed — please retry"); } };
 
   return (
     <div className="space-y-4 mt-4">
