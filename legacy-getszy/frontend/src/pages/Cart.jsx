@@ -35,19 +35,22 @@ export default function Cart() {
         <h1 className="font-display text-3xl mb-6">Your Cart</h1>
         <div className="space-y-3">
           {cart.items.map((it) => (
-            <div key={it.product_id} className="gs-card p-4 flex gap-4 items-center" data-testid={`cart-item-${it.product_id}`}>
-              <img src={(it.product?.images || [])[0]} alt={it.product?.name} className="h-20 w-20 rounded-xl object-cover" style={{ background: "var(--gs-surface-2)" }}/>
-              <div className="flex-1 min-w-0">
+            <div key={it.product_id} className="gs-card p-4 flex flex-wrap sm:flex-nowrap gap-4 items-center" data-testid={`cart-item-${it.product_id}`}>
+              <img src={(it.product?.images || [])[0]} alt={it.product?.name} className="h-20 w-20 rounded-xl object-cover shrink-0" style={{ background: "var(--gs-surface-2)" }}/>
+              <div className="flex-1 min-w-[140px]">
                 <Link to={`/product/${it.product_id}`} className="font-semibold truncate block hover:underline">{it.product?.name}</Link>
                 <div className="text-sm text-[var(--gs-muted)]">{fmtINR(it.product?.price)}</div>
+                <div className="text-sm font-semibold sm:hidden mt-1">{fmtINR(it.line_total)}</div>
               </div>
-              <div className="flex items-center border rounded-xl" style={{ borderColor: "var(--gs-border)" }}>
-                <button className="h-9 w-9 grid place-items-center" onClick={() => update(it.product_id, it.quantity - 1)}><Minus className="h-3 w-3"/></button>
-                <span className="w-8 text-center text-sm">{it.quantity}</span>
-                <button className="h-9 w-9 grid place-items-center" onClick={() => update(it.product_id, it.quantity + 1)}><Plus className="h-3 w-3"/></button>
+              <div className="flex items-center justify-between gap-3 w-full sm:w-auto">
+                <div className="flex items-center border rounded-xl shrink-0" style={{ borderColor: "var(--gs-border)" }}>
+                  <button className="h-9 w-9 grid place-items-center" onClick={() => update(it.product_id, it.quantity - 1)}><Minus className="h-3 w-3"/></button>
+                  <span className="w-8 text-center text-sm">{it.quantity}</span>
+                  <button className="h-9 w-9 grid place-items-center" onClick={() => update(it.product_id, it.quantity + 1)}><Plus className="h-3 w-3"/></button>
+                </div>
+                <button onClick={() => update(it.product_id, 0)} className="text-[var(--gs-muted)] hover:text-[var(--destructive)] shrink-0" data-testid={`cart-remove-${it.product_id}`}><Trash2 className="h-4 w-4"/></button>
+                <div className="w-24 text-right font-semibold hidden sm:block shrink-0">{fmtINR(it.line_total)}</div>
               </div>
-              <button onClick={() => update(it.product_id, 0)} className="text-[var(--gs-muted)] hover:text-[var(--destructive)]" data-testid={`cart-remove-${it.product_id}`}><Trash2 className="h-4 w-4"/></button>
-              <div className="w-24 text-right font-semibold hidden sm:block">{fmtINR(it.line_total)}</div>
             </div>
           ))}
         </div>
