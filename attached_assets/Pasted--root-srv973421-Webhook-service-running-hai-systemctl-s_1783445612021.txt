@@ -1,0 +1,54 @@
+[root@srv973421 ~]# # Webhook service running hai?
+systemctl status getszy-webhook | head -6
+
+# Listener kya sun raha hai?
+ss -tlnp | grep 9000
+● getszy-webhook.service - Getszy Deploy Webhook Listener
+     Loaded: loaded (/etc/systemd/system/getszy-webhook.service; enabled; preset: disabled)
+     Active: active (running) since Sat 2026-07-04 14:51:50 UTC; 3 days ago
+   Main PID: 1498888 (python3)
+      Tasks: 5 (limit: 48563)
+     Memory: 60.1M (peak: 108.6M)
+LISTEN 0      2048         0.0.0.0:9000       0.0.0.0:*    users:(("python3",pid=1498888,fd=11))                    
+[root@srv973421 ~]# cat /opt/getszy/deploy/webhook_listener.py | head -40
+"""Getszy VPS deploy webhook listener.
+
+Run this as a tiny systemd service on the VPS - SEPARATE from the main
+Getszy backend container. It listens on :9000 and, when called with the
+correct token, runs `git pull` + `docker compose up -d --build` for the
+repo at REPO_DIR.
+
+The main app's Phase 9 Deploy Dashboard 'Deploy to VPS' button POSTs to this
+listener via the DEPLOY_WEBHOOK_URL env var.
+
+Usage:
+  pip install fastapi uvicorn[standard]
+  WEBHOOK_TOKEN=<your-secret> REPO_DIR=/opt/getszy python3 webhook_listener.py
+
+Or install the bundled systemd service (see deploy/README.md).
+"""
+import os
+import subprocess
+import logging
+from datetime import datetime, timezone
+from fastapi import FastAPI, Header, HTTPException
+import uvicorn
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+log = logging.getLogger('getszy-webhook')
+
+TOKEN = os.environ.get('WEBHOOK_TOKEN', '').strip()
+REPO_DIR = os.environ.get('REPO_DIR', '/opt/getszy').strip()
+PORT = int(os.environ.get('WEBHOOK_PORT', '9000'))
+
+if not TOKEN:
+    log.warning('WEBHOOK_TOKEN not set - listener will REJECT all requests')
+
+app = FastAPI(title='Getszy Webhook Listener', version='1.0')
+_last_run = {'at': None, 'ok': False, 'log': ''}
+
+
+@app.get('/health')
+async def health():
+    return {'ok': True, 'service': 'getszy-webhook', 'repo_dir': REPO_DIR, 'last_run': _last_run}
+[root@srv973421 ~]# 
