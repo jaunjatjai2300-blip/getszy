@@ -4,6 +4,7 @@ import uuid
 
 PROVIDER = os.environ.get('LLM_PROVIDER', 'emergent').lower()
 OLLAMA_BASE_URL = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
+OLLAMA_SECRET = os.environ.get('OLLAMA_SECRET', '')
 OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'qwen2.5:7b')
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 EMERGENT_MODEL = os.environ.get('EMERGENT_MODEL', 'gpt-4o-mini')
@@ -12,9 +13,13 @@ EMERGENT_MODEL = os.environ.get('EMERGENT_MODEL', 'gpt-4o-mini')
 async def chat_completion(system: str, user: str, session_id: str | None = None, temperature: float = 0.4) -> str:
     session_id = session_id or str(uuid.uuid4())
     if PROVIDER == 'ollama':
+        headers = {}
+        if OLLAMA_SECRET:
+            headers['Authorization'] = f'Bearer {OLLAMA_SECRET}'
         async with httpx.AsyncClient(timeout=300.0) as client:
             r = await client.post(
                 f"{OLLAMA_BASE_URL}/api/chat",
+                headers=headers,
                 json={
                     'model': OLLAMA_MODEL,
                     'messages': [
