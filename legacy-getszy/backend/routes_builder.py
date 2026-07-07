@@ -237,14 +237,19 @@ class ChannelExecuteIn(_BaseModel):
 
 @router.post('/channel/plan')
 async def channel_plan(body: ChannelPlanIn, user=Depends(get_current_user)):
-    total = max(4, min(30, body.posts_per_week * 4))
+    # Keep output small so fast CPU-only Ollama (llama3.2:3b) can respond in <60s.
+    # Frontend can call /channel/execute later to expand individual videos.
+    total = min(5, max(3, body.posts_per_week))
     system = (
-        f'You are a YouTube/Reels content strategist for Indian creators. Given a niche, plan '
-        f'{total} videos for the next 30 days. Reply ONLY JSON: '
-        '{channel_name, channel_bio, pillars: [4 with theme], videos: [{day, topic, hook, format, pillar}]}.'
+        'You are a content strategist for Indian creators. '
+        f'Plan exactly {total} short-video ideas. '
+        'Reply ONLY with this JSON and nothing else: '
+        '{"channel_name":"...","channel_bio":"...","pillars":["P1","P2","P3"],'
+        f'"videos":[{{"day":1,"topic":"...","hook":"...","format":"reel"}}]}} '
+        f'(exactly {total} items in videos array).'
     )
-    user_msg = f'Niche: {body.niche}\nAudience: {body.audience}\nStyle: {body.style}\nLanguage: {body.language}'
-    raw = await chat_completion(system=system, user=user_msg, temperature=0.6)
+    user_msg = f'Niche: {body.niche}. Audience: {body.audience}. Style: {body.style}. Language: {body.language}.'
+    raw = await chat_completion(system=system, user=user_msg, temperature=0.5)
     s = (raw or '').find('{'); e = (raw or '').rfind('}')
     plan = None
     if s != -1:
@@ -252,9 +257,9 @@ async def channel_plan(body: ChannelPlanIn, user=Depends(get_current_user)):
         except Exception: plan = None
     if not plan or not plan.get('videos'):
         plan = {'channel_name': body.niche.title(), 'channel_bio': body.niche,
-                'pillars': [{'theme': 'Educate'}, {'theme': 'Trends'}, {'theme': 'Stories'}, {'theme': 'How-to'}],
-                'videos': [{'day': i+1, 'topic': f'{body.niche} idea {i+1}', 'hook': '', 'format': 'reel',
-                            'pillar': 'Educate'} for i in range(total)]}
+                'pillars': ['Educate', 'Trends', 'How-to'],
+                'videos': [{'day': i+1, 'topic': f'{body.niche} idea {i+1}', 'hook': 'Watch this!', 'format': 'reel'}
+                            for i in range(total)]}
     channel_id = str(_uuid.uuid4())
     doc = {'id': channel_id, 'user_id': user['id'], 'niche': body.niche, 'audience': body.audience,
            'style': body.style, 'language': body.language, 'orientation': body.orientation,
