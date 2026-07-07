@@ -5,7 +5,7 @@ import uuid
 PROVIDER = os.environ.get('LLM_PROVIDER', 'emergent').lower()
 OLLAMA_BASE_URL = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
 OLLAMA_SECRET = os.environ.get('OLLAMA_SECRET', '')
-OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'qwen2.5:7b')
+OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'llama3.2:3b')
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 EMERGENT_MODEL = os.environ.get('EMERGENT_MODEL', 'gpt-4o-mini')
 
