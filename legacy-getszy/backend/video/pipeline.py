@@ -33,7 +33,7 @@ async def run_job(job_id: str, params: Dict[str, Any], user_id: Optional[str] = 
         burn_subs = bool(params.get('subtitles', True))
 
         await step('writing_script', 8)
-        script = await gen_script(topic, fmt, audience=params.get('audience', 'indian creators'), tone=params.get('tone', 'energetic'), language=language)
+        script = await gen_script(topic, fmt, audience=params.get('audience', 'indian creators'), tone=params.get('tone', 'energetic'), language=language, category=params.get('category', ''))
         # Never crash on script error — fallback script is already returned by gen_script on failure
         narration = _flatten_script(script)
         if not narration.strip():

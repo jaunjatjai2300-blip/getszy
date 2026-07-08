@@ -15,10 +15,48 @@ FORMATS = {
 }
 
 
-async def generate(topic: str, fmt: str, audience: str = 'indian creators', tone: str = 'energetic', language: str = 'hinglish') -> Dict[str, Any]:
+CATEGORY_EXTRAS: Dict[str, str] = {
+    'finance': (
+        'This is a FINANCE / MONEY video for Indian audiences. '
+        'Use INR amounts (₹), relatable Indian examples (EMI, FD, PPF, UPI, SIP, Zerodha, LIC). '
+        'Hook must create FOMO around money loss or big savings. '
+        'Tone: urgent yet trustworthy. Use concrete numbers — "₹500 rozana bachao toh 10 saal mein ₹22 lakh".'
+    ),
+    'motivational': (
+        'This is a MOTIVATIONAL / SELF-HELP video for Indian youth. '
+        'Reference real Indian struggle stories, mention college pressure, job market, tier-2/tier-3 cities. '
+        'Tone: emotionally charged, empowering. '
+        'Use short punchy lines. End with a clear daily action the viewer can take TODAY.'
+    ),
+    'news': (
+        'This is a NEWS / CURRENT AFFAIRS explainer for Indian audiences. '
+        'Explain the topic clearly and factually — no opinions, no sensationalism. '
+        'Start with "Kya hua, Kyun hua, Aap par kya asar padega" structure. '
+        'Use simple language so even a Class 10 student can understand. Neutral tone.'
+    ),
+    'recipe': (
+        'This is a RECIPE / FOOD TUTORIAL video. '
+        'List ingredients with Indian measurements (cup, tsp, tbsp, grams). '
+        'Step-by-step instructions — clear, simple, actionable. '
+        'Mention cooking time, difficulty level, and one pro tip. Warm friendly tone. '
+        'Hook should mention the final dish outcome: "5 minute mein ghar par pizza banao".'
+    ),
+    'educational': (
+        'This is an EDUCATIONAL / KNOWLEDGE video on history, science, or facts. '
+        'Start with the most surprising or counterintuitive fact about the topic. '
+        'Use analogies that Indian students would relate to. '
+        'Make it feel like a fascinating conversation, not a textbook. '
+        'Include 2-3 mind-blowing facts the viewer likely does not know.'
+    ),
+}
+
+
+async def generate(topic: str, fmt: str, audience: str = 'indian creators', tone: str = 'energetic',
+                   language: str = 'hinglish', category: str = '') -> Dict[str, Any]:
     if fmt not in FORMATS:
         raise ValueError(f'Unknown format: {fmt}')
     spec = FORMATS[fmt]
+    category_note = CATEGORY_EXTRAS.get(category, '')
     system = (
         f'You are an elite short-form content writer and YouTube/Reels script doctor who has written '
         f'scripts for creators with 10M+ subscribers, writing for {audience}. '
@@ -28,7 +66,8 @@ async def generate(topic: str, fmt: str, audience: str = 'indian creators', tone
         'never start with generic greetings like "Hey guys" or "In this video". '
         'Every sentence should earn the next one: cut filler, use short punchy lines, concrete numbers/specifics '
         'over vague claims, and a clear pattern-interrupt roughly every 8-10 seconds to fight scroll-away. '
-        'Output ONLY valid JSON.'
+        + (f'\n\nNICHE RULES: {category_note}' if category_note else '') +
+        '\nOutput ONLY valid JSON.'
     )
     user = (
         f'Topic: "{topic}"\n'

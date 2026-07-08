@@ -30,6 +30,7 @@ class GenerateIn(BaseModel):
     tone: str = 'energetic'
     subtitles: bool = True
     audience: str = 'indian creators'
+    category: str = ''               # finance | motivational | news | recipe | educational
 
 
 class BatchIn(BaseModel):
