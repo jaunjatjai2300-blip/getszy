@@ -87,7 +87,7 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
         cmd = [
             FFMPEG, '-y', '-loop', '1', '-t', str(secs), '-i', img,
             '-vf', vf, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25',
-            '-preset', 'ultrafast', '-crf', '26', '-an', clip_path,
+            '-preset', 'veryfast', '-crf', '18', '-an', clip_path,
         ]
         proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
         try:
@@ -138,7 +138,7 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
     # 3. Mux with audio (shortest)
     final_cmd = [
         FFMPEG, '-y', '-i', silent_concat, '-i', audio_path,
-        '-c:v', 'copy', '-c:a', 'aac', '-b:a', '96k', '-shortest', out_path,
+        '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', out_path,
     ]
     proc = await asyncio.create_subprocess_exec(*final_cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
     try:
