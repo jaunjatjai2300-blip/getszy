@@ -11,6 +11,7 @@ FORMATS = {
     'blog': {'label': 'Blog Article', 'duration': '800-1500 words', 'sections': ['intro', 'h2_sections', 'conclusion']},
     'tweet_thread': {'label': 'Twitter/X Thread', 'duration': '8-12 tweets', 'sections': ['hook_tweet', 'body', 'cta']},
     'linkedin': {'label': 'LinkedIn Post', 'duration': '150-300 words', 'sections': ['hook', 'story', 'lesson']},
+    'ai_story': {'label': 'AI Short Story Video', 'duration': '60-90s', 'sections': ['opening', 'rising_action', 'climax', 'resolution', 'moral']},
 }
 
 

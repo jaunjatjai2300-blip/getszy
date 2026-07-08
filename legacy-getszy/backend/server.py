@@ -36,6 +36,7 @@ from routes_legal import router as legal_router
 from routes_support import router as support_router
 from routes_video_factory import router as video_factory_router
 from routes_credits import router as credits_router
+from routes_social import router as social_router
 import skills.creator_skills  # noqa: F401 - register creator skills
 
 app = FastAPI(title='getszy API')
@@ -84,6 +85,7 @@ api_router.include_router(legal_router)
 api_router.include_router(support_router)
 api_router.include_router(video_factory_router)
 api_router.include_router(credits_router)
+api_router.include_router(social_router)
 
 app.include_router(api_router)
 
