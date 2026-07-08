@@ -17,6 +17,89 @@ import { toast } from "sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 
+const NICHES = [
+  {
+    id: "finance",
+    emoji: "💰",
+    label: "Finance / Paise",
+    color: "border-emerald-300 bg-emerald-50 hover:bg-emerald-100",
+    badge: "bg-emerald-100 text-emerald-800",
+    tone: "energetic",
+    lang: "hinglish",
+    examples: [
+      "₹500 rozana bachao toh 10 saal mein kitna banega",
+      "Salary aate hi pehle 5 kaam karo",
+      "SIP vs FD — konsa better hai 2026 mein",
+      "Student loan chukane ke 5 fastest tarike",
+      "Tax bachane ke legal tarike jo CA bhi use karte hain",
+    ],
+  },
+  {
+    id: "motivational",
+    emoji: "🧠",
+    label: "Motivation / Self-help",
+    color: "border-purple-300 bg-purple-50 hover:bg-purple-100",
+    badge: "bg-purple-100 text-purple-800",
+    tone: "inspirational",
+    lang: "hinglish",
+    examples: [
+      "Gareeb ghar mein paida hone ke baad bhi success kaise paayein",
+      "Ek achi habit jo aapki poori life badal degi",
+      "Roz subah 5 baje uthne ka asar 30 din mein",
+      "Rejection ke baad wapas kaise uthein",
+      "Log kyun talented hote hue bhi fail ho jaate hain",
+    ],
+  },
+  {
+    id: "news",
+    emoji: "📰",
+    label: "News / Current Affairs",
+    color: "border-blue-300 bg-blue-50 hover:bg-blue-100",
+    badge: "bg-blue-100 text-blue-800",
+    tone: "authoritative",
+    lang: "hindi",
+    examples: [
+      "Budget 2026 mein aapko kya mila aur kya nahi",
+      "India-China border par kya ho raha hai",
+      "AI jobs kha raha hai — India mein kitne jobs khatre mein",
+      "Rupee ki giravat aap par kaisa asar dalegi",
+      "Petrol price kyun badh rahi hai — asli wajah",
+    ],
+  },
+  {
+    id: "recipe",
+    emoji: "🍳",
+    label: "Recipe / Tutorial",
+    color: "border-orange-300 bg-orange-50 hover:bg-orange-100",
+    badge: "bg-orange-100 text-orange-800",
+    tone: "calm",
+    lang: "hindi",
+    examples: [
+      "10 minute mein restaurant jaisi dal makhani",
+      "Bina oven ke eggless cake ghar par",
+      "Street style pav bhaji ghar par banao",
+      "Protein se bhari nashte ki recipe for gym lovers",
+      "Monsoon ke liye garam masala chai 5 tarike",
+    ],
+  },
+  {
+    id: "educational",
+    emoji: "📚",
+    label: "Education / Facts",
+    color: "border-yellow-300 bg-yellow-50 hover:bg-yellow-100",
+    badge: "bg-yellow-100 text-yellow-800",
+    tone: "calm",
+    lang: "hinglish",
+    examples: [
+      "Mughal empire ke 5 raaz jo school mein nahi padhaye",
+      "Kya humans ka blood color hamesha se red tha",
+      "Black hole ke andar kya hota hai — science ki bhasaa mein",
+      "India ne space race kaise jeet li with zero budget",
+      "Dinosaur ab bhi maujood hain — kaise",
+    ],
+  },
+];
+
 const ORIENTATIONS = [
   { id: "9:16", label: "9:16 Shorts / Reels" },
   { id: "16:9", label: "16:9 YT Long-form" },
@@ -98,6 +181,9 @@ export default function VideoStudio() {
   const [subtitles, setSubtitles] = useState(true);
   const [seconds, setSeconds]   = useState(45);
   const [tone, setTone]         = useState("energetic");
+  const [category, setCategory] = useState("");
+  const [activeNiche, setActiveNiche] = useState(null);
+  const [activeTab, setActiveTab] = useState("single");
   const [busy, setBusy]         = useState(false);
 
   // Batch
@@ -136,6 +222,15 @@ export default function VideoStudio() {
 
   // ── Generators ──────────────────────────────────────────────────
 
+  const pickNiche = (niche) => {
+    setActiveNiche(niche.id);
+    setCategory(niche.id);
+    setTone(niche.tone);
+    setLanguage(niche.lang);
+    setTopic(niche.examples[Math.floor(Math.random() * niche.examples.length)]);
+    setActiveTab("single");
+  };
+
   const generate = async () => {
     if (topic.trim().length < 4) return toast.error("Topic too short");
     setBusy(true);
@@ -143,7 +238,7 @@ export default function VideoStudio() {
     try {
       const r = await api.post("/video/generate", {
         topic, orientation, language, voice_gender: voiceGender,
-        target_seconds: Number(seconds), tone, subtitles,
+        target_seconds: Number(seconds), tone, subtitles, category,
       });
       toast.success(`Job queued ✅ (${r.data.id.slice(0, 8)})`, { id: "vid" });
       setTopic("");
@@ -302,7 +397,41 @@ export default function VideoStudio() {
         )}
       </div>
 
-      <Tabs defaultValue="single">
+      {/* ── Niche Quick-Start ─────────────────────────────────── */}
+      <div>
+        <h2 className="font-display text-base mb-3 text-[var(--gs-muted)]">🎯 Quick Start — Apna niche chunno</h2>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          {NICHES.map(n => (
+            <button key={n.id} onClick={() => pickNiche(n)}
+                    className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer
+                      ${activeNiche === n.id ? "ring-2 ring-[var(--gs-teal)] ring-offset-1" : ""}
+                      ${n.color}`}>
+              <div className="text-2xl mb-1">{n.emoji}</div>
+              <div className="font-semibold text-xs leading-tight">{n.label}</div>
+              <div className={`text-[9px] mt-1 px-1.5 py-0.5 rounded inline-block ${n.badge}`}>
+                {n.examples.length} topics
+              </div>
+            </button>
+          ))}
+        </div>
+        {activeNiche && (
+          <div className="mt-3 p-3 rounded-xl bg-[var(--gs-surface-2)] border">
+            <div className="text-[10px] text-[var(--gs-muted)] mb-2 font-semibold uppercase tracking-wide">
+              {NICHES.find(n => n.id === activeNiche)?.label} — Example topics (click to use)
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {NICHES.find(n => n.id === activeNiche)?.examples.map((ex, i) => (
+                <button key={i} onClick={() => { setTopic(ex); setActiveTab("single"); }}
+                        className="text-[11px] px-2.5 py-1 rounded-full border border-gray-200 bg-white hover:border-[var(--gs-teal)] hover:bg-[var(--gs-teal)]/5 transition-all text-left">
+                  {ex}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="single"><Film className="h-4 w-4 mr-1"/>Single Video</TabsTrigger>
           <TabsTrigger value="batch"><Layers className="h-4 w-4 mr-1"/>Batch</TabsTrigger>
