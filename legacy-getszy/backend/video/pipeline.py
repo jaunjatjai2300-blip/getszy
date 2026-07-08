@@ -34,9 +34,11 @@ async def run_job(job_id: str, params: Dict[str, Any], user_id: Optional[str] = 
 
         await step('writing_script', 8)
         script = await gen_script(topic, fmt, audience=params.get('audience', 'indian creators'), tone=params.get('tone', 'energetic'), language=language)
-        if script.get('error'):
-            raise RuntimeError(script['error'])
+        # Never crash on script error — fallback script is already returned by gen_script on failure
         narration = _flatten_script(script)
+        if not narration.strip():
+            # Last resort: use topic as narration seed so shotlist always has content
+            narration = topic
 
         await step('planning_shots', 20)
         shotlist = await build_shotlist(topic, narration, language, orientation, target_seconds)
