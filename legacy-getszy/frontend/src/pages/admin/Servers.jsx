@@ -32,16 +32,31 @@ function StatCard({ icon: Icon, label, value, sub, color = "text-[var(--gs-teal)
   );
 }
 
+function GaugeBar({ pct, color = "bg-[var(--gs-teal)]" }) {
+  const c = pct >= 90 ? "bg-rose-500" : pct >= 70 ? "bg-amber-500" : color;
+  return (
+    <div className="h-1.5 w-full rounded-full bg-[var(--gs-surface-2)] overflow-hidden">
+      <div className={`h-full rounded-full ${c} transition-all`} style={{ width: `${Math.min(pct, 100)}%` }}/>
+    </div>
+  );
+}
+
 export default function Servers() {
   const [health, setHealth] = useState(null);
+  const [sysStats, setSysStats] = useState(null);
+  const [envHealth, setEnvHealth] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await api.get("/admin/founder-stats");
-      setHealth(r.data);
+      const [sysR, envR] = await Promise.allSettled([
+        api.get("/admin/system-stats"),
+        api.get("/admin/env-health"),
+      ]);
+      if (sysR.status === "fulfilled") { setSysStats(sysR.value.data); setHealth(sysR.value.data); }
+      if (envR.status === "fulfilled") setEnvHealth(envR.value.data?.env || {});
       setLastRefresh(new Date());
     } catch (e) {
       toast.error("Server health fetch failed");
@@ -50,8 +65,13 @@ export default function Servers() {
 
   useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, [load]);
 
-  const env = health?.env_health || {};
-  const uptime = health?.uptime_seconds;
+  const env = envHealth || {};
+  const ram = sysStats?.ram;
+  const disk = sysStats?.disk;
+  const cpu = sysStats?.cpu_load;
+  const mongo = sysStats?.mongo;
+  const gpu = sysStats?.gpu;
+
   const formatUptime = (s) => {
     if (!s) return "—";
     const h = Math.floor(s / 3600);
@@ -60,19 +80,19 @@ export default function Servers() {
   };
 
   const containers = [
-    { name: "getszy-backend",  port: "8001", role: "FastAPI / Python",     ok: !!health,         icon: Zap,      color: "text-[var(--gs-teal)]",  bg: "bg-[var(--gs-teal-soft)]" },
-    { name: "getszy-frontend", port: "3000", role: "React / Node",          ok: true,             icon: Globe,    color: "text-blue-600",           bg: "bg-blue-50" },
-    { name: "getszy-mongo",    port: "27017",role: "MongoDB",               ok: !!env.MONGO_URL,  icon: Database, color: "text-emerald-600",        bg: "bg-emerald-50" },
-    { name: "getszy-caddy",    port: "80/443",role: "Reverse Proxy / HTTPS",ok: true,             icon: Server,   color: "text-violet-600",         bg: "bg-violet-50" },
+    { name: "getszy-backend",  port: "8001", role: "FastAPI / Python",     ok: !!health,                        icon: Zap,      color: "text-[var(--gs-teal)]",  bg: "bg-[var(--gs-teal-soft)]" },
+    { name: "getszy-frontend", port: "3000", role: "React / Node",          ok: true,                            icon: Globe,    color: "text-blue-600",           bg: "bg-blue-50" },
+    { name: "getszy-mongo",    port: "27017",role: "MongoDB",               ok: mongo?.ok ?? !!env.MONGO_URL,    icon: Database, color: "text-emerald-600",        bg: "bg-emerald-50" },
+    { name: "getszy-caddy",    port: "80/443",role: "Reverse Proxy / HTTPS",ok: true,                            icon: Server,   color: "text-violet-600",         bg: "bg-violet-50" },
   ];
 
   const aiStack = [
-    { name: "Groq LLM",       ok: !!env.GROQ_API_KEY,       desc: "Script generation" },
-    { name: "HuggingFace FLUX",ok: !!env.HF_TOKEN,           desc: "FLUX HD images" },
-    { name: "OpenRouter",     ok: !!env.OPENROUTER_API_KEY,  desc: "92 free AI models" },
-    { name: "Razorpay",       ok: !!env.RAZORPAY_KEY_ID,     desc: "₹ payment gateway" },
-    { name: "Edge-TTS",       ok: true,                       desc: "Free Indian voices" },
-    { name: "Pollinations",   ok: true,                       desc: "Free image gen" },
+    { name: "Groq LLM",        ok: !!env.GROQ_API_KEY,       desc: "Script generation" },
+    { name: "HuggingFace FLUX", ok: !!env.HF_TOKEN,           desc: "FLUX HD images" },
+    { name: "OpenRouter",      ok: !!env.OPENROUTER_API_KEY,  desc: "92 free AI models" },
+    { name: "Razorpay",        ok: !!env.RAZORPAY_KEY_ID,     desc: "₹ payment gateway" },
+    { name: "Edge-TTS",        ok: true,                       desc: "Free Indian voices" },
+    { name: "Pollinations",    ok: true,                       desc: "Free image gen" },
   ];
 
   return (
@@ -92,13 +112,62 @@ export default function Servers() {
         </Button>
       </div>
 
-      {/* Top stats */}
+      {/* Real system stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={Activity}    label="Backend Status"  value={health ? "Online" : "Checking…"} color="text-emerald-600" bg="bg-emerald-50" loading={loading}/>
-        <StatCard icon={Clock}       label="Uptime"          value={formatUptime(uptime)}             color="text-blue-600"   bg="bg-blue-50"    loading={loading}/>
-        <StatCard icon={Database}    label="MongoDB"         value={env.MONGO_URL ? "Connected" : "Missing"} color="text-violet-600" bg="bg-violet-50" loading={loading}/>
+        <StatCard icon={Activity}    label="Backend Status"  value={health ? "Online" : "Checking…"}    color="text-emerald-600" bg="bg-emerald-50" loading={loading}/>
+        <StatCard icon={Clock}       label="Uptime"          value={formatUptime(sysStats?.uptime_s)}   color="text-blue-600"   bg="bg-blue-50"    loading={loading}/>
+        <StatCard icon={Database}    label="MongoDB"         value={mongo?.ok ? `${mongo.ping_ms}ms` : "Down"} sub={mongo?.ok ? "Ping OK" : "Not reachable"} color="text-violet-600" bg="bg-violet-50" loading={loading}/>
         <StatCard icon={Zap}         label="AI Stack"        value={`${aiStack.filter(a=>a.ok).length}/${aiStack.length}`} color="text-amber-600" bg="bg-amber-50" loading={loading}/>
       </div>
+
+      {/* RAM + Disk + CPU real gauges */}
+      <div className="grid md:grid-cols-3 gap-4">
+        <Card className="p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold"><MemoryStick className="h-4 w-4 text-[var(--gs-teal)]"/>RAM</div>
+            <span className="text-xs text-[var(--gs-muted)]">{loading ? "…" : ram ? `${ram.used_mb} / ${ram.total_mb} MB` : "No data"}</span>
+          </div>
+          {ram && <GaugeBar pct={ram.used_pct}/>}
+          <div className="text-[10px] text-[var(--gs-muted)]">{loading ? "Loading…" : ram ? `${ram.used_pct}% used · ${ram.avail_mb} MB free` : "N/A on this host"}</div>
+        </Card>
+        <Card className="p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold"><HardDrive className="h-4 w-4 text-violet-600"/>Disk</div>
+            <span className="text-xs text-[var(--gs-muted)]">{loading ? "…" : disk ? `${disk.used_gb} / ${disk.total_gb} GB` : "No data"}</span>
+          </div>
+          {disk && <GaugeBar pct={disk.used_pct} color="bg-violet-500"/>}
+          <div className="text-[10px] text-[var(--gs-muted)]">{loading ? "Loading…" : disk ? `${disk.used_pct}% used · ${disk.free_gb} GB free` : "N/A"}</div>
+        </Card>
+        <Card className="p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold"><Cpu className="h-4 w-4 text-amber-600"/>CPU Load</div>
+            <span className="text-xs text-[var(--gs-muted)]">{loading ? "…" : cpu ? `${cpu["1m"]} avg` : "No data"}</span>
+          </div>
+          {cpu && <GaugeBar pct={Math.min(cpu["1m"] * 25, 100)} color="bg-amber-500"/>}
+          <div className="text-[10px] text-[var(--gs-muted)]">{loading ? "Loading…" : cpu ? `1m: ${cpu["1m"]} · 5m: ${cpu["5m"]} · 15m: ${cpu["15m"]}` : "N/A"}</div>
+        </Card>
+      </div>
+
+      {/* GPU badge */}
+      {!loading && (
+        <Card className="p-4 flex items-center gap-3">
+          <div className={`h-10 w-10 rounded-xl grid place-items-center flex-shrink-0 ${sysStats?.gpu_available ? "bg-green-50" : "bg-[var(--gs-surface-2)]"}`}>
+            <BarChart3 className={`h-5 w-5 ${sysStats?.gpu_available ? "text-green-600" : "text-[var(--gs-muted)]"}`}/>
+          </div>
+          <div className="flex-1">
+            <div className="font-semibold text-sm">GPU</div>
+            {sysStats?.gpu_available ? (
+              <div className="text-xs text-emerald-600">{gpu?.name} · VRAM {gpu?.vram_total} (free: {gpu?.vram_free})</div>
+            ) : (
+              <div className="text-xs text-[var(--gs-muted)]">No GPU detected — Avatar HD models need CUDA. Go to Avatar Studio → Setup Guide.</div>
+            )}
+          </div>
+          {sysStats?.gpu_available
+            ? <Badge className="bg-emerald-100 text-emerald-700">GPU Ready</Badge>
+            : <Badge className="bg-amber-100 text-amber-700">CPU only</Badge>
+          }
+        </Card>
+      )}
 
       <div className="grid md:grid-cols-2 gap-4">
         {/* Docker Containers */}

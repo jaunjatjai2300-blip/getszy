@@ -41,6 +41,7 @@ import AdminSecurity from "@/pages/admin/Security";
 import AdminServers from "@/pages/admin/Servers";
 import AdminWorkflows from "@/pages/admin/Workflows";
 import AdminScheduler from "@/pages/admin/Scheduler";
+import AvatarSetup from "@/pages/admin/AvatarSetup";
 import VideoStudio from "@/pages/dashboard/VideoStudio";
 import DashboardLayout from "@/components/DashboardLayout";
 import LabsHome from "@/pages/labs/LabsHome";
@@ -137,6 +138,7 @@ export default function App() {
             <Route path="workflows" element={<AdminWorkflows />} />
             <Route path="scheduler" element={<AdminScheduler />} />
             <Route path="ai-chat" element={<AdminAIChat />} />
+            <Route path="avatar-setup" element={<AvatarSetup />} />
 
             {/* Security */}
             <Route path="security" element={<AdminSecurity />} />

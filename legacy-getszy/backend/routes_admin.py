@@ -210,6 +210,101 @@ async def chat_sessions(user=Depends(get_current_admin)):
     return [{'session_id': s['_id'], 'last': s['last'], 'created_at': s['created_at'], 'count': s['count']} for s in sessions]
 
 
+# ── System Stats (real /proc data) ────────────────────────────────────────────
+
+@router.get('/system-stats', dependencies=[Depends(get_current_admin)])
+async def system_stats():
+    """Real VPS health — RAM, CPU load, disk, uptime, MongoDB ping."""
+    import os as _os
+
+    # Uptime
+    uptime_s = None
+    try:
+        with open('/proc/uptime') as f:
+            uptime_s = int(float(f.read().split()[0]))
+    except Exception:
+        pass
+
+    # CPU load (1m, 5m, 15m)
+    cpu_load = None
+    try:
+        with open('/proc/loadavg') as f:
+            parts = f.read().split()
+            cpu_load = {'1m': float(parts[0]), '5m': float(parts[1]), '15m': float(parts[2])}
+    except Exception:
+        pass
+
+    # RAM (MemTotal, MemAvailable in kB)
+    ram = None
+    try:
+        mem = {}
+        with open('/proc/meminfo') as f:
+            for line in f:
+                k, v = line.split(':')
+                mem[k.strip()] = int(v.strip().split()[0])
+        total_mb  = mem.get('MemTotal', 0) // 1024
+        avail_mb  = mem.get('MemAvailable', 0) // 1024
+        used_mb   = total_mb - avail_mb
+        ram = {
+            'total_mb': total_mb,
+            'used_mb': used_mb,
+            'avail_mb': avail_mb,
+            'used_pct': round(used_mb / total_mb * 100, 1) if total_mb else 0,
+        }
+    except Exception:
+        pass
+
+    # Disk usage (root partition)
+    disk = None
+    try:
+        st = _os.statvfs('/')
+        total_gb = round(st.f_blocks * st.f_frsize / 1e9, 1)
+        free_gb  = round(st.f_bfree  * st.f_frsize / 1e9, 1)
+        used_gb  = round(total_gb - free_gb, 1)
+        disk = {
+            'total_gb': total_gb,
+            'used_gb': used_gb,
+            'free_gb': free_gb,
+            'used_pct': round(used_gb / total_gb * 100, 1) if total_gb else 0,
+        }
+    except Exception:
+        pass
+
+    # MongoDB ping
+    mongo_ok = False
+    mongo_ms = None
+    try:
+        import time
+        t0 = time.monotonic()
+        await db.command('ping')
+        mongo_ms = round((time.monotonic() - t0) * 1000, 1)
+        mongo_ok = True
+    except Exception:
+        pass
+
+    # GPU detection (nvidia-smi)
+    gpu = None
+    try:
+        import subprocess
+        r = subprocess.run(['nvidia-smi', '--query-gpu=name,memory.total,memory.free', '--format=csv,noheader'],
+            capture_output=True, text=True, timeout=5)
+        if r.returncode == 0 and r.stdout.strip():
+            parts = r.stdout.strip().split(',')
+            gpu = {'name': parts[0].strip(), 'vram_total': parts[1].strip(), 'vram_free': parts[2].strip() if len(parts) > 2 else None}
+    except Exception:
+        gpu = None
+
+    return {
+        'uptime_s': uptime_s,
+        'cpu_load': cpu_load,
+        'ram': ram,
+        'disk': disk,
+        'mongo': {'ok': mongo_ok, 'ping_ms': mongo_ms},
+        'gpu': gpu,
+        'gpu_available': gpu is not None,
+    }
+
+
 # ── Login Sessions ────────────────────────────────────────────────────────────
 
 @router.get('/login-sessions', dependencies=[Depends(get_current_admin)])
