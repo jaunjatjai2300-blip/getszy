@@ -35,8 +35,8 @@ export default function AdminProjects() {
     setLoading(true);
     try {
       const [bp, hs] = await Promise.allSettled([
-        api.get("/builder/projects?limit=50"),
-        api.get("/hosting/sites?limit=50"),
+        api.get("/admin/projects?limit=50"),
+        api.get("/hosting/list"),
       ]);
       if (bp.status === "fulfilled") setBuilderProjects(bp.value.data.items || bp.value.data || []);
       if (hs.status === "fulfilled") setHostedSites(hs.value.data.items || hs.value.data || []);
