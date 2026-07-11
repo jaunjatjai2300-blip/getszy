@@ -1,0 +1,30 @@
+root@srv973421 getszy]# docker compose logs backend 2>&1 | head -80
+time="2026-07-11T15:02:42Z" level=warning msg="/opt/getszy/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+getszy-backend  | INFO:     Started server process [1]
+getszy-backend  | INFO:     Waiting for application startup.
+getszy-backend  | INFO:getszy:getszy backend starting
+getszy-backend  | INFO:     Application startup complete.
+getszy-backend  | INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+getszy-backend  | INFO:     127.0.0.1:56510 - "GET /api/health HTTP/1.1" 200 OK
+getszy-backend  | INFO:     127.0.0.1:45928 - "GET /api/health HTTP/1.1" 200 OK
+getszy-backend  | INFO:     127.0.0.1:46864 - "GET /api/health HTTP/1.1" 200 OK
+getszy-backend  | INFO:     127.0.0.1:51476 - "GET /api/health HTTP/1.1" 200 OK
+getszy-backend  | INFO:     127.0.0.1:43282 - "GET /api/health HTTP/1.1" 200 OK
+getszy-backend  | INFO:     127.0.0.1:44764 - "GET /api/health HTTP/1.1" 200 OK
+getszy-backend  | INFO:     172.18.0.5:34578 - "GET /api/health HTTP/1.1" 200 OK
+getszy-backend  | INFO:     172.18.0.5:34578 - "GET /api/avatar/status HTTP/1.1" 404 Not Found
+getszy-backend  | INFO:     172.18.0.5:34578 - "POST /api/avatar/ai-image HTTP/1.1" 404 Not Found
+getszy-backend  | INFO:     127.0.0.1:35300 - "GET /api/health HTTP/1.1" 200 OK
+getszy-backend  | INFO:     172.18.0.5:34578 - "GET /api/auth/me HTTP/1.1" 200 OK
+getszy-backend  | INFO:     172.18.0.5:34578 - "GET /api/chat/sessions?limit=50 HTTP/1.1" 200 OK
+getszy-backend  | INFO:     172.18.0.5:39278 - "GET /api/chat/session/4e205b0c-af94-4c5c-a7c1-2806c8adce51 HTTP/1.1" 200 OK
+getszy-backend  | INFO:     172.18.0.5:39278 - "GET /api/builder/projects/76900f2c-6280-4cdd-9f16-29d5ff3cf303/preview HTTP/1.1" 200 OK
+getszy-backend  | INFO:     172.18.0.5:39278 - "GET /api/workspace/4e205b0c-af94-4c5c-a7c1-2806c8adce51 HTTP/1.1" 200 OK
+getszy-backend  | INFO:     127.0.0.1:43274 - "GET /api/health HTTP/1.1" 200 OK
+getszy-backend  | INFO:     172.18.0.5:47676 - "GET /api/builder/hub HTTP/1.1" 200 OK
+getszy-backend  | INFO:     172.18.0.5:47688 - "GET /api/builder/starter HTTP/1.1" 200 OK
+getszy-backend  | INFO:     172.18.0.5:32804 - "GET /api/builder/hub HTTP/1.1" 200 OK
+getszy-backend  | INFO:     172.18.0.5:32804 - "GET /api/creator/providers HTTP/1.1" 200 OK
+getszy-backend  | INFO:     172.18.0.5:32818 - "GET /api/creator/history?limit=15 HTTP/1.1" 200 OK
+getszy-backend  | INFO:     127.0.0.1:47420 - "GET /api/health HTTP/1.1" 200 OK
+[root@srv973421 getszy]# 
