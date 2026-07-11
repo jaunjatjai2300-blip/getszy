@@ -1,0 +1,67 @@
+Create new Access Token
+Token type
+Fine-grained
+Read
+Write
+ This cannot be changed after token creation.
+Token name
+Getszy production
+User permissions (jaunjat)
+Repositories
+Read access to contents of all repos under your personal namespace
+View access requests for all gated repos under your personal namespace
+Read access to contents of all public gated repos you can access
+Write access to contents/settings of all repos under your personal namespace
+Inference
+Make calls to Inference Providers
+Make calls to your Inference Endpoints
+Manage your Inference Endpoints
+Webhooks
+Access webhooks data
+Create and manage webhooks
+Collections
+Read access to all collections under your personal namespace
+Write access to all collections under your personal namespace
+Discussions & Posts
+Interact with discussions / Open PRs on repos under your personal namespace
+Interact with discussions / Open PRs on external repos
+Interact with posts
+Billing
+Read access to your billing usage and know if a payment method is set
+Jobs
+Start and manage Jobs on your behalf
+Notifications
+Read access to your notification inbox
+Manage your notification inbox (delete, mark as read)
+Repositories permissions
+Override any user-level or org-level permissions set below for the specified repositories. The token will always have read access to all public repos contents.
+
+Read access to contents of selected repos
+View access requests for selected gated repos
+Interact with discussions / Open pull requests on selected repos
+Write access to contents/settings of selected repos
+Org permissions
+None if not specified.
+
+Repositories
+Read access to contents of all repos in selected organizations
+View access requests for gated repos in selected organizations
+Interact with discussions / Open pull requests on repos in selected organizations
+Write access to contents/settings of all repos in selected organizations
+Inference
+Make calls to Inference Providers on behalf of the selected organizations
+Make calls to the organization's Inference Endpoints
+Manage the organization's Inference Endpoints
+Org settings
+Read access to organizations settings
+Write access to organizations settings / member management
+Collections
+Read access to all collections in selected organizations
+Write access to all collections in selected organizations
+Resource Groups
+Write access to resource groups in selected organizations
+Jobs
+Start and manage Jobs in selected organizations.
+Service accounts
+Read access to the organizations' service accounts
+Create and manage the organizations' service accounts and their tokens
