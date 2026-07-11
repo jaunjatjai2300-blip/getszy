@@ -36,6 +36,9 @@ import AdminChatHome from "@/pages/admin/ChatHome";
 import Analytics from "@/pages/admin/Analytics";
 import UsersAdmin from "@/pages/admin/UsersAdmin";
 import AdminSettings from "@/pages/admin/AdminSettings";
+import AdminProjects from "@/pages/admin/Projects";
+import AdminSecurity from "@/pages/admin/Security";
+import AdminServers from "@/pages/admin/Servers";
 import VideoStudio from "@/pages/dashboard/VideoStudio";
 import DashboardLayout from "@/components/DashboardLayout";
 import LabsHome from "@/pages/labs/LabsHome";
@@ -74,6 +77,7 @@ export default function App() {
             {/* Dashboard */}
             <Route index element={<AdminDashboard />} />
             <Route path="overview" element={<AdminDashboard />} />
+            <Route path="projects" element={<AdminProjects />} />
 
             {/* Neo AI Chat */}
             <Route path="chat" element={<AdminChatHome />} />
@@ -127,14 +131,14 @@ export default function App() {
 
             {/* Operations */}
             <Route path="ai-ops" element={<AdminAiOps />} />
-            <Route path="servers" element={<AdminAiOps />} />
+            <Route path="servers" element={<AdminServers />} />
             <Route path="ai-chat" element={<AdminAIChat />} />
 
             {/* Security */}
-            <Route path="security" element={<AdminSettings />} />
-            <Route path="security/logs" element={<AdminSettings />} />
-            <Route path="security/keys" element={<AdminSettings />} />
-            <Route path="security/alerts" element={<AdminSettings />} />
+            <Route path="security" element={<AdminSecurity />} />
+            <Route path="security/logs" element={<AdminSecurity />} />
+            <Route path="security/keys" element={<AdminSecurity />} />
+            <Route path="security/alerts" element={<AdminSecurity />} />
 
             {/* Settings */}
             <Route path="settings" element={<AdminSettings />} />
