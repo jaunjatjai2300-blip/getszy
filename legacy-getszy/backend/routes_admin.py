@@ -378,3 +378,150 @@ async def all_projects(limit: int = 100):
     """Admin view — shows builder projects across ALL users."""
     projects = await db.builder_projects.find({}, {'_id': 0}).sort('created_at', -1).to_list(limit)
     return {'items': projects, 'total': len(projects)}
+
+
+# ── Analytics: time-series & funnel ───────────────────────────────────────────
+
+@router.get('/analytics/series', dependencies=[Depends(get_current_admin)])
+async def analytics_series(days: int = 30):
+    """Daily series: new users, orders, AI jobs, credits spent — last N days."""
+    now = datetime.now(timezone.utc)
+    result = []
+    for i in range(days - 1, -1, -1):
+        day_start = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + timedelta(days=1)
+        q = {'created_at': {'$gte': day_start.isoformat(), '$lt': day_end.isoformat()}}
+        new_users  = await db.users.count_documents(q)
+        new_orders = await db.orders.count_documents(q)
+        ai_jobs    = await db.ai_jobs.count_documents(q)
+        cr_docs    = await db.credit_txns.find({**q, 'delta': {'$lt': 0}}, {'_id': 0, 'delta': 1}).to_list(5000)
+        credits_spent = abs(sum(d.get('delta', 0) for d in cr_docs))
+        result.append({
+            'date': day_start.strftime('%d %b'),
+            'new_users': new_users,
+            'orders': new_orders,
+            'ai_jobs': ai_jobs,
+            'credits_spent': round(credits_spent, 0),
+        })
+    return {'series': result, 'days': days}
+
+
+@router.get('/analytics/funnel', dependencies=[Depends(get_current_admin)])
+async def analytics_funnel():
+    """Conversion funnel: total users → placed order → subscribed."""
+    total_users    = await db.users.count_documents({'role': 'customer'})
+    placed_order   = await db.orders.distinct('user_id')
+    subscribed     = await db.subscriptions.count_documents({'status': 'active'})
+    placed_count   = len(placed_order)
+    return {
+        'funnel': [
+            {'stage': 'Signed Up',      'count': total_users,  'pct': 100},
+            {'stage': 'Placed Order',   'count': placed_count, 'pct': round(placed_count / total_users * 100, 1) if total_users else 0},
+            {'stage': 'Subscribed',     'count': subscribed,   'pct': round(subscribed / total_users * 100, 1)   if total_users else 0},
+        ]
+    }
+
+
+# ── Workspace Settings (saved to MongoDB) ─────────────────────────────────────
+
+class SettingsIn(BaseModel):
+    section: str = 'workspace'
+    data: dict
+
+
+@router.get('/settings', dependencies=[Depends(get_current_admin)])
+async def get_settings(section: str = 'workspace'):
+    doc = await db.workspace_settings.find_one({'section': section}, {'_id': 0})
+    return doc or {'section': section, 'data': {}}
+
+
+@router.post('/settings', dependencies=[Depends(get_current_admin)])
+async def save_settings(body: SettingsIn):
+    await db.workspace_settings.update_one(
+        {'section': body.section},
+        {'$set': {'section': body.section, 'data': body.data, 'updated_at': datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+    return {'ok': True, 'section': body.section}
+
+
+# ── Audit Log ────────────────────────────────────────────────────────────────
+
+@router.get('/audit-logs', dependencies=[Depends(get_current_admin)])
+async def get_audit_logs(limit: int = 50, action: str = ''):
+    q = {}
+    if action:
+        q['action'] = {'$regex': action, '$options': 'i'}
+    logs = await db.audit_logs.find(q, {'_id': 0}).sort('created_at', -1).to_list(limit)
+    return {'items': logs, 'total': len(logs)}
+
+
+async def log_audit(admin_id: str, action: str, detail: str = '', level: str = 'info'):
+    """Helper — call from any admin route to record an audit event."""
+    await db.audit_logs.insert_one({
+        'id': str(uuid.uuid4()),
+        'admin_id': admin_id,
+        'action': action,
+        'detail': detail,
+        'level': level,
+        'created_at': datetime.now(timezone.utc).isoformat(),
+    })
+
+
+# ── Force logout all users ───────────────────────────────────────────────────
+
+@router.post('/sessions/revoke-all', dependencies=[Depends(get_current_admin)])
+async def revoke_all_sessions():
+    """Mark all sessions expired — users will need to log in again."""
+    result = await db.sessions.update_many({}, {'$set': {'active': False, 'revoked_at': datetime.now(timezone.utc).isoformat()}})
+    return {'ok': True, 'revoked': result.modified_count}
+
+
+# ── Blocked IPs ──────────────────────────────────────────────────────────────
+
+class BlockIpIn(BaseModel):
+    ip: str
+    reason: str = ''
+
+
+@router.get('/blocked-ips', dependencies=[Depends(get_current_admin)])
+async def list_blocked_ips():
+    items = await db.blocked_ips.find({}, {'_id': 0}).sort('created_at', -1).to_list(200)
+    return {'items': items}
+
+
+@router.post('/blocked-ips', dependencies=[Depends(get_current_admin)])
+async def block_ip(body: BlockIpIn):
+    existing = await db.blocked_ips.find_one({'ip': body.ip})
+    if existing:
+        raise HTTPException(status_code=400, detail='IP already blocked')
+    doc = {'id': str(uuid.uuid4()), 'ip': body.ip.strip(), 'reason': body.reason, 'created_at': datetime.now(timezone.utc).isoformat()}
+    await db.blocked_ips.insert_one(doc)
+    return {'ok': True, **doc}
+
+
+@router.delete('/blocked-ips/{ip_id}', dependencies=[Depends(get_current_admin)])
+async def unblock_ip(ip_id: str):
+    result = await db.blocked_ips.delete_one({'id': ip_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail='Not found')
+    return {'ok': True}
+
+
+# ── Live activity feed (last N events across collections) ────────────────────
+
+@router.get('/live-activity', dependencies=[Depends(get_current_admin)])
+async def live_activity(limit: int = 20):
+    """Recent activity across orders, ai_jobs, users — merged and sorted."""
+    events = []
+    orders = await db.orders.find({}, {'_id': 0, 'id': 1, 'user_id': 1, 'total': 1, 'created_at': 1}).sort('created_at', -1).to_list(limit)
+    for o in orders:
+        events.append({'type': 'order', 'msg': f"New order — ₹{o.get('total', 0)}", 'at': o.get('created_at'), 'id': o.get('id')})
+    jobs = await db.ai_jobs.find({}, {'_id': 0, 'id': 1, 'type': 1, 'user_id': 1, 'created_at': 1}).sort('created_at', -1).to_list(limit)
+    for j in jobs:
+        events.append({'type': 'ai_job', 'msg': f"AI job: {j.get('type', 'job')}", 'at': j.get('created_at'), 'id': j.get('id')})
+    users = await db.users.find({'role': 'customer'}, {'_id': 0, 'id': 1, 'email': 1, 'created_at': 1}).sort('created_at', -1).to_list(limit)
+    for u in users:
+        events.append({'type': 'signup', 'msg': f"New signup: {u.get('email', '')[:20]}", 'at': u.get('created_at'), 'id': u.get('id')})
+    events.sort(key=lambda x: x.get('at', ''), reverse=True)
+    return {'items': events[:limit]}
