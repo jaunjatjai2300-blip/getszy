@@ -53,6 +53,10 @@ import AdminEmailBuilder from "@/pages/admin/EmailBuilder";
 import AdminLandingPageBuilder from "@/pages/admin/LandingPageBuilder";
 import AdminDBBuilder from "@/pages/admin/DBBuilder";
 import AdminAPIBuilder from "@/pages/admin/APIBuilder";
+import AdminPromptLibrary from "@/pages/admin/PromptLibrary";
+import AdminKnowledgeBase from "@/pages/admin/KnowledgeBase";
+import AdminAIMemory from "@/pages/admin/AIMemory";
+import AdminAIPlayground from "@/pages/admin/AIPlayground";
 import VideoStudio from "@/pages/dashboard/VideoStudio";
 import DashboardLayout from "@/components/DashboardLayout";
 import LabsHome from "@/pages/labs/LabsHome";
@@ -117,6 +121,10 @@ export default function App() {
             <Route path="workforce" element={<AdminWorkforce />} />
             <Route path="ai-models" element={<AdminAiOps />} />
             <Route path="voice" element={<AdminCreatorOS />} />
+            <Route path="ai/prompts" element={<AdminPromptLibrary />} />
+            <Route path="ai/knowledge" element={<AdminKnowledgeBase />} />
+            <Route path="ai/memory" element={<AdminAIMemory />} />
+            <Route path="ai/playground" element={<AdminAIPlayground />} />
 
             {/* Commerce */}
             <Route path="products" element={<AdminProducts />} />
