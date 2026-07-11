@@ -1,0 +1,38 @@
+ls backend/routes_avatar.py && echo "✅ FILE EXISTS" || echo "❌ STILL MISSING"
+Saved working directory and index state WIP on main: 4011826 Update frontend/src/pages/Pricing.jsx — credit pack pricing (lite/pro/ultra with actual INR prices)
+From https://github.com/jaunjatjai2300-blip/getszy
+ * branch            main       -> FETCH_HEAD
+Updating 4011826..07eb699
+Fast-forward
+ .github/workflows/deploy.yml                           |  41 +++--
+ Dockerfile.frontend                                    |  45 ++---
+ backend/llm_provider.py                                |   6 +-
+ backend/routes_builder.py                              |  42 +++--
+ deploy/Caddyfile                                       |  19 +-
+ docker-compose.yml                                     |   6 +-
+ legacy-getszy/backend/creator/scripts.py               | 173 ++++++++++++++++++
+ legacy-getszy/backend/llm_provider.py                  | 241 +++++++++++++++++++++++++
+ legacy-getszy/backend/routes_avatar.py                 | 210 ++++++++++++++++++++++
+ legacy-getszy/backend/routes_social.py                 | 319 ++++++++++++++++++++++++++++++++++
+ legacy-getszy/backend/routes_video.py                  | 135 ++++++++++++++
+ legacy-getszy/backend/server.py                        | 128 ++++++++++++++
+ legacy-getszy/backend/video/ai_providers.py            | 246 ++++++++++++++++++++++++++
+ legacy-getszy/backend/video/compose.py                 | 185 ++++++++++++++++++++
+ legacy-getszy/backend/video/pipeline.py                | 107 ++++++++++++
+ legacy-getszy/backend/video/shotlist.py                |  97 +++++++++++
+ legacy-getszy/frontend/src/pages/admin/VideoStudio.jsx | 841 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 17 files changed, 2787 insertions(+), 54 deletions(-)
+ create mode 100644 legacy-getszy/backend/creator/scripts.py
+ create mode 100644 legacy-getszy/backend/llm_provider.py
+ create mode 100644 legacy-getszy/backend/routes_avatar.py
+ create mode 100644 legacy-getszy/backend/routes_social.py
+ create mode 100644 legacy-getszy/backend/routes_video.py
+ create mode 100644 legacy-getszy/backend/server.py
+ create mode 100644 legacy-getszy/backend/video/ai_providers.py
+ create mode 100644 legacy-getszy/backend/video/compose.py
+ create mode 100644 legacy-getszy/backend/video/pipeline.py
+ create mode 100644 legacy-getszy/backend/video/shotlist.py
+ create mode 100644 legacy-getszy/frontend/src/pages/admin/VideoStudio.jsx
+ls: cannot access 'backend/routes_avatar.py': No such file or directory
+❌ STILL MISSING
+[root@srv973421 getszy]# 
