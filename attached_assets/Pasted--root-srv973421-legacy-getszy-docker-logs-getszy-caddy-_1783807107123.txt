@@ -1,0 +1,22 @@
+[root@srv973421 legacy-getszy]# docker logs getszy-caddy --tail 20
+{"level":"info","ts":1783806986.8122551,"msg":"maxprocs: Leaving GOMAXPROCS=2: CPU quota undefined"}
+{"level":"info","ts":1783806986.812592,"msg":"GOMEMLIMIT is updated","GOMEMLIMIT":7247307571,"previous":9223372036854775807}
+{"level":"info","ts":1783806986.8127265,"msg":"using config from file","file":"/etc/caddy/Caddyfile"}
+Error: adapting config using caddyfile: /etc/caddy/Caddyfile:5: unrecognized global option: encode
+{"level":"info","ts":1783806993.6054857,"msg":"maxprocs: Leaving GOMAXPROCS=2: CPU quota undefined"}
+{"level":"info","ts":1783806993.605516,"msg":"GOMEMLIMIT is updated","GOMEMLIMIT":7247307571,"previous":9223372036854775807}
+{"level":"info","ts":1783806993.6055198,"msg":"using config from file","file":"/etc/caddy/Caddyfile"}
+Error: adapting config using caddyfile: /etc/caddy/Caddyfile:5: unrecognized global option: encode
+{"level":"info","ts":1783807006.726731,"msg":"maxprocs: Leaving GOMAXPROCS=2: CPU quota undefined"}
+{"level":"info","ts":1783807006.7270463,"msg":"GOMEMLIMIT is updated","GOMEMLIMIT":7247307571,"previous":9223372036854775807}
+{"level":"info","ts":1783807006.7270563,"msg":"using config from file","file":"/etc/caddy/Caddyfile"}
+Error: adapting config using caddyfile: /etc/caddy/Caddyfile:5: unrecognized global option: encode
+{"level":"info","ts":1783807032.667996,"msg":"maxprocs: Leaving GOMAXPROCS=2: CPU quota undefined"}
+{"level":"info","ts":1783807032.6680143,"msg":"GOMEMLIMIT is updated","GOMEMLIMIT":7247307571,"previous":9223372036854775807}
+{"level":"info","ts":1783807032.6680176,"msg":"using config from file","file":"/etc/caddy/Caddyfile"}
+Error: adapting config using caddyfile: /etc/caddy/Caddyfile:5: unrecognized global option: encode
+{"level":"info","ts":1783807084.3630037,"msg":"maxprocs: Leaving GOMAXPROCS=2: CPU quota undefined"}
+{"level":"info","ts":1783807084.3630269,"msg":"GOMEMLIMIT is updated","GOMEMLIMIT":7247307571,"previous":9223372036854775807}
+{"level":"info","ts":1783807084.3630314,"msg":"using config from file","file":"/etc/caddy/Caddyfile"}
+Error: adapting config using caddyfile: /etc/caddy/Caddyfile:5: unrecognized global option: encode
+[root@srv973421 legacy-g
