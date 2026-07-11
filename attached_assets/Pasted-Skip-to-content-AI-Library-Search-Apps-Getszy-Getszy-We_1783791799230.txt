@@ -1,0 +1,1159 @@
+Skip to content
+
+AI
+
+
+
+
+
+Library
+Search
+Apps
+Getszy
+Getszy
+Website
+
+Other
+Legacy Frontend
+Website
+
+
+Replit Cloud
+Publish a sharable version of your App, unaffected by changes made in the project editor
+Stores structured data such as user profiles, game scores, and product catalogs.
+
+Let users log in to your App using a prebuilt login page
+Find, fix, and monitor security vulnerabilities and privacy issues
+Manage custom domains for your deployed App
+Host and save uploads like images, videos, and documents
+View traffic, request metrics, resource usage, and analytics for your deployed App
+Find, fix, and monitor SEO and growth opportunities
+Setup
+Connect to Replit-native and external services
+Version control for your App
+Store sensitive information (like API keys) securely in your App
+Manage skills that extend Agent capabilities
+Databases
+Development Database
+29.25MB / 20GB
+Billing Period
+Renews monthly, Jul 23
+Hours of Compute Used
+0 hours
+Add new admin pages for analytics, users, and settings
+
+
+
+1 message & 1 action
+NOT IN server.py
+from routes_avatar import router as avatar_router
+api_router.include_router(avatar_router)
+[root@srv973421 getszy]# grep avatar /opt/getszy/legacy-getszy/backend/server.py || echo "NOT IN legacy server.py"
+NOT IN server.py
+from routes_avatar import router as avatar_router
+api_router.include_router(avatar_router)
+[root@srv973421 ge.
+from routes_avatar import router as avatar_router
+api_router.include_router(avatar_router)
+-bash: NOT: command not found
+-bash: from: command not found
+-bash: syntax error near unexpected token `avatar_router'
+-bash: [root@srv973421: command not found
+[root@srv973421 getszy]# .
+-bash: .: filename argument required
+.: usage: . filename [arguments]
+[root@srv973421 getszy]#
+
+Jul 11, 2026, 9:04 PM
+
+1 message & 1 action
+sed -i 's/from routes_social import router as social_router/from routes_social import router as social_router\nfrom routes_avatar import router as avatar_router/' /opt/getszy/backend/server.py
+
+include_router line add karo (social ke baad)
+sed -i 's/api_router.include_router(social_router)/api_router.include_router(social_router)\napi_router.include_router(avatar_router)/' /opt/getszy/backend/server.py
+
+Verify
+grep avatar /opt/getszy/backend/server.py && echo "✅ Added!" || echo "❌ Failed"
+❌ Failed
+[root@srv973421 getszy]#
+
+Jul 11, 2026, 9:04 PM
+
+1 message & 1 action
+[root@srv973421 getszy]# grep -n "social|credits|include_router" /opt/getszy/backend/server.py | tail -10
+76:api_router.include_router(workforce_router)
+77:api_router.include_router(chat_builder_router)
+78:api_router.include_router(workspace_router)
+79:api_router.include_router(hosting_router)
+80:api_router.include_router(host_router)
+81:api_router.include_router(razorpay_router)
+82:api_router.include_router(legal_router)
+83:api_router.include_router(support_router)
+84:api_router.include_router(video_factory_router)
+86:app.include_router(api_router)
+[root@srv973421 getszy]#
+
+Jul 11, 2026, 9:05 PM
+
+1 message & 1 action
+kiya
+
+Jul 11, 2026, 9:06 PM
+
+2 messages & 3 actions
+
+Worked for 22 seconds
+=> resolving provenance for metadata file 0.0s
+[+] build 1/1
+✔ Image getszy-backend Built 5.5s
+WARN[0000] /opt/getszy/docker-compose.yml: the attribute version is obsolete, it will be ignored, please remove it to avoid potential confusion
+[+] up 4/4
+✔ Container getszy-frontend Running 0.0s
+✔ Container getszy-caddy Running 0.0s
+✔ Container getszy-mongo Running 0.0s
+✔ Container getszy-backend Started 1.1s
+[root@srv973421 getszy]#
+
+Jul 11, 2026, 9:07 PM
+
+2 messages & 3 actions
+
+Worked for 18 seconds
+Time worked
+18 seconds
+Work done
+1 action
+Agent Usage
+$0.05
+root@srv973421 ~]# docker compose logs backend 2>&1 | tail -20
+no configuration file provided: not found
+[root@srv973421 ~
+
+Jul 11, 2026, 9:09 PM
+
+1 message & 1 action
+root@srv973421 ~]# cd /opt/getszy && docker compose logs backend 2>&1 | tail -20
+getszy-backend | File "/usr/local/lib/python3.11/site-packages/uvicorn/config.py", line 467, in load
+getszy-backend | self.loaded_app = import_from_string(self.app)
+getszy-backend | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+getszy-backend | File "/usr/local/lib/python3.11/site-packages/uvicorn/importer.py", line 21, in import_from_string
+getszy-backend | module = importlib.import_module(module_str)
+getszy-backend | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+getszy-backend | File "/usr/local/lib/python3.11/importlib/init.py", line 126, in import_module
+getszy-backend | return _bootstrap._gcd_import(name[level:], package, level)
+getszy-backend | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+getszy-backend | File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+getszy-backend | File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+getszy-backend | File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+getszy-backend | File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+getszy-backend | File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+getszy-backend | File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+getszy-backend | File "/app/server.py", line 38, in <module>
+getszy-backend | from routes_avatar import router as avatar_router
+getszy-backend | File "/app/routes_avatar.py", line 12
+getszy-backend | import logging
+getszy-backend | IndentationError: unexpected indent
+[root@srv973421 getszy]
+
+Jul 11, 2026, 9:10 PM
+
+1 message & 1 action
+kiya
+
+Jul 11, 2026, 9:11 PM
+
+1 message & 3 actions
+
+Worked for 29 seconds
+[main 7311853] fix: remove indentation bug from avatar files + add avatar router to server.py
+Committer: root root@srv973421.hstgr.cloud
+Your name and email address were configured automatically based
+on your username and hostname. Please check that they are accurate.
+You can suppress this message by setting them explicitly. Run the
+following command and follow the instructions in your editor to edit
+your configuration file:
+
+git config --global --edit
+
+After doing this, you may fix the identity used for this commit with:
+
+git commit --amend --reset-author
+
+3 files changed, 456 insertions(+)
+create mode 100644 backend/routes_avatar.py
+create mode 100644 backend/video/ai_providers.py
+Username for 'https://github.com
+
+Jul 11, 2026, 9:13 PM
+
+Show less
+
+Deciding on credential entry method
+GitHub credentials maang raha hai — yeh daalo:
+
+Username: jaunjatjai2300-blip
+Password: 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
+
+⚠️ Password field mein kuch dikhega nahi type karte waqt — normal hai, Enter dabao
+
+Username for 'https://github.com': jaunjatjai2300-blip
+Password for 'https://jaunjatjai2300-blip@github.com':
+To https://github.com/jaunjatjai2300-blip/getszy.git
+! [rejected] main -> main (non-fast-forward)
+error: failed to push some refs to 'https://github.com/jaunjatjai2300-blip/getszy.git'
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart. If you want to integrate the remote changes,
+hint: use 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[root@srv973421 getszy]#
+
+Jul 11, 2026, 9:14 PM
+
+Show less
+
+Resolving Git push conflict (4 seconds)
+GitHub pe naye commits hain — pehle pull karo phir push:
+
+cd /opt/getszy
+git pull origin main --rebase
+git push origin main
+
+Username/password phir maangega — same credentials daalo 👇
+
+ould not apply 7311853... # fix: remove indentation bug from avatar files + add avatar router to server.py
+Username for 'https://github.com': jaunjatjai2300-blip
+Password for 'https://jaunjatjai2300-blip@github.com':
+To https://github.com/jaunjatjai2300-blip/getszy.git
+! [rejected] main -> main (non-fast-forward)
+error: failed to push some refs to 'https://github.com/jaunjatjai2300-blip/getszy.git'
+hint: Updates were rejected because a pushed branch tip is behind its remote
+hint: counterpart. If you want to integrate the remote changes, use 'git pull'
+hint: before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[root@srv973421 direct push nhi hota automated
+
+Jul 11, 2026, 9:16 PM
+
+1 message & 1 action
+root@srv973421 getszy]# cd /opt/getszy
+git push origin main --force
+Username for 'https://github.com': jaunjatjai2300-blip
+Password for 'https://jaunjatjai2300-blip@github.com':
+remote: Invalid username or token. Password authentication is not supported for Git operations.
+fatal: Authentication failed for 'https://github.com/jaunjatjai2300-blip/getszy.git/'
+[root@srv973421 getszy]# jaunjatjai2300-blip
+-bash: jaunjatjai2300-blip: command not found
+[root@srv973421 getszy]# cd /opt/getszy
+git push origin main --force
+Username for 'https://github.com': jaunjatjai2300-blip
+Password for 'https://jaunjatjai2300-blip@github.com':
+Enumerating objects: 11, done.
+Counting objects: 100% (11/11), done.
+Delta compression using up to 2 threads
+Compressing objects: 100% (7/7), done.
+Writing objects: 100% (7/7), 5.77 KiB | 5.77 MiB/s, done.
+Total 7 (delta 4), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (4/4), completed with 4 local objects.
+To https://github.com/jaunjatjai2300-blip/getszy.git
+
+c8cb544...7311853 main -> main (forced update)
+[root@srv973421 getszy]#
+Jul 11, 2026, 9:23 PM
+
+2 messages & 3 actions
+
+Worked for 23 seconds
+Done all
+
+Jul 11, 2026, 9:26 PM
+
+2 messages & 3 actions
+
+Worked for 22 seconds
+ab phale admin ka dashboard deko ye upar ke 3 point yad rakhna .
+
+Jul 11, 2026, 9:28 PM
+
+5 messages & 16 actions
+
+Checkpoint made
+2 hours ago
+
+Worked for 1 minute
+mai mera admin dashboard k baat kar raha hun, user dashboard alag hai yad rakhana
+
+Jul 11, 2026, 9:30 PM
+
+1 message & 1 action
+Skip to main content
+getszy
+Admin \u00b7 Neo Console
+Overview
+Ask Neo
+
+Store
+Products
+Orders
+Suppliers
+Customers
+Sourcing
+
+AI Studio
+Build Studio
+Creator OS
+Video Studio
+AI Workforce
+Publishing
+
+Learning
+Courses
+
+Automation
+Skills
+Stacks
+
+Operations
+Deploy
+AI Ops
+Legacy Chat
+View Storefront
+Logout
+Faceless Video Studio
+Topic → Script → Visuals → Voice → Edited MP4. Fully automated · Indian-first voices · Batch ready.
+
+tts:
+edge-tts (free)
+visuals:
+pollinations (free)
+compose:
+ffmpeg
+Single Video
+Batch (up to 10)
+Topic *
+e.g. Top 5 AI side hustles for Indian students
+Orientation
+9:16 Shorts / Reels
+Language
+Hinglish
+Voice gender
+Female
+Target length (sec)
+45
+Tone
+energetic
+
+Burn-in subtitles
+Generate Faceless Video
+~ 60–120s per video on CPU. Visuals: Pollinations · Voice: edge-tts (Indian neural voices) · Compose: FFmpeg.
+
+Recent jobs
+Refresh
+No jobs yet — generate your first video above. ye sare tabs hai fully working tabs hai ye check karo ap usme kya kya missing hai wo bhi
+
+Jul 11, 2026, 9:32 PM
+
+Show less
+
+Analyzing Video Studio tab requirements
+VideoStudio ke saare tabs check karta hoon:
+
+
+5 actions
+Poora VideoStudio ka full analysis ho gaya! Summary:
+
+✅ Kya Kaam Kar Raha Hai (5 Tabs)
+Tab 1: Single Video   ✅ Topic → Script → Voice → MP4
+Tab 2: Batch          ✅ 10 videos ek saath queue
+Tab 3: AI Stories     ✅ Genre-based cinematic story video
+Tab 4: Schedule       ✅ Video schedule kar YouTube/Instagram pe
+Tab 5: Social Media   ✅ Platform connect/disconnect
+
+❌ Kya MISSING Hai
+1. VISUALS UPGRADE missing
+   Abhi:  Pollinations (free, average quality)
+   Hona:  FLUX HD (aapne HF_TOKEN add kiya hai)
+   Fix:   "Visuals" dropdown → Pollinations / FLUX HD
+2. AVATAR STUDIO tab nahi hai
+   Missing features:
+   → AI Image Generator  (FLUX se seedha image)
+   → Voice Clone         (apni awaaz clone karo)
+   → Talking Avatar      (photo + audio → video)
+   → AI Video Clip       (text → cinematic clip)
+3. VISUAL QUALITY selector nahi
+   User ko pata nahi ki kaun sa provider use ho raha hai
+   
+4. TikTok missing social platforms mein
+   (YouTube, Instagram, FB, Twitter hain — TikTok nahi)
+
+🎯 Priority Fix
+Sabse important: FLUX upgrade — aapne HF_TOKEN add kiya hai lekin video abhi bhi Pollinations use kar raha hai. 1 line ka change hai.
+
+Kya karna chahte ho?
+
+FLUX upgrade — video visuals better quality (10 min kaam)
+Avatar Studio tab — naya tab add karo VideoStudio mein
+Dono ek saath — main kar deta hoon
+
+Worked for 40 seconds
+mera admin ka dashboard apne dekh liya usme kya missing hai???
+
+Jul 11, 2026, 9:41 PM
+
+2 messages & 4 actions
+
+Worked for 30 seconds
+aur kya ??
+
+Jul 11, 2026, 10:15 PM
+
+Show less
+
+Planning comprehensive admin panel view
+Baaki saare admin pages bhi check karta hoon ek saath:
+
+
+3 actions
+Saare pages ka size dekh ke pata chala — comprehensive gap analysis:
+
+🔴 Serious Issues — Bilkul Khaali Pages
+Customers.jsx   = 27 lines  ❌ Almost EMPTY
+                  Sirf list hai — koi detail nahi
+                  Missing: credit balance, plan, activity, email
+Orders.jsx      = 68 lines  ❌ Very thin
+                  Missing: filter, export, refund button
+Suppliers.jsx   = 54 lines  ❌ Very thin
+                  Missing: contact, catalog, ratings
+Products.jsx    = 88 lines  ⚠️ Basic only
+                  Missing: bulk edit, variants, analytics
+
+🟡 Missing Pages — Hone Chahiye The
+❌ Avatar Studio page     — FLUX image / voice clone / avatar (banaya backend)
+❌ Credits / Plans page   — Kaun kaunse plan pe hai, credit history
+❌ Analytics page         — Video performance, top topics, conversion
+❌ Notifications page     — Low stock alerts, failed jobs, errors
+
+🟠 Existing Pages Mein Missing Features
+Dashboard:
+  ❌ AI stats (videos, credits, subscribers)
+  ❌ Quick action buttons
+  ❌ System health widget
+Video Studio:
+  ❌ FLUX HD images (HF_TOKEN add kiya lekin use nahi ho raha)
+  ❌ Avatar Studio tab
+AI Ops:
+  ✅ Mostly okay — provider stats hain
+Creator OS:
+  ✅ Decent — content generation tools hain
+Publishing:
+  ⚠️ LinkedIn add hai UI mein lekin VideoStudio mein nahi
+
+📊 Priority List
+HIGH (revenue impact):
+  1. Customers page → plan + credit balance dikhao
+  2. Dashboard → AI KPIs add karo
+  3. Credits/Plans admin page banao
+MEDIUM (quality):
+  4. FLUX upgrade in Video Studio
+  5. Avatar Studio tab
+  6. Orders → filter + export
+LOW (polish):
+  7. Products → bulk edit
+  8. Suppliers → contact details
+
+In sab mein se pehle kya banana chahte ho? Ya main poora admin dashboard upgrade plan bana doon ek saath? 👇
+
+
+Worked for 35 seconds
+Time worked
+35 seconds
+Work done
+2 actions
+Agent Usage
+$0.37
+ye sirf admin yani mera dashboard ke bare me bol rahe ho na????
+
+Jul 11, 2026, 10:17 PM
+
+1 message & 1 action
+
+Pasted-Ek-hi-platform-se-AI-Tools-Websites-Full-Stack-SaaS-Mob_1783790202797.txt
+aisa hona chaiye admin yani mera dashboard
+
+Jul 11, 2026, 10:47 PM
+
+1 message & 1 action
+
+Checkpoint made
+25 minutes ago
+Option B — Poora plan ek saath
+
+Jul 11, 2026, 11:01 PM
+
+Planning admin panel transformation (8 seconds)
+Option B shuru karta hoon! Pehle router aur existing structure check karta hoon:
+
+
+Show less
+
+Ran cat
+
+Ran grep
+
+Finding application files and routes
+
+Ran find
+
+Ran grep
+
+Planning admin panel transformation
+
+Ran find
+
+Opened routes_admin.py
+
+Planning admin route construction
+Sab kuch ek saath banata hoon! Router file dhundh ke parallel build shuru:
+
+
+Show less
+
+Ran find
+
+Ran grep
+
+Planning component creation strategy
+
+Opened App.js
+
+Opened Customers.jsx
+
+Planning parallel development of new features (15 seconds)
+Ab sab ek saath build karta hoon! Backend + Frontend parallel:
+
+
+Show less
+
+Edited AdminLayout.jsx
+
+Planning parallel file development
+Now let me build the other files in parallel - Dashboard.jsx, Analytics.jsx, Users.jsx, Settings.jsx, Security.jsx, update App.js, and update routes_admin.py backend.
+
+Ab baaki sab parallel banata hoon:
+
+
+Show less
+
+Edited Dashboard.jsx
+
+Created Analytics.jsx
+
+Created UsersAdmin.jsx
+
+Created AdminSettings.jsx
+
+Planning backend and frontend routes
+Now I need to:
+
+Update backend routes_admin.py to add /admin/founder-stats endpoint
+Update App.js to add new routes
+Let me do both in parallel.
+
+Ab backend aur App.js parallel update karta hoon:
+
+
+Show less
+
+Edited routes_admin.py
+
+Edited App.js
+Optimized Agent memory
+
+Verifying frontend build and deployment
+Now let me verify the frontend compiles correctly by checking if there are any issues with the build. Let me also push these files to GitHub so they get deployed to VPS.
+
+First let me check if the frontend builds, then push to GitHub via the API.
+
+Ab build verify karte hain aur GitHub push karte hain:
+
+
+3 actions
+Build output nahi aaya, logs check karte hain:
+
+
+2 actions
+✅ Build successful! Sirf ESLint warnings hain (errors nahi). Ab GitHub push karta hoon VPS deploy ke liye:
+
+
+Show less
+
+Pushed backend routes_admin.py
+
+Planning frontend file consolidation
+Ab baaki sab files ek saath push karta hoon:
+
+
+2 actions
+Sab 7 files GitHub pe push ho gayi! Ab local preview update karta hoon:
+
+
+2 actions
+Ab screenshot lete hain nayi admin panel dekhne ke liye:
+
+
+Analyzing legacy frontend and admin panel
+Legacy Frontend workflow chal raha hai. Logs check karta hoon:
+
+
+2 actions
+Sab kuch ho gaya! ✅
+
+Kya Bana — Complete Summary
+🗂 Nayi Sidebar Structure (12 Sections)
+🏠 Dashboard         → Founder Command Center
+📁 Projects          → (ready for future)
+🛠 Builders          → App, Web, Mobile, API, DB Builder
+🤖 AI Platform       → Neo, Video, Creator, Avatar, Workforce, Voice
+🛒 Commerce          → Products, Orders, Customers, Suppliers, Sourcing, Courses
+👥 Users             → All Users, Credits, Subscriptions, Sessions
+📈 Analytics         → Overview, Revenue, AI Usage, Content
+⚡ Automation        → Skills, Stacks, Workflows, Scheduler, Webhooks
+🚀 Deploy            → Deployments
+🖥 Operations        → AI Ops, Servers, Legacy Chat
+🔒 Security          → Overview, Audit Logs, API Keys, Alerts
+⚙ Settings          → Workspace, Branding, Billing, Integrations
+
+📊 Nayi Dashboard (Founder Command Center)
+MRR, ARR, Revenue, Profit — real data
+Users, Subscribers, AI Jobs Today, Credits Used — live counts
+System Health — FLUX ✓, Groq ✓, OpenRouter ✓, MongoDB ✓
+Revenue + Orders Charts — 7-day area/bar charts
+Quick Actions — 6 one-click shortcuts
+Recent Orders — live table
+📈 Nayi Analytics Page
+4 tabs: Revenue, Users, AI Usage, Credits
+Charts with recharts (area, bar, pie)
+Plan distribution breakdown
+👥 Nayi Users Page (UsersAdmin)
+Searchable user table with credits + plan badges
+Grant Credits tab — kisi bhi user ko credits do
+Credit History tab — per-user transaction log
+⚙ Nayi Settings Page
+Workspace, Branding, Billing (plans display), Integrations (all 8 listed)
+🔧 Backend
+/admin/founder-stats endpoint — MRR, ARR, AI jobs, credits, env health checks
+GitHub Actions deploy chal raha hai — VPS pe ~2-3 minutes mein live ho jayega!
+
+Agle step kya karna hai? Avatar Studio UI, FLUX images in Video Studio, ya ₹999 payment live?
+
+
+Checkpoint made
+2 minutes ago
+
+Worked for 9 minutes
+
+Scroll to latest
+jo maine apko 
+
+
+
+
+
+Getszy Digital Drops - Replit
+
+Pasted-Ek-hi-platform-se-AI-Tools-Websites-Full-Stack-SaaS-Mob_1783790202797.txt
+Ek hi platform se:
+
+🤖 AI Tools
+🌐 Websites
+💻 Full Stack SaaS
+📱 Mobile Apps
+🛍️ E-commerce
+📦 Dropshipping
+💳 Subscriptions
+🎓 Courses
+🤖 AI Agents
+🚀 Deployments
+
+sab manage honge.
+
+FINAL SIDEBAR
+🏠 Dashboard
+
+📁 Projects
+
+🛠 Builders
+
+🤖 AI Platform
+
+🛒 Commerce
+
+👥 Users
+
+📈 Analytics
+
+⚡ Automation
+
+🚀 Deploy
+
+🖥 Operations
+
+🔒 Security
+
+⚙ Settings
+
+Bas.
+
+Ye final hai.
+
+1️⃣ Dashboard
+
+Founder Command Center
+
+Revenue
+MRR
+ARR
+Users
+Active Users
+AI Jobs
+Credits
+Deployments
+Server Health
+AI Health
+Alerts
+Notifications
+Quick Actions
+Live Activity
+2️⃣ Projects ❤️ (Most Important)
+
+Har cheez ek Project hogi.
+
+Example
+
+AI Resume Builder
+
+School ERP
+
+Restaurant POS
+
+CRM
+
+Inventory
+
+Invoice App
+
+Dropshipping Store
+
+Portfolio
+
+Agency Website
+
+HRMS
+
+Booking System
+
+Getszy Reels
+
+Bookshelf AI
+
+Har project ke andar:
+
+Overview
+
+Builder
+
+Database
+
+Storage
+
+API
+
+AI
+
+Commerce
+
+Deploy
+
+Analytics
+
+Logs
+
+Settings
+
+Ek project = complete application.
+
+3️⃣ Builders ❤️
+
+Yahi Getszy ka USP hoga.
+
+AI App Builder
+
+Full Stack Builder
+
+Website Builder
+
+Landing Page Builder
+
+Mobile Builder
+
+Database Builder
+
+API Builder
+
+Workflow Builder
+
+Agent Builder
+
+Form Builder
+
+Dashboard Builder
+
+Email Builder
+
+Prompt se build.
+
+Drag & Drop.
+
+Manual coding.
+
+Sab.
+
+4️⃣ AI Platform
+Neo
+
+AI Models
+
+AI Agents
+
+Prompt Library
+
+Knowledge Base
+
+Memory
+
+Vector Database
+
+Voice
+
+Image
+
+Video
+
+OCR
+
+Translation
+
+AI Playground
+5️⃣ Commerce
+
+WooCommerce-level features native.
+
+Products
+
+Orders
+
+Customers
+
+Inventory
+
+Suppliers
+
+Categories
+
+Coupons
+
+Reviews
+
+Shipping
+
+Taxes
+
+Invoices
+
+Refunds
+
+Subscriptions
+
+Credit Packs
+
+Memberships
+
+Dropshipping
+
+Affiliates
+
+Yahi tumhara WooCommerce replacement hoga.
+
+6️⃣ Users
+Users
+
+Teams
+
+Roles
+
+Permissions
+
+Sessions
+
+API Keys
+
+Activity
+
+Credits
+
+Subscriptions
+7️⃣ Analytics
+Revenue
+
+MRR
+
+ARR
+
+Users
+
+Retention
+
+Churn
+
+Funnels
+
+Feature Usage
+
+AI Usage
+
+Credits
+
+Deployments
+
+Commerce
+
+Projects
+8️⃣ Automation
+Workflow Builder
+
+Scheduler
+
+Triggers
+
+Webhooks
+
+Integrations
+
+Cron Jobs
+
+Background Jobs
+
+Queues
+9️⃣ Deploy
+
+Ek click.
+
+Preview
+
+Production
+
+Domains
+
+SSL
+
+Docker
+
+Logs
+
+Rollback
+
+Environment
+
+Versions
+🔟 Operations
+Servers
+
+Docker
+
+Redis
+
+MongoDB
+
+Workers
+
+Storage
+
+Queue
+
+Cache
+
+Logs
+
+Backups
+11️⃣ Security
+Audit Logs
+
+API Keys
+
+Secrets
+
+Blocked IPs
+
+Threat Detection
+
+Roles
+
+Permissions
+
+Sessions
+12️⃣ Settings
+Workspace
+
+Branding
+
+Email
+
+Storage
+
+Billing
+
+Localization
+
+Integrations
+
+Feature Flags
+TOP BAR
+Universal Search
+
+Neo Chat
+
+Notifications
+
+Workspace Switcher
+
+Deploy
+
+Profile
+Ek Project ke andar kya hoga?
+
+Example
+
+Restaurant POS
+
+Overview
+
+Pages
+
+Backend
+
+Database
+
+API
+
+AI
+
+Commerce
+
+Mobile App
+
+Deploy
+
+Analytics
+
+Logs
+
+Settings
+
+Ek click
+
+↓
+
+Deploy
+
+↓
+
+Live Website
+
+↓
+
+Custom Domain
+
+↓
+
+SSL
+
+↓
+
+Done.
+
+Commerce Engine
+
+Physical Products
+
+Digital Products
+
+AI Tools
+
+Courses
+
+Templates
+
+Plugins
+
+Subscriptions
+
+Credit Packs
+
+Memberships
+
+Dropshipping
+
+Bundles
+
+Affiliate
+
+Coupons
+
+Invoices
+
+GST
+
+Refunds
+
+Returns
+
+Everything.
+
+Builder
+
+Tum prompt likho.
+
+Build me a CRM for hospitals.
+
+Neo automatically banaye:
+
+✅ Database
+
+✅ Backend
+
+✅ React frontend
+
+✅ Authentication
+
+✅ Admin Panel
+
+✅ API
+
+✅ AI Chat
+
+✅ Mobile App
+
+✅ Deploy
+
+Ye Getszy ka USP hoga.
+
+Final Vision
+
+Ek sentence me:
+
+Getszy is an AI Business Operating System where you can build, sell, deploy, automate, and scale any digital or commerce product from a single platform.
+
+⭐ Meri taraf se ek last architectural suggestion
+
+Main "Projects" ko Getszy ka center banaunga. Har website, SaaS, AI tool, mobile app, dropshipping store ya internal tool ek project hoga. Us project ke andar hi builder, AI, commerce, deployment aur analytics milenge.
+
+Isse tum future me 100 alag product types support kar paoge bina navigation ko tod-phod kiye. Ye architecture long-term maintainable, modular aur enterprise-grade rahega.
