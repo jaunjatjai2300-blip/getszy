@@ -7,7 +7,8 @@ import {
   Truck, TrendingUp, GraduationCap, Globe, Smartphone, Code2, Workflow,
   CalendarClock, Webhook, Activity, Server, Lock, Key, AlertTriangle,
   Bell, Search, Share2, Database, Image, Mic, MessageCircle, Cpu, Building2,
-  Layout, FormInput, Mail, Tag, FileText, MessageSquare, Crown
+  Layout, FormInput, Mail, Tag, FileText, MessageSquare, Crown,
+  FlaskConical, BookOpen, BookMarked, Brain
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import CopilotSidebar from "@/components/CopilotSidebar";
@@ -47,13 +48,17 @@ const NAV = [
     label: "🤖 AI Platform",
     icon: Bot,
     items: [
-      { to: "/admin/chat",      label: "Neo AI",           icon: Sparkles },
-      { to: "/admin/video",     label: "Video Studio",     icon: Film },
-      { to: "/admin/creator",   label: "Creator OS",       icon: PenTool },
-      { to: "/admin/avatar",    label: "Avatar Studio",    icon: Image },
-      { to: "/admin/workforce", label: "AI Workforce",     icon: Briefcase },
-      { to: "/admin/ai-models", label: "AI Models",        icon: Cpu },
-      { to: "/admin/voice",     label: "Voice",            icon: Mic },
+      { to: "/admin/chat",           label: "Neo AI",           icon: Sparkles },
+      { to: "/admin/video",          label: "Video Studio",     icon: Film },
+      { to: "/admin/creator",        label: "Creator OS",       icon: PenTool },
+      { to: "/admin/avatar",         label: "Avatar Studio",    icon: Image },
+      { to: "/admin/workforce",      label: "AI Workforce",     icon: Briefcase },
+      { to: "/admin/ai-models",      label: "AI Models",        icon: Cpu },
+      { to: "/admin/voice",          label: "Voice",            icon: Mic },
+      { to: "/admin/ai/playground",  label: "AI Playground",    icon: FlaskConical },
+      { to: "/admin/ai/prompts",     label: "Prompt Library",   icon: BookOpen },
+      { to: "/admin/ai/knowledge",   label: "Knowledge Base",   icon: BookMarked },
+      { to: "/admin/ai/memory",      label: "AI Memory",        icon: Brain },
     ],
   },
   {
