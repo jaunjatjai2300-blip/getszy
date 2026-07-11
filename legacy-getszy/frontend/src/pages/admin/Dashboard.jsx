@@ -157,6 +157,9 @@ export default function AdminDashboard() {
         </div>
       </div>
 
+      {/* Alerts Widget */}
+      <AlertsWidget stats={s} founder={f} />
+
       {/* Charts */}
       <div className="grid lg:grid-cols-2 gap-4">
         <Card className="p-5">
@@ -241,6 +244,51 @@ export default function AdminDashboard() {
 
         {/* Live Activity Feed */}
         <LiveActivityFeed />
+      </div>
+    </div>
+  );
+}
+
+function AlertsWidget({ stats, founder }) {
+  const s = stats || {};
+  const f = founder || {};
+  const alerts = [];
+
+  if ((s.low_stock_count || 0) > 0)
+    alerts.push({ level: "warn", msg: `${s.low_stock_count} products low stock pe hain`, action: "Products check karo", to: "/admin/products" });
+  if (!(f.groq_set) && !(f.openrouter_set))
+    alerts.push({ level: "warn", msg: "Koi AI API key set nahi — AI features limited hain", action: "Settings kholo", to: "/admin/settings" });
+  if ((s.orders_count || 0) === 0)
+    alerts.push({ level: "info", msg: "Abhi tak koi order nahi aaya — products live karo", action: "Products", to: "/admin/products" });
+  if ((f.subscribers || 0) === 0)
+    alerts.push({ level: "info", msg: "Koi paid subscriber nahi — pricing page set karo", action: "Plans", to: "/admin/subscriptions" });
+  if ((f.mrr || 0) === 0 && (s.customers_count || 0) > 5)
+    alerts.push({ level: "warn", msg: "Users hain par MRR zero — monetization activate karo", action: "Plans", to: "/admin/subscriptions" });
+
+  if (alerts.length === 0) return (
+    <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-700">
+      <CheckCircle2 className="h-4 w-4 flex-shrink-0"/>
+      <span className="font-medium">Sab theek hai! Koi critical alerts nahi.</span>
+    </div>
+  );
+
+  const COLORS = { warn: "bg-amber-50 border-amber-200 text-amber-800", info: "bg-blue-50 border-blue-200 text-blue-800", error: "bg-rose-50 border-rose-200 text-rose-800" };
+  const ICONS = { warn: AlertTriangle, info: Activity, error: XCircle };
+
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider text-[var(--gs-muted)] font-semibold mb-2 px-1">🔔 Alerts ({alerts.length})</div>
+      <div className="space-y-2">
+        {alerts.map((a, i) => {
+          const Icon = ICONS[a.level] || AlertTriangle;
+          return (
+            <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border ${COLORS[a.level]}`}>
+              <Icon className="h-4 w-4 flex-shrink-0"/>
+              <span className="flex-1 text-sm">{a.msg}</span>
+              <Link to={a.to} className="text-xs font-semibold underline flex-shrink-0">{a.action}</Link>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
