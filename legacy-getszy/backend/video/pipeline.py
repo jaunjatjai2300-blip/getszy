@@ -50,12 +50,17 @@ async def run_job(job_id: str, params: Dict[str, Any], user_id: Optional[str] = 
         if len(scenes) > MAX_SCENES:
             scenes = scenes[:MAX_SCENES]
 
+        visual_provider = params.get('visual_provider', 'pollinations')
+
         await step('generating_visuals', 35)
         # Parallel image generation (limit concurrency)
         sem = asyncio.Semaphore(3)
         async def _grab(i, sc):
             async with sem:
-                img = await fetch_scene_image(sc.get('visual_prompt', topic), orientation, seed=i + 1)
+                img = await fetch_scene_image(
+                    sc.get('visual_prompt', topic), orientation,
+                    seed=i + 1, provider=visual_provider
+                )
                 sc['image_path'] = img
         await asyncio.gather(*[_grab(i, sc) for i, sc in enumerate(scenes)])
 
