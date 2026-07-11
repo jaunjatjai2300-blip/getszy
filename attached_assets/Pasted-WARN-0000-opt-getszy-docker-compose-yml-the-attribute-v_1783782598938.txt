@@ -1,0 +1,23 @@
+WARN[0000] /opt/getszy/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
+Traceback (most recent call last):
+  File "<string>", line 2, in <module>
+ModuleNotFoundError: No module named 'routes_avatar'
+[root@srv973421 getszy]# cat /opt/getszy/Dockerfile
+cat: /opt/getszy/Dockerfile: No such file or directory
+[root@srv973421 getszy]# ls /opt/getszy/
+ls /opt/getszy/backend/ 2>/dev/null || echo "no backend dir"
+backend                        design_guidelines.md                     docker-compose.yml.bak4  memory                  test_reports
+backend_test_output.log        docker-compose.yml                       Dockerfile.backend       plan.md                 test_result.md
+backend_test_phase18.py        docker-compose.yml.backup.20260704-1228  Dockerfile.frontend      README.md               tests
+backend_test.py                docker-compose.yml.bak                   docs                     repo-hygiene-report.md  test_scene.jpg
+backend_test_video_factory.py  docker-compose.yml.bak2                  final_video.mp4          test_core_poc.py        yarn.lock
+deploy                         docker-compose.yml.bak3                  frontend                 test_image.jpg
+ai_chat.py            credits.py       requirements.txt        routes_copilot.py     routes_razorpay.py       routes_waitlist.py   subscription.py
+auth.py               db.py            routes_admin.py         routes_creator.py     routes_skills.py         routes_workforce.py  video
+backend_test.py       llm_provider.py  routes_ai_ops.py        routes_deploy.py      routes_sourcing.py       routes_workspace.py  video_factory
+builder_starters.py   media            routes_auth.py          routes_hosting.py     routes_stacks.py         seed.py              workforce
+build_studio_test.py  media_cache      routes_builder.py       routes_learning.py    routes_subscription.py   server.py
+chat_builder          models.py        routes_cart_orders.py   routes_legal.py       routes_support.py        skills
+chat_builder_test.py  publishing       routes_catalog.py       routes_media.py       routes_video_factory.py  sourcing
+creator               pytest.ini       routes_chat_builder.py  routes_publishing.py  routes_video.py          stacks
+[root@srv973421 getszy]# 
