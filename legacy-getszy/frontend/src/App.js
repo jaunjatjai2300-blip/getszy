@@ -53,6 +53,14 @@ import AdminEmailBuilder from "@/pages/admin/EmailBuilder";
 import AdminLandingPageBuilder from "@/pages/admin/LandingPageBuilder";
 import AdminDBBuilder from "@/pages/admin/DBBuilder";
 import AdminAPIBuilder from "@/pages/admin/APIBuilder";
+import AdminVideoBuilder from "@/pages/admin/VideoBuilder";
+import AdminChatbotBuilder from "@/pages/admin/ChatbotBuilder";
+import AdminAutomationBuilder from "@/pages/admin/AutomationBuilder";
+import AdminReportBuilder from "@/pages/admin/ReportBuilder";
+import AdminSiteBuilder from "@/pages/admin/SiteBuilder";
+import AdminWorkflowBuilder from "@/pages/admin/WorkflowBuilder";
+import AdminRefunds from "@/pages/admin/Refunds";
+import AdminGST from "@/pages/admin/GST";
 import AdminPromptLibrary from "@/pages/admin/PromptLibrary";
 import AdminKnowledgeBase from "@/pages/admin/KnowledgeBase";
 import AdminAIMemory from "@/pages/admin/AIMemory";
@@ -113,6 +121,12 @@ export default function App() {
             <Route path="builder/landing" element={<AdminLandingPageBuilder />} />
             <Route path="builder/db" element={<AdminDBBuilder />} />
             <Route path="builder/api" element={<AdminAPIBuilder />} />
+            <Route path="builder/video" element={<AdminVideoBuilder />} />
+            <Route path="builder/chatbot" element={<AdminChatbotBuilder />} />
+            <Route path="builder/automation" element={<AdminAutomationBuilder />} />
+            <Route path="builder/report" element={<AdminReportBuilder />} />
+            <Route path="builder/site" element={<AdminSiteBuilder />} />
+            <Route path="builder/workflow" element={<AdminWorkflowBuilder />} />
 
             {/* AI Platform */}
             <Route path="video" element={<AdminVideoStudio />} />
@@ -139,6 +153,8 @@ export default function App() {
             <Route path="reviews" element={<AdminReviews />} />
             <Route path="affiliates" element={<AdminAffiliates />} />
             <Route path="memberships" element={<AdminMemberships />} />
+            <Route path="refunds" element={<AdminRefunds />} />
+            <Route path="gst" element={<AdminGST />} />
 
             {/* Users */}
             <Route path="users" element={<UsersAdmin />} />

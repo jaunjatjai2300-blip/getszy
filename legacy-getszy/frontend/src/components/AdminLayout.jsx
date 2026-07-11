@@ -8,7 +8,8 @@ import {
   CalendarClock, Webhook, Activity, Server, Lock, Key, AlertTriangle,
   Bell, Search, Share2, Database, Image, Mic, MessageCircle, Cpu, Building2,
   Layout, FormInput, Mail, Tag, FileText, MessageSquare, Crown,
-  FlaskConical, BookOpen, BookMarked, Brain
+  FlaskConical, BookOpen, BookMarked, Brain, MessageCircleCode, GitBranch,
+  BarChart2, IndianRupee, Receipt, RefreshCw
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import CopilotSidebar from "@/components/CopilotSidebar";
@@ -42,6 +43,12 @@ const NAV = [
       { to: "/admin/builder/email",      label: "Email Builder",      icon: Mail },
       { to: "/admin/builder/db",         label: "DB Builder",         icon: Database },
       { to: "/admin/builder/api",        label: "API Builder",        icon: Code2 },
+      { to: "/admin/builder/video",      label: "Video Script",       icon: Film },
+      { to: "/admin/builder/chatbot",    label: "Chatbot Builder",    icon: MessageCircleCode },
+      { to: "/admin/builder/automation", label: "Automation",         icon: Zap },
+      { to: "/admin/builder/report",     label: "Report Builder",     icon: BarChart2 },
+      { to: "/admin/builder/site",       label: "Site Builder",       icon: Globe },
+      { to: "/admin/builder/workflow",   label: "Workflow Builder",   icon: GitBranch },
     ],
   },
   {
@@ -73,6 +80,8 @@ const NAV = [
       { to: "/admin/reviews",     label: "Reviews",      icon: MessageSquare },
       { to: "/admin/affiliates",  label: "Affiliates",   icon: Share2 },
       { to: "/admin/memberships", label: "Memberships",  icon: Crown },
+      { to: "/admin/refunds",     label: "Refunds",      icon: RefreshCw },
+      { to: "/admin/gst",         label: "GST",          icon: Receipt },
       { to: "/admin/suppliers",   label: "Suppliers",    icon: Truck },
       { to: "/admin/sourcing",    label: "Sourcing",     icon: TrendingUp },
       { to: "/admin/courses",     label: "Courses",      icon: GraduationCap },

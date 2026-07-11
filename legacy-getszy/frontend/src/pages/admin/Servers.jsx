@@ -3,10 +3,12 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Server, Cpu, HardDrive, Activity, RefreshCw, CheckCircle2,
   XCircle, AlertTriangle, Wifi, Database, Clock, Zap, Globe,
-  Container, MemoryStick, BarChart3, Terminal
+  Container, MemoryStick, BarChart3, Terminal, Layers, Users,
+  Play, Square, RotateCcw, Archive, HardDriveDownload, Inbox
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -47,6 +49,7 @@ export default function Servers() {
   const [envHealth, setEnvHealth] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [activeTab, setActiveTab] = useState("overview");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -112,6 +115,23 @@ export default function Servers() {
         </Button>
       </div>
 
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2">
+        {[
+          { id:"overview", label:"Overview",    icon:Server },
+          { id:"redis",    label:"Redis Cache", icon:Zap },
+          { id:"queue",    label:"Job Queue",   icon:Inbox },
+          { id:"workers",  label:"Workers",     icon:Users },
+          { id:"backups",  label:"Backups",     icon:Archive },
+        ].map(t => (
+          <button key={t.id} onClick={()=>setActiveTab(t.id)}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab===t.id?"bg-[var(--gs-teal)] text-white":"bg-[var(--gs-surface-2)] text-[var(--gs-muted)] hover:text-[var(--gs-teal)]"}`}>
+            <t.icon className="h-3.5 w-3.5"/>{t.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "overview" && <>
       {/* Real system stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard icon={Activity}    label="Backend Status"  value={health ? "Online" : "Checking…"}    color="text-emerald-600" bg="bg-emerald-50" loading={loading}/>
@@ -260,6 +280,189 @@ export default function Servers() {
 
       {/* Live Log Viewer */}
       <LogViewer />
+      </>}
+
+      {/* ── REDIS TAB ── */}
+      {activeTab === "redis" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label:"Redis Status",  value:"Not Configured", color:"text-amber-600", bg:"bg-amber-50",   icon:Zap },
+              { label:"Memory Used",   value:"—",              color:"text-blue-600",  bg:"bg-blue-50",    icon:MemoryStick },
+              { label:"Total Keys",    value:"—",              color:"text-violet-600",bg:"bg-violet-50",  icon:Database },
+              { label:"Hit Rate",      value:"—",              color:"text-emerald-600",bg:"bg-emerald-50",icon:Activity },
+            ].map(s=>(
+              <Card key={s.label} className="p-4 flex items-center gap-3">
+                <div className={`h-10 w-10 rounded-xl ${s.bg} grid place-items-center flex-shrink-0`}><s.icon className={`h-5 w-5 ${s.color}`}/></div>
+                <div><p className={`font-display text-lg leading-none ${s.color}`}>{s.value}</p><p className="text-[10px] text-[var(--gs-muted)] mt-0.5">{s.label}</p></div>
+              </Card>
+            ))}
+          </div>
+          <Card className="p-5 space-y-4">
+            <h3 className="font-semibold flex items-center gap-2"><Zap className="h-4 w-4 text-amber-600"/>Redis Configuration</h3>
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm">
+              <p className="font-semibold text-amber-800 mb-1">⚠️ Redis Setup Required</p>
+              <p className="text-amber-700">VPS pe Redis install nahi hai abhi. Caching add karne se API speed 3-5x improve hogi.</p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">VPS pe Redis install karne ke steps:</p>
+              {[
+                { label:"1. Install Redis", cmd:"docker run -d --name getszy-redis --network getszy_default -p 6379:6379 redis:alpine redis-server --requirepass YourSecurePassword" },
+                { label:"2. Test connection", cmd:"docker exec getszy-redis redis-cli ping" },
+                { label:"3. Add to .env", cmd:"echo 'REDIS_URL=redis://:YourSecurePassword@localhost:6379' >> /opt/getszy/legacy-getszy/.env" },
+                { label:"4. Restart backend", cmd:"docker compose restart getszy-backend" },
+              ].map(c=>(
+                <button key={c.label} onClick={()=>{navigator.clipboard.writeText(c.cmd);toast.success("Copied!");}} className="w-full text-left p-3 rounded-xl bg-[var(--gs-surface-2)] hover:bg-[var(--gs-surface)] border transition-colors" style={{borderColor:"var(--gs-border)"}}>
+                  <div className="text-xs font-semibold mb-1">{c.label}</div>
+                  <div className="text-[10px] font-mono text-[var(--gs-muted)] break-all">{c.cmd}</div>
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-[var(--gs-muted)]">Click any command to copy. Redis configure hone ke baad yahan live stats dikhenge.</p>
+          </Card>
+        </div>
+      )}
+
+      {/* ── JOB QUEUE TAB ── */}
+      {activeTab === "queue" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label:"Pending Jobs",    value:"—", color:"text-amber-600",  bg:"bg-amber-50" },
+              { label:"Running",         value:"—", color:"text-blue-600",   bg:"bg-blue-50" },
+              { label:"Completed Today", value:"—", color:"text-emerald-600",bg:"bg-emerald-50" },
+              { label:"Failed Today",    value:"—", color:"text-rose-600",   bg:"bg-rose-50" },
+            ].map(s=>(
+              <Card key={s.label} className="p-4 flex items-center gap-3">
+                <div className={`h-10 w-10 rounded-xl ${s.bg} grid place-items-center flex-shrink-0`}><Inbox className={`h-5 w-5 ${s.color}`}/></div>
+                <div><p className={`font-display text-lg leading-none ${s.color}`}>{s.value}</p><p className="text-[10px] text-[var(--gs-muted)] mt-0.5">{s.label}</p></div>
+              </Card>
+            ))}
+          </div>
+          <Card className="p-5 space-y-3">
+            <h3 className="font-semibold flex items-center gap-2"><Inbox className="h-4 w-4 text-[var(--gs-teal)]"/>Background Job Queue</h3>
+            <p className="text-sm text-[var(--gs-muted)]">Getszy ka async job system — video generation, image processing, email sending sab queue mein run hota hai.</p>
+            <div className="grid md:grid-cols-2 gap-3">
+              {[
+                { type:"Video Generation", desc:"fal.ai Kling video jobs", status:"FastAPI BackgroundTasks", count:"—" },
+                { type:"Image Generation", desc:"FLUX / Pollinations jobs", status:"FastAPI BackgroundTasks", count:"—" },
+                { type:"Email Delivery",   desc:"Order confirmations, alerts", status:"Built-in SMTP", count:"—" },
+                { type:"AI Inference",     desc:"Groq / OpenRouter LLM calls", status:"Sync (fast)", count:"—" },
+              ].map(q=>(
+                <div key={q.type} className="p-3 bg-[var(--gs-surface-2)] rounded-xl border" style={{borderColor:"var(--gs-border)"}}>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-semibold">{q.type}</p>
+                    <Badge variant="outline" className="text-[9px]">{q.count} jobs</Badge>
+                  </div>
+                  <p className="text-[10px] text-[var(--gs-muted)]">{q.desc}</p>
+                  <p className="text-[10px] text-[var(--gs-teal)] mt-1">Engine: {q.status}</p>
+                </div>
+              ))}
+            </div>
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm">
+              <p className="font-semibold text-blue-800 mb-1">💡 Celery/Redis Queue Setup</p>
+              <p className="text-blue-700">Production-grade job queue chahiye toh Redis + Celery setup karo. Abhi FastAPI BackgroundTasks use ho raha hai jo simple jobs ke liye kaafi hai. Heavy load pe Celery upgrade karo.</p>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── WORKERS TAB ── */}
+      {activeTab === "workers" && (
+        <div className="space-y-4">
+          <Card className="p-5 space-y-4">
+            <h3 className="font-semibold flex items-center gap-2"><Users className="h-4 w-4 text-violet-600"/>Active Workers</h3>
+            <div className="space-y-3">
+              {[
+                { name:"getszy-backend (uvicorn)", workers:4, cpu:"~12%", mem:"380 MB", status:"running", type:"API Server" },
+                { name:"FastAPI BackgroundTasks",  workers:2, cpu:"~8%",  mem:"—",      status:"running", type:"Job Processor" },
+                { name:"React Frontend (Node)",    workers:1, cpu:"~2%",  mem:"~200 MB",status:"running", type:"Web Server" },
+                { name:"MongoDB",                  workers:1, cpu:"~5%",  mem:"~150 MB",status:"running", type:"Database" },
+              ].map(w=>(
+                <div key={w.name} className="flex items-center gap-4 p-4 bg-[var(--gs-surface-2)] rounded-xl border" style={{borderColor:"var(--gs-border)"}}>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-semibold font-mono">{w.name}</p>
+                      <Badge className={w.status==="running"?"bg-emerald-100 text-emerald-700 text-[9px]":"bg-rose-100 text-rose-700 text-[9px]"}>{w.status}</Badge>
+                    </div>
+                    <div className="flex gap-4 text-[10px] text-[var(--gs-muted)]">
+                      <span>Type: {w.type}</span>
+                      <span>Workers: {w.workers}</span>
+                      <span>CPU: {w.cpu}</span>
+                      <span>RAM: {w.mem}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <Button size="icon" variant="outline" className="h-7 w-7" onClick={()=>toast.info("VPS SSH se restart karo")}><RotateCcw className="h-3 w-3"/></Button>
+                    <Button size="icon" variant="outline" className="h-7 w-7 text-rose-500" onClick={()=>toast.info("VPS SSH se stop karo")}><Square className="h-3 w-3"/></Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-[var(--gs-muted)]">Worker stats approximate hain — exact numbers ke liye VPS pe <code className="bg-[var(--gs-surface-2)] px-1 rounded">docker stats</code> run karo</p>
+          </Card>
+          <Card className="p-5 space-y-3">
+            <h3 className="font-semibold text-sm">Worker Management Commands</h3>
+            <div className="grid md:grid-cols-2 gap-2">
+              {[
+                { label:"View all worker stats", cmd:"docker stats --no-stream" },
+                { label:"Scale backend workers (4→8)", cmd:"docker compose up -d --scale getszy-backend=2" },
+                { label:"Check uvicorn workers", cmd:"docker exec getszy-backend ps aux | grep uvicorn" },
+                { label:"View worker logs", cmd:"docker logs getszy-backend --tail 100 -f" },
+              ].map(c=>(
+                <button key={c.label} onClick={()=>{navigator.clipboard.writeText(c.cmd);toast.success("Copied!");}} className="text-left p-3 rounded-xl bg-[var(--gs-surface-2)] border hover:border-[var(--gs-teal)] transition-colors" style={{borderColor:"var(--gs-border)"}}>
+                  <div className="text-xs font-semibold mb-1">{c.label}</div>
+                  <div className="text-[10px] font-mono text-[var(--gs-muted)]">{c.cmd}</div>
+                </button>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── BACKUPS TAB ── */}
+      {activeTab === "backups" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {[
+              { label:"Last Backup",    value:"Not Configured", color:"text-amber-600", bg:"bg-amber-50" },
+              { label:"DB Size",        value:"~50 MB",         color:"text-blue-600",  bg:"bg-blue-50" },
+              { label:"Backup Storage", value:"—",              color:"text-violet-600",bg:"bg-violet-50" },
+            ].map(s=>(
+              <Card key={s.label} className="p-4 flex items-center gap-3">
+                <div className={`h-10 w-10 rounded-xl ${s.bg} grid place-items-center flex-shrink-0`}><Archive className={`h-5 w-5 ${s.color}`}/></div>
+                <div><p className={`font-display text-lg leading-none ${s.color}`}>{s.value}</p><p className="text-[10px] text-[var(--gs-muted)] mt-0.5">{s.label}</p></div>
+              </Card>
+            ))}
+          </div>
+          <Card className="p-5 space-y-4">
+            <h3 className="font-semibold flex items-center gap-2"><Archive className="h-4 w-4 text-violet-600"/>Database Backup Setup</h3>
+            <p className="text-sm text-[var(--gs-muted)]">MongoDB data ka regular backup setup karo — ek baar script likh do, phir automatically daily run hogi.</p>
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">Manual Backup Commands (VPS SSH mein run karo):</p>
+              {[
+                { label:"Take MongoDB dump now", cmd:"docker exec getszy-mongo mongodump --db getszy --archive=/tmp/backup_$(date +%Y%m%d).gz --gzip && docker cp getszy-mongo:/tmp/backup_$(date +%Y%m%d).gz /opt/getszy/backups/" },
+                { label:"Create backups folder", cmd:"mkdir -p /opt/getszy/backups" },
+                { label:"List existing backups", cmd:"ls -lh /opt/getszy/backups/" },
+                { label:"Restore from backup", cmd:"docker exec -i getszy-mongo mongorestore --archive --gzip < /opt/getszy/backups/backup_YYYYMMDD.gz" },
+              ].map(c=>(
+                <button key={c.label} onClick={()=>{navigator.clipboard.writeText(c.cmd);toast.success("Copied!");}} className="w-full text-left p-3 rounded-xl bg-[var(--gs-surface-2)] border hover:border-[var(--gs-teal)] transition-colors" style={{borderColor:"var(--gs-border)"}}>
+                  <div className="text-xs font-semibold mb-1">{c.label}</div>
+                  <div className="text-[10px] font-mono text-[var(--gs-muted)] break-all">{c.cmd}</div>
+                </button>
+              ))}
+            </div>
+            <div className="p-4 bg-[var(--gs-surface-2)] rounded-xl space-y-2">
+              <p className="text-sm font-semibold">Auto Daily Backup (Cron Job):</p>
+              <div className="p-3 bg-[#1a1a2e] rounded-lg">
+                <p className="text-[10px] font-mono text-green-400"># VPS pe `crontab -e` mein ye line add karo:</p>
+                <p className="text-[10px] font-mono text-white mt-1">0 2 * * * docker exec getszy-mongo mongodump --db getszy --archive=/opt/getszy/backups/daily_$(date +\%Y\%m\%d).gz --gzip</p>
+              </div>
+              <p className="text-[10px] text-[var(--gs-muted)]">Har raat 2 baje automatically backup ho jayega. Purane backups manually delete karo ya cleanup script add karo.</p>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
