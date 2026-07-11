@@ -33,6 +33,9 @@ import AdminPublishing from "@/pages/admin/Publishing";
 import AdminWorkforce from "@/pages/admin/Workforce";
 import AdminBuildStudio from "@/pages/admin/BuildStudio";
 import AdminChatHome from "@/pages/admin/ChatHome";
+import Analytics from "@/pages/admin/Analytics";
+import UsersAdmin from "@/pages/admin/UsersAdmin";
+import AdminSettings from "@/pages/admin/AdminSettings";
 import VideoStudio from "@/pages/dashboard/VideoStudio";
 import DashboardLayout from "@/components/DashboardLayout";
 import LabsHome from "@/pages/labs/LabsHome";
@@ -66,30 +69,81 @@ export default function App() {
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/support" element={<Support />} />
           </Route>
+
           <Route path="/admin" element={<AdminLayout />}>
+            {/* Dashboard */}
             <Route index element={<AdminDashboard />} />
+            <Route path="overview" element={<AdminDashboard />} />
+
+            {/* Neo AI Chat */}
             <Route path="chat" element={<AdminChatHome />} />
             <Route path="chat/:sessionId" element={<AdminChatHome />} />
-            <Route path="overview" element={<AdminDashboard />} />
+
+            {/* Builders */}
+            <Route path="build" element={<AdminBuildStudio />} />
+            <Route path="build-web" element={<AdminBuildStudio />} />
+            <Route path="build-mobile" element={<AdminBuildStudio />} />
+            <Route path="build-api" element={<AdminBuildStudio />} />
+            <Route path="build-db" element={<AdminBuildStudio />} />
+
+            {/* AI Platform */}
+            <Route path="video" element={<AdminVideoStudio />} />
+            <Route path="creator" element={<AdminCreatorOS />} />
+            <Route path="avatar" element={<AdminVideoStudio />} />
+            <Route path="workforce" element={<AdminWorkforce />} />
+            <Route path="ai-models" element={<AdminAiOps />} />
+            <Route path="voice" element={<AdminCreatorOS />} />
+
+            {/* Commerce */}
             <Route path="products" element={<AdminProducts />} />
             <Route path="orders" element={<AdminOrders />} />
-            <Route path="suppliers" element={<AdminSuppliers />} />
             <Route path="customers" element={<AdminCustomers />} />
-            <Route path="courses" element={<AdminCourses />} />
+            <Route path="suppliers" element={<AdminSuppliers />} />
             <Route path="sourcing" element={<AdminSourcing />} />
-            <Route path="deploy" element={<AdminDeploy />} />
+            <Route path="courses" element={<AdminCourses />} />
+            <Route path="publishing" element={<AdminPublishing />} />
+
+            {/* Users */}
+            <Route path="users" element={<UsersAdmin />} />
+            <Route path="users/credits" element={<UsersAdmin />} />
+            <Route path="users/subs" element={<UsersAdmin />} />
+            <Route path="users/sessions" element={<UsersAdmin />} />
+
+            {/* Analytics */}
+            <Route path="analytics" element={<Analytics />} />
+            <Route path="analytics/revenue" element={<Analytics />} />
+            <Route path="analytics/ai" element={<Analytics />} />
+            <Route path="analytics/content" element={<Analytics />} />
+
+            {/* Automation */}
             <Route path="skills" element={<AdminSkills />} />
             <Route path="stacks" element={<AdminStacks />} />
-            <Route path="creator" element={<AdminCreatorOS />} />
-            <Route path="video" element={<AdminVideoStudio />} />
-            <Route path="publishing" element={<AdminPublishing />} />
-            <Route path="workforce" element={<AdminWorkforce />} />
-            <Route path="build" element={<AdminBuildStudio />} />
+            <Route path="workflows" element={<AdminStacks />} />
+            <Route path="scheduler" element={<AdminStacks />} />
+            <Route path="webhooks" element={<AdminStacks />} />
+
+            {/* Deploy */}
+            <Route path="deploy" element={<AdminDeploy />} />
+
+            {/* Operations */}
             <Route path="ai-ops" element={<AdminAiOps />} />
+            <Route path="servers" element={<AdminAiOps />} />
             <Route path="ai-chat" element={<AdminAIChat />} />
+
+            {/* Security */}
+            <Route path="security" element={<AdminSettings />} />
+            <Route path="security/logs" element={<AdminSettings />} />
+            <Route path="security/keys" element={<AdminSettings />} />
+            <Route path="security/alerts" element={<AdminSettings />} />
+
+            {/* Settings */}
+            <Route path="settings" element={<AdminSettings />} />
+            <Route path="settings/branding" element={<AdminSettings />} />
+            <Route path="settings/billing" element={<AdminSettings />} />
+            <Route path="settings/integrations" element={<AdminSettings />} />
           </Route>
 
-          {/* Customer Workspace — Neo is the front door */}
+          {/* Customer Workspace */}
           <Route path="/dashboard" element={<DashboardLayout />}>
             <Route index element={<AdminChatHome />} />
             <Route path="chat" element={<AdminChatHome />} />
@@ -98,7 +152,7 @@ export default function App() {
             <Route path="video-studio" element={<VideoStudio />} />
           </Route>
 
-          {/* Founder Labs — internal-only */}
+          {/* Founder Labs */}
           <Route path="/labs" element={<DashboardLayout />}>
             <Route index element={<LabsHome />} />
             <Route path="chat/:sessionId" element={<AdminChatHome />} />

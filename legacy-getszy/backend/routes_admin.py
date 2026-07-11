@@ -109,6 +109,66 @@ async def chat_history(session_id: str = None, user=Depends(get_current_admin)):
     return msgs
 
 
+@router.get('/founder-stats', dependencies=[Depends(get_current_admin)])
+async def founder_stats():
+    import os
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    month_start = now - timedelta(days=30)
+
+    total_users = await db.users.count_documents({'role': 'customer'})
+    active_users = await db.users.count_documents({'role': 'customer', 'last_login': {'$gte': month_start.isoformat()}})
+    subscribers = await db.subscriptions.count_documents({'status': 'active'}) if await db.list_collection_names() else 0
+    try: subscribers = await db.subscriptions.count_documents({'status': 'active'})
+    except: subscribers = 0
+
+    # MRR/ARR from subscriptions
+    try:
+        subs = await db.subscriptions.find({'status': 'active'}, {'_id': 0, 'amount': 1}).to_list(1000)
+        mrr = sum(s.get('amount', 999) for s in subs) if subs else subscribers * 999
+    except:
+        mrr = subscribers * 999
+    arr = mrr * 12
+
+    # AI Jobs
+    ai_jobs_today = await db.video_jobs.count_documents({'created_at': {'$gte': today_start.isoformat()}})
+    total_videos = await db.video_jobs.count_documents({'status': 'done'})
+    total_images = await db.ai_jobs.count_documents({'type': 'image', 'status': 'done'})
+    total_voice = await db.ai_jobs.count_documents({'type': 'voice_clone', 'status': 'done'})
+    total_llm = 0
+
+    # Credits
+    try:
+        tx_today = await db.credit_transactions.find({'created_at': {'$gte': today_start.isoformat()}, 'delta': {'$lt': 0}}, {'delta': 1, '_id': 0}).to_list(10000)
+        credits_used_today = abs(sum(t.get('delta', 0) for t in tx_today))
+        tx_month = await db.credit_transactions.find({'created_at': {'$gte': month_start.isoformat()}, 'delta': {'$lt': 0}}, {'delta': 1, '_id': 0}).to_list(10000)
+        credits_used_month = abs(sum(t.get('delta', 0) for t in tx_month))
+        tx_granted = await db.credit_transactions.find({'delta': {'$gt': 0}}, {'delta': 1, '_id': 0}).to_list(10000)
+        credits_granted = sum(t.get('delta', 0) for t in tx_granted)
+    except:
+        credits_used_today = credits_used_month = credits_granted = 0
+
+    return {
+        'mrr': mrr,
+        'arr': arr,
+        'total_users': total_users,
+        'active_users': active_users,
+        'subscribers': subscribers,
+        'ai_jobs_today': ai_jobs_today,
+        'total_videos': total_videos,
+        'total_images': total_images,
+        'total_voice': total_voice,
+        'total_llm': total_llm,
+        'credits_used_today': credits_used_today,
+        'credits_used_month': credits_used_month,
+        'credits_granted': credits_granted,
+        'hf_token_set': bool(os.getenv('HF_TOKEN')),
+        'groq_set': bool(os.getenv('GROQ_API_KEY')),
+        'openrouter_set': bool(os.getenv('OPENROUTER_KEY')),
+    }
+
+
 @router.get('/chat/sessions')
 async def chat_sessions(user=Depends(get_current_admin)):
     pipeline = [
