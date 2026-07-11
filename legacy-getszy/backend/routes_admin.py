@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from db import db
 from auth import get_current_admin
 from models import AdminChatIn, AdminChatMessage
 from ai_chat import parse_intent, execute_intent
 from datetime import datetime, timezone, timedelta
-import uuid
+import uuid, os, secrets
 
 router = APIRouter(prefix='/admin', tags=['admin'])
 
@@ -67,6 +68,13 @@ async def customers():
         u['orders_count'] = await db.orders.count_documents({'user_id': u['id']})
         agg = await db.orders.find({'user_id': u['id']}, {'_id': 0, 'total': 1}).to_list(500)
         u['lifetime_value'] = round(sum(o.get('total', 0) for o in agg), 2)
+        # credits field exists in user doc; fallback to 0 if missing
+        if 'credits' not in u:
+            u['credits'] = 0
+        # plan / subscription label
+        if 'plan' not in u:
+            sub = await db.subscriptions.find_one({'user_id': u.get('id'), 'status': 'active'}, {'_id': 0, 'plan': 1})
+            u['plan'] = sub.get('plan', 'free') if sub else 'free'
     return users
 
 
@@ -149,6 +157,24 @@ async def founder_stats():
     except:
         credits_used_today = credits_used_month = credits_granted = 0
 
+    import time
+    uptime_seconds = None
+    try:
+        with open('/proc/uptime') as f:
+            uptime_seconds = int(float(f.read().split()[0]))
+    except Exception:
+        pass
+
+    env_health = {
+        'MONGO_URL':          bool(os.getenv('MONGO_URL')),
+        'JWT_SECRET':         bool(os.getenv('JWT_SECRET')),
+        'SESSION_SECRET':     bool(os.getenv('SESSION_SECRET')),
+        'GROQ_API_KEY':       bool(os.getenv('GROQ_API_KEY')),
+        'HF_TOKEN':           bool(os.getenv('HF_TOKEN')),
+        'OPENROUTER_API_KEY': bool(os.getenv('OPENROUTER_KEY') or os.getenv('OPENROUTER_API_KEY')),
+        'RAZORPAY_KEY_ID':    bool(os.getenv('RAZORPAY_KEY_ID')),
+    }
+
     return {
         'mrr': mrr,
         'arr': arr,
@@ -163,9 +189,12 @@ async def founder_stats():
         'credits_used_today': credits_used_today,
         'credits_used_month': credits_used_month,
         'credits_granted': credits_granted,
-        'hf_token_set': bool(os.getenv('HF_TOKEN')),
-        'groq_set': bool(os.getenv('GROQ_API_KEY')),
-        'openrouter_set': bool(os.getenv('OPENROUTER_KEY')),
+        'uptime_seconds': uptime_seconds,
+        'env_health': env_health,
+        # legacy flat keys kept for backward compat
+        'hf_token_set': env_health['HF_TOKEN'],
+        'groq_set': env_health['GROQ_API_KEY'],
+        'openrouter_set': env_health['OPENROUTER_API_KEY'],
     }
 
 
@@ -179,3 +208,78 @@ async def chat_sessions(user=Depends(get_current_admin)):
     ]
     sessions = await db.admin_chat.aggregate(pipeline).to_list(30)
     return [{'session_id': s['_id'], 'last': s['last'], 'created_at': s['created_at'], 'count': s['count']} for s in sessions]
+
+
+# ── Login Sessions ────────────────────────────────────────────────────────────
+
+@router.get('/login-sessions', dependencies=[Depends(get_current_admin)])
+async def login_sessions(limit: int = 30):
+    """Return recent login events from login_logs collection (written by auth route on each login)."""
+    try:
+        logs = await db.login_logs.find({}, {'_id': 0}).sort('created_at', -1).to_list(limit)
+    except Exception:
+        logs = []
+    if not logs:
+        # fallback: pull last-login from users collection
+        users = await db.users.find(
+            {'last_login': {'$exists': True}},
+            {'_id': 0, 'id': 1, 'email': 1, 'name': 1, 'last_login': 1}
+        ).sort('last_login', -1).to_list(limit)
+        logs = [
+            {
+                'id': str(u.get('id', '')),
+                'email': u.get('email', ''),
+                'name': u.get('name', ''),
+                'ip': None,
+                'user_agent': None,
+                'created_at': u.get('last_login'),
+                'active': True,
+            }
+            for u in users
+        ]
+    return {'items': logs}
+
+
+# ── API Keys ─────────────────────────────────────────────────────────────────
+
+class ApiKeyIn(BaseModel):
+    name: str
+
+
+@router.get('/api-keys', dependencies=[Depends(get_current_admin)])
+async def list_api_keys():
+    keys = await db.api_keys.find({}, {'_id': 0, 'key': 0}).sort('created_at', -1).to_list(100)
+    return {'items': keys}
+
+
+@router.post('/api-keys', dependencies=[Depends(get_current_admin)])
+async def create_api_key(body: ApiKeyIn):
+    raw_key = 'gs_' + secrets.token_urlsafe(32)
+    doc = {
+        'id': str(uuid.uuid4()),
+        'name': body.name.strip(),
+        'key': raw_key,
+        'key_prefix': raw_key[:10],
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'last_used': None,
+        'revoked': False,
+    }
+    await db.api_keys.insert_one(doc)
+    return {'id': doc['id'], 'name': doc['name'], 'key': raw_key, 'key_prefix': doc['key_prefix']}
+
+
+@router.delete('/api-keys/{key_id}', dependencies=[Depends(get_current_admin)])
+async def revoke_api_key(key_id: str):
+    result = await db.api_keys.delete_one({'id': key_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail='Key not found')
+    return {'ok': True}
+
+
+# ── All builder projects (admin view) ─────────────────────────────────────────
+
+@router.get('/projects', dependencies=[Depends(get_current_admin)])
+async def all_projects(limit: int = 100):
+    """Admin view — shows builder projects across ALL users."""
+    projects = await db.builder_projects.find({}, {'_id': 0}).sort('created_at', -1).to_list(limit)
+    return {'items': projects, 'total': len(projects)}

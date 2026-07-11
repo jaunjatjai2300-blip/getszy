@@ -45,7 +45,7 @@ export default function Security() {
     setLoading(true);
     const [st, se, ak] = await Promise.allSettled([
       api.get("/admin/founder-stats"),
-      api.get("/admin/sessions?limit=20"),
+      api.get("/admin/login-sessions?limit=20"),
       api.get("/admin/api-keys"),
     ]);
     if (st.status === "fulfilled") setStats(st.value.data);
