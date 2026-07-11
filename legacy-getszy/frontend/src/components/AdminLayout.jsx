@@ -6,7 +6,8 @@ import {
   ChevronRight, Sparkles, Wand2, Film, PenTool, Briefcase, Package, ShoppingCart,
   Truck, TrendingUp, GraduationCap, Globe, Smartphone, Code2, Workflow,
   CalendarClock, Webhook, Activity, Server, Lock, Key, AlertTriangle,
-  Bell, Search, Share2, Database, Image, Mic, MessageCircle, Cpu, Building2
+  Bell, Search, Share2, Database, Image, Mic, MessageCircle, Cpu, Building2,
+  Layout, FormInput, Mail, Tag, FileText, MessageSquare, Crown
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import CopilotSidebar from "@/components/CopilotSidebar";
@@ -31,11 +32,15 @@ const NAV = [
     label: "🛠 Builders",
     icon: Layers,
     items: [
-      { to: "/admin/build",        label: "App Builder",      icon: Wand2 },
-      { to: "/admin/build-web",    label: "Website Builder",  icon: Globe },
-      { to: "/admin/build-mobile", label: "Mobile Builder",   icon: Smartphone },
-      { to: "/admin/build-api",    label: "API Builder",      icon: Code2 },
-      { to: "/admin/build-db",     label: "Database Builder", icon: Database },
+      { to: "/admin/build",              label: "App Builder",        icon: Wand2 },
+      { to: "/admin/build-web",          label: "Website Builder",    icon: Globe },
+      { to: "/admin/build-mobile",       label: "Mobile Builder",     icon: Smartphone },
+      { to: "/admin/builder/landing",    label: "Landing Page",       icon: Layout },
+      { to: "/admin/builder/form",       label: "Form Builder",       icon: FormInput },
+      { to: "/admin/builder/dashboard",  label: "Dashboard Builder",  icon: LayoutDashboard },
+      { to: "/admin/builder/email",      label: "Email Builder",      icon: Mail },
+      { to: "/admin/builder/db",         label: "DB Builder",         icon: Database },
+      { to: "/admin/builder/api",        label: "API Builder",        icon: Code2 },
     ],
   },
   {
@@ -55,13 +60,18 @@ const NAV = [
     label: "🛒 Commerce",
     icon: ShoppingBag,
     items: [
-      { to: "/admin/products",  label: "Products",     icon: Package },
-      { to: "/admin/orders",    label: "Orders",       icon: ShoppingCart },
-      { to: "/admin/customers", label: "Customers",    icon: Users },
-      { to: "/admin/suppliers", label: "Suppliers",    icon: Truck },
-      { to: "/admin/sourcing",  label: "Sourcing",     icon: TrendingUp },
-      { to: "/admin/courses",   label: "Courses",      icon: GraduationCap },
-      { to: "/admin/publishing",label: "Publishing",   icon: Share2 },
+      { to: "/admin/products",    label: "Products",     icon: Package },
+      { to: "/admin/orders",      label: "Orders",       icon: ShoppingCart },
+      { to: "/admin/customers",   label: "Customers",    icon: Users },
+      { to: "/admin/coupons",     label: "Coupons",      icon: Tag },
+      { to: "/admin/invoices",    label: "Invoices",     icon: FileText },
+      { to: "/admin/reviews",     label: "Reviews",      icon: MessageSquare },
+      { to: "/admin/affiliates",  label: "Affiliates",   icon: Share2 },
+      { to: "/admin/memberships", label: "Memberships",  icon: Crown },
+      { to: "/admin/suppliers",   label: "Suppliers",    icon: Truck },
+      { to: "/admin/sourcing",    label: "Sourcing",     icon: TrendingUp },
+      { to: "/admin/courses",     label: "Courses",      icon: GraduationCap },
+      { to: "/admin/publishing",  label: "Publishing",   icon: Share2 },
     ],
   },
   {
