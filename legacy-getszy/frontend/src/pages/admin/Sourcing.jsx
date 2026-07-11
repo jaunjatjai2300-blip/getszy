@@ -3,7 +3,7 @@ import { api, fmtINR, API_BASE } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { TrendingUp, Sparkles, Package, Truck, RefreshCw, Plus, IndianRupee, Globe, AlertCircle, CheckCircle2 } from "lucide-react";
+import { TrendingUp, Sparkles, Package, Truck, RefreshCw, Plus, IndianRupee, Globe, AlertCircle, CheckCircle2, Key, Search } from "lucide-react";
 import { toast } from "sonner";
 
 const AUDIENCE_COLORS = { women: "#9b6a3f", girls: "#c97a87", kids: "#5d8f8e" };
@@ -19,6 +19,10 @@ export default function AdminSourcing() {
   const [scanning, setScanning] = useState(false);
   const [importing, setImporting] = useState({});
   const [calc, setCalc] = useState({ cost: 200, is_digital: false, result: null });
+  const [showKeyPanel, setShowKeyPanel] = useState(false);
+  const [keys, setKeys] = useState({ CJ_EMAIL: "", CJ_API_KEY: "", SHIPROCKET_EMAIL: "", SHIPROCKET_PASSWORD: "" });
+  const [savingKeys, setSavingKeys] = useState(false);
+  const [cjSearch, setCjSearch] = useState({ keyword: "fashion", results: [], loading: false });
 
   const loadStatus = async () => {
     try { const r = await api.get("/admin/sourcing/status"); setStatus(r.data); setTrending(r.data.last_scan || { items: [], at: null }); } catch (e) {}
@@ -26,6 +30,27 @@ export default function AdminSourcing() {
   const loadTrending = async () => {
     try { const r = await api.get("/admin/sourcing/trending"); setTrending(r.data); } catch (e) {}
   };
+  const saveKeys = async () => {
+    setSavingKeys(true);
+    try {
+      const r = await api.post("/admin/sourcing/config/keys", keys);
+      toast.success("Keys saved! CJ: " + (r.data.cj_configured ? "✓" : "✗") + " · Shiprocket: " + (r.data.shiprocket_configured ? "✓" : "✗"));
+      await loadStatus();
+      setShowKeyPanel(false);
+    } catch (e) { toast.error("Save failed"); }
+    finally { setSavingKeys(false); }
+  };
+
+  const searchCJ = async () => {
+    setCjSearch(s => ({ ...s, loading: true }));
+    try {
+      const r = await api.get(`/admin/sourcing/cj/products?keyword=${encodeURIComponent(cjSearch.keyword)}`);
+      if (r.data.status === "not_configured") { toast.error("CJ API keys not set. Use 'Configure Keys' button."); }
+      else { setCjSearch(s => ({ ...s, results: r.data.items || [] })); }
+    } catch (e) { toast.error("Search failed"); }
+    finally { setCjSearch(s => ({ ...s, loading: false })); }
+  };
+
   const scan = async () => {
     setScanning(true);
     try { const r = await api.post("/admin/sourcing/trending/scan?limit=12"); setTrending({ items: r.data.items, at: new Date().toISOString() }); toast.success(`${r.data.count} trending products discovered`); }
@@ -58,11 +83,56 @@ export default function AdminSourcing() {
           <h1 className="font-display text-3xl">Getszy Source</h1>
           <p className="text-sm text-[var(--gs-muted)] mt-1">AI-curated trending products + dropshipping automation for India</p>
         </div>
-        <Button onClick={scan} disabled={scanning} data-testid="trending-scan-button" className="gap-2">
-          {scanning ? <RefreshCw className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4"/>}
-          {scanning ? "Scanning trends…" : "Scan trending now"}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowKeyPanel(p => !p)} className="gap-2 text-xs" data-testid="configure-keys-button">
+            <Key className="h-3.5 w-3.5"/>Configure Keys
+          </Button>
+          <Button onClick={scan} disabled={scanning} data-testid="trending-scan-button" className="gap-2">
+            {scanning ? <RefreshCw className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4"/>}
+            {scanning ? "Scanning…" : "Scan trending"}
+          </Button>
+        </div>
       </div>
+
+      {/* Key Config Panel */}
+      {showKeyPanel && (
+        <div className="gs-card p-5 border-amber-200 bg-amber-50/50 space-y-4" data-testid="key-config-panel">
+          <h3 className="font-semibold flex items-center gap-2"><Key className="h-4 w-4 text-amber-600"/>API Key Configuration</h3>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-[var(--gs-muted)] uppercase tracking-wider">CJ Dropshipping</p>
+              <div>
+                <label className="text-xs text-[var(--gs-muted)]">CJ Email</label>
+                <Input value={keys.CJ_EMAIL} onChange={e => setKeys(k => ({...k, CJ_EMAIL: e.target.value}))} placeholder="you@example.com" className="mt-1 text-sm" data-testid="cj-email-input"/>
+              </div>
+              <div>
+                <label className="text-xs text-[var(--gs-muted)]">CJ API Key</label>
+                <Input type="password" value={keys.CJ_API_KEY} onChange={e => setKeys(k => ({...k, CJ_API_KEY: e.target.value}))} placeholder="CJ API key" className="mt-1 text-sm" data-testid="cj-key-input"/>
+              </div>
+              <p className="text-[10px] text-[var(--gs-muted)]">Get from <span className="font-mono">app.cjdropshipping.com → API</span></p>
+            </div>
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-[var(--gs-muted)] uppercase tracking-wider">Shiprocket</p>
+              <div>
+                <label className="text-xs text-[var(--gs-muted)]">Shiprocket Email</label>
+                <Input value={keys.SHIPROCKET_EMAIL} onChange={e => setKeys(k => ({...k, SHIPROCKET_EMAIL: e.target.value}))} placeholder="shiprocket@you.com" className="mt-1 text-sm" data-testid="sr-email-input"/>
+              </div>
+              <div>
+                <label className="text-xs text-[var(--gs-muted)]">Shiprocket Password</label>
+                <Input type="password" value={keys.SHIPROCKET_PASSWORD} onChange={e => setKeys(k => ({...k, SHIPROCKET_PASSWORD: e.target.value}))} placeholder="Account password" className="mt-1 text-sm" data-testid="sr-pass-input"/>
+              </div>
+              <p className="text-[10px] text-[var(--gs-muted)]">Same credentials as <span className="font-mono">app.shiprocket.in</span></p>
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button onClick={saveKeys} disabled={savingKeys} className="gap-2" data-testid="save-keys-button">
+              {savingKeys ? <RefreshCw className="h-4 w-4 animate-spin"/> : <CheckCircle2 className="h-4 w-4"/>}
+              {savingKeys ? "Saving…" : "Save & Activate"}
+            </Button>
+            <Button variant="outline" onClick={() => setShowKeyPanel(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
 
       {/* Supplier Network Status */}
       <div className="grid sm:grid-cols-3 gap-4" data-testid="supplier-status-grid">
@@ -102,6 +172,30 @@ export default function AdminSourcing() {
           )}
         </div>
       </div>
+
+      {/* CJ Dropshipping search */}
+      {status?.cj_dropshipping?.enabled && (
+        <div className="gs-card p-5 space-y-3" data-testid="cj-search-panel">
+          <h3 className="font-semibold flex items-center gap-2"><Package className="h-4 w-4 text-[var(--gs-teal)]"/>CJ Dropshipping Search</h3>
+          <div className="flex gap-2">
+            <Input value={cjSearch.keyword} onChange={e => setCjSearch(s => ({...s, keyword: e.target.value}))} placeholder="e.g. fashion, kids toys, gadgets" className="flex-1" data-testid="cj-search-input" onKeyDown={e => e.key === "Enter" && searchCJ()}/>
+            <Button onClick={searchCJ} disabled={cjSearch.loading} className="gap-2" data-testid="cj-search-button">
+              {cjSearch.loading ? <RefreshCw className="h-4 w-4 animate-spin"/> : <Search className="h-4 w-4"/>}Search
+            </Button>
+          </div>
+          {cjSearch.results.length > 0 && (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+              {cjSearch.results.slice(0, 9).map((it, i) => (
+                <div key={i} className="border rounded-xl p-3 space-y-1" style={{ borderColor: "var(--gs-border)" }}>
+                  <div className="text-sm font-semibold line-clamp-2">{it.productNameEn || it.productName}</div>
+                  <div className="text-xs text-[var(--gs-muted)]">{it.categoryName}</div>
+                  <div className="text-xs font-mono text-[var(--gs-teal)]">${it.sellPrice || "—"}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Trending grid */}
       <div>

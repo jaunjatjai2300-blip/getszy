@@ -119,7 +119,63 @@ async def cj_search(keyword: str = 'kids', page: int = 1, _=Depends(get_current_
     return await cj_module.search_products(keyword=keyword, page=page)
 
 
+# ===== CJ Dropshipping search =====
+@router.get('/cj/products')
+async def cj_products(keyword: str = 'fashion', page: int = 1, _=Depends(get_current_admin)):
+    return await cj_module.search_products(keyword=keyword, page=page)
+
+
 # ===== Shiprocket =====
 @router.get('/shiprocket/status')
 async def sr_status(_=Depends(get_current_admin)):
     return {'configured': sr_module.is_configured()}
+
+
+# ===== Key config helper (writes to .env file) =====
+class SourceKeyIn(BaseModel):
+    CJ_EMAIL: str = ''
+    CJ_API_KEY: str = ''
+    SHIPROCKET_EMAIL: str = ''
+    SHIPROCKET_PASSWORD: str = ''
+
+
+@router.post('/config/keys', dependencies=[Depends(get_current_admin)])
+async def set_source_keys(body: SourceKeyIn):
+    """Write CJ + Shiprocket keys to .env file (server restart needed)."""
+    import os as _os
+    from pathlib import Path
+    env_path = Path(__file__).parent / '.env'
+    lines = env_path.read_text().splitlines() if env_path.exists() else []
+
+    def _upsert(lines, key, val):
+        if not val:
+            return lines
+        for i, l in enumerate(lines):
+            if l.startswith(f'{key}='):
+                lines[i] = f'{key}={val}'
+                return lines
+        lines.append(f'{key}={val}')
+        return lines
+
+    for k, v in body.model_dump().items():
+        lines = _upsert(lines, k, v)
+
+    env_path.write_text('\n'.join(lines) + '\n')
+
+    # Hot-reload env vars in current process too
+    for k, v in body.model_dump().items():
+        if v:
+            _os.environ[k] = v
+
+    # Reload module-level vars
+    import importlib
+    from sourcing import cj as _cj, shiprocket as _sr
+    importlib.reload(_cj)
+    importlib.reload(_sr)
+
+    return {
+        'ok': True,
+        'cj_configured': _cj.is_configured(),
+        'shiprocket_configured': _sr.is_configured(),
+        'note': 'Keys saved to .env — active in current process immediately',
+    }
