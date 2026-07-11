@@ -1,0 +1,52 @@
+# Verify
+ls legacy-getszy/docker-compose.yml
+legacy-getszy/docker-compose.yml
+[root@srv973421 getszy]# curl -sI https://getszy.com | head -3
+[root@srv973421 getszy]# curl -sI http://31.97.237.222 | head -3
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Cache-Control: no-cache
+[root@srv973421 getszy]# docker exec getszy-backend curl -s http://localhost:8001/api/health
+{"status":"ok","ai":"Getscurl -v http://localhost 2>&1 | head -20http://localhost 2>&1 | head -20
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying ::1:80...
+* Connected to localhost (::1) port 80 (#0)
+> GET / HTTP/1.1
+> Host: localhost
+> User-Agent: curl/7.76.1
+> Accept: */*
+> 
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 200 OK
+< Accept-Ranges: bytes
+< Cache-Control: no-cache
+< Cache-Control: no-store, no-cache, must-revalidate
+< Content-Length: 1146
+< Content-Type: text/html
+< Date: Sat, 11 Jul 2026 22:48:49 GMT
+< Etag: "6a52b2db-47a"
+< Expires: Sat, 11 Jul 2026 22:48:48 GMT
+< Last-Modified: Sat, 11 Jul 2026 21:17:15 GMT
+[root@srv973421 getszy]# curl -v http://31.97.237.222 2>&1 | head -20
+*   Trying 31.97.237.222:80...
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Connected to 31.97.237.222 (31.97.237.222) port 80 (#0)
+> GET / HTTP/1.1
+> Host: 31.97.237.222
+> User-Agent: curl/7.76.1
+> Accept: */*
+> 
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 200 OK
+< Accept-Ranges: bytes
+< Cache-Control: no-cache
+< Cache-Control: no-store, no-cache, must-revalidate
+< Content-Length: 1146
+< Content-Type: text/html
+< Date: Sat, 11 Jul 2026 22:49:13 GMT
+< Etag: "6a52b2db-47a"
+< Expires: Sat, 11 Jul 2026 22:49:12 GMT
+< Last-Modified: Sat, 11 Jul 2026 21:17:15 GMT
+[root@srv973421 getszy]# 
