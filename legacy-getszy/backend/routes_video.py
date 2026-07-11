@@ -31,6 +31,7 @@ class GenerateIn(BaseModel):
     subtitles: bool = True
     audience: str = 'indian creators'
     category: str = ''               # finance | motivational | news | recipe | educational
+    visual_provider: str = 'pollinations'  # pollinations | flux_hd
 
 
 class BatchIn(BaseModel):
@@ -43,10 +44,17 @@ class BatchIn(BaseModel):
 
 @router.get('/voices')
 async def voices(_=Depends(get_current_user)):
-    return {'voices': LIST_VOICES,
-            'providers': {'tts': 'edge-tts (free)',
-                          'visuals': 'pollinations (free)',
-                          'compose': 'ffmpeg'}}
+    import os
+    hf_set = bool(os.getenv('HF_TOKEN', '').strip())
+    return {
+        'voices': LIST_VOICES,
+        'providers': {
+            'tts': 'edge-tts (free)',
+            'visuals': 'pollinations (free) + flux_hd (HF)' if hf_set else 'pollinations (free)',
+            'compose': 'ffmpeg',
+        },
+        'flux_hd_available': hf_set,
+    }
 
 
 @router.post('/generate')

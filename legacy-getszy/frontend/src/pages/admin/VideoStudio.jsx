@@ -11,7 +11,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Film, Play, Loader2, Download, Trash2, RefreshCw, Layers, Sparkles,
   FileText, BookOpen, Calendar, Share2, CheckCircle, XCircle, Clock,
-  Youtube, Instagram, Facebook, Twitter, Send, Link, Unlink, AlertCircle
+  Youtube, Instagram, Facebook, Twitter, Send, Link, Unlink, AlertCircle,
+  Image, Mic, User, Zap, Upload, Wand2, Copy, ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -204,6 +205,24 @@ export default function VideoStudio() {
   const [schedAt, setSchedAt]         = useState("");
   const [schedBusy, setSchedBusy]     = useState(false);
 
+  // Visual provider
+  const [visualProvider, setVisualProvider] = useState("pollinations");
+  const [fluxAvailable, setFluxAvailable] = useState(false);
+
+  // Avatar Studio
+  const [imgPrompt, setImgPrompt]         = useState("");
+  const [imgBusy, setImgBusy]             = useState(false);
+  const [imgResult, setImgResult]         = useState(null);
+  const [imgOrientation, setImgOrientation] = useState("9:16");
+  const [voiceFile, setVoiceFile]         = useState(null);
+  const [voiceName, setVoiceName]         = useState("");
+  const [voiceBusy, setVoiceBusy]         = useState(false);
+  const [voiceResult, setVoiceResult]     = useState(null);
+  const [avatarImg, setAvatarImg]         = useState(null);
+  const [avatarAudio, setAvatarAudio]     = useState(null);
+  const [avatarBusy, setAvatarBusy]       = useState(false);
+  const [avatarResult, setAvatarResult]   = useState(null);
+
   // Social connect
   const [connectPlatform, setConnectPlatform] = useState("");
   const [connectToken, setConnectToken]       = useState("");
@@ -212,7 +231,11 @@ export default function VideoStudio() {
   const [connectBusy, setConnectBusy] = useState(false);
 
   const load = useCallback(async () => {
-    try { const r = await api.get("/video/voices"); setVoices(r.data); } catch (_) {}
+    try {
+      const r = await api.get("/video/voices");
+      setVoices(r.data);
+      if (r.data.flux_hd_available) setFluxAvailable(true);
+    } catch (_) {}
     try { const r = await api.get("/video/jobs?limit=30"); setJobs(r.data.items || []); } catch (_) {}
     try { const r = await api.get("/social/accounts"); setPlatforms(r.data.platforms || []); } catch (_) {}
     try { const r = await api.get("/social/scheduled"); setScheduled(r.data.items || []); } catch (_) {}
@@ -239,6 +262,7 @@ export default function VideoStudio() {
       const r = await api.post("/video/generate", {
         topic, orientation, language, voice_gender: voiceGender,
         target_seconds: Number(seconds), tone, subtitles, category,
+        visual_provider: visualProvider,
       });
       toast.success(`Job queued ✅ (${r.data.id.slice(0, 8)})`, { id: "vid" });
       setTopic("");
@@ -436,6 +460,7 @@ export default function VideoStudio() {
           <TabsTrigger value="single"><Film className="h-4 w-4 mr-1"/>Single Video</TabsTrigger>
           <TabsTrigger value="batch"><Layers className="h-4 w-4 mr-1"/>Batch</TabsTrigger>
           <TabsTrigger value="story"><BookOpen className="h-4 w-4 mr-1"/>AI Stories</TabsTrigger>
+          <TabsTrigger value="avatar"><User className="h-4 w-4 mr-1"/>Avatar Studio</TabsTrigger>
           <TabsTrigger value="schedule"><Calendar className="h-4 w-4 mr-1"/>Schedule</TabsTrigger>
           <TabsTrigger value="social"><Share2 className="h-4 w-4 mr-1"/>Social Media</TabsTrigger>
         </TabsList>
@@ -498,6 +523,27 @@ export default function VideoStudio() {
                 <span className="text-xs">Burn-in subtitles</span>
               </div>
             </div>
+
+            {/* Visual Provider Selector */}
+            <div className="p-3 rounded-xl border-2 space-y-2"
+              style={{ borderColor: visualProvider === "flux_hd" ? "#7c3aed" : "var(--gs-border)" }}>
+              <div className="text-xs font-semibold text-[var(--gs-muted)]">🎨 Visuals Provider</div>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => setVisualProvider("pollinations")}
+                  className={`p-2.5 rounded-lg border text-xs text-left transition-all ${visualProvider === "pollinations" ? "border-[var(--gs-teal)] bg-[var(--gs-teal)]/5 font-semibold" : "border-gray-200 hover:border-gray-300"}`}>
+                  <div className="font-semibold">🆓 Pollinations</div>
+                  <div className="text-[10px] text-[var(--gs-muted)] mt-0.5">Free · Fast · Good quality</div>
+                </button>
+                <button onClick={() => fluxAvailable ? setVisualProvider("flux_hd") : toast.error("HF_TOKEN not set on server")}
+                  className={`p-2.5 rounded-lg border text-xs text-left transition-all relative ${visualProvider === "flux_hd" ? "border-violet-500 bg-violet-50 font-semibold" : fluxAvailable ? "border-gray-200 hover:border-violet-300" : "border-gray-200 opacity-60"}`}>
+                  <div className="font-semibold text-violet-700">⚡ FLUX HD</div>
+                  <div className="text-[10px] text-[var(--gs-muted)] mt-0.5">HuggingFace · Best quality</div>
+                  {!fluxAvailable && <span className="absolute top-1.5 right-1.5 text-[9px] bg-amber-100 text-amber-700 px-1 rounded">No HF key</span>}
+                  {fluxAvailable && <span className="absolute top-1.5 right-1.5 text-[9px] bg-emerald-100 text-emerald-700 px-1 rounded">✓ Ready</span>}
+                </button>
+              </div>
+            </div>
+
             <Button onClick={generate} disabled={busy} className="w-full bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]/90" data-testid="video-generate-btn">
               {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Play className="h-4 w-4 mr-2"/>}
               {busy ? "Queuing…" : "Generate Faceless Video (1080p HD)"}
@@ -575,6 +621,211 @@ export default function VideoStudio() {
               AI likhega: Opening → Rising action → Climax → Resolution → Moral. 5-scene 9:16 Reel, ~75s.
             </p>
           </Card>
+        </TabsContent>
+
+        {/* ── Avatar Studio ─────────────────────────────────────── */}
+        <TabsContent value="avatar" className="mt-4 space-y-4">
+          <div className="grid md:grid-cols-2 gap-4">
+
+            {/* 1. AI Image Generator */}
+            <Card className="p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-xl bg-violet-100 grid place-items-center">
+                  <Image className="h-4 w-4 text-violet-600"/>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm">AI Image Generator</h3>
+                  <p className="text-[10px] text-[var(--gs-muted)]">FLUX HD — text se HD image banao</p>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-[var(--gs-muted)]">Image Prompt *</label>
+                <Textarea rows={3} value={imgPrompt} onChange={e => setImgPrompt(e.target.value)}
+                  placeholder="e.g. A cinematic shot of a young Indian entrepreneur in a modern Mumbai office, golden hour lighting, 8K…"/>
+              </div>
+              <div>
+                <label className="text-xs text-[var(--gs-muted)]">Orientation</label>
+                <Select value={imgOrientation} onValueChange={setImgOrientation}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue/></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="9:16">9:16 Portrait (Reels)</SelectItem>
+                    <SelectItem value="16:9">16:9 Landscape (YT)</SelectItem>
+                    <SelectItem value="1:1">1:1 Square</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={async () => {
+                if (!imgPrompt.trim()) return toast.error("Prompt required");
+                setImgBusy(true);
+                setImgResult(null);
+                try {
+                  const r = await api.post("/avatar/generate-image", { prompt: imgPrompt, orientation: imgOrientation });
+                  setImgResult(r.data);
+                  toast.success("Image generated!");
+                } catch (e) {
+                  toast.error(e?.response?.data?.detail || "Image generation failed");
+                } finally { setImgBusy(false); }
+              }} disabled={imgBusy} className="w-full bg-violet-600 hover:bg-violet-700 text-white">
+                {imgBusy ? <><Loader2 className="h-4 w-4 animate-spin mr-2"/>Generating…</> : <><Wand2 className="h-4 w-4 mr-2"/>Generate Image</>}
+              </Button>
+              {imgResult?.image_url && (
+                <div className="space-y-2">
+                  <img src={`${BACKEND_URL}${imgResult.image_url}`} alt="Generated" className="w-full rounded-xl object-cover max-h-64"/>
+                  <a href={`${BACKEND_URL}${imgResult.image_url}`} download className="text-xs text-[var(--gs-teal)] flex items-center gap-1">
+                    <Download className="h-3 w-3"/>Download
+                  </a>
+                </div>
+              )}
+            </Card>
+
+            {/* 2. Voice Clone */}
+            <Card className="p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-xl bg-emerald-100 grid place-items-center">
+                  <Mic className="h-4 w-4 text-emerald-600"/>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm">Voice Clone</h3>
+                  <p className="text-[10px] text-[var(--gs-muted)]">Apni awaaz upload karo — clone ready</p>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-[var(--gs-muted)]">Voice Name *</label>
+                <Input value={voiceName} onChange={e => setVoiceName(e.target.value)} placeholder="e.g. my_voice, priya_voice"/>
+              </div>
+              <div>
+                <label className="text-xs text-[var(--gs-muted)]">Audio Sample * (10-30 sec, WAV/MP3)</label>
+                <div className="mt-1 border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:border-[var(--gs-teal)] transition-colors"
+                  onClick={() => document.getElementById('voice-upload').click()}>
+                  <Upload className="h-5 w-5 mx-auto mb-1 text-[var(--gs-muted)]"/>
+                  <div className="text-xs text-[var(--gs-muted)]">{voiceFile ? voiceFile.name : "Click to upload audio"}</div>
+                  <input id="voice-upload" type="file" accept="audio/*" className="hidden" onChange={e => setVoiceFile(e.target.files[0])}/>
+                </div>
+              </div>
+              <Button onClick={async () => {
+                if (!voiceFile || !voiceName.trim()) return toast.error("Voice name + audio required");
+                setVoiceBusy(true);
+                setVoiceResult(null);
+                const fd = new FormData();
+                fd.append("file", voiceFile);
+                fd.append("voice_name", voiceName);
+                try {
+                  const r = await api.post("/avatar/clone-voice", fd, { headers: { "Content-Type": "multipart/form-data" } });
+                  setVoiceResult(r.data);
+                  toast.success(`Voice "${voiceName}" cloned!`);
+                } catch (e) {
+                  toast.error(e?.response?.data?.detail || "Clone failed");
+                } finally { setVoiceBusy(false); }
+              }} disabled={voiceBusy} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                {voiceBusy ? <><Loader2 className="h-4 w-4 animate-spin mr-2"/>Cloning…</> : <><Mic className="h-4 w-4 mr-2"/>Clone Voice</>}
+              </Button>
+              {voiceResult && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs space-y-1">
+                  <div className="font-semibold text-emerald-700">✓ Voice cloned!</div>
+                  <div className="text-[var(--gs-muted)]">ID: {voiceResult.voice_id || voiceName}</div>
+                  {voiceResult.sample_url && (
+                    <audio controls src={`${BACKEND_URL}${voiceResult.sample_url}`} className="w-full mt-1"/>
+                  )}
+                </div>
+              )}
+            </Card>
+
+            {/* 3. Talking Avatar */}
+            <Card className="p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-xl bg-pink-100 grid place-items-center">
+                  <User className="h-4 w-4 text-pink-600"/>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm">Talking Avatar</h3>
+                  <p className="text-[10px] text-[var(--gs-muted)]">Photo + Audio → Talking face video (SadTalker)</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-[var(--gs-muted)]">Face Photo *</label>
+                  <div className="mt-1 border-2 border-dashed rounded-xl p-3 text-center cursor-pointer hover:border-pink-400 transition-colors"
+                    onClick={() => document.getElementById('avatar-img-upload').click()}>
+                    {avatarImg ? (
+                      <img src={URL.createObjectURL(avatarImg)} alt="" className="w-16 h-16 rounded-full mx-auto object-cover"/>
+                    ) : (
+                      <><Upload className="h-5 w-5 mx-auto mb-1 text-[var(--gs-muted)]"/><div className="text-[10px] text-[var(--gs-muted)]">Upload photo</div></>
+                    )}
+                    <input id="avatar-img-upload" type="file" accept="image/*" className="hidden" onChange={e => setAvatarImg(e.target.files[0])}/>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-[var(--gs-muted)]">Drive Audio *</label>
+                  <div className="mt-1 border-2 border-dashed rounded-xl p-3 text-center cursor-pointer hover:border-pink-400 transition-colors"
+                    onClick={() => document.getElementById('avatar-audio-upload').click()}>
+                    <Mic className="h-5 w-5 mx-auto mb-1 text-[var(--gs-muted)]"/>
+                    <div className="text-[10px] text-[var(--gs-muted)]">{avatarAudio ? avatarAudio.name : "Upload audio"}</div>
+                    <input id="avatar-audio-upload" type="file" accept="audio/*" className="hidden" onChange={e => setAvatarAudio(e.target.files[0])}/>
+                  </div>
+                </div>
+              </div>
+              <Button onClick={async () => {
+                if (!avatarImg || !avatarAudio) return toast.error("Photo + audio dono required");
+                setAvatarBusy(true);
+                setAvatarResult(null);
+                const fd = new FormData();
+                fd.append("image", avatarImg);
+                fd.append("audio", avatarAudio);
+                try {
+                  const r = await api.post("/avatar/talking-head", fd, { headers: { "Content-Type": "multipart/form-data" } });
+                  setAvatarResult(r.data);
+                  toast.success("Talking avatar generated!");
+                } catch (e) {
+                  toast.error(e?.response?.data?.detail || "Avatar generation failed");
+                } finally { setAvatarBusy(false); }
+              }} disabled={avatarBusy} className="w-full bg-pink-600 hover:bg-pink-700 text-white">
+                {avatarBusy ? <><Loader2 className="h-4 w-4 animate-spin mr-2"/>Generating…</> : <><User className="h-4 w-4 mr-2"/>Generate Talking Avatar</>}
+              </Button>
+              {avatarResult?.video_url && (
+                <video src={`${BACKEND_URL}${avatarResult.video_url}`} controls className="w-full rounded-xl max-h-48"/>
+              )}
+              {avatarResult?.status === "queued" && (
+                <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg">⏳ Job queued — ~2-3 min lagenge. Recent Jobs mein check karo.</div>
+              )}
+            </Card>
+
+            {/* 4. AI Status */}
+            <Card className="p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-xl bg-amber-100 grid place-items-center">
+                  <Zap className="h-4 w-4 text-amber-600"/>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm">AI Stack Status</h3>
+                  <p className="text-[10px] text-[var(--gs-muted)]">Available AI providers on server</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {[
+                  { name: "FLUX HD (HF)",   available: fluxAvailable, label: fluxAvailable ? "✓ Ready" : "HF_TOKEN missing", color: fluxAvailable ? "text-emerald-600" : "text-amber-600", bg: fluxAvailable ? "bg-emerald-50" : "bg-amber-50" },
+                  { name: "Pollinations",   available: true,          label: "✓ Free, no key", color: "text-emerald-600", bg: "bg-emerald-50" },
+                  { name: "edge-tts",       available: true,          label: "✓ Free Indian voices", color: "text-emerald-600", bg: "bg-emerald-50" },
+                  { name: "XTTS Voice Clone", available: fluxAvailable, label: fluxAvailable ? "✓ Via HF" : "Needs HF_TOKEN", color: fluxAvailable ? "text-emerald-600" : "text-amber-600", bg: fluxAvailable ? "bg-emerald-50" : "bg-amber-50" },
+                  { name: "SadTalker",      available: false,         label: "GPU needed (optional)", color: "text-slate-500", bg: "bg-slate-50" },
+                ].map(s => (
+                  <div key={s.name} className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs ${s.bg}`}>
+                    <span className="font-medium">{s.name}</span>
+                    <span className={`font-semibold ${s.color}`}>{s.label}</span>
+                  </div>
+                ))}
+              </div>
+              <Button variant="outline" size="sm" className="w-full text-xs" onClick={async () => {
+                try {
+                  const r = await api.get("/avatar/status");
+                  toast.success(`Avatar API: ${JSON.stringify(r.data).slice(0, 80)}`);
+                } catch (e) {
+                  toast.error("Avatar API unreachable — server check karo");
+                }
+              }}>
+                <Zap className="h-3.5 w-3.5 mr-1"/> Test Avatar API
+              </Button>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* ── Schedule ──────────────────────────────────────────── */}
