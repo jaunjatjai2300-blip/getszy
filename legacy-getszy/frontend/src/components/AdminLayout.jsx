@@ -1,54 +1,134 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Sparkles, LogOut, Store, GraduationCap, Activity, TrendingUp, Rocket, Wand2, Layers, MessageCircle, PenTool, Film, Share2, Briefcase, ChevronDown, ChevronRight, Menu } from "lucide-react";
+import {
+  LayoutDashboard, FolderOpen, Layers, Bot, ShoppingBag, Users, BarChart3,
+  Zap, Rocket, Monitor, Shield, Settings, LogOut, Store, Menu, ChevronDown,
+  ChevronRight, Sparkles, Wand2, Film, PenTool, Briefcase, Package, ShoppingCart,
+  Truck, TrendingUp, GraduationCap, Globe, Smartphone, Code2, Workflow,
+  CalendarClock, Webhook, Activity, Server, Lock, Key, AlertTriangle,
+  Bell, Search, Share2, Database, Image, Mic, MessageCircle, Cpu, Building2
+} from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import CopilotSidebar from "@/components/CopilotSidebar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
-// PRIMARY nav — Admin is management-first; Neo is a utility not the front door.
-const PRIMARY = [
-  { to: "/admin", label: "Overview", icon: LayoutDashboard, end: true, primary: true },
-  { to: "/admin/chat", label: "Ask Neo", icon: Sparkles },
-];
-
-// GROUPED nav — everything else lives behind conversational access from Neo,
-// but power-users can still open modules directly.
-const GROUPS = [
+const NAV = [
   {
-    label: "Store", icon: Store, items: [
-      { to: "/admin/products", label: "Products", icon: Package },
-      { to: "/admin/orders", label: "Orders", icon: ShoppingCart },
-      { to: "/admin/suppliers", label: "Suppliers", icon: Truck },
-      { to: "/admin/customers", label: "Customers", icon: Users },
-      { to: "/admin/sourcing", label: "Sourcing", icon: TrendingUp },
+    label: "🏠 Dashboard",
+    to: "/admin",
+    icon: LayoutDashboard,
+    end: true,
+    single: true,
+  },
+  {
+    label: "📁 Projects",
+    to: "/admin/projects",
+    icon: FolderOpen,
+    single: true,
+  },
+  {
+    label: "🛠 Builders",
+    icon: Layers,
+    items: [
+      { to: "/admin/build",        label: "App Builder",      icon: Wand2 },
+      { to: "/admin/build-web",    label: "Website Builder",  icon: Globe },
+      { to: "/admin/build-mobile", label: "Mobile Builder",   icon: Smartphone },
+      { to: "/admin/build-api",    label: "API Builder",      icon: Code2 },
+      { to: "/admin/build-db",     label: "Database Builder", icon: Database },
     ],
   },
   {
-    label: "AI Studio", icon: Wand2, items: [
-      { to: "/admin/build", label: "Build Studio", icon: Wand2 },
-      { to: "/admin/creator", label: "Creator OS", icon: PenTool },
-      { to: "/admin/video", label: "Video Studio", icon: Film },
-      { to: "/admin/workforce", label: "AI Workforce", icon: Briefcase },
-      { to: "/admin/publishing", label: "Publishing", icon: Share2 },
+    label: "🤖 AI Platform",
+    icon: Bot,
+    items: [
+      { to: "/admin/chat",      label: "Neo AI",           icon: Sparkles },
+      { to: "/admin/video",     label: "Video Studio",     icon: Film },
+      { to: "/admin/creator",   label: "Creator OS",       icon: PenTool },
+      { to: "/admin/avatar",    label: "Avatar Studio",    icon: Image },
+      { to: "/admin/workforce", label: "AI Workforce",     icon: Briefcase },
+      { to: "/admin/ai-models", label: "AI Models",        icon: Cpu },
+      { to: "/admin/voice",     label: "Voice",            icon: Mic },
     ],
   },
   {
-    label: "Learning", icon: GraduationCap, items: [
-      { to: "/admin/courses", label: "Courses", icon: GraduationCap },
+    label: "🛒 Commerce",
+    icon: ShoppingBag,
+    items: [
+      { to: "/admin/products",  label: "Products",     icon: Package },
+      { to: "/admin/orders",    label: "Orders",       icon: ShoppingCart },
+      { to: "/admin/customers", label: "Customers",    icon: Users },
+      { to: "/admin/suppliers", label: "Suppliers",    icon: Truck },
+      { to: "/admin/sourcing",  label: "Sourcing",     icon: TrendingUp },
+      { to: "/admin/courses",   label: "Courses",      icon: GraduationCap },
+      { to: "/admin/publishing",label: "Publishing",   icon: Share2 },
     ],
   },
   {
-    label: "Automation", icon: Layers, items: [
-      { to: "/admin/skills", label: "Skills", icon: Wand2 },
-      { to: "/admin/stacks", label: "Stacks", icon: Layers },
+    label: "👥 Users",
+    icon: Users,
+    items: [
+      { to: "/admin/users",          label: "All Users",    icon: Users },
+      { to: "/admin/users/credits",  label: "Credits",      icon: Zap },
+      { to: "/admin/users/subs",     label: "Subscriptions",icon: Building2 },
+      { to: "/admin/users/sessions", label: "Sessions",     icon: Monitor },
     ],
   },
   {
-    label: "Operations", icon: Activity, items: [
-      { to: "/admin/deploy", label: "Deploy", icon: Rocket },
-      { to: "/admin/ai-ops", label: "AI Ops", icon: Activity },
-      { to: "/admin/ai-chat", label: "Legacy Chat", icon: MessageCircle },
+    label: "📈 Analytics",
+    icon: BarChart3,
+    items: [
+      { to: "/admin/analytics",         label: "Overview",      icon: BarChart3 },
+      { to: "/admin/analytics/revenue", label: "Revenue",       icon: TrendingUp },
+      { to: "/admin/analytics/ai",      label: "AI Usage",      icon: Bot },
+      { to: "/admin/analytics/content", label: "Content",       icon: Film },
+    ],
+  },
+  {
+    label: "⚡ Automation",
+    icon: Zap,
+    items: [
+      { to: "/admin/skills",    label: "Skills",      icon: Wand2 },
+      { to: "/admin/stacks",    label: "Stacks",      icon: Layers },
+      { to: "/admin/workflows", label: "Workflows",   icon: Workflow },
+      { to: "/admin/scheduler", label: "Scheduler",   icon: CalendarClock },
+      { to: "/admin/webhooks",  label: "Webhooks",    icon: Webhook },
+    ],
+  },
+  {
+    label: "🚀 Deploy",
+    icon: Rocket,
+    items: [
+      { to: "/admin/deploy",    label: "Deployments", icon: Rocket },
+    ],
+  },
+  {
+    label: "🖥 Operations",
+    icon: Monitor,
+    items: [
+      { to: "/admin/ai-ops",    label: "AI Ops",      icon: Activity },
+      { to: "/admin/servers",   label: "Servers",     icon: Server },
+      { to: "/admin/ai-chat",   label: "Legacy Chat", icon: MessageCircle },
+    ],
+  },
+  {
+    label: "🔒 Security",
+    icon: Shield,
+    items: [
+      { to: "/admin/security",        label: "Overview",   icon: Shield },
+      { to: "/admin/security/logs",   label: "Audit Logs", icon: Lock },
+      { to: "/admin/security/keys",   label: "API Keys",   icon: Key },
+      { to: "/admin/security/alerts", label: "Alerts",     icon: AlertTriangle },
+    ],
+  },
+  {
+    label: "⚙ Settings",
+    icon: Settings,
+    items: [
+      { to: "/admin/settings",           label: "Workspace",  icon: Building2 },
+      { to: "/admin/settings/branding",  label: "Branding",   icon: Wand2 },
+      { to: "/admin/settings/billing",   label: "Billing",    icon: ShoppingBag },
+      { to: "/admin/settings/integrations", label: "Integrations", icon: Webhook },
     ],
   },
 ];
@@ -56,7 +136,7 @@ const GROUPS = [
 export default function AdminLayout() {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
-  const [open, setOpen] = useState({});
+  const [open, setOpen] = useState({ "🤖 AI Platform": true, "🛒 Commerce": true });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
@@ -70,34 +150,53 @@ export default function AdminLayout() {
 
   const NavContent = ({ onNavigate }) => (
     <>
-      <div className="px-5 py-4 border-b" style={{ borderColor: "var(--gs-border)" }}>
-        <div className="font-display text-2xl">getszy</div>
-        <div className="text-xs text-[var(--gs-muted)] mt-0.5">Admin \u00b7 Neo Console</div>
+      <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: "var(--gs-border)" }}>
+        <div>
+          <div className="font-display text-xl">getszy</div>
+          <div className="text-[10px] text-[var(--gs-muted)]">Admin Console</div>
+        </div>
+        <div className="h-7 w-7 rounded-full bg-[var(--gs-teal)] grid place-items-center text-white text-[10px] font-bold">
+          {user?.name?.[0]?.toUpperCase() || "A"}
+        </div>
       </div>
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {PRIMARY.map((n) => (
-          <NavLink key={n.to} to={n.to} end={n.end} onClick={onNavigate}
-            data-testid={`admin-nav-${n.label.toLowerCase().replace(" ", "-")}`}
-            className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${isActive ? "bg-[var(--gs-teal)] text-white font-semibold" : "hover:bg-[var(--gs-surface-2)]"} ${n.primary ? "shadow-sm" : ""}`}>
-            <n.icon className="h-4 w-4"/>{n.label}
-          </NavLink>
-        ))}
-        <div className="h-2"/>
-        {GROUPS.map((g) => {
-          const isOpen = open[g.label] !== false; // default expanded
+
+      <div className="px-3 py-2 border-b" style={{ borderColor: "var(--gs-border)" }}>
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-[var(--gs-surface-2)] text-xs text-[var(--gs-muted)]">
+          <Search className="h-3 w-3"/>
+          <span>Search… (⌘K)</span>
+        </div>
+      </div>
+
+      <nav className="flex-1 p-2 overflow-y-auto space-y-0.5">
+        {NAV.map((n) => {
+          if (n.single) {
+            return (
+              <NavLink key={n.to} to={n.to} end={n.end} onClick={onNavigate}
+                className={({ isActive }) =>
+                  `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors
+                  ${isActive ? "bg-[var(--gs-teal)] text-white font-semibold" : "hover:bg-[var(--gs-surface-2)] text-[var(--gs-ink)]"}`}>
+                <n.icon className="h-4 w-4 shrink-0"/>
+                {n.label}
+              </NavLink>
+            );
+          }
+          const isOpen = open[n.label] !== false;
           return (
-            <div key={g.label}>
-              <button onClick={() => toggle(g.label)} className="w-full flex items-center gap-2 px-3 py-2 text-[10px] uppercase tracking-wider text-[var(--gs-muted)] hover:text-[var(--gs-ink)]" data-testid={`nav-group-${g.label.toLowerCase()}`}>
-                {isOpen ? <ChevronDown className="h-3 w-3"/> : <ChevronRight className="h-3 w-3"/>}
-                <g.icon className="h-3.5 w-3.5"/>
-                <span className="flex-1 text-left">{g.label}</span>
+            <div key={n.label}>
+              <button onClick={() => toggle(n.label)}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] uppercase tracking-wider font-semibold text-[var(--gs-muted)] hover:text-[var(--gs-ink)] mt-1">
+                {isOpen ? <ChevronDown className="h-3 w-3 shrink-0"/> : <ChevronRight className="h-3 w-3 shrink-0"/>}
+                <span>{n.label}</span>
               </button>
               {isOpen && (
-                <div className="ml-3 space-y-0.5 border-l" style={{ borderColor: "var(--gs-border)" }}>
-                  {g.items.map((n) => (
-                    <NavLink key={n.to} to={n.to} onClick={onNavigate} data-testid={`admin-nav-${n.label.toLowerCase().replace(/\s+/g, "-")}`}
-                      className={({ isActive }) => `flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${isActive ? "bg-[var(--gs-surface-2)] text-[var(--gs-teal)] font-semibold" : "hover:bg-[var(--gs-surface-2)] text-[var(--gs-ink)]"}`}>
-                      <n.icon className="h-3.5 w-3.5"/>{n.label}
+                <div className="ml-2 pl-2 border-l space-y-0.5 mb-1" style={{ borderColor: "var(--gs-border)" }}>
+                  {n.items.map((item) => (
+                    <NavLink key={item.to} to={item.to} onClick={onNavigate}
+                      className={({ isActive }) =>
+                        `flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors
+                        ${isActive ? "bg-[var(--gs-teal)]/10 text-[var(--gs-teal)] font-semibold" : "hover:bg-[var(--gs-surface-2)] text-[var(--gs-ink)]"}`}>
+                      <item.icon className="h-3.5 w-3.5 shrink-0"/>
+                      {item.label}
                     </NavLink>
                   ))}
                 </div>
@@ -106,33 +205,49 @@ export default function AdminLayout() {
           );
         })}
       </nav>
-      <div className="p-3 border-t" style={{ borderColor: "var(--gs-border)" }}>
-        <button onClick={() => { onNavigate?.(); navigate("/"); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--gs-muted)] hover:text-[var(--gs-ink)]" data-testid="admin-view-store-button"><Store className="h-4 w-4"/>View Storefront</button>
-        <button onClick={() => { onNavigate?.(); logout(); navigate("/"); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--gs-muted)] hover:text-[var(--gs-ink)]" data-testid="admin-logout-button"><LogOut className="h-4 w-4"/>Logout</button>
+
+      <div className="p-2 border-t space-y-0.5" style={{ borderColor: "var(--gs-border)" }}>
+        <button onClick={() => { onNavigate?.(); navigate("/"); }}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-[var(--gs-muted)] hover:bg-[var(--gs-surface-2)]">
+          <Store className="h-3.5 w-3.5"/>View Storefront
+        </button>
+        <button onClick={() => { onNavigate?.(); logout(); navigate("/"); }}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-rose-500 hover:bg-rose-50">
+          <LogOut className="h-3.5 w-3.5"/>Logout
+        </button>
       </div>
     </>
   );
 
   return (
-    <div className="min-h-screen grid md:grid-cols-[240px_1fr]" style={{ background: "#F7F5F2" }}>
-      <aside className="hidden md:flex flex-col border-r" style={{ background: "var(--gs-surface)", borderColor: "var(--gs-border)" }}>
+    <div className="min-h-screen grid md:grid-cols-[220px_1fr]" style={{ background: "#F7F5F2" }}>
+      <aside className="hidden md:flex flex-col border-r h-screen sticky top-0 overflow-hidden" style={{ background: "var(--gs-surface)", borderColor: "var(--gs-border)" }}>
         <NavContent/>
       </aside>
-      <div className="md:hidden flex items-center justify-between p-4 border-b" style={{ background: "var(--gs-surface)", borderColor: "var(--gs-border)" }}>
+
+      <div className="md:hidden flex items-center justify-between p-3 border-b sticky top-0 z-30" style={{ background: "var(--gs-surface)", borderColor: "var(--gs-border)" }}>
         <div className="flex items-center gap-2">
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" data-testid="admin-mobile-menu-button"><Menu className="h-5 w-5"/></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8"><Menu className="h-4 w-4"/></Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0 flex flex-col">
+            <SheetContent side="left" className="w-64 p-0 flex flex-col">
               <NavContent onNavigate={() => setMobileNavOpen(false)}/>
             </SheetContent>
           </Sheet>
-          <div className="font-display text-xl">getszy admin</div>
+          <div className="font-display text-lg">getszy admin</div>
         </div>
-        <NavLink to="/admin/chat" className="text-xs px-3 py-1.5 rounded-lg bg-[var(--gs-teal)] text-white flex items-center gap-1"><Sparkles className="h-3 w-3"/>Neo</NavLink>
+        <div className="flex items-center gap-2">
+          <NavLink to="/admin/notifications" className="relative">
+            <Bell className="h-4 w-4 text-[var(--gs-muted)]"/>
+          </NavLink>
+          <NavLink to="/admin/chat" className="text-xs px-3 py-1.5 rounded-lg bg-[var(--gs-teal)] text-white flex items-center gap-1">
+            <Sparkles className="h-3 w-3"/>Neo
+          </NavLink>
+        </div>
       </div>
-      <main id="main-content" className="p-4 md:p-6 overflow-x-hidden" tabIndex={-1}>
+
+      <main id="main-content" className="p-4 md:p-6 overflow-x-hidden min-h-screen" tabIndex={-1}>
         <Outlet/>
       </main>
       <CopilotSidebar/>
