@@ -41,6 +41,7 @@ from routes_workflows import router as workflows_router
 from routes_avatar import router as avatar_router
 from routes_projects import router as projects_router
 from routes_commerce_extra import router as commerce_extra_router
+from routes_ai_platform import router as ai_platform_router
 import skills.creator_skills  # noqa: F401 - register creator skills
 
 app = FastAPI(title='getszy API')
@@ -94,6 +95,7 @@ api_router.include_router(workflows_router)
 api_router.include_router(avatar_router)
 api_router.include_router(projects_router)
 api_router.include_router(commerce_extra_router)
+api_router.include_router(ai_platform_router)
 
 app.include_router(api_router)
 
