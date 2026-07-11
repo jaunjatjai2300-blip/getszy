@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -257,6 +257,87 @@ export default function Servers() {
         </div>
         <p className="text-[10px] text-[var(--gs-muted)] mt-2">Click any command to copy to clipboard</p>
       </Card>
+
+      {/* Live Log Viewer */}
+      <LogViewer />
     </div>
+  );
+}
+
+function LogViewer() {
+  const [logs, setLogs] = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(true);
+  const [filter, setFilter] = useState("");
+  const [autoRefresh, setAutoRefresh] = useState(true);
+
+  const fetchLogs = useCallback(async () => {
+    try {
+      const r = await api.get("/admin/audit-logs?limit=100");
+      setLogs(r.data.items || []);
+    } catch { /* no events yet */ } finally { setLoadingLogs(false); }
+  }, []);
+
+  useEffect(() => {
+    fetchLogs();
+    if (!autoRefresh) return;
+    const t = setInterval(fetchLogs, 10000);
+    return () => clearInterval(t);
+  }, [fetchLogs, autoRefresh]);
+
+  const displayed = filter
+    ? logs.filter(l => (l.action + l.detail).toLowerCase().includes(filter.toLowerCase()))
+    : logs;
+
+  const LEVEL_BG = { info: "#e0f2fe", warn: "#fef9c3", error: "#fee2e2" };
+  const LEVEL_TXT = { info: "#0369a1", warn: "#92400e", error: "#991b1b" };
+
+  return (
+    <Card className="p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <h3 className="font-semibold flex items-center gap-2">
+          <Terminal className="h-4 w-4 text-[var(--gs-teal)]"/>Application Log Viewer
+          <Badge className="text-[10px] bg-[var(--gs-teal-soft)] text-[var(--gs-teal)]">{displayed.length} events</Badge>
+        </h3>
+        <div className="flex items-center gap-2">
+          <Input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Filter…" className="h-7 text-xs w-32"/>
+          <Button variant={autoRefresh ? "default" : "outline"} size="sm" className="h-7 text-xs gap-1"
+            onClick={() => setAutoRefresh(a => !a)}
+            style={autoRefresh ? { background: "var(--gs-teal)" } : {}}>
+            <Activity className="h-3 w-3"/>{autoRefresh ? "Live" : "Paused"}
+          </Button>
+          <Button variant="outline" size="sm" className="h-7" onClick={fetchLogs}>
+            <RefreshCw className={`h-3 w-3 ${loadingLogs ? "animate-spin" : ""}`}/>
+          </Button>
+        </div>
+      </div>
+      <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--gs-border)" }}>
+        <div className="bg-[#1a1a2e] h-80 overflow-y-auto p-3 font-mono text-xs space-y-1">
+          {loadingLogs ? (
+            <div className="text-slate-400">Loading logs…</div>
+          ) : displayed.length === 0 ? (
+            <div className="text-slate-400">
+              {filter ? "No matching log lines" : "Koi events nahi hain abhi — admin actions yahan appear honge"}
+            </div>
+          ) : (
+            displayed.map((log, i) => (
+              <div key={log.id || i} className="flex gap-2 leading-5">
+                <span className="text-slate-500 flex-shrink-0">
+                  {log.created_at ? new Date(log.created_at).toLocaleTimeString("en-IN") : "—"}
+                </span>
+                <span className="px-1 rounded text-[10px] flex-shrink-0 font-bold"
+                  style={{ background: LEVEL_BG[log.level] || LEVEL_BG.info, color: LEVEL_TXT[log.level] || LEVEL_TXT.info }}>
+                  {(log.level || "info").toUpperCase()}
+                </span>
+                <span className="text-emerald-400">{log.action}</span>
+                {log.detail && <span className="text-slate-400 truncate">{log.detail}</span>}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+      <p className="text-[10px] text-[var(--gs-muted)] mt-2">
+        Admin audit events — auto-refresh har 10 seconds. VPS ke full Docker logs ke liye upar ke commands use karo.
+      </p>
+    </Card>
   );
 }

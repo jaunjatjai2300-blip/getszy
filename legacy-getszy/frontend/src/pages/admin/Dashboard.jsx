@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { api, fmtINR } from "@/lib/api";
 import { Link } from "react-router-dom";
 import {
   IndianRupee, Users, Film, Zap, TrendingUp, ShoppingBag,
   AlertTriangle, Activity, CheckCircle2, XCircle, Rocket,
   ArrowUpRight, RefreshCw, Sparkles, Cpu, Server, Wand2,
-  Image, PenTool, Package, BarChart3
+  Image, PenTool, Package, BarChart3, Radio
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -212,31 +212,95 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Recent Orders */}
-      <Card className="p-5" data-testid="admin-recent-orders-table">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">Recent Orders</h3>
-          <Link to="/admin/orders" className="text-xs text-[var(--gs-teal)] flex items-center gap-1">
-            View all <ArrowUpRight className="h-3 w-3"/>
-          </Link>
-        </div>
-        {(!s.recent_orders || s.recent_orders.length === 0) ? (
-          <div className="text-center text-[var(--gs-muted)] py-8 text-sm">Is range mein koi orders nahi</div>
-        ) : (
-          <div className="divide-y" style={{ borderColor: "var(--gs-border)" }}>
-            {s.recent_orders.map((o) => (
-              <div key={o.id} className="flex items-center justify-between py-3 text-sm">
-                <div>
-                  <div className="font-semibold">{o.order_number}</div>
-                  <div className="text-xs text-[var(--gs-muted)]">{o.customer_name} · {new Date(o.created_at).toLocaleString("en-IN")}</div>
-                </div>
-                <Badge variant="outline" className="capitalize text-[10px]">{o.status}</Badge>
-                <div className="font-semibold">{fmtINR(o.total)}</div>
-              </div>
-            ))}
+      <div className="grid lg:grid-cols-2 gap-4">
+        {/* Recent Orders */}
+        <Card className="p-5" data-testid="admin-recent-orders-table">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Recent Orders</h3>
+            <Link to="/admin/orders" className="text-xs text-[var(--gs-teal)] flex items-center gap-1">
+              View all <ArrowUpRight className="h-3 w-3"/>
+            </Link>
           </div>
-        )}
-      </Card>
+          {(!s.recent_orders || s.recent_orders.length === 0) ? (
+            <div className="text-center text-[var(--gs-muted)] py-8 text-sm">Is range mein koi orders nahi</div>
+          ) : (
+            <div className="divide-y" style={{ borderColor: "var(--gs-border)" }}>
+              {s.recent_orders.map((o) => (
+                <div key={o.id} className="flex items-center justify-between py-3 text-sm">
+                  <div>
+                    <div className="font-semibold">{o.order_number}</div>
+                    <div className="text-xs text-[var(--gs-muted)]">{o.customer_name} · {new Date(o.created_at).toLocaleString("en-IN")}</div>
+                  </div>
+                  <Badge variant="outline" className="capitalize text-[10px]">{o.status}</Badge>
+                  <div className="font-semibold">{fmtINR(o.total)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Live Activity Feed */}
+        <LiveActivityFeed />
+      </div>
     </div>
+  );
+}
+
+function LiveActivityFeed() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const TYPE_ICON = {
+    order:   { emoji: "💰", color: "bg-emerald-50 text-emerald-700" },
+    ai_job:  { emoji: "🤖", color: "bg-violet-50 text-violet-700" },
+    signup:  { emoji: "👤", color: "bg-blue-50 text-blue-700" },
+  };
+
+  const loadActivity = useCallback(async () => {
+    try {
+      const r = await api.get("/admin/live-activity?limit=15");
+      setItems(r.data.items || []);
+    } catch { /* silent */ } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    loadActivity();
+    const t = setInterval(loadActivity, 20000);
+    return () => clearInterval(t);
+  }, [loadActivity]);
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold flex items-center gap-2">
+          <Radio className="h-4 w-4 text-[var(--gs-teal)] animate-pulse"/>Live Activity
+        </h3>
+        <Badge className="bg-emerald-100 text-emerald-700 text-[10px]">Auto-refresh 20s</Badge>
+      </div>
+      {loading ? (
+        <div className="space-y-2">{[1,2,3,4,5].map(i => <div key={i} className="h-8 animate-pulse bg-[var(--gs-surface-2)] rounded-lg"/>)}</div>
+      ) : items.length === 0 ? (
+        <div className="text-center text-[var(--gs-muted)] text-sm py-8">
+          <Activity className="h-8 w-8 mx-auto mb-2 opacity-30"/>
+          Koi activity nahi abhi — orders, signups, AI jobs yahan dikhenge
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {items.map((item, i) => {
+            const style = TYPE_ICON[item.type] || { emoji: "⚡", color: "bg-slate-50 text-slate-700" };
+            const timeAgo = item.at ? new Date(item.at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "";
+            return (
+              <div key={item.id || i} className={`flex items-center gap-3 p-2.5 rounded-xl ${style.color}`}>
+                <span className="text-base">{style.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium truncate">{item.msg}</div>
+                </div>
+                <div className="text-[10px] opacity-60 flex-shrink-0">{timeAgo}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
   );
 }
