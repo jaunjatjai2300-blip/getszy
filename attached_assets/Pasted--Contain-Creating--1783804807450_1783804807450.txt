@@ -1,0 +1,22 @@
+ Contain... Creating                                                                                                                             0.0s
+Error response from daemon: Conflict. The container name "/getszy-mongo" is already in use by container "a78ab50afb4e3fe014339a398e2a157d461a776bb3629c45562999107b737b5f". You have to remove (or rename) that container to be able to reuse that name.
+[root@srv973421 legacy-getszy]# docker compose down && docker compose up -d
+WARN[0000] The "JWT_SECRET" variable is not set. Defaulting to a blank string. 
+WARN[0000] The "EMERGENT_LLM_KEY" variable is not set. Defaulting to a blank string. 
+WARN[0000] The "PUBLIC_URL" variable is not set. Defaulting to a blank string. 
+WARN[0000] The "DOMAIN" variable is not set. Defaulting to a blank string. 
+WARN[0000] /opt/getszy/legacy-getszy/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
+[+] down 1/1
+ ✔ Network legacy-getszy_getszy Removed                                                                                                            0.2s
+WARN[0000] The "JWT_SECRET" variable is not set. Defaulting to a blank string. 
+WARN[0000] The "EMERGENT_LLM_KEY" variable is not set. Defaulting to a blank string. 
+WARN[0000] The "PUBLIC_URL" variable is not set. Defaulting to a blank string. 
+WARN[0000] The "DOMAIN" variable is not set. Defaulting to a blank string. 
+WARN[0000] /opt/getszy/legacy-getszy/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
+[+] up 2/4
+ ✔ Network... Created                                                                                                                              0.2s
+ ⠋ Contain... Creating                                                                                                                             0.0s
+ ✘ service... Error response from daemon: Conflict. The container name "/getszy-mongo" is already in use by container "a78ab50afb4e3fe014339a398e2a157d461a776bb3629c45562999107b737b5f". You have to remove (or rename) that container to be able to reuse that name. 0.0s
+ ⠋ Contain... Creating                                                                                                                             0.0s
+Error response from daemon: Conflict. The container name "/getszy-mongo" is already in use by container "a78ab50afb4e3fe014339a398e2a157d461a776bb3629c45562999107b737b5f". You have to remove (or rename) that container to be able to reuse that name.
+[root@srv973421 legacy-getszy]# 
