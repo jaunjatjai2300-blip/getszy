@@ -1,0 +1,38 @@
+workspace$ git push https://jaunjatjai2300-blip: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@github.com/jaunjatjai2300-blip/getszy.git main --force
+Enumerating objects: 1139, done.
+Counting objects: 100% (1139/1139), done.
+Delta compression using up to 2 threads
+Compressing objects: 100% (1096/1096), done.
+Writing objects: 100% (1139/1139), 79.49 MiB | 15.05 MiB/s, done.
+Total 1139 (delta 485), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (485/485), done.
+remote: error: GH013: Repository rule violations found for refs/heads/main.
+remote: 
+remote: - GITHUB PUSH PROTECTION
+remote:   —————————————————————————————————————————
+remote:     Resolve the following violations before pushing again
+remote: 
+remote:     - Push cannot contain secrets
+remote: 
+remote:     
+remote:      (?) Learn how to resolve a blocked push
+remote:      https://docs.github.com/code-security/secret-scanning/working-with-secret-scanning-and-push-protection/working-with-push-protection-from-the-command-line#resolving-a-blocked-push
+remote:     
+remote:      (?) This repository does not have Secret Scanning enabled, but is eligible. Enable Secret Scanning to view and manage detected secrets.
+remote:      Visit the repository settings page, https://github.com/jaunjatjai2300-blip/getszy/settings/security_analysis
+remote:     
+remote:     
+remote:       —— GitHub Personal Access Token ——————————————————————
+remote:        locations:
+remote:          - commit: 215ecea41512ad120d3531ada966788d11fab6c6
+remote:            path: attached_assets/Pasted-Skip-to-content-AI-Library-Search-Apps-Getszy-Getszy-We_1783791799230.txt:195
+remote:     
+remote:        (?) To push, remove secret from commit(s) or follow this URL to allow the secret.
+remote:        https://github.com/jaunjatjai2300-blip/getszy/security/secret-scanning/unblock-secret/3GNEBZNo33A2KWCMcb5lL7CqUaW
+remote:     
+remote: 
+remote: 
+To https://github.com/jaunjatjai2300-blip/getszy.git
+ ! [remote rejected] main -> main (push declined due to repository rule violations)
+error: failed to push some refs to 'https://github.com/jaunjatjai2300-blip/getszy.git'
+~/workspace$ 
