@@ -1,20 +1,15 @@
-# Caddy v2 — HTTP only (works with IP or domain, no SSL required)
-
-:80 {
+getszy.com, www.getszy.com, dash.getszy.com {
     encode gzip
 
-    # API → backend
     handle /api/* {
         reverse_proxy backend:8001
     }
 
-    # Webhook
     handle /hooks/* {
         uri strip_prefix /hooks
         reverse_proxy host.docker.internal:9000
     }
 
-    # Everything else → frontend
     handle {
         reverse_proxy frontend:80
     }
