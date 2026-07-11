@@ -93,7 +93,16 @@ export default function AdminStacks() {
           <p className="text-sm text-[var(--gs-muted)] mt-1">Describe an entire campaign in YAML — we&apos;ll run every step in sequence.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => { setActiveStack(null); setYamlText(SAMPLE_YAML); setRun(null); }} data-testid="stacks-new-button" className="gap-2"><Plus className="h-4 w-4"/>New from template</Button>
+          <Button variant="outline" onClick={async () => {
+            try {
+              const r = await api.post("/admin/stacks/seed-templates");
+              toast.success(`${r.data.seeded.length} templates seeded, ${r.data.skipped.length} already existed`);
+              await load();
+            } catch (e) { toast.error("Seed failed"); }
+          }} data-testid="stacks-seed-button" className="gap-2 text-xs">
+            <RefreshCw className="h-3.5 w-3.5"/>Load Templates
+          </Button>
+          <Button variant="outline" onClick={() => { setActiveStack(null); setYamlText(SAMPLE_YAML); setRun(null); }} data-testid="stacks-new-button" className="gap-2"><Plus className="h-4 w-4"/>New</Button>
         </div>
       </div>
 
@@ -139,9 +148,17 @@ export default function AdminStacks() {
         </div>
 
         <aside className="space-y-2">
-          <h3 className="font-semibold text-sm uppercase tracking-wider text-[var(--gs-muted)]">Saved stacks</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-sm uppercase tracking-wider text-[var(--gs-muted)]">Saved stacks ({stacks.length})</h3>
+          </div>
           {stacks.length === 0 ? (
-            <div className="gs-card p-4 text-xs text-[var(--gs-muted)]">Nothing saved yet.</div>
+            <div className="gs-card p-4 text-xs text-[var(--gs-muted)] space-y-2">
+              <div>Nothing saved yet.</div>
+              <Button size="sm" variant="outline" className="w-full text-xs" onClick={async () => {
+                try { const r = await api.post("/admin/stacks/seed-templates"); toast.success(`${r.data.seeded.length} templates loaded!`); await load(); }
+                catch (e) { toast.error("Seed failed"); }
+              }}>Load 6 pre-built templates</Button>
+            </div>
           ) : (
             stacks.map((s) => (
               <div key={s.id} className={`gs-card p-3 ${activeStack?.id === s.id ? "ring-2 ring-[var(--gs-teal)]" : ""}`}>
