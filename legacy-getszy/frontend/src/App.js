@@ -39,6 +39,8 @@ import AdminSettings from "@/pages/admin/AdminSettings";
 import AdminProjects from "@/pages/admin/Projects";
 import AdminSecurity from "@/pages/admin/Security";
 import AdminServers from "@/pages/admin/Servers";
+import AdminWorkflows from "@/pages/admin/Workflows";
+import AdminScheduler from "@/pages/admin/Scheduler";
 import VideoStudio from "@/pages/dashboard/VideoStudio";
 import DashboardLayout from "@/components/DashboardLayout";
 import LabsHome from "@/pages/labs/LabsHome";
@@ -132,6 +134,8 @@ export default function App() {
             {/* Operations */}
             <Route path="ai-ops" element={<AdminAiOps />} />
             <Route path="servers" element={<AdminServers />} />
+            <Route path="workflows" element={<AdminWorkflows />} />
+            <Route path="scheduler" element={<AdminScheduler />} />
             <Route path="ai-chat" element={<AdminAIChat />} />
 
             {/* Security */}
