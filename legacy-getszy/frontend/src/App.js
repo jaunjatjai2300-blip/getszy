@@ -42,6 +42,17 @@ import AdminServers from "@/pages/admin/Servers";
 import AdminWorkflows from "@/pages/admin/Workflows";
 import AdminScheduler from "@/pages/admin/Scheduler";
 import AvatarSetup from "@/pages/admin/AvatarSetup";
+import AdminCoupons from "@/pages/admin/Coupons";
+import AdminInvoices from "@/pages/admin/Invoices";
+import AdminReviews from "@/pages/admin/Reviews";
+import AdminAffiliates from "@/pages/admin/Affiliates";
+import AdminMemberships from "@/pages/admin/Memberships";
+import AdminFormBuilder from "@/pages/admin/FormBuilder";
+import AdminDashboardBuilder from "@/pages/admin/DashboardBuilder";
+import AdminEmailBuilder from "@/pages/admin/EmailBuilder";
+import AdminLandingPageBuilder from "@/pages/admin/LandingPageBuilder";
+import AdminDBBuilder from "@/pages/admin/DBBuilder";
+import AdminAPIBuilder from "@/pages/admin/APIBuilder";
 import VideoStudio from "@/pages/dashboard/VideoStudio";
 import DashboardLayout from "@/components/DashboardLayout";
 import LabsHome from "@/pages/labs/LabsHome";
@@ -92,6 +103,12 @@ export default function App() {
             <Route path="build-mobile" element={<AdminBuildStudio />} />
             <Route path="build-api" element={<AdminBuildStudio />} />
             <Route path="build-db" element={<AdminBuildStudio />} />
+            <Route path="builder/form" element={<AdminFormBuilder />} />
+            <Route path="builder/dashboard" element={<AdminDashboardBuilder />} />
+            <Route path="builder/email" element={<AdminEmailBuilder />} />
+            <Route path="builder/landing" element={<AdminLandingPageBuilder />} />
+            <Route path="builder/db" element={<AdminDBBuilder />} />
+            <Route path="builder/api" element={<AdminAPIBuilder />} />
 
             {/* AI Platform */}
             <Route path="video" element={<AdminVideoStudio />} />
@@ -109,6 +126,11 @@ export default function App() {
             <Route path="sourcing" element={<AdminSourcing />} />
             <Route path="courses" element={<AdminCourses />} />
             <Route path="publishing" element={<AdminPublishing />} />
+            <Route path="coupons" element={<AdminCoupons />} />
+            <Route path="invoices" element={<AdminInvoices />} />
+            <Route path="reviews" element={<AdminReviews />} />
+            <Route path="affiliates" element={<AdminAffiliates />} />
+            <Route path="memberships" element={<AdminMemberships />} />
 
             {/* Users */}
             <Route path="users" element={<UsersAdmin />} />
