@@ -1,15 +1,19 @@
 """LLM Provider — Free-First Cost Guard
 
 Priority chain (zero paid cost):
-  1. Groq       — free forever, 14,400 req/day (Llama 3.1 8B)
-  2. Gemini     — free forever, 1,500 req/day (Gemini 1.5 Flash)
-  3. Ollama     — local, free, unlimited
-  4. Emergent   — paid fallback (only if FREE_ONLY=false)
+  1. Groq       — free forever, 14,400 req/day
+  2. OpenRouter — free tier, 92+ models
+  3. HuggingFace — free inference API
+  4. Gemini     — free forever, 1,500 req/day
+  5. Ollama     — local, free, unlimited
+  6. Emergent   — paid fallback (only if FREE_ONLY=false)
 
 Set env vars to unlock providers:
-  GROQ_API_KEY   — get free at console.groq.com
-  GEMINI_API_KEY — get free at aistudio.google.com
-  FREE_ONLY=true — hard block all paid APIs (default: true)
+  GROQ_API_KEY        — get free at console.groq.com
+  OPENROUTER_API_KEY  — get free at openrouter.ai
+  HF_API_KEY          — get free at huggingface.co
+  GEMINI_API_KEY      — get free at aistudio.google.com
+  FREE_ONLY=true      — hard block all paid APIs (default: true)
 """
 import os
 import httpx
@@ -20,18 +24,24 @@ from datetime import datetime, timezone
 logger = logging.getLogger('getszy.llm')
 
 # ── Config ────────────────────────────────────────────────────────────────────
-FREE_ONLY        = os.environ.get('FREE_ONLY', 'true').lower() != 'false'
-GROQ_API_KEY     = os.environ.get('GROQ_API_KEY', '').strip()
-GEMINI_API_KEY   = os.environ.get('GEMINI_API_KEY', '').strip()
-OLLAMA_BASE_URL  = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
-OLLAMA_SECRET    = os.environ.get('OLLAMA_SECRET', '')
-OLLAMA_MODEL     = os.environ.get('OLLAMA_MODEL', 'llama3.2:3b')
-EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
-EMERGENT_MODEL   = os.environ.get('EMERGENT_MODEL', 'gpt-4o-mini')
+FREE_ONLY           = os.environ.get('FREE_ONLY', 'true').lower() != 'false'
+GROQ_API_KEY        = os.environ.get('GROQ_API_KEY', '').strip()
+OPENROUTER_API_KEY  = os.environ.get('OPENROUTER_API_KEY', '').strip()
+HF_API_KEY          = os.environ.get('HF_API_KEY', '').strip()
+GEMINI_API_KEY      = os.environ.get('GEMINI_API_KEY', '').strip()
+OLLAMA_BASE_URL     = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
+OLLAMA_SECRET       = os.environ.get('OLLAMA_SECRET', '')
+OLLAMA_MODEL        = os.environ.get('OLLAMA_MODEL', 'llama3.2:3b')
+EMERGENT_LLM_KEY    = os.environ.get('EMERGENT_LLM_KEY', '')
+EMERGENT_MODEL      = os.environ.get('EMERGENT_MODEL', 'gpt-4o-mini')
+
+OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'meta-llama/llama-3.3-70b-instruct:free')
+HF_MODEL = os.environ.get('HF_MODEL', 'Qwen/Qwen2.5-72B-Instruct')
 
 # Daily free limits (safe = 80% of actual limit)
-GROQ_DAILY_LIMIT   = int(os.environ.get('GROQ_DAILY_LIMIT', '11000'))   # actual: 14400
-GEMINI_DAILY_LIMIT = int(os.environ.get('GEMINI_DAILY_LIMIT', '1200'))  # actual: 1500
+GROQ_DAILY_LIMIT      = int(os.environ.get('GROQ_DAILY_LIMIT', '11000'))
+GEMINI_DAILY_LIMIT    = int(os.environ.get('GEMINI_DAILY_LIMIT', '1200'))
+OPENROUTER_DAILY_LIMIT = int(os.environ.get('OPENROUTER_DAILY_LIMIT', '200'))
 
 # ── In-memory daily counters (reset at midnight UTC) ─────────────────────────
 _counters: dict = {}
@@ -53,7 +63,11 @@ def _increment(provider: str):
             del _counters[k]
 
 def _under_limit(provider: str) -> bool:
-    limits = {'groq': GROQ_DAILY_LIMIT, 'gemini': GEMINI_DAILY_LIMIT}
+    limits = {
+        'groq': GROQ_DAILY_LIMIT,
+        'gemini': GEMINI_DAILY_LIMIT,
+        'openrouter': OPENROUTER_DAILY_LIMIT,
+    }
     return _count(provider) < limits.get(provider, 999999)
 
 # ── Provider implementations ──────────────────────────────────────────────────
@@ -75,6 +89,44 @@ async def _groq(system: str, user: str, temperature: float) -> str:
         )
         r.raise_for_status()
         return r.json()['choices'][0]['message']['content']
+
+
+async def _openrouter(system: str, user: str, temperature: float) -> str:
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        r = await client.post(
+            'https://openrouter.ai/api/v1/chat/completions',
+            headers={
+                'Authorization': f'Bearer {OPENROUTER_API_KEY}',
+                'HTTP-Referer': 'https://getszy.com',
+                'X-Title': 'Getszy',
+            },
+            json={
+                'model': OPENROUTER_MODEL,
+                'messages': [
+                    {'role': 'system', 'content': system},
+                    {'role': 'user', 'content': user},
+                ],
+                'temperature': temperature,
+                'max_tokens': 2048,
+            },
+        )
+        r.raise_for_status()
+        return r.json()['choices'][0]['message']['content']
+
+
+async def _huggingface(system: str, user: str, temperature: float) -> str:
+    prompt = f"System: {system}\n\nUser: {user}\n\nAssistant:"
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        r = await client.post(
+            f'https://api-inference.huggingface.co/models/{HF_MODEL}',
+            headers={'Authorization': f'Bearer {HF_API_KEY}'},
+            json={'inputs': prompt, 'parameters': {'temperature': temperature, 'max_new_tokens': 2048}},
+        )
+        r.raise_for_status()
+        data = r.json()
+        if isinstance(data, list) and data:
+            return data[0].get('generated_text', '')
+        return str(data)
 
 
 async def _gemini(system: str, user: str, temperature: float) -> str:
@@ -145,7 +197,26 @@ async def chat_completion(
         except Exception as e:
             logger.warning(f'LLM groq failed: {e}')
 
-    # 2. Gemini — free, Google, good quality
+    # 2. OpenRouter — free tier, 92+ models
+    if OPENROUTER_API_KEY and _under_limit('openrouter'):
+        try:
+            result = await _openrouter(system, user, temperature)
+            _increment('openrouter')
+            logger.info(f'LLM: openrouter ({_count("openrouter")}/{OPENROUTER_DAILY_LIMIT} today)')
+            return result
+        except Exception as e:
+            logger.warning(f'LLM openrouter failed: {e}')
+
+    # 3. HuggingFace — free inference API
+    if HF_API_KEY:
+        try:
+            result = await _huggingface(system, user, temperature)
+            logger.info('LLM: huggingface')
+            return result
+        except Exception as e:
+            logger.warning(f'LLM huggingface failed: {e}')
+
+    # 4. Gemini — free, Google, good quality
     if GEMINI_API_KEY and _under_limit('gemini'):
         try:
             result = await _gemini(system, user, temperature)
@@ -179,18 +250,22 @@ async def chat_completion(
 
 
 def provider_info() -> dict:
-    groq_used   = _count('groq')
-    gemini_used = _count('gemini')
+    groq_used        = _count('groq')
+    gemini_used      = _count('gemini')
+    openrouter_used  = _count('openrouter')
     return {
         'free_only': FREE_ONLY,
         'providers': {
-            'groq':    {'available': bool(GROQ_API_KEY),   'used_today': groq_used,   'limit': GROQ_DAILY_LIMIT,   'remaining': max(0, GROQ_DAILY_LIMIT - groq_used)},
-            'gemini':  {'available': bool(GEMINI_API_KEY), 'used_today': gemini_used, 'limit': GEMINI_DAILY_LIMIT, 'remaining': max(0, GEMINI_DAILY_LIMIT - gemini_used)},
-            'ollama':  {'available': bool(OLLAMA_BASE_URL), 'model': OLLAMA_MODEL},
-            'emergent':{'available': bool(EMERGENT_LLM_KEY) and not FREE_ONLY, 'blocked_by_free_only': FREE_ONLY},
+            'groq':        {'available': bool(GROQ_API_KEY),        'used_today': groq_used,        'limit': GROQ_DAILY_LIMIT,        'remaining': max(0, GROQ_DAILY_LIMIT - groq_used)},
+            'openrouter':  {'available': bool(OPENROUTER_API_KEY),  'used_today': openrouter_used,  'limit': OPENROUTER_DAILY_LIMIT,  'remaining': max(0, OPENROUTER_DAILY_LIMIT - openrouter_used)},
+            'huggingface': {'available': bool(HF_API_KEY),          'model': HF_MODEL},
+            'gemini':      {'available': bool(GEMINI_API_KEY),      'used_today': gemini_used,      'limit': GEMINI_DAILY_LIMIT,      'remaining': max(0, GEMINI_DAILY_LIMIT - gemini_used)},
+            'ollama':      {'available': bool(OLLAMA_BASE_URL),     'model': OLLAMA_MODEL},
+            'emergent':    {'available': bool(EMERGENT_LLM_KEY) and not FREE_ONLY, 'blocked_by_free_only': FREE_ONLY},
         },
         'active_chain': (
             'groq' if GROQ_API_KEY and _under_limit('groq') else
+            'openrouter' if OPENROUTER_API_KEY and _under_limit('openrouter') else
             'gemini' if GEMINI_API_KEY and _under_limit('gemini') else
             'ollama'
         ),

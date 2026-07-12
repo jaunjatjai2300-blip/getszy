@@ -1,6 +1,8 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Request
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 import os
 import logging
 from pathlib import Path
@@ -9,6 +11,38 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 from db import db, client
+from middleware import RateLimitMiddleware, SecurityHeadersMiddleware, RequestLoggingMiddleware
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(name)s %(levelname)s %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+)
+logger = logging.getLogger('getszy')
+
+
+@asynccontextmanager
+async def lifespan(app):
+    logger.info('Getszy backend starting')
+    from seed import seed_if_empty, seed_courses_if_empty
+    await seed_if_empty()
+    await seed_courses_if_empty()
+    flag = await db.system.find_one({'_id': 'video_branding_v1'})
+    if not flag:
+        res = await db.lessons.update_many(
+            {'video_url': {'$regex': 'youtube|youtu.be|vimeo', '$options': 'i'}},
+            {'$set': {'video_url': ''}},
+        )
+        await db.system.insert_one({'_id': 'video_branding_v1', 'modified_lessons': res.modified_count})
+        logger.info(f'video migration: cleared {res.modified_count} external video URLs')
+    await db.courses.update_many({'level': 'Advanced'}, {'$set': {'is_premium': True}})
+    await db.courses.update_many({'level': {'$in': ['Beginner', 'Intermediate']}}, {'$set': {'is_premium': False}})
+    await db.billing_processed_payments.create_index('payment_id', unique=True)
+    logger.info('Getszy backend ready')
+    yield
+    logger.info('Getszy backend shutting down')
+    client.close()
+
 from routes_auth import router as auth_router
 from routes_catalog import router as catalog_router
 from routes_cart_orders import router as cart_router
@@ -44,22 +78,34 @@ from routes_commerce_extra import router as commerce_extra_router
 from routes_ai_platform import router as ai_platform_router
 import skills.creator_skills  # noqa: F401 - register creator skills
 
-app = FastAPI(title='getszy API')
+app = FastAPI(
+    title='Getszy API',
+    description='AI Founder Operating System - Backend API',
+    version='2.0.0',
+    docs_url='/api/docs' if os.environ.get('ENABLE_DOCS') == '1' else None,
+    redoc_url=None,
+    lifespan=lifespan,
+)
 api_router = APIRouter(prefix='/api')
 
 
 @api_router.get('/')
 async def root():
-    return {'message': 'getszy API live', 'version': '2.0.0', 'ai': 'Getszy AI'}
+    return {'message': 'Getszy API live', 'version': '2.0.0', 'ai': 'Getszy AI'}
 
 
 @api_router.get('/health')
 async def health():
     try:
         await db.command('ping')
-        return {'status': 'ok', 'ai': 'Getszy AI'}
+        mongo_status = 'ok'
     except Exception as e:
-        return {'status': 'error', 'detail': str(e)}
+        mongo_status = f'error: {e}'
+    return {
+        'status': 'ok' if mongo_status == 'ok' else 'degraded',
+        'mongo': mongo_status,
+        'version': '2.0.0',
+    }
 
 
 api_router.include_router(auth_router)
@@ -107,33 +153,15 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('getszy')
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
 
 
-@app.on_event('startup')
-async def startup():
-    logger.info('getszy backend starting')
-    from seed import seed_if_empty, seed_courses_if_empty
-    await seed_if_empty()
-    await seed_courses_if_empty()
-    # One-time migration: clear external video URLs in favour of branded placeholders
-    flag = await db.system.find_one({'_id': 'video_branding_v1'})
-    if not flag:
-        res = await db.lessons.update_many(
-            {'video_url': {'$regex': 'youtube|youtu.be|vimeo', '$options': 'i'}},
-            {'$set': {'video_url': ''}},
-        )
-        await db.system.insert_one({'_id': 'video_branding_v1', 'modified_lessons': res.modified_count})
-        logger.info(f'video migration: cleared {res.modified_count} external video URLs')
-    # Ensure all premium-level courses are flagged
-    await db.courses.update_many({'level': 'Advanced'}, {'$set': {'is_premium': True}})
-    await db.courses.update_many({'level': {'$in': ['Beginner', 'Intermediate']}}, {'$set': {'is_premium': False}})
-    # Unique index so a Razorpay payment_id can only ever grant credits once
-    # (guards against webhook retries / verify+webhook double-firing on the same charge)
-    await db.billing_processed_payments.create_index('payment_id', unique=True)
-
-
-@app.on_event('shutdown')
-async def shutdown_db():
-    client.close()
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f'Unhandled error: {request.method} {request.url.path} - {exc}', exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={'detail': 'Internal server error'},
+    )
