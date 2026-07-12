@@ -47,3 +47,34 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Environment files (NEVER commit secrets)
+.env
+.env.*
+!.env.example
+
+# Legacy test files (not needed in production)
+legacy-getszy/backend_test*.py
+legacy-getszy/test_core_poc.py
+legacy-getszy/test_result.md
+legacy-getszy/memory/
+legacy-getszy/.emergent/
+legacy-getszy/.gitconfig
+legacy-getszy/yarn.lock
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+*.egg
+.mypy_cache/
+.pytest_cache/
+
+# Docker
+docker-compose.override.yml
+
+# Lock files (use pnpm)
+yarn.lock
+package-lock.json
