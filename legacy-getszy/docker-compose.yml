@@ -58,7 +58,7 @@ services:
       FREE_ONLY: "${FREE_ONLY:-true}"
       LLM_PROVIDER: "${LLM_PROVIDER:-auto}"
       OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434}"
-      OLLAMA_MODEL: "${OLLAMA_MODEL:-qwen2.5:7b}"
+      OLLAMA_MODEL: "${OLLAMA_MODEL:-qwen2.5-coder:14b}"
       EMERGENT_LLM_KEY: "${EMERGENT_LLM_KEY:-}"
       EMERGENT_MODEL: "${EMERGENT_MODEL:-gpt-4o-mini}"
       GITHUB_TOKEN: "${GITHUB_TOKEN:-}"
