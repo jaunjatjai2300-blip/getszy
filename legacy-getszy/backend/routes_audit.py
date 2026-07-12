@@ -1,23 +1,18 @@
-"""Audit log routes — security and compliance."""
-from fastapi import APIRouter, Depends, Query
+"""Audit log routes."""
 from typing import Optional
+from fastapi import APIRouter, Depends
 from auth import get_current_admin
-from audit_log import get_audit_logs, get_audit_stats
+from audit_log import get_logs, get_stats
 
 router = APIRouter(prefix='/admin/audit', tags=['audit'])
 
 
-@router.get('/logs', dependencies=[Depends(get_current_admin)])
-async def list_logs(
-    user_id: Optional[str] = None,
-    action: Optional[str] = None,
-    resource_type: Optional[str] = None,
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-):
-    return await get_audit_logs(user_id, action, resource_type, limit, offset)
+@router.get('/logs')
+async def logs(user_id: Optional[str] = None, action: Optional[str] = None, limit: int = 50, _=Depends(get_current_admin)):
+    result = await get_logs(user_id=user_id or '', action=action or '', limit=limit)
+    return {'logs': result}
 
 
-@router.get('/stats', dependencies=[Depends(get_current_admin)])
-async def stats(days: int = Query(30, ge=1, le=365)):
-    return await get_audit_stats(days)
+@router.get('/stats')
+async def stats(_=Depends(get_current_admin)):
+    return await get_stats()

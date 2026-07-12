@@ -1,19 +1,17 @@
 """LLM Provider — Free-First Cost Guard
 
-Priority chain (zero paid cost):
-  1. Groq       — free forever, 14,400 req/day
-  2. OpenRouter — free tier, 92+ models
-  3. HuggingFace — free inference API
-  4. Gemini     — free forever, 1,500 req/day
-  5. Ollama     — local, free, unlimited
+Priority chain (zero paid cost, Ollama first):
+  1. Ollama     — local, free, unlimited (YOUR VPS MODELS)
+  2. Groq       — free, 14,400 req/day
+  3. OpenRouter — free tier, 92+ models
+  4. HuggingFace — free inference API
+  5. Gemini     — free, 1,500 req/day
   6. Emergent   — paid fallback (only if FREE_ONLY=false)
 
-Set env vars to unlock providers:
-  GROQ_API_KEY        — get free at console.groq.com
-  OPENROUTER_API_KEY  — get free at openrouter.ai
-  HF_API_KEY          — get free at huggingface.co
-  GEMINI_API_KEY      — get free at aistudio.google.com
-  FREE_ONLY=true      — hard block all paid APIs (default: true)
+Your VPS models:
+  - qwen2.5-coder:14b (coding, best quality)
+  - qwen2.5:7b (general)
+  - llama3.2:3b (lightweight)
 """
 import os
 import httpx
@@ -31,7 +29,7 @@ HF_API_KEY          = os.environ.get('HF_API_KEY', '').strip()
 GEMINI_API_KEY      = os.environ.get('GEMINI_API_KEY', '').strip()
 OLLAMA_BASE_URL     = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
 OLLAMA_SECRET       = os.environ.get('OLLAMA_SECRET', '')
-OLLAMA_MODEL        = os.environ.get('OLLAMA_MODEL', 'llama3.2:3b')
+OLLAMA_MODEL        = os.environ.get('OLLAMA_MODEL', 'qwen2.5-coder:14b')
 EMERGENT_LLM_KEY    = os.environ.get('EMERGENT_LLM_KEY', '')
 EMERGENT_MODEL      = os.environ.get('EMERGENT_MODEL', 'gpt-4o-mini')
 
@@ -187,7 +185,15 @@ async def chat_completion(
 ) -> str:
     session_id = session_id or str(uuid.uuid4())
 
-    # 1. Groq — free, fast, best quality
+    # 1. Ollama — LOCAL, FREE, UNLIMITED (your VPS models)
+    try:
+        result = await _ollama(system, user, temperature)
+        logger.info(f'LLM: ollama/{OLLAMA_MODEL} (local, free)')
+        return result
+    except Exception as e:
+        logger.warning(f'LLM ollama failed: {e}')
+
+    # 2. Groq — free, fast
     if GROQ_API_KEY and _under_limit('groq'):
         try:
             result = await _groq(system, user, temperature)
@@ -197,7 +203,7 @@ async def chat_completion(
         except Exception as e:
             logger.warning(f'LLM groq failed: {e}')
 
-    # 2. OpenRouter — free tier, 92+ models
+    # 3. OpenRouter — free tier, 92+ models
     if OPENROUTER_API_KEY and _under_limit('openrouter'):
         try:
             result = await _openrouter(system, user, temperature)
@@ -207,7 +213,7 @@ async def chat_completion(
         except Exception as e:
             logger.warning(f'LLM openrouter failed: {e}')
 
-    # 3. HuggingFace — free inference API
+    # 4. HuggingFace — free inference API
     if HF_API_KEY:
         try:
             result = await _huggingface(system, user, temperature)
@@ -216,7 +222,7 @@ async def chat_completion(
         except Exception as e:
             logger.warning(f'LLM huggingface failed: {e}')
 
-    # 4. Gemini — free, Google, good quality
+    # 5. Gemini — free, Google, good quality
     if GEMINI_API_KEY and _under_limit('gemini'):
         try:
             result = await _gemini(system, user, temperature)
