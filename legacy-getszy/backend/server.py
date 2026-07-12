@@ -12,6 +12,7 @@ load_dotenv(ROOT_DIR / '.env')
 
 from db import db, client
 from middleware import RateLimitMiddleware, SecurityHeadersMiddleware, RequestLoggingMiddleware
+from redis_cache import get_redis
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,6 +25,8 @@ logger = logging.getLogger('getszy')
 @asynccontextmanager
 async def lifespan(app):
     logger.info('Getszy backend starting')
+    redis = await get_redis()
+    logger.info('Redis connected')
     from seed import seed_if_empty, seed_courses_if_empty
     await seed_if_empty()
     await seed_courses_if_empty()
@@ -41,6 +44,8 @@ async def lifespan(app):
     logger.info('Getszy backend ready')
     yield
     logger.info('Getszy backend shutting down')
+    redis = await get_redis()
+    await redis.close()
     client.close()
 
 from routes_auth import router as auth_router
@@ -77,6 +82,14 @@ from routes_projects import router as projects_router
 from routes_commerce_extra import router as commerce_extra_router
 from routes_ai_platform import router as ai_platform_router
 import skills.creator_skills  # noqa: F401 - register creator skills
+from routes_ws import router as ws_router
+from routes_images import router as images_router
+from routes_voice import router as voice_router
+from routes_audit import router as audit_router
+from routes_queue import router as queue_router
+from routes_git import router as git_router
+from routes_notifications import router as notifications_router
+from routes_extras import cost_router, analytics_router, woo_router, quiz_router, cert_router
 
 app = FastAPI(
     title='Getszy API',
@@ -142,8 +155,20 @@ api_router.include_router(avatar_router)
 api_router.include_router(projects_router)
 api_router.include_router(commerce_extra_router)
 api_router.include_router(ai_platform_router)
+api_router.include_router(images_router)
+api_router.include_router(voice_router)
+api_router.include_router(audit_router)
+api_router.include_router(queue_router)
+api_router.include_router(git_router)
+api_router.include_router(notifications_router)
+api_router.include_router(cost_router)
+api_router.include_router(analytics_router)
+api_router.include_router(woo_router)
+api_router.include_router(quiz_router)
+api_router.include_router(cert_router)
 
 app.include_router(api_router)
+app.include_router(ws_router)
 
 app.add_middleware(
     CORSMiddleware,
