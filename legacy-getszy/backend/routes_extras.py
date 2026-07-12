@@ -1,100 +1,135 @@
-"""Advanced analytics + commerce + learning routes."""
-from fastapi import APIRouter, Depends, Query
+"""Extras routes — cost tracking, analytics, WooCommerce, quiz, certificates."""
 from typing import Optional
-from auth import get_current_admin, get_current_user
-from ai_cost import get_ai_usage_stats
-from analytics_advanced import get_funnel_analytics, get_retention_analysis, get_churn_analysis, get_conversion_metrics
-from woo_sync import check_connection, sync_products, sync_orders
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from typing import List, Dict, Any
+
+from auth import get_current_user, get_current_admin
+from db import db
+from ai_cost import get_user_usage, get_global_usage
+from analytics_advanced import funnel_analysis, retention_cohort, churn_analysis, conversion_metrics
+from woo_sync import get_products, get_orders, get_inventory
 from learning_extras import (
-    create_quiz, get_quiz, submit_quiz,
-    generate_certificate, get_user_certificates, verify_certificate,
+    create_quiz, submit_quiz, get_user_certificates, verify_certificate,
+    create_assignment, submit_assignment, grade_assignment
 )
-from pydantic import BaseModel, Field
 
-# ── AI Cost Routes ───────────────────────────────────────────────────────────
-cost_router = APIRouter(prefix='/admin/ai-cost', tags=['ai-cost'])
-
-@cost_router.get('/stats', dependencies=[Depends(get_current_admin)])
-async def ai_cost_stats(days: int = Query(30, ge=1, le=365)):
-    return await get_ai_usage_stats(days)
+router = APIRouter(prefix='/extras', tags=['extras'])
 
 
-# ── Analytics Routes ─────────────────────────────────────────────────────────
-analytics_router = APIRouter(prefix='/admin/analytics', tags=['analytics'])
-
-@analytics_router.get('/funnels', dependencies=[Depends(get_current_admin)])
-async def funnels(days: int = Query(30, ge=1, le=365)):
-    return await get_funnel_analytics(days)
-
-@analytics_router.get('/retention', dependencies=[Depends(get_current_admin)])
-async def retention(days: int = Query(30, ge=1, le=365)):
-    return await get_retention_analysis(days)
-
-@analytics_router.get('/churn', dependencies=[Depends(get_current_admin)])
-async def churn(days: int = Query(30, ge=1, le=365)):
-    return await get_churn_analysis(days)
-
-@analytics_router.get('/conversion', dependencies=[Depends(get_current_admin)])
-async def conversion(days: int = Query(30, ge=1, le=365)):
-    return await get_conversion_metrics(days)
+# ===== Cost Tracking =====
+@router.get('/cost/my')
+async def my_cost(days: int = 30, user=Depends(get_current_user)):
+    return await get_user_usage(user['id'], days)
 
 
-# ── WooCommerce Routes ───────────────────────────────────────────────────────
-woo_router = APIRouter(prefix='/admin/woo', tags=['woocommerce'])
-
-@woo_router.get('/status', dependencies=[Depends(get_current_admin)])
-async def woo_status():
-    return await check_connection()
-
-@woo_router.get('/products', dependencies=[Depends(get_current_admin)])
-async def woo_products(page: int = 1):
-    return await sync_products(page=page)
-
-@woo_router.get('/orders', dependencies=[Depends(get_current_admin)])
-async def woo_orders():
-    return await sync_orders()
+@router.get('/cost/global')
+async def global_cost(days: int = 7, _=Depends(get_current_admin)):
+    return await get_global_usage(days)
 
 
-# ── Quiz Routes ──────────────────────────────────────────────────────────────
-quiz_router = APIRouter(prefix='/learning/quiz', tags=['quiz'])
+# ===== Advanced Analytics =====
+class FunnelIn(BaseModel):
+    steps: List[str]
+    days: int = 30
 
+
+@router.post('/analytics/funnel')
+async def funnel(payload: FunnelIn, _=Depends(get_current_admin)):
+    return await funnel_analysis(payload.steps, payload.days)
+
+
+@router.get('/analytics/retention')
+async def retention(days: int = 30, _=Depends(get_current_admin)):
+    return await retention_cohort(days)
+
+
+@router.get('/analytics/churn')
+async def churn(days: int = 30, _=Depends(get_current_admin)):
+    return await churn_analysis(days)
+
+
+@router.get('/analytics/conversion')
+async def conversion(days: int = 30, _=Depends(get_current_admin)):
+    return await conversion_metrics(days)
+
+
+# ===== WooCommerce =====
+@router.get('/woo/products')
+async def woo_products(page: int = 1, _=Depends(get_current_admin)):
+    return await get_products(page)
+
+
+@router.get('/woo/orders')
+async def woo_orders(status: str = 'any', _=Depends(get_current_admin)):
+    return await get_orders(status)
+
+
+@router.get('/woo/inventory')
+async def woo_inventory(_=Depends(get_current_admin)):
+    return await get_inventory()
+
+
+# ===== Quiz =====
 class QuizCreateIn(BaseModel):
-    course_slug: str
-    title: str
-    questions: list
-    time_limit_min: int = 30
+    course_id: str
+    questions: List[Dict[str, Any]]
+    passing_score: int = 70
+
 
 class QuizSubmitIn(BaseModel):
-    answers: list[int]
-
-@quiz_router.post('/create', dependencies=[Depends(get_current_admin)])
-async def create(body: QuizCreateIn):
-    return await create_quiz(body.course_slug, body.title, body.questions, body.time_limit_min)
-
-@quiz_router.get('/get/{quiz_id}')
-async def get_quiz_route(quiz_id: str):
-    return await get_quiz(quiz_id)
-
-@quiz_router.post('/submit/{quiz_id}')
-async def submit(quiz_id: str, body: QuizSubmitIn, user=Depends(get_current_user)):
-    return await submit_quiz(quiz_id, user['id'], body.answers)
+    answers: List[int]
 
 
-# ── Certificate Routes ───────────────────────────────────────────────────────
-cert_router = APIRouter(prefix='/learning/certificates', tags=['certificates'])
+@router.post('/quiz/create')
+async def quiz_create(payload: QuizCreateIn, _=Depends(get_current_admin)):
+    return await create_quiz(payload.course_id, payload.questions, payload.passing_score)
 
-class CertGenIn(BaseModel):
-    course_slug: str
-    course_title: str
 
-@cert_router.post('/generate')
-async def gen_cert(body: CertGenIn, user=Depends(get_current_user)):
-    return await generate_certificate(user['id'], body.course_slug, user.get('name', ''), body.course_title)
+@router.post('/quiz/{quiz_id}/submit')
+async def quiz_submit(quiz_id: str, payload: QuizSubmitIn, user=Depends(get_current_user)):
+    return await submit_quiz(quiz_id, user['id'], payload.answers)
 
-@cert_router.get('/my')
-async def my_certs(user=Depends(get_current_user)):
-    return await get_user_certificates(user['id'])
 
-@cert_router.get('/verify/{code}')
-async def verify(code: str):
-    return await verify_certificate(code)
+# ===== Certificates =====
+@router.get('/certificates/mine')
+async def my_certificates(user=Depends(get_current_user)):
+    return {'certificates': await get_user_certificates(user['id'])}
+
+
+@router.get('/certificates/verify/{cert_id}')
+async def cert_verify(cert_id: str, hash: str):
+    valid = await verify_certificate(cert_id, hash)
+    return {'valid': valid}
+
+
+# ===== Assignments =====
+class AssignmentCreateIn(BaseModel):
+    course_id: str
+    title: str
+    description: str = ''
+    due_date: str = ''
+
+
+class AssignmentSubmitIn(BaseModel):
+    content: str
+
+
+class AssignmentGradeIn(BaseModel):
+    grade: str
+    feedback: str = ''
+
+
+@router.post('/assignments/create')
+async def assignment_create(payload: AssignmentCreateIn, _=Depends(get_current_admin)):
+    return await create_assignment(payload.course_id, payload.title, payload.description, payload.due_date)
+
+
+@router.post('/assignments/{assignment_id}/submit')
+async def assignment_submit(assignment_id: str, payload: AssignmentSubmitIn, user=Depends(get_current_user)):
+    return await submit_assignment(assignment_id, user['id'], payload.content)
+
+
+@router.post('/assignments/{assignment_id}/grade/{submission_id}')
+async def assignment_grade(assignment_id: str, submission_id: str, payload: AssignmentGradeIn, _=Depends(get_current_admin)):
+    return await grade_assignment(assignment_id, submission_id, payload.grade, payload.feedback)

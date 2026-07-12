@@ -1,8 +1,7 @@
-from fastapi import FastAPI, APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, APIRouter
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
+from starlette.middleware.base import BaseHTTPMiddleware
 import os
 import logging
 from pathlib import Path
@@ -11,43 +10,6 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 from db import db, client
-from middleware import RateLimitMiddleware, SecurityHeadersMiddleware, RequestLoggingMiddleware
-from redis_cache import get_redis
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s %(name)s %(levelname)s %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-)
-logger = logging.getLogger('getszy')
-
-
-@asynccontextmanager
-async def lifespan(app):
-    logger.info('Getszy backend starting')
-    redis = await get_redis()
-    logger.info('Redis connected')
-    from seed import seed_if_empty, seed_courses_if_empty
-    await seed_if_empty()
-    await seed_courses_if_empty()
-    flag = await db.system.find_one({'_id': 'video_branding_v1'})
-    if not flag:
-        res = await db.lessons.update_many(
-            {'video_url': {'$regex': 'youtube|youtu.be|vimeo', '$options': 'i'}},
-            {'$set': {'video_url': ''}},
-        )
-        await db.system.insert_one({'_id': 'video_branding_v1', 'modified_lessons': res.modified_count})
-        logger.info(f'video migration: cleared {res.modified_count} external video URLs')
-    await db.courses.update_many({'level': 'Advanced'}, {'$set': {'is_premium': True}})
-    await db.courses.update_many({'level': {'$in': ['Beginner', 'Intermediate']}}, {'$set': {'is_premium': False}})
-    await db.billing_processed_payments.create_index('payment_id', unique=True)
-    logger.info('Getszy backend ready')
-    yield
-    logger.info('Getszy backend shutting down')
-    redis = await get_redis()
-    await redis.close()
-    client.close()
-
 from routes_auth import router as auth_router
 from routes_catalog import router as catalog_router
 from routes_cart_orders import router as cart_router
@@ -81,46 +43,42 @@ from routes_avatar import router as avatar_router
 from routes_projects import router as projects_router
 from routes_commerce_extra import router as commerce_extra_router
 from routes_ai_platform import router as ai_platform_router
-import skills.creator_skills  # noqa: F401 - register creator skills
 from routes_ws import router as ws_router
 from routes_images import router as images_router
 from routes_voice import router as voice_router
 from routes_audit import router as audit_router
 from routes_queue import router as queue_router
 from routes_git import router as git_router
+from routes_extras import router as extras_router
 from routes_notifications import router as notifications_router
-from routes_extras import cost_router, analytics_router, woo_router, quiz_router, cert_router
+from routes_creator_platform import router as creator_platform_router
+from routes_build_studio import router as build_studio_router
+from routes_operations import router as operations_router
+from routes_security import router as security_router
+from routes_settings import router as settings_router
+from routes_ai_workforce import router as ai_workforce_router
+from routes_releases import router as releases_router
+import skills.creator_skills  # noqa: F401 - register creator skills
 
-app = FastAPI(
-    title='Getszy API',
-    description='AI Founder Operating System - Backend API',
-    version='2.0.0',
-    docs_url='/api/docs' if os.environ.get('ENABLE_DOCS') == '1' else None,
-    redoc_url=None,
-    lifespan=lifespan,
-)
+app = FastAPI(title='getszy API')
 api_router = APIRouter(prefix='/api')
 
 
 @api_router.get('/')
 async def root():
-    return {'message': 'Getszy API live', 'version': '2.0.0', 'ai': 'Getszy AI'}
+    return {'message': 'getszy API live', 'version': '2.0.0', 'ai': 'Getszy AI'}
 
 
 @api_router.get('/health')
 async def health():
     try:
         await db.command('ping')
-        mongo_status = 'ok'
+        return {'status': 'ok', 'ai': 'Getszy AI'}
     except Exception as e:
-        mongo_status = f'error: {e}'
-    return {
-        'status': 'ok' if mongo_status == 'ok' else 'degraded',
-        'mongo': mongo_status,
-        'version': '2.0.0',
-    }
+        return {'status': 'error', 'detail': str(e)}
 
 
+# ===== Core routers =====
 api_router.include_router(auth_router)
 api_router.include_router(catalog_router)
 api_router.include_router(cart_router)
@@ -155,21 +113,29 @@ api_router.include_router(avatar_router)
 api_router.include_router(projects_router)
 api_router.include_router(commerce_extra_router)
 api_router.include_router(ai_platform_router)
+
+# ===== New module routers =====
+api_router.include_router(ws_router)
 api_router.include_router(images_router)
 api_router.include_router(voice_router)
 api_router.include_router(audit_router)
 api_router.include_router(queue_router)
 api_router.include_router(git_router)
+api_router.include_router(extras_router)
 api_router.include_router(notifications_router)
-api_router.include_router(cost_router)
-api_router.include_router(analytics_router)
-api_router.include_router(woo_router)
-api_router.include_router(quiz_router)
-api_router.include_router(cert_router)
+
+# ===== Medium-priority module routers =====
+api_router.include_router(creator_platform_router)
+api_router.include_router(build_studio_router)
+api_router.include_router(operations_router)
+api_router.include_router(security_router)
+api_router.include_router(settings_router)
+api_router.include_router(ai_workforce_router)
+api_router.include_router(releases_router)
 
 app.include_router(api_router)
-app.include_router(ws_router)
 
+# ===== Security middleware =====
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -178,15 +144,40 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RateLimitMiddleware)
-app.add_middleware(RequestLoggingMiddleware)
+try:
+    from middleware import RateLimitMiddleware, SecurityHeadersMiddleware, RequestLoggingMiddleware
+    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RequestLoggingMiddleware)
+except ImportError:
+    pass
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('getszy')
 
 
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f'Unhandled error: {request.method} {request.url.path} - {exc}', exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={'detail': 'Internal server error'},
-    )
+@app.on_event('startup')
+async def startup():
+    logger.info('getszy backend starting')
+    from seed import seed_if_empty, seed_courses_if_empty
+    await seed_if_empty()
+    await seed_courses_if_empty()
+    # One-time migration: clear external video URLs in favour of branded placeholders
+    flag = await db.system.find_one({'_id': 'video_branding_v1'})
+    if not flag:
+        res = await db.lessons.update_many(
+            {'video_url': {'$regex': 'youtube|youtu.be|vimeo', '$options': 'i'}},
+            {'$set': {'video_url': ''}},
+        )
+        await db.system.insert_one({'_id': 'video_branding_v1', 'modified_lessons': res.modified_count})
+        logger.info(f'video migration: cleared {res.modified_count} external video URLs')
+    # Ensure all premium-level courses are flagged
+    await db.courses.update_many({'level': 'Advanced'}, {'$set': {'is_premium': True}})
+    await db.courses.update_many({'level': {'$in': ['Beginner', 'Intermediate']}}, {'$set': {'is_premium': False}})
+    # Unique index so a Razorpay payment_id can only ever grant credits once
+    await db.billing_processed_payments.create_index('payment_id', unique=True)
+
+
+@app.on_event('shutdown')
+async def shutdown_db():
+    client.close()

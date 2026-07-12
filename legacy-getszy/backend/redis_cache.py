@@ -1,208 +1,163 @@
-"""Redis connection and utilities — caching, sessions, pub/sub, queues."""
+"""Redis-based caching, sessions, pub/sub, rate limiting, queues, counters."""
 import os
 import json
-import logging
+import asyncio
 from typing import Any, Optional
 
-logger = logging.getLogger('getszy.redis')
-
-REDIS_URL = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
-
-# Lazy connection
-_redis = None
-_pubsub = None
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+_pool = None
 
 
-async def get_redis():
-    """Get Redis connection (lazy init)."""
-    global _redis
-    if _redis is None:
+async def _get_pool():
+    global _pool
+    if _pool is None:
         try:
             import redis.asyncio as aioredis
-            _redis = aioredis.from_url(
-                REDIS_URL,
-                decode_responses=True,
-                socket_connect_timeout=5,
-                retry_on_timeout=True,
-            )
-            await _redis.ping()
-            logger.info(f'Redis connected: {REDIS_URL}')
-        except Exception as e:
-            logger.warning(f'Redis unavailable ({e}), falling back to no-cache')
-            _redis = _FakeRedis()
-    return _redis
+            _pool = aioredis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=3)
+        except Exception:
+            return None
+    return _pool
 
 
-class _FakeRedis:
-    """Fallback when Redis is unavailable — no-op, everything still works."""
-
-    async def get(self, key): return None
-    async def set(self, key, value, **kw): return True
-    async def setex(self, key, ttl, value): return True
-    async def delete(self, *keys): return 0
-    async def exists(self, key): return 0
-    async def expire(self, key, ttl): return True
-    async def keys(self, pattern): return []
-    async def hget(self, name, key): return None
-    async def hset(self, name, key=None, value=None, mapping=None): return 0
-    async def hgetall(self, name): return {}
-    async def hdel(self, name, *keys): return 0
-    async def lpush(self, name, *values): return 0
-    async def rpush(self, name, *values): return 0
-    async def lpop(self, name): return None
-    async def lrange(self, name, start, end): return []
-    async def llen(self, name): return 0
-    async def publish(self, channel, message): return 0
-    async def subscribe(self, *channels): return _FakePubSub()
-    async def incr(self, key): return 1
-    async def decr(self, key): return -1
-    async def ping(self): return True
-    async def close(self): pass
+async def get(key: str) -> Optional[str]:
+    r = await _get_pool()
+    if not r:
+        return None
+    try:
+        return await r.get(key)
+    except Exception:
+        return None
 
 
-class _FakePubSub:
-    async def get_message(self, timeout=None): return None
-    async def unsubscribe(self, *channels): pass
-    async def close(self): pass
+async def set(key: str, value: str, ttl: int = 3600):
+    r = await _get_pool()
+    if not r:
+        return
+    try:
+        await r.set(key, value, ex=ttl)
+    except Exception:
+        pass
 
 
-# ── Caching helpers ──────────────────────────────────────────────────────────
-
-CACHE_SHORT = 60       # 1 min
-CACHE_MEDIUM = 300     # 5 min
-CACHE_LONG = 3600      # 1 hour
-CACHE_DAY = 86400      # 24 hours
+async def delete(key: str):
+    r = await _get_pool()
+    if not r:
+        return
+    try:
+        await r.delete(key)
+    except Exception:
+        pass
 
 
 async def cache_get(key: str) -> Optional[Any]:
-    """Get cached value (JSON deserialized)."""
-    r = await get_redis()
-    val = await r.get(f'gs:{key}')
-    if val is not None:
+    val = await get(f"cache:{key}")
+    if val:
         try:
             return json.loads(val)
-        except (json.JSONDecodeError, TypeError):
+        except Exception:
             return val
     return None
 
 
-async def cache_set(key: str, value: Any, ttl: int = CACHE_MEDIUM) -> bool:
-    """Set cache value (JSON serialized)."""
-    r = await get_redis()
-    try:
-        serialized = json.dumps(value, default=str)
-        await r.setex(f'gs:{key}', ttl, serialized)
-        return True
-    except Exception as e:
-        logger.warning(f'cache_set failed: {e}')
-        return False
+async def cache_set(key: str, value: Any, ttl: int = 3600):
+    await set(f"cache:{key}", json.dumps(value, default=str), ttl)
 
 
-async def cache_delete(*keys: str) -> int:
-    """Delete cached keys."""
-    r = await get_redis()
-    return await r.delete(*[f'gs:{k}' for k in keys])
-
-
-async def cache_clear(pattern: str = 'gs:*') -> int:
-    """Clear all cache matching pattern."""
-    r = await get_redis()
-    keys = await r.keys(pattern)
-    if keys:
-        return await r.delete(*keys)
-    return 0
-
-
-# ── Session helpers ──────────────────────────────────────────────────────────
-
-async def session_set(user_id: str, data: dict, ttl: int = 86400) -> bool:
-    """Store user session."""
-    return await cache_set(f'session:{user_id}', data, ttl)
-
-
-async def session_get(user_id: str) -> Optional[dict]:
-    """Get user session."""
-    return await cache_get(f'session:{user_id}')
-
-
-async def session_delete(user_id: str) -> bool:
-    """Delete user session."""
-    r = await get_redis()
-    await r.delete(f'gs:session:{user_id}')
-    return True
-
-
-# ── Rate limiting helpers ────────────────────────────────────────────────────
-
-async def rate_limit_check(key: str, limit: int, window: int) -> dict:
-    """Check rate limit. Returns {allowed: bool, remaining: int, retry_after: int}."""
-    r = await get_redis()
-    full_key = f'gs:rl:{key}'
-    try:
-        current = await r.incr(full_key)
-        if current == 1:
-            await r.expire(full_key, window)
-        remaining = max(0, limit - current)
-        return {
-            'allowed': current <= limit,
-            'remaining': remaining,
-            'retry_after': window if current > limit else 0,
-        }
-    except Exception:
-        return {'allowed': True, 'remaining': limit, 'retry_after': 0}
-
-
-# ── Pub/Sub helpers ──────────────────────────────────────────────────────────
-
-async def pubsub_publish(channel: str, message: dict):
-    """Publish message to channel."""
-    r = await get_redis()
-    await r.publish(f'gs:{channel}', json.dumps(message, default=str))
-
-
-async def pubsub_subscribe(channel: str):
-    """Subscribe to channel. Returns pubsub object."""
-    r = await get_redis()
-    pubsub = await r.subscribe(f'gs:{channel}')
-    return pubsub
-
-
-# ── Queue helpers ────────────────────────────────────────────────────────────
-
-async def queue_push(queue_name: str, task: dict) -> int:
-    """Push task to queue."""
-    r = await get_redis()
-    return await r.rpush(f'gs:queue:{queue_name}', json.dumps(task, default=str))
-
-
-async def queue_pop(queue_name: str) -> Optional[dict]:
-    """Pop task from queue (blocking)."""
-    r = await get_redis()
-    val = await r.lpop(f'gs:queue:{queue_name}')
+async def session_get(session_id: str) -> Optional[dict]:
+    val = await get(f"session:{session_id}")
     if val:
         try:
             return json.loads(val)
-        except (json.JSONDecodeError, TypeError):
+        except Exception:
             return None
     return None
 
 
+async def session_set(session_id: str, data: dict, ttl: int = 86400):
+    await set(f"session:{session_id}", json.dumps(data, default=str), ttl)
+
+
+async def session_delete(session_id: str):
+    await delete(f"session:{session_id}")
+
+
+async def publish(channel: str, message: str):
+    r = await _get_pool()
+    if not r:
+        return
+    try:
+        await r.publish(channel, message)
+    except Exception:
+        pass
+
+
+async def subscribe(channel: str):
+    r = await _get_pool()
+    if not r:
+        return
+    try:
+        pubsub = r.pubsub()
+        await pubsub.subscribe(channel)
+        return pubsub
+    except Exception:
+        return None
+
+
+async def incr(key: str, ttl: int = 86400) -> int:
+    r = await _get_pool()
+    if not r:
+        return 0
+    try:
+        val = await r.incr(key)
+        if val == 1:
+            await r.expire(key, ttl)
+        return val
+    except Exception:
+        return 0
+
+
+async def queue_push(queue_name: str, item: str):
+    r = await _get_pool()
+    if not r:
+        return
+    try:
+        await r.rpush(f"queue:{queue_name}", item)
+    except Exception:
+        pass
+
+
+async def queue_pop(queue_name: str, timeout: int = 0) -> Optional[str]:
+    r = await _get_pool()
+    if not r:
+        return None
+    try:
+        if timeout:
+            result = await r.blpop(f"queue:{queue_name}", timeout=timeout)
+            return result[1] if result else None
+        return await r.lpop(f"queue:{queue_name}")
+    except Exception:
+        return None
+
+
 async def queue_len(queue_name: str) -> int:
-    """Get queue length."""
-    r = await get_redis()
-    return await r.llen(f'gs:queue:{queue_name}')
+    r = await _get_pool()
+    if not r:
+        return 0
+    try:
+        return await r.llen(f"queue:{queue_name}")
+    except Exception:
+        return 0
 
 
-# ── Counters ─────────────────────────────────────────────────────────────────
-
-async def counter_increment(key: str, amount: int = 1) -> int:
-    """Increment counter."""
-    r = await get_redis()
-    return await r.incr(f'gs:counter:{key}', amount)
-
-
-async def counter_get(key: str) -> int:
-    """Get counter value."""
-    r = await get_redis()
-    val = await r.get(f'gs:counter:{key}')
-    return int(val) if val else 0
+async def check_rate_limit(identifier: str, limit: int = 100, window: int = 60) -> bool:
+    r = await _get_pool()
+    if not r:
+        return True
+    try:
+        key = f"ratelimit:{identifier}"
+        current = await r.incr(key)
+        if current == 1:
+            await r.expire(key, window)
+        return current <= limit
+    except Exception:
+        return True

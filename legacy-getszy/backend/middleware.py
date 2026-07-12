@@ -1,39 +1,21 @@
-"""Production middleware: rate limiting, security headers, request logging."""
+"""Security middleware — rate limiting, security headers, request logging."""
 import time
-import logging
-from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-
-logger = logging.getLogger('getszy.middleware')
-
-RATE_LIMIT = 100  # requests per window
-RATE_WINDOW = 60  # seconds
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        from redis_cache import rate_limit_check
         client_ip = request.client.host if request.client else 'unknown'
-        key = f'{client_ip}:{request.url.path[:50]}'
-
-        result = await rate_limit_check(key, RATE_LIMIT, RATE_WINDOW)
-
-        if not result['allowed']:
-            logger.warning(f'Rate limit exceeded for {client_ip}')
-            return Response(
-                content='{"detail":"Rate limit exceeded. Try again later."}',
-                status_code=429,
-                media_type='application/json',
-                headers={
-                    'Retry-After': str(result['retry_after']),
-                    'X-RateLimit-Limit': str(RATE_LIMIT),
-                    'X-RateLimit-Remaining': '0',
-                },
-            )
-
+        try:
+            from redis_cache import check_rate_limit
+            allowed = await check_rate_limit(f'ip:{client_ip}', limit=200, window=60)
+            if not allowed:
+                return JSONResponse({'error': 'Rate limit exceeded. Try again in a minute.'}, status_code=429)
+        except Exception:
+            pass
         response = await call_next(request)
-        response.headers['X-RateLimit-Limit'] = str(RATE_LIMIT)
-        response.headers['X-RateLimit-Remaining'] = str(result['remaining'])
         return response
 
 
@@ -52,9 +34,18 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start = time.time()
         response = await call_next(request)
-        duration = time.time() - start
-        logger.info(
-            f'{request.method} {request.url.path} '
-            f'status={response.status_code} duration={duration:.3f}s'
-        )
+        duration = round(time.time() - start, 4)
+        try:
+            from db import db
+            from datetime import datetime, timezone
+            await db.request_logs.insert_one({
+                'method': request.method,
+                'path': str(request.url.path),
+                'status_code': response.status_code,
+                'duration': duration,
+                'ip': request.client.host if request.client else 'unknown',
+                'timestamp': datetime.now(timezone.utc).isoformat()
+            })
+        except Exception:
+            pass
         return response
