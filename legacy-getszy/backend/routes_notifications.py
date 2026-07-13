@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import Optional
 
-from auth import get_current_user
+from auth import get_current_user, get_current_admin
 from db import db
 from websocket_manager import manager
 
@@ -40,8 +40,8 @@ async def mark_all_read(user=Depends(get_current_user)):
 
 
 @router.post('/send')
-async def send_notification(payload: NotificationIn, _=Depends(get_current_user)):
-    target = payload.target_user or _['id']
+async def send_notification(payload: NotificationIn, admin=Depends(get_current_admin)):
+    target = payload.target_user or admin['id']
     notif = {
         'id': str(uuid.uuid4()), 'user_id': target,
         'title': payload.title, 'message': payload.message,

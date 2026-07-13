@@ -10,6 +10,7 @@ venv
 .venv
 test_reports
 .env.*
+!.env.example
 *.env
 credentials.json
 *.pem

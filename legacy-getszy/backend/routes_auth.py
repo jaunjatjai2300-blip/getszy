@@ -1,3 +1,4 @@
+import re
 from fastapi import APIRouter, HTTPException, Depends
 from db import db
 from models import SignupIn, LoginIn, User, UserOut
@@ -6,8 +7,20 @@ from auth import hash_password, verify_password, create_token, get_current_user
 router = APIRouter(prefix='/auth', tags=['auth'])
 
 
+def _validate_password(password: str):
+    if len(password) < 8:
+        raise HTTPException(400, 'Password must be at least 8 characters')
+    if not re.search(r'[A-Z]', password):
+        raise HTTPException(400, 'Password must contain at least one uppercase letter')
+    if not re.search(r'[a-z]', password):
+        raise HTTPException(400, 'Password must contain at least one lowercase letter')
+    if not re.search(r'[0-9]', password):
+        raise HTTPException(400, 'Password must contain at least one digit')
+
+
 @router.post('/signup')
 async def signup(body: SignupIn):
+    _validate_password(body.password)
     existing = await db.users.find_one({'email': body.email.lower()})
     if existing:
         raise HTTPException(400, 'Email already registered')

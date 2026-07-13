@@ -20,39 +20,58 @@ async def compute_stats(range_: str = 'today'):
         since = now - timedelta(days=30)
     else:
         since = None
-    q = {}
+
+    # Use MongoDB aggregation instead of loading all docs into memory
+    match_q = {}
     if since:
-        q['created_at'] = {'$gte': since.isoformat()}
-    orders = await db.orders.find(q, {'_id': 0}).to_list(5000)
-    revenue = sum(o.get('total', 0) for o in orders)
-    profit = sum(o.get('profit', 0) for o in orders)
-    orders_count = len(orders)
+        match_q['created_at'] = {'$gte': since.isoformat()}
+
+    pipeline = []
+    if match_q:
+        pipeline.append({'$match': match_q})
+    pipeline.append({'$group': {
+        '_id': None,
+        'revenue': {'$sum': '$total'},
+        'profit': {'$sum': '$profit'},
+        'count': {'$sum': 1},
+    }})
+    agg = await db.orders.aggregate(pipeline).to_list(1)
+    revenue = round(agg[0]['revenue'], 2) if agg else 0
+    profit = round(agg[0]['profit'], 2) if agg else 0
+    orders_count = agg[0]['count'] if agg else 0
+
     customers_count = await db.users.count_documents({'role': 'customer'})
     products_count = await db.products.count_documents({'is_active': True})
     low_stock = await db.products.count_documents({'stock': {'$lte': 5}})
 
-    # 7-day revenue series
+    # 7-day revenue series using aggregation
     series = []
     for i in range(6, -1, -1):
         day_start = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
         day_end = day_start + timedelta(days=1)
-        day_orders = [o for o in (await db.orders.find({'created_at': {'$gte': day_start.isoformat(), '$lt': day_end.isoformat()}}, {'_id': 0}).to_list(1000))]
+        day_agg = await db.orders.aggregate([
+            {'$match': {'created_at': {'$gte': day_start.isoformat(), '$lt': day_end.isoformat()}}},
+            {'$group': {'_id': None, 'revenue': {'$sum': '$total'}, 'count': {'$sum': 1}}},
+        ]).to_list(1)
         series.append({
             'date': day_start.strftime('%a'),
-            'revenue': round(sum(o.get('total', 0) for o in day_orders), 2),
-            'orders': len(day_orders),
+            'revenue': round(day_agg[0]['revenue'], 2) if day_agg else 0,
+            'orders': day_agg[0]['count'] if day_agg else 0,
         })
+
+    # Recent orders (limited, not all)
+    recent_orders = await db.orders.find({}, {'_id': 0}).sort('created_at', -1).limit(5).to_list(5)
 
     return {
         'range': range_,
-        'revenue': round(revenue, 2),
-        'profit': round(profit, 2),
+        'revenue': revenue,
+        'profit': profit,
         'orders_count': orders_count,
         'customers_count': customers_count,
         'products_count': products_count,
         'low_stock_count': low_stock,
         'series_7d': series,
-        'recent_orders': sorted(orders, key=lambda x: x.get('created_at', ''), reverse=True)[:5],
+        'recent_orders': recent_orders,
     }
 
 
@@ -129,13 +148,13 @@ async def founder_stats():
     active_users = await db.users.count_documents({'role': 'customer', 'last_login': {'$gte': month_start.isoformat()}})
     subscribers = await db.subscriptions.count_documents({'status': 'active'}) if await db.list_collection_names() else 0
     try: subscribers = await db.subscriptions.count_documents({'status': 'active'})
-    except: subscribers = 0
+    except Exception: subscribers = 0
 
     # MRR/ARR from subscriptions
     try:
         subs = await db.subscriptions.find({'status': 'active'}, {'_id': 0, 'amount': 1}).to_list(1000)
         mrr = sum(s.get('amount', 999) for s in subs) if subs else subscribers * 999
-    except:
+    except Exception:
         mrr = subscribers * 999
     arr = mrr * 12
 
@@ -154,7 +173,7 @@ async def founder_stats():
         credits_used_month = abs(sum(t.get('delta', 0) for t in tx_month))
         tx_granted = await db.credit_transactions.find({'delta': {'$gt': 0}}, {'delta': 1, '_id': 0}).to_list(10000)
         credits_granted = sum(t.get('delta', 0) for t in tx_granted)
-    except:
+    except Exception:
         credits_used_today = credits_used_month = credits_granted = 0
 
     import time

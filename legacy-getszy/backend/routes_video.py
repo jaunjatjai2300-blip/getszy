@@ -133,11 +133,13 @@ async def delete_job(job_id: str, user=Depends(get_current_user)):
 
 
 @router.get('/files/{filename}')
-async def serve_file(filename: str):
-    # No auth on file serve so user can embed in <video src=...>; URL contains UUID which is unguessable.
+async def serve_file(filename: str, user=Depends(get_current_user)):
     safe = os.path.basename(filename)
     path = os.path.join(VIDEO_DIR, safe)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail='file not found')
+    job = await db.video_jobs.find_one({'id': safe.split('.')[0], 'user_id': user['id']})
+    if not job:
+        raise HTTPException(status_code=403, detail='not authorized')
     media_type = {'mp4': 'video/mp4', 'mp3': 'audio/mpeg', 'srt': 'text/plain'}.get(safe.split('.')[-1].lower(), 'application/octet-stream')
     return FileResponse(path, media_type=media_type, filename=safe)
