@@ -1,14 +1,8 @@
 """Seed demo data if DB is empty."""
-import os
 import re
 from db import db
 from models import User, Category, Supplier, Product, Course, Module, Lesson
 from auth import hash_password
-
-SEED_ADMIN_EMAIL = os.environ.get('SEED_ADMIN_EMAIL', 'admin@getszy.com')
-SEED_ADMIN_PASSWORD = os.environ.get('SEED_ADMIN_PASSWORD', 'Admin@123')
-SEED_CUSTOMER_EMAIL = os.environ.get('SEED_CUSTOMER_EMAIL', 'customer@getszy.com')
-SEED_CUSTOMER_PASSWORD = os.environ.get('SEED_CUSTOMER_PASSWORD', 'Demo@123')
 
 CATEGORIES = [
     {'name': 'Fashion', 'slug': 'fashion', 'image': 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800'},
@@ -137,11 +131,11 @@ async def seed_if_empty():
     cnt = await db.users.count_documents({'role': 'admin'})
     if cnt > 0:
         return
-    admin = User(name='Getszy Admin', email=SEED_ADMIN_EMAIL,
-                 password_hash=hash_password(SEED_ADMIN_PASSWORD), role='admin')
+    admin = User(name='Getszy Admin', email='admin@getszy.com',
+                 password_hash=hash_password('Admin@123'), role='admin')
     await db.users.insert_one(admin.model_dump())
-    cust = User(name='Demo Customer', email=SEED_CUSTOMER_EMAIL,
-                password_hash=hash_password(SEED_CUSTOMER_PASSWORD), role='customer')
+    cust = User(name='Demo Customer', email='customer@getszy.com',
+                password_hash=hash_password('Demo@123'), role='customer')
     await db.users.insert_one(cust.model_dump())
     for c in CATEGORIES:
         if not await db.categories.find_one({'slug': c['slug']}):
