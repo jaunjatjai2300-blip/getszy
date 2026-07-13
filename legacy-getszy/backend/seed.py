@@ -1,4 +1,5 @@
 """Seed demo data if DB is empty."""
+import os
 import re
 from db import db
 from models import User, Category, Supplier, Product, Course, Module, Lesson
@@ -131,11 +132,17 @@ async def seed_if_empty():
     cnt = await db.users.count_documents({'role': 'admin'})
     if cnt > 0:
         return
-    admin = User(name='Getszy Admin', email='admin@getszy.com',
-                 password_hash=hash_password('Admin@123'), role='admin')
+    admin_email = os.environ.get('SEED_ADMIN_EMAIL', 'admin@getszy.com')
+    admin_pass = os.environ.get('SEED_ADMIN_PASSWORD')
+    if not admin_pass:
+        raise RuntimeError('SEED_ADMIN_PASSWORD env var is required for first run')
+    admin = User(name='Getszy Admin', email=admin_email,
+                 password_hash=hash_password(admin_pass), role='admin')
     await db.users.insert_one(admin.model_dump())
-    cust = User(name='Demo Customer', email='customer@getszy.com',
-                password_hash=hash_password('Demo@123'), role='customer')
+    cust_email = os.environ.get('SEED_CUSTOMER_EMAIL', 'customer@getszy.com')
+    cust_pass = os.environ.get('SEED_CUSTOMER_PASSWORD', 'ChangeMeNow!')
+    cust = User(name='Demo Customer', email=cust_email,
+                password_hash=hash_password(cust_pass), role='customer')
     await db.users.insert_one(cust.model_dump())
     for c in CATEGORIES:
         if not await db.categories.find_one({'slug': c['slug']}):

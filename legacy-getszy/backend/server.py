@@ -176,6 +176,20 @@ async def startup():
     await db.courses.update_many({'level': {'$in': ['Beginner', 'Intermediate']}}, {'$set': {'is_premium': False}})
     # Unique index so a Razorpay payment_id can only ever grant credits once
     await db.billing_processed_payments.create_index('payment_id', unique=True)
+    # Production indexes
+    await db.users.create_index('email', unique=True)
+    await db.users.create_index('id', unique=True)
+    await db.products.create_index('slug')
+    await db.products.create_index('category')
+    await db.products.create_index('is_active')
+    await db.orders.create_index('user_id')
+    await db.orders.create_index('created_at')
+    await db.orders.create_index('order_number', unique=True)
+    await db.carts.create_index('user_id', unique=True)
+    await db.notifications.create_index([('user_id', 1), ('created_at', -1)])
+    await db.video_jobs.create_index('user_id')
+    await db.request_logs.create_index('timestamp', expireAfterSeconds=604800)
+    logger.info('indexes ensured')
 
 
 @app.on_event('shutdown')

@@ -1,13 +1,12 @@
-"""Security — MFA, IP Whitelist, Secret Vault, Session Manager, SSO."""
+"""Security — MFA (TOTP), IP Whitelist, Session Manager."""
 import uuid
-import hashlib
 import secrets
 from datetime import datetime, timezone
-from typing import Optional, List, Dict, Any
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from auth import get_current_user, get_current_admin
+from auth import get_current_user
 from db import db
 
 router = APIRouter(prefix='/security', tags=['security'])
@@ -90,38 +89,6 @@ async def remove_ip_whitelist(entry_id: str, user=Depends(get_current_user)):
     return {'status': 'removed'}
 
 
-# ===== Secret Vault =====
-class SecretIn(BaseModel):
-    key: str
-    value: str
-    category: str = 'general'
-
-
-@router.get('/vault')
-async def list_vault_secrets(user=Depends(get_current_user)):
-    cur = db.secret_vault.find({'user_id': user['id']}, {'_id': 0, 'value': 0})
-    return {'secrets': [s async for s in cur]}
-
-
-@router.post('/vault')
-async def add_vault_secret(payload: SecretIn, user=Depends(get_current_user)):
-    hashed = hashlib.sha256(payload.value.encode()).hexdigest()[:16]
-    entry = {
-        'id': str(uuid.uuid4()), 'user_id': user['id'],
-        'key': payload.key, 'value_hash': hashed,
-        'category': payload.category, 'created_at': _now()
-    }
-    await db.secret_vault.insert_one(entry)
-    entry.pop('_id', None)
-    return entry
-
-
-@router.delete('/vault/{entry_id}')
-async def delete_vault_secret(entry_id: str, user=Depends(get_current_user)):
-    await db.secret_vault.delete_one({'id': entry_id, 'user_id': user['id']})
-    return {'status': 'deleted'}
-
-
 # ===== Session Manager =====
 @router.get('/sessions')
 async def list_sessions(user=Depends(get_current_user)):
@@ -139,26 +106,3 @@ async def revoke_session(session_id: str, user=Depends(get_current_user)):
 async def revoke_all_sessions(user=Depends(get_current_user)):
     result = await db.active_sessions.delete_many({'user_id': user['id']})
     return {'status': 'all_revoked', 'count': result.deleted_count}
-
-
-# ===== SSO =====
-@router.get('/sso/providers')
-async def sso_providers(_=Depends(get_current_admin)):
-    return {
-        'providers': [
-            {'name': 'Google', 'enabled': True, 'type': 'oauth2'},
-            {'name': 'GitHub', 'enabled': True, 'type': 'oauth2'},
-            {'name': 'Microsoft', 'enabled': False, 'type': 'oauth2'},
-            {'name': 'SAML', 'enabled': False, 'type': 'enterprise'}
-        ]
-    }
-
-
-@router.post('/sso/configure')
-async def configure_sso(provider: str, client_id: str, client_secret: str, _=Depends(get_current_admin)):
-    await db.sso_config.update_one(
-        {'provider': provider},
-        {'$set': {'client_id': client_id, 'client_secret_hash': hashlib.sha256(client_secret.encode()).hexdigest()[:16], 'enabled': True, 'updated_at': _now()}},
-        upsert=True
-    )
-    return {'status': 'configured', 'provider': provider}
