@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   mongo:
     image: mongo:7
@@ -12,20 +14,6 @@ services:
       timeout: 10s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: getszy-redis
-    restart: unless-stopped
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
-    volumes:
-      - redis_data:/data
-    networks: [getszy]
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   backend:
     build:
       context: .
@@ -35,37 +23,23 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     environment:
       MONGO_URL: "mongodb://mongo:27017"
-      REDIS_URL: "redis://redis:6379/0"
       DB_NAME: "getszy_db"
-      CORS_ORIGINS: "https://${DOMAIN},https://www.${DOMAIN}"
+      CORS_ORIGINS: "*"
       JWT_SECRET: "${JWT_SECRET}"
-      SEED_ADMIN_EMAIL: "${SEED_ADMIN_EMAIL:-admin@getszy.com}"
-      SEED_ADMIN_PASSWORD: "${SEED_ADMIN_PASSWORD:-Admin@123}"
-      SEED_CUSTOMER_EMAIL: "${SEED_CUSTOMER_EMAIL:-customer@getszy.com}"
-      SEED_CUSTOMER_PASSWORD: "${SEED_CUSTOMER_PASSWORD:-Demo@123}"
-      GROQ_API_KEY: "${GROQ_API_KEY:-}"
-      GROQ_MODEL: "${GROQ_MODEL:-llama-3.3-70b-versatile}"
-      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
-      OPENROUTER_MODEL: "${OPENROUTER_MODEL:-meta-llama/llama-3.3-70b-instruct:free}"
-      HF_API_KEY: "${HF_API_KEY:-}"
-      HF_MODEL: "${HF_MODEL:-Qwen/Qwen2.5-72B-Instruct}"
-      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
-      GEMINI_MODEL: "${GEMINI_MODEL:-gemini-2.0-flash}"
-      FREE_ONLY: "${FREE_ONLY:-true}"
-      LLM_PROVIDER: "${LLM_PROVIDER:-auto}"
-      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434}"
-      OLLAMA_MODEL: "${OLLAMA_MODEL:-qwen2.5-coder:14b}"
-      EMERGENT_LLM_KEY: "${EMERGENT_LLM_KEY:-}"
+      EMERGENT_LLM_KEY: "${EMERGENT_LLM_KEY}"
       EMERGENT_MODEL: "${EMERGENT_MODEL:-gpt-4o-mini}"
+      LLM_PROVIDER: "${LLM_PROVIDER:-emergent}"
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434}"
+      OLLAMA_MODEL: "${OLLAMA_MODEL:-qwen2.5:7b}"
+      # --- GitHub deploy dashboard (add to VPS /opt/getszy/.env) ---
       GITHUB_TOKEN: "${GITHUB_TOKEN:-}"
       GITHUB_REPO: "${GITHUB_REPO:-jaunjatjai2300-blip/getszy}"
       GITHUB_BRANCH: "${GITHUB_BRANCH:-main}"
       DEPLOY_WEBHOOK_URL: "${DEPLOY_WEBHOOK_URL:-}"
       DEPLOY_WEBHOOK_TOKEN: "${DEPLOY_WEBHOOK_TOKEN:-}"
+      # --- Razorpay (subscriptions; add real keys to activate billing) ---
       RAZORPAY_KEY_ID: "${RAZORPAY_KEY_ID:-}"
       RAZORPAY_KEY_SECRET: "${RAZORPAY_KEY_SECRET:-}"
       RAZORPAY_WEBHOOK_SECRET: "${RAZORPAY_WEBHOOK_SECRET:-}"
@@ -108,7 +82,6 @@ services:
 
 volumes:
   mongo_data:
-  redis_data:
   caddy_data:
   caddy_config:
   backend_media:
