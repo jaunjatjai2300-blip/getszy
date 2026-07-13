@@ -79,6 +79,7 @@ platformdirs==4.10.0
 pluggy==1.6.0
 proglog==0.1.12
 propcache==0.5.2
+psutil==5.9.8
 proto-plus==1.28.0
 protobuf==5.29.6
 pyasn1==0.6.3

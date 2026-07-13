@@ -9,7 +9,8 @@ import {
   Bell, Search, Share2, Database, Image, Mic, MessageCircle, Cpu, Building2,
   Layout, FormInput, Mail, Tag, FileText, MessageSquare, Crown,
   FlaskConical, BookOpen, BookMarked, Brain, MessageCircleCode, GitBranch,
-  BarChart2, IndianRupee, Receipt, RefreshCw
+  BarChart2, IndianRupee, Receipt, RefreshCw, Command, ShieldCheck, RocketIcon,
+  StoreIcon, Trophy, Book, Target, LineChart
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import CopilotSidebar from "@/components/CopilotSidebar";
@@ -25,6 +26,12 @@ const NAV = [
     single: true,
   },
   {
+    label: "⚡ Command Center",
+    to: "/admin/founder",
+    icon: Command,
+    single: true,
+  },
+  {
     label: "📁 Projects",
     to: "/admin/projects",
     icon: FolderOpen,
@@ -37,6 +44,7 @@ const NAV = [
       { to: "/admin/build",              label: "App Builder",        icon: Wand2 },
       { to: "/admin/build-web",          label: "Website Builder",    icon: Globe },
       { to: "/admin/build-mobile",       label: "Mobile Builder",     icon: Smartphone },
+      { to: "/admin/saas-builder",       label: "SaaS Builder",       icon: Building2 },
       { to: "/admin/builder/landing",    label: "Landing Page",       icon: Layout },
       { to: "/admin/builder/form",       label: "Form Builder",       icon: FormInput },
       { to: "/admin/builder/dashboard",  label: "Dashboard Builder",  icon: LayoutDashboard },
@@ -86,6 +94,7 @@ const NAV = [
       { to: "/admin/sourcing",    label: "Sourcing",     icon: TrendingUp },
       { to: "/admin/courses",     label: "Courses",      icon: GraduationCap },
       { to: "/admin/publishing",  label: "Publishing",   icon: Share2 },
+      { to: "/admin/marketplace", label: "Marketplace",  icon: StoreIcon },
     ],
   },
   {
@@ -109,7 +118,51 @@ const NAV = [
     ],
   },
   {
-    label: "⚡ Automation",
+    label: "🚀 Deploy & CI/CD",
+    icon: Rocket,
+    items: [
+      { to: "/admin/deploy",            label: "Legacy Deploy", icon: Rocket },
+      { to: "/admin/deploy-platform",   label: "Deploy Center", icon: RocketIcon },
+    ],
+  },
+  {
+    label: "📊 Growth",
+    icon: TrendingUp,
+    items: [
+      { to: "/admin/growth",  label: "Growth Engine",  icon: LineChart },
+    ],
+  },
+  {
+    label: "🔒 Security",
+    icon: Shield,
+    items: [
+      { to: "/admin/security",            label: "Overview",       icon: Shield },
+      { to: "/admin/enterprise-security", label: "Enterprise",     icon: ShieldCheck },
+      { to: "/admin/security/logs",       label: "Audit Logs",     icon: Lock },
+      { to: "/admin/security/keys",       label: "API Keys",       icon: Key },
+      { to: "/admin/security/alerts",     label: "Alerts",         icon: AlertTriangle },
+    ],
+  },
+  {
+    label: "📚 Learning",
+    icon: GraduationCap,
+    items: [
+      { to: "/admin/learning-platform", label: "Platform",      icon: Book },
+      { to: "/admin/courses",           label: "Courses",       icon: GraduationCap },
+    ],
+  },
+  {
+    label: "⚙ Operations",
+    icon: Monitor,
+    items: [
+      { to: "/admin/ops-center",  label: "Ops Center",  icon: Activity },
+      { to: "/admin/ai-ops",      label: "AI Ops",      icon: Cpu },
+      { to: "/admin/servers",     label: "Servers",     icon: Server },
+      { to: "/admin/ai-chat",     label: "Legacy Chat", icon: MessageCircle },
+    ],
+  },
+  {
+    label: "🏆 Automation",
     icon: Zap,
     items: [
       { to: "/admin/skills",    label: "Skills",      icon: Wand2 },
@@ -117,32 +170,6 @@ const NAV = [
       { to: "/admin/workflows", label: "Workflows",   icon: Workflow },
       { to: "/admin/scheduler", label: "Scheduler",   icon: CalendarClock },
       { to: "/admin/webhooks",  label: "Webhooks",    icon: Webhook },
-    ],
-  },
-  {
-    label: "🚀 Deploy",
-    icon: Rocket,
-    items: [
-      { to: "/admin/deploy",    label: "Deployments", icon: Rocket },
-    ],
-  },
-  {
-    label: "🖥 Operations",
-    icon: Monitor,
-    items: [
-      { to: "/admin/ai-ops",    label: "AI Ops",      icon: Activity },
-      { to: "/admin/servers",   label: "Servers",     icon: Server },
-      { to: "/admin/ai-chat",   label: "Legacy Chat", icon: MessageCircle },
-    ],
-  },
-  {
-    label: "🔒 Security",
-    icon: Shield,
-    items: [
-      { to: "/admin/security",        label: "Overview",   icon: Shield },
-      { to: "/admin/security/logs",   label: "Audit Logs", icon: Lock },
-      { to: "/admin/security/keys",   label: "API Keys",   icon: Key },
-      { to: "/admin/security/alerts", label: "Alerts",     icon: AlertTriangle },
     ],
   },
   {
