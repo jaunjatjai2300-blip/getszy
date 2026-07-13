@@ -1,5 +1,4 @@
 import os
-import secrets
 import bcrypt
 import jwt
 from datetime import datetime, timedelta, timezone
@@ -7,9 +6,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from db import db, serialize_doc
 
-JWT_SECRET = os.environ.get('JWT_SECRET')
-if not JWT_SECRET or JWT_SECRET == 'change-me':
-    JWT_SECRET = secrets.token_hex(32)
+JWT_SECRET = os.environ.get('JWT_SECRET', 'change-me')
 JWT_ALG = 'HS256'
 JWT_EXP_DAYS = 30
 
