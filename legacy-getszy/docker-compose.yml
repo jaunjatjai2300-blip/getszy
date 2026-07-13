@@ -32,6 +32,8 @@ services:
       LLM_PROVIDER: "${LLM_PROVIDER:-ollama}"
       OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434}"
       OLLAMA_MODEL: "${OLLAMA_MODEL:-qwen2.5:7b}"
+      OLLAMA_MODEL_2: "${OLLAMA_MODEL_2:-}"
+      OLLAMA_MODEL_3: "${OLLAMA_MODEL_3:-mistral}"
       SEED_ADMIN_EMAIL: "${SEED_ADMIN_EMAIL:-admin@getszy.com}"
       SEED_ADMIN_PASSWORD: "${SEED_ADMIN_PASSWORD}"
       SEED_CUSTOMER_EMAIL: "${SEED_CUSTOMER_EMAIL:-customer@getszy.com}"
