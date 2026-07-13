@@ -209,7 +209,7 @@ async def chat_completion(
             logger.warning(f'LLM gemini failed: {e}')
 
     # 4. OpenRouter — paid (your credits, many models)
-    if OPENROUTER_API_KEY:
+    if OPENROUTER_API_KEY and not FREE_ONLY:
         try:
             result = await _openrouter(system, user, temperature)
             logger.info('LLM: openrouter')
