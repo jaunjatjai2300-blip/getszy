@@ -1,15 +1,15 @@
-"""LLM Provider — Free-First Cost Guard
+"""LLM Provider — Free-First Cost Guard with Ollama Multi-Model Fallback
 
 Priority chain (zero paid cost):
-  1. Groq       — free forever, 14,400 req/day (Llama 3.1 8B)
-  2. Gemini     — free forever, 1,500 req/day (Gemini 1.5 Flash)
-  3. Ollama     — local, free, unlimited
+  1. Groq       — free forever, 14,400 req/day
+  2. Gemini     — free forever, 1,500 req/day
+  3. Ollama     — local, free, unlimited (3 models as fallback chain)
   4. Emergent   — paid fallback (only if FREE_ONLY=false)
 
-Set env vars to unlock providers:
-  GROQ_API_KEY   — get free at console.groq.com
-  GEMINI_API_KEY — get free at aistudio.google.com
-  FREE_ONLY=true — hard block all paid APIs (default: true)
+Ollama fallback chain (configured via env):
+  OLLAMA_MODEL=qwen2.5:7b           — primary (fast, good quality)
+  OLLAMA_MODEL_2=<your-14b-model>   — fallback if primary fails
+  OLLAMA_MODEL_3=mistral            — final fallback
 """
 import os
 import httpx
@@ -25,13 +25,26 @@ GROQ_API_KEY     = os.environ.get('GROQ_API_KEY', '').strip()
 GEMINI_API_KEY   = os.environ.get('GEMINI_API_KEY', '').strip()
 OLLAMA_BASE_URL  = os.environ.get('OLLAMA_BASE_URL', 'http://host.docker.internal:11434')
 OLLAMA_SECRET    = os.environ.get('OLLAMA_SECRET', '')
-OLLAMA_MODEL     = os.environ.get('OLLAMA_MODEL', 'qwen2.5:7b')
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 EMERGENT_MODEL   = os.environ.get('EMERGENT_MODEL', 'gpt-4o-mini')
 
+# Ollama model chain — try primary, then fallbacks
+OLLAMA_MODELS = []
+_primary = os.environ.get('OLLAMA_MODEL', 'qwen2.5:7b').strip()
+_second  = os.environ.get('OLLAMA_MODEL_2', '').strip()
+_third   = os.environ.get('OLLAMA_MODEL_3', 'mistral').strip()
+if _primary:
+    OLLAMA_MODELS.append(_primary)
+if _second:
+    OLLAMA_MODELS.append(_second)
+if _third and _third != _primary:
+    OLLAMA_MODELS.append(_third)
+if not OLLAMA_MODELS:
+    OLLAMA_MODELS = ['qwen2.5:7b']
+
 # Daily free limits (safe = 80% of actual limit)
-GROQ_DAILY_LIMIT   = int(os.environ.get('GROQ_DAILY_LIMIT', '11000'))   # actual: 14400
-GEMINI_DAILY_LIMIT = int(os.environ.get('GEMINI_DAILY_LIMIT', '1200'))  # actual: 1500
+GROQ_DAILY_LIMIT   = int(os.environ.get('GROQ_DAILY_LIMIT', '11000'))
+GEMINI_DAILY_LIMIT = int(os.environ.get('GEMINI_DAILY_LIMIT', '1200'))
 
 # ── In-memory daily counters (reset at midnight UTC) ─────────────────────────
 _counters: dict = {}
@@ -46,7 +59,6 @@ def _count(provider: str) -> int:
 def _increment(provider: str):
     key = f'{provider}:{_today()}'
     _counters[key] = _counters.get(key, 0) + 1
-    # Clean old keys
     today = _today()
     for k in list(_counters.keys()):
         if not k.endswith(today):
@@ -91,7 +103,7 @@ async def _gemini(system: str, user: str, temperature: float) -> str:
         return r.json()['candidates'][0]['content']['parts'][0]['text']
 
 
-async def _ollama(system: str, user: str, temperature: float) -> str:
+async def _ollama_single(model: str, system: str, user: str, temperature: float) -> str:
     headers = {}
     if OLLAMA_SECRET:
         headers['Authorization'] = f'Bearer {OLLAMA_SECRET}'
@@ -100,7 +112,7 @@ async def _ollama(system: str, user: str, temperature: float) -> str:
             f'{OLLAMA_BASE_URL}/api/chat',
             headers=headers,
             json={
-                'model': OLLAMA_MODEL,
+                'model': model,
                 'messages': [
                     {'role': 'system', 'content': system},
                     {'role': 'user', 'content': user},
@@ -111,6 +123,20 @@ async def _ollama(system: str, user: str, temperature: float) -> str:
         )
         r.raise_for_status()
         return r.json().get('message', {}).get('content', '')
+
+
+async def _ollama_chain(system: str, user: str, temperature: float) -> str:
+    """Try each Ollama model in order until one works."""
+    last_error = None
+    for model in OLLAMA_MODELS:
+        try:
+            result = await _ollama_single(model, system, user, temperature)
+            logger.info(f'LLM: ollama ({model})')
+            return result
+        except Exception as e:
+            logger.warning(f'LLM ollama {model} failed: {e}')
+            last_error = e
+    raise last_error or RuntimeError('All Ollama models failed')
 
 
 async def _emergent(system: str, user: str, session_id: str) -> str:
@@ -135,7 +161,7 @@ async def chat_completion(
 ) -> str:
     session_id = session_id or str(uuid.uuid4())
 
-    # 1. Groq — free, fast, best quality
+    # 1. Groq — free, fast
     if GROQ_API_KEY and _under_limit('groq'):
         try:
             result = await _groq(system, user, temperature)
@@ -145,7 +171,7 @@ async def chat_completion(
         except Exception as e:
             logger.warning(f'LLM groq failed: {e}')
 
-    # 2. Gemini — free, Google, good quality
+    # 2. Gemini — free, Google
     if GEMINI_API_KEY and _under_limit('gemini'):
         try:
             result = await _gemini(system, user, temperature)
@@ -155,13 +181,11 @@ async def chat_completion(
         except Exception as e:
             logger.warning(f'LLM gemini failed: {e}')
 
-    # 3. Ollama — local, free, unlimited
+    # 3. Ollama — local, free, unlimited (multi-model chain)
     try:
-        result = await _ollama(system, user, temperature)
-        logger.info('LLM: ollama (local)')
-        return result
+        return await _ollama_chain(system, user, temperature)
     except Exception as e:
-        logger.warning(f'LLM ollama failed: {e}')
+        logger.warning(f'LLM ollama chain failed: {e}')
 
     # 4. Emergent (paid) — only if FREE_ONLY=false
     if EMERGENT_LLM_KEY and not FREE_ONLY:
@@ -173,8 +197,8 @@ async def chat_completion(
             logger.warning(f'LLM emergent failed: {e}')
 
     raise RuntimeError(
-        'All LLM providers failed or at limit. '
-        'Add GROQ_API_KEY or GEMINI_API_KEY env var (both free).'
+        'All LLM providers failed. '
+        'Check Ollama is running, or add GROQ_API_KEY/GEMINI_API_KEY.'
     )
 
 
@@ -186,12 +210,12 @@ def provider_info() -> dict:
         'providers': {
             'groq':    {'available': bool(GROQ_API_KEY),   'used_today': groq_used,   'limit': GROQ_DAILY_LIMIT,   'remaining': max(0, GROQ_DAILY_LIMIT - groq_used)},
             'gemini':  {'available': bool(GEMINI_API_KEY), 'used_today': gemini_used, 'limit': GEMINI_DAILY_LIMIT, 'remaining': max(0, GEMINI_DAILY_LIMIT - gemini_used)},
-            'ollama':  {'available': bool(OLLAMA_BASE_URL), 'model': OLLAMA_MODEL},
+            'ollama':  {'available': True, 'models': OLLAMA_MODELS, 'active_model': OLLAMA_MODELS[0] if OLLAMA_MODELS else None},
             'emergent':{'available': bool(EMERGENT_LLM_KEY) and not FREE_ONLY, 'blocked_by_free_only': FREE_ONLY},
         },
         'active_chain': (
             'groq' if GROQ_API_KEY and _under_limit('groq') else
             'gemini' if GEMINI_API_KEY and _under_limit('gemini') else
-            'ollama'
+            f'ollama ({OLLAMA_MODELS[0]})' if OLLAMA_MODELS else 'none'
         ),
     }
