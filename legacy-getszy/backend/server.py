@@ -58,6 +58,13 @@ from routes_security import router as security_router
 from routes_settings import router as settings_router
 from routes_ai_workforce import router as ai_workforce_router
 from routes_releases import router as releases_router
+from routes_founder import router as founder_router
+from routes_enterprise_security import router as enterprise_security_router
+from routes_deploy_platform import router as deploy_platform_router
+from routes_saas_builder import router as saas_builder_router
+from routes_growth import router as growth_router
+from routes_marketplace import router as marketplace_router
+from routes_learning_platform import router as learning_platform_router
 import skills.creator_skills  # noqa: F401 - register creator skills
 
 app = FastAPI(title='getszy API')
@@ -132,6 +139,15 @@ api_router.include_router(security_router)
 api_router.include_router(settings_router)
 api_router.include_router(ai_workforce_router)
 api_router.include_router(releases_router)
+
+# ===== New platform routers =====
+api_router.include_router(founder_router)
+api_router.include_router(enterprise_security_router)
+api_router.include_router(deploy_platform_router)
+api_router.include_router(saas_builder_router)
+api_router.include_router(growth_router)
+api_router.include_router(marketplace_router)
+api_router.include_router(learning_platform_router)
 
 app.include_router(api_router)
 

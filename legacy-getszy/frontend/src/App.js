@@ -61,6 +61,14 @@ import AdminSiteBuilder from "@/pages/admin/SiteBuilder";
 import AdminWorkflowBuilder from "@/pages/admin/WorkflowBuilder";
 import AdminRefunds from "@/pages/admin/Refunds";
 import AdminGST from "@/pages/admin/GST";
+import FounderCommand from "@/pages/admin/FounderCommand";
+import EnterpriseSecurity from "@/pages/admin/EnterpriseSecurity";
+import DeployPlatform from "@/pages/admin/DeployPlatform";
+import SaaSBuilder from "@/pages/admin/SaaSBuilder";
+import GrowthEngine from "@/pages/admin/GrowthEngine";
+import Marketplace from "@/pages/admin/Marketplace";
+import LearningPlatform from "@/pages/admin/LearningPlatform";
+import OperationsCenter from "@/pages/admin/OperationsCenter";
 import AdminPromptLibrary from "@/pages/admin/PromptLibrary";
 import AdminKnowledgeBase from "@/pages/admin/KnowledgeBase";
 import AdminAIMemory from "@/pages/admin/AIMemory";
@@ -191,6 +199,16 @@ export default function App() {
             <Route path="security/logs" element={<AdminSecurity />} />
             <Route path="security/keys" element={<AdminSecurity />} />
             <Route path="security/alerts" element={<AdminSecurity />} />
+
+            {/* Enhanced Pages */}
+            <Route path="founder" element={<FounderCommand />} />
+            <Route path="enterprise-security" element={<EnterpriseSecurity />} />
+            <Route path="deploy-platform" element={<DeployPlatform />} />
+            <Route path="saas-builder" element={<SaaSBuilder />} />
+            <Route path="growth" element={<GrowthEngine />} />
+            <Route path="marketplace" element={<Marketplace />} />
+            <Route path="learning-platform" element={<LearningPlatform />} />
+            <Route path="ops-center" element={<OperationsCenter />} />
 
             {/* Settings */}
             <Route path="settings" element={<AdminSettings />} />
