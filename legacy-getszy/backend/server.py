@@ -70,6 +70,7 @@ from routes_api_builder import router as api_builder_router
 from routes_mobile_builder import router as mobile_builder_router
 from routes_business_builders import router as business_builders_router
 from routes_advanced_analytics import router as advanced_analytics_router
+from creator_engine import router as creator_engine_router
 import skills.creator_skills  # noqa: F401 - register creator skills
 
 app = FastAPI(title='getszy API')
@@ -160,6 +161,9 @@ api_router.include_router(api_builder_router)
 api_router.include_router(mobile_builder_router)
 api_router.include_router(business_builders_router)
 api_router.include_router(advanced_analytics_router)
+
+# ===== Founder's Creator Engine =====
+api_router.include_router(creator_engine_router)
 
 app.include_router(api_router)
 
