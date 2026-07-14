@@ -57,6 +57,9 @@ const NAV = [
       { to: "/admin/builder/report",     label: "Report Builder",     icon: BarChart2 },
       { to: "/admin/builder/site",       label: "Site Builder",       icon: Globe },
       { to: "/admin/builder/workflow",   label: "Workflow Builder",   icon: GitBranch },
+      { to: "/admin/api-builder",       label: "API Builder",        icon: Code2 },
+      { to: "/admin/mobile-builder",    label: "Mobile Builder",     icon: Smartphone },
+      { to: "/admin/business-builders", label: "Business Builders",  icon: Briefcase },
     ],
   },
   {
@@ -95,6 +98,7 @@ const NAV = [
       { to: "/admin/courses",     label: "Courses",      icon: GraduationCap },
       { to: "/admin/publishing",  label: "Publishing",   icon: Share2 },
       { to: "/admin/marketplace", label: "Marketplace",  icon: StoreIcon },
+      { to: "/admin/woo-sync",    label: "WooCommerce Sync", icon: RefreshCw },
     ],
   },
   {
@@ -115,6 +119,7 @@ const NAV = [
       { to: "/admin/analytics/revenue", label: "Revenue",       icon: TrendingUp },
       { to: "/admin/analytics/ai",      label: "AI Usage",      icon: Bot },
       { to: "/admin/analytics/content", label: "Content",       icon: Film },
+      { to: "/admin/analytics-advanced", label: "Advanced Analytics", icon: LineChart },
     ],
   },
   {
