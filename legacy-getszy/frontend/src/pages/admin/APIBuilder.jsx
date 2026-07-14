@@ -1,203 +1,400 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState, useCallback } from "react";
+import { api } from "@/lib/api";
+import {
+  Database, Code2, Rocket, Eye, Wand2, ChevronDown, ChevronRight,
+  RefreshCw, Plus, FileCode2, Folder, FolderOpen, Settings, Download,
+  CheckCircle2, Cpu, Zap, Server, Play, Copy, History, Trash2,
+  Search, Filter, Layers
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Zap, Plus, Trash2, Save, Check, Copy, Play, ChevronDown, ChevronRight, Key, AlertCircle } from "lucide-react";
-import { toast } from "sonner";
-
-const METHODS = ["GET","POST","PUT","PATCH","DELETE"];
-const METHOD_COLORS = { GET:"bg-emerald-100 text-emerald-700", POST:"bg-blue-100 text-blue-700", PUT:"bg-amber-100 text-amber-700", PATCH:"bg-purple-100 text-purple-700", DELETE:"bg-rose-100 text-rose-700" };
-const AUTH_TYPES = ["None","Bearer Token","API Key","Basic Auth","OAuth 2.0"];
-const PARAM_TYPES = ["string","number","boolean","array","object","file"];
-
-let uid=()=>Math.random().toString(36).slice(2,8);
-
-const DEFAULT_ENDPOINTS = [
-  { id:uid(), method:"GET", path:"/api/users", tag:"Users", summary:"List all users", description:"Paginated list of all registered users", auth:"Bearer Token", expanded:true,
-    params:[{id:uid(),in:"query",name:"page",type:"number",required:false,description:"Page number"},{id:uid(),in:"query",name:"limit",type:"number",required:false,description:"Items per page (default 20)"}],
-    responses:[{code:"200",description:"List of users"},{code:"401",description:"Unauthorized"}]},
-  { id:uid(), method:"POST", path:"/api/users", tag:"Users", summary:"Create user", description:"Create a new user account", auth:"Bearer Token", expanded:false,
-    params:[{id:uid(),in:"body",name:"email",type:"string",required:true,description:"User email"},{id:uid(),in:"body",name:"name",type:"string",required:true,description:"Full name"}],
-    responses:[{code:"201",description:"User created"},{code:"400",description:"Validation error"}]},
-];
-
-function EndpointCard({ ep, onChange, onDelete }) {
-  const toggle=()=>onChange({expanded:!ep.expanded});
-  const addParam=()=>onChange({params:[...ep.params,{id:uid(),in:"query",name:"",type:"string",required:false,description:""}]});
-  const updParam=(pid,k,v)=>onChange({params:ep.params.map(p=>p.id===pid?{...p,[k]:v}:p)});
-  const delParam=(pid)=>onChange({params:ep.params.filter(p=>p.id!==pid)});
-  const addResp=()=>onChange({responses:[...(ep.responses||[]),{code:"200",description:""}]});
-  const updResp=(i,k,v)=>onChange({responses:ep.responses.map((r,idx)=>idx===i?{...r,[k]:v}:r)});
-  const delResp=(i)=>onChange({responses:ep.responses.filter((_,idx)=>idx!==i)});
-
-  return (
-    <Card className="overflow-hidden">
-      <div className="flex items-center gap-3 p-3 cursor-pointer hover:bg-[var(--gs-surface-2)]" onClick={toggle}>
-        {ep.expanded?<ChevronDown className="h-4 w-4 text-[var(--gs-muted)] flex-shrink-0"/>:<ChevronRight className="h-4 w-4 text-[var(--gs-muted)] flex-shrink-0"/>}
-        <Badge className={`text-[10px] font-mono flex-shrink-0 ${METHOD_COLORS[ep.method]||""}`}>{ep.method}</Badge>
-        <code className="text-sm font-mono flex-1 text-[var(--gs-teal)]">{ep.path||"/api/endpoint"}</code>
-        <span className="text-xs text-[var(--gs-muted)] hidden sm:block">{ep.summary}</span>
-        {ep.auth!=="None"&&<Key className="h-3.5 w-3.5 text-amber-500 flex-shrink-0"/>}
-        <button onClick={e=>{e.stopPropagation();onDelete();}} className="text-rose-400 hover:text-rose-600"><Trash2 className="h-3.5 w-3.5"/></button>
-      </div>
-
-      {ep.expanded&&(
-        <div className="p-4 border-t border-[var(--gs-border)] space-y-4">
-          <div className="grid sm:grid-cols-3 gap-3">
-            <div><label className="text-xs font-medium mb-1 block">Method</label>
-              <Select value={ep.method} onValueChange={v=>onChange({method:v})}>
-                <SelectTrigger className="h-9 text-xs"><SelectValue/></SelectTrigger>
-                <SelectContent>{METHODS.map(m=><SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="sm:col-span-2"><label className="text-xs font-medium mb-1 block">Path</label>
-              <Input className="h-9 text-xs font-mono" placeholder="/api/endpoint" value={ep.path} onChange={e=>onChange({path:e.target.value})}/></div>
-          </div>
-          <div className="grid sm:grid-cols-3 gap-3">
-            <div><label className="text-xs font-medium mb-1 block">Tag / Group</label>
-              <Input className="h-8 text-xs" value={ep.tag||""} onChange={e=>onChange({tag:e.target.value})}/></div>
-            <div><label className="text-xs font-medium mb-1 block">Authentication</label>
-              <Select value={ep.auth} onValueChange={v=>onChange({auth:v})}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue/></SelectTrigger>
-                <SelectContent>{AUTH_TYPES.map(a=><SelectItem key={a} value={a} className="text-xs">{a}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><label className="text-xs font-medium mb-1 block">Summary</label>
-              <Input className="h-8 text-xs" value={ep.summary||""} onChange={e=>onChange({summary:e.target.value})}/></div>
-          </div>
-          <div><label className="text-xs font-medium mb-1 block">Description</label>
-            <Textarea className="text-xs" rows={2} value={ep.description||""} onChange={e=>onChange({description:e.target.value})}/></div>
-
-          {/* Parameters */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold">Parameters ({ep.params?.length||0})</label>
-              <button onClick={addParam} className="text-xs text-[var(--gs-teal)] flex items-center gap-1"><Plus className="h-3 w-3"/>Add</button>
-            </div>
-            {(ep.params||[]).map(p=>(
-              <div key={p.id} className="flex gap-2 mb-1.5">
-                <Select value={p.in} onValueChange={v=>updParam(p.id,"in",v)}>
-                  <SelectTrigger className="h-7 text-xs w-20"><SelectValue/></SelectTrigger>
-                  <SelectContent>{["query","path","body","header"].map(loc=><SelectItem key={loc} value={loc} className="text-xs">{loc}</SelectItem>)}</SelectContent>
-                </Select>
-                <Input className="h-7 text-xs font-mono w-28" placeholder="name" value={p.name} onChange={e=>updParam(p.id,"name",e.target.value)}/>
-                <Select value={p.type} onValueChange={v=>updParam(p.id,"type",v)}>
-                  <SelectTrigger className="h-7 text-xs w-24"><SelectValue/></SelectTrigger>
-                  <SelectContent>{PARAM_TYPES.map(t=><SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>)}</SelectContent>
-                </Select>
-                <Input className="h-7 text-xs flex-1" placeholder="description" value={p.description||""} onChange={e=>updParam(p.id,"description",e.target.value)}/>
-                <label className="flex items-center gap-1 text-[10px] text-[var(--gs-muted)] whitespace-nowrap"><input type="checkbox" checked={!!p.required} onChange={e=>updParam(p.id,"required",e.target.checked)} className="accent-[var(--gs-teal)]"/>Req</label>
-                <button onClick={()=>delParam(p.id)} className="text-rose-400"><Trash2 className="h-3 w-3"/></button>
-              </div>
-            ))}
-          </div>
-
-          {/* Responses */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold">Responses</label>
-              <button onClick={addResp} className="text-xs text-[var(--gs-teal)] flex items-center gap-1"><Plus className="h-3 w-3"/>Add</button>
-            </div>
-            {(ep.responses||[]).map((r,i)=>(
-              <div key={i} className="flex gap-2 mb-1.5">
-                <Input className="h-7 text-xs w-16 font-mono" placeholder="200" value={r.code} onChange={e=>updResp(i,"code",e.target.value)}/>
-                <Input className="h-7 text-xs flex-1" placeholder="Description" value={r.description} onChange={e=>updResp(i,"description",e.target.value)}/>
-                <button onClick={()=>delResp(i)} className="text-rose-400"><Trash2 className="h-3 w-3"/></button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </Card>
-  );
-}
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function APIBuilder() {
-  const [apiInfo, setApiInfo] = useState({ title:"Getszy API", version:"1.0.0", baseUrl:"/api", description:"" });
-  const [endpoints, setEndpoints] = useState(DEFAULT_ENDPOINTS);
-  const [tab, setTab] = useState("builder");
-  const [saved, setSaved] = useState(false);
+  const [tab, setTab] = useState("schema");
+  const [collections, setCollections] = useState([]);
+  const [generatedAPIs, setGeneratedAPIs] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  const addEndpoint = ()=>setEndpoints(p=>[...p,{id:uid(),method:"GET",path:"/api/",tag:"",summary:"",description:"",auth:"Bearer Token",expanded:true,params:[],responses:[{code:"200",description:"Success"}]}]);
-  const updEp = (id,changes)=>setEndpoints(p=>p.map(e=>e.id===id?{...e,...changes}:e));
-  const delEp = (id)=>setEndpoints(p=>p.filter(e=>e.id!==id));
-  const save = ()=>{setSaved(true);toast.success("API schema saved!");setTimeout(()=>setSaved(false),2000);};
+  const [selectedCollections, setSelectedCollections] = useState([]);
+  const [apiType, setApiType] = useState("rest");
+  const [authType, setAuthType] = useState("jwt");
+  const [features, setFeatures] = useState(["pagination", "search"]);
+  const [generating, setGenerating] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState(null);
 
-  const grouped = endpoints.reduce((acc,ep)=>{const tag=ep.tag||"Other";(acc[tag]||(acc[tag]=[])).push(ep);return acc;},{});
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [previewMethod, setPreviewMethod] = useState("GET");
+  const [previewBody, setPreviewBody] = useState("");
+  const [previewResponse, setPreviewResponse] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
-  const openApiJson = JSON.stringify({
-    openapi:"3.0.0",
-    info:{title:apiInfo.title,version:apiInfo.version,description:apiInfo.description},
-    servers:[{url:apiInfo.baseUrl}],
-    paths:endpoints.reduce((acc,ep)=>{
-      if(!acc[ep.path])acc[ep.path]={};
-      acc[ep.path][ep.method.toLowerCase()]={
-        summary:ep.summary,description:ep.description,tags:[ep.tag||"default"],
-        parameters:(ep.params||[]).filter(p=>p.in!=="body").map(p=>({name:p.name,in:p.in,required:p.required,description:p.description,schema:{type:p.type}})),
-        responses:Object.fromEntries((ep.responses||[]).map(r=>[r.code,{description:r.description}])),
-        security:ep.auth!=="None"?[{bearerAuth:[]}]:[],
-      };
-      return acc;
-    },{}),
-    components:{securitySchemes:{bearerAuth:{type:"http",scheme:"bearer"}}}
-  }, null, 2);
+  const [expandedCollection, setExpandedCollection] = useState(null);
+
+  const load = async () => {
+    setError(false);
+    try {
+      const [cols, apis, hist] = await Promise.all([
+        api.get("/admin/api-builder/collections").catch(() => ({ data: { items: [] } })),
+        api.get("/admin/api-builder/generated").catch(() => ({ data: { items: [] } })),
+        api.get("/admin/api-builder/history").catch(() => ({ data: { items: [] } })),
+      ]);
+      setCollections(cols.data?.items || []);
+      setGeneratedAPIs(apis.data?.items || []);
+      setHistory(hist.data?.items || []);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const generateAPI = async () => {
+    if (selectedCollections.length === 0) return;
+    setGenerating(true);
+    try {
+      const r = await api.post("/admin/api-builder/generate", {
+        collections: selectedCollections,
+        type: apiType,
+        auth: authType,
+        features,
+      });
+      setGeneratedCode(r.data);
+      setTab("code");
+      setHistory(prev => [{ ...r.data, timestamp: new Date().toISOString() }, ...prev]);
+    } catch { /* silent */ }
+    setGenerating(false);
+  };
+
+  const previewAPI = async () => {
+    if (!previewUrl.trim()) return;
+    setPreviewLoading(true);
+    try {
+      const r = await api.post("/admin/api-builder/preview", {
+        url: previewUrl,
+        method: previewMethod,
+        body: previewBody ? JSON.parse(previewBody) : undefined,
+      });
+      setPreviewResponse(r.data);
+    } catch (err) {
+      setPreviewResponse({ error: err.message || "Request failed" });
+    }
+    setPreviewLoading(false);
+  };
+
+  const deployAPI = async (id) => {
+    try {
+      await api.post(`/admin/api-builder/deploy/${id}`);
+      setGeneratedAPIs(prev => prev.map(a => a.id === id ? { ...a, status: "deployed" } : a));
+    } catch { /* silent */ }
+  };
+
+  const toggleFeature = (f) => {
+    setFeatures(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f]);
+  };
+
+  const toggleCollection = (name) => {
+    setSelectedCollections(prev => prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name]);
+  };
+
+  if (error) return (
+    <div className="p-6 text-center text-[var(--gs-muted)]">
+      Data load nahi ho saki. <button onClick={load} className="underline">Retry</button>
+    </div>
+  );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl flex items-center gap-2"><Zap className="h-7 w-7 text-[var(--gs-teal)]"/>API Builder</h1>
-          <p className="text-sm text-[var(--gs-muted)] mt-1">{endpoints.length} endpoints · Visual API design + OpenAPI export</p>
+          <h1 className="font-display text-3xl">API Builder</h1>
+          <p className="text-sm text-[var(--gs-muted)] mt-0.5">Generate REST, GraphQL & OpenAPI endpoints from MongoDB schemas</p>
         </div>
-        <div className="flex gap-2">
-          <div className="flex bg-[var(--gs-surface-2)] rounded-lg p-1 gap-1">
-            {[["builder","🛠 Builder"],["openapi","📋 OpenAPI"]].map(([t,l])=>(
-              <button key={t} onClick={()=>setTab(t)} className={`text-xs px-3 py-1.5 rounded-md ${tab===t?"bg-white shadow text-[var(--gs-teal)] font-medium":"text-[var(--gs-muted)]"}`}>{l}</button>
-            ))}
-          </div>
-          <Button variant="outline" size="sm" onClick={addEndpoint}><Plus className="h-3.5 w-3.5 mr-1"/>Add Endpoint</Button>
-          <Button size="sm" className="bg-[var(--gs-teal)]" onClick={save}>
-            {saved?<><Check className="h-3.5 w-3.5 mr-1"/>Saved</>:<><Save className="h-3.5 w-3.5 mr-1"/>Save</>}
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" className="h-8" onClick={load}>
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}/>
+        </Button>
       </div>
 
-      {tab==="builder"&&(
-        <div className="space-y-4">
-          {/* API Info */}
-          <Card className="p-4">
-            <p className="text-xs font-semibold text-[var(--gs-muted)] uppercase tracking-wide mb-3">API Information</p>
-            <div className="grid sm:grid-cols-4 gap-3">
-              <div><label className="text-xs font-medium mb-1 block">API Title</label><Input className="h-8 text-xs" value={apiInfo.title} onChange={e=>setApiInfo(p=>({...p,title:e.target.value}))}/></div>
-              <div><label className="text-xs font-medium mb-1 block">Version</label><Input className="h-8 text-xs" value={apiInfo.version} onChange={e=>setApiInfo(p=>({...p,version:e.target.value}))}/></div>
-              <div><label className="text-xs font-medium mb-1 block">Base URL</label><Input className="h-8 text-xs font-mono" value={apiInfo.baseUrl} onChange={e=>setApiInfo(p=>({...p,baseUrl:e.target.value}))}/></div>
-              <div><label className="text-xs font-medium mb-1 block">Description</label><Input className="h-8 text-xs" value={apiInfo.description} onChange={e=>setApiInfo(p=>({...p,description:e.target.value}))}/></div>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="schema">Schema Explorer</TabsTrigger>
+          <TabsTrigger value="generator">Generator</TabsTrigger>
+          <TabsTrigger value="code">Generated Code</TabsTrigger>
+          <TabsTrigger value="preview">Preview & Test</TabsTrigger>
+          <TabsTrigger value="history">History ({history.length})</TabsTrigger>
+        </TabsList>
+
+        {/* Schema Explorer */}
+        <TabsContent value="schema" className="mt-4">
+          <div className="grid lg:grid-cols-[1fr_300px] gap-4">
+            <Card className="p-4">
+              <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                <Database className="h-4 w-4 text-[var(--gs-teal)]"/>MongoDB Collections
+              </h3>
+              <div className="space-y-1">
+                {collections.map((col) => (
+                  <div key={col.name}>
+                    <div
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-sm ${expandedCollection === col.name ? "bg-[var(--gs-teal)]/10 text-[var(--gs-teal)]" : "hover:bg-[var(--gs-surface-2)]"}`}
+                      onClick={() => setExpandedCollection(expandedCollection === col.name ? null : col.name)}>
+                      {expandedCollection === col.name ? <ChevronDown className="h-3 w-3"/> : <ChevronRight className="h-3 w-3"/>}
+                      <Database className="h-3.5 w-3.5"/>
+                      <span className="font-semibold">{col.name}</span>
+                      <Badge variant="outline" className="text-[9px] ml-auto">{col.count ?? "—"}</Badge>
+                    </div>
+                    {expandedCollection === col.name && col.fields && (
+                      <div className="ml-8 space-y-0.5 py-1">
+                        {col.fields.map((f) => (
+                          <div key={f.name} className="flex items-center gap-2 px-2 py-1 text-xs text-[var(--gs-muted)]">
+                            <span className="font-semibold text-[var(--gs-ink)]">{f.name}</span>
+                            <Badge variant="outline" className="text-[8px]">{f.type}</Badge>
+                            {f.required && <Badge className="bg-rose-100 text-rose-600 text-[8px]">required</Badge>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {collections.length === 0 && (
+                  <div className="text-center py-8 text-[var(--gs-muted)] text-sm">No collections found</div>
+                )}
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <h3 className="font-semibold text-sm mb-3">Quick Info</h3>
+              <div className="space-y-3 text-xs">
+                <div>
+                  <span className="text-[var(--gs-muted)]">Total Collections</span>
+                  <div className="text-lg font-display">{collections.length}</div>
+                </div>
+                <div>
+                  <span className="text-[var(--gs-muted)]">Total Fields</span>
+                  <div className="text-lg font-display">{collections.reduce((a, c) => a + (c.fields?.length || 0), 0)}</div>
+                </div>
+                <div>
+                  <span className="text-[var(--gs-muted)]">Generated APIs</span>
+                  <div className="text-lg font-display">{generatedAPIs.length}</div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Generator Panel */}
+        <TabsContent value="generator" className="mt-4">
+          <Card className="p-5 max-w-2xl">
+            <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
+              <Wand2 className="h-4 w-4 text-[var(--gs-teal)]"/>Generate API
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-[var(--gs-muted)] font-semibold">Select Collections</label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  {collections.map((col) => (
+                    <label key={col.name} className="flex items-center gap-2 text-xs cursor-pointer p-2 rounded-lg hover:bg-[var(--gs-surface-2)]">
+                      <Checkbox checked={selectedCollections.includes(col.name)} onCheckedChange={() => toggleCollection(col.name)}/>
+                      <span className="font-semibold">{col.name}</span>
+                      <Badge variant="outline" className="text-[8px] ml-auto">{col.fields?.length || 0} fields</Badge>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-[var(--gs-muted)] font-semibold">API Type</label>
+                  <Select value={apiType} onValueChange={setApiType}>
+                    <SelectTrigger className="mt-1"><SelectValue/></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="rest">REST API</SelectItem>
+                      <SelectItem value="graphql">GraphQL</SelectItem>
+                      <SelectItem value="openapi">OpenAPI Spec</SelectItem>
+                      <SelectItem value="sdk">SDK Package</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-[var(--gs-muted)] font-semibold">Authentication</label>
+                  <Select value={authType} onValueChange={setAuthType}>
+                    <SelectTrigger className="mt-1"><SelectValue/></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="jwt">JWT Token</SelectItem>
+                      <SelectItem value="apikey">API Key</SelectItem>
+                      <SelectItem value="oauth">OAuth 2.0</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-[var(--gs-muted)] font-semibold">Features</label>
+                <div className="grid grid-cols-3 gap-2 mt-1">
+                  {["pagination", "search", "filtering", "sorting", "validation", "rate-limiting", "caching", "cors", "logging"].map((f) => (
+                    <label key={f} className="flex items-center gap-2 text-xs cursor-pointer">
+                      <Checkbox checked={features.includes(f)} onCheckedChange={() => toggleFeature(f)}/>
+                      {f}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <Button className="bg-[var(--gs-teal)] w-full" onClick={generateAPI} disabled={generating || selectedCollections.length === 0}>
+                {generating ? "Generating…" : "Generate API"}
+              </Button>
             </div>
           </Card>
+        </TabsContent>
 
-          {/* Endpoints by tag */}
-          {Object.entries(grouped).map(([tag,eps])=>(
-            <div key={tag}>
-              <p className="text-xs font-semibold text-[var(--gs-muted)] uppercase tracking-wide mb-2 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[var(--gs-teal)] inline-block"/>{tag} ({eps.length})</p>
-              <div className="space-y-2">{eps.map(ep=><EndpointCard key={ep.id} ep={ep} onChange={c=>updEp(ep.id,c)} onDelete={()=>delEp(ep.id)}/>)}</div>
+        {/* Generated Code */}
+        <TabsContent value="code" className="mt-4">
+          {generatedCode ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-sm">Generated Files ({generatedCode.files?.length || 0})</h3>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="h-7 text-[10px]">
+                    <Download className="h-3 w-3 mr-1"/>Download All
+                  </Button>
+                  <Button size="sm" className="h-7 text-[10px] bg-[var(--gs-teal)]" onClick={() => deployAPI(generatedCode.id)}>
+                    <Rocket className="h-3 w-3 mr-1"/>Deploy
+                  </Button>
+                </div>
+              </div>
+              <div className="grid lg:grid-cols-[250px_1fr] gap-4">
+                <Card className="p-4">
+                  <h4 className="text-xs font-semibold mb-2">Files</h4>
+                  <div className="space-y-0.5">
+                    {(generatedCode.files || []).map((f, i) => (
+                      <div key={i} className="flex items-center gap-1.5 px-2 py-1 text-xs rounded cursor-pointer hover:bg-[var(--gs-surface-2)]">
+                        <FileCode2 className="h-3 w-3 text-amber-500"/>
+                        {f.name}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+                <Card className="p-4">
+                  {(generatedCode.files || []).map((f, i) => (
+                    <div key={i} className="mb-4">
+                      <div className="text-xs font-mono text-[var(--gs-muted)] mb-1">{f.name}</div>
+                      <pre className="text-xs font-mono bg-black text-green-400 p-4 rounded-lg overflow-x-auto max-h-64">
+                        <code>{f.content}</code>
+                      </pre>
+                    </div>
+                  ))}
+                </Card>
+              </div>
             </div>
-          ))}
-          {endpoints.length===0&&<Card className="p-12 text-center text-sm text-[var(--gs-muted)]"><Zap className="h-10 w-10 mx-auto mb-3"/>"Add Endpoint" se shuru karo</Card>}
-        </div>
-      )}
+          ) : (
+            <div className="text-center py-12 text-[var(--gs-muted)] text-sm">
+              <Code2 className="h-8 w-8 mx-auto mb-2 opacity-30"/>Generate an API first to see code here
+            </div>
+          )}
+        </TabsContent>
 
-      {tab==="openapi"&&(
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs text-[var(--gs-muted)] font-semibold uppercase tracking-wide">OpenAPI 3.0 JSON</p>
-            <button onClick={()=>{navigator.clipboard?.writeText(openApiJson);toast.success("Copied!");}} className="text-xs text-[var(--gs-teal)] flex items-center gap-1"><Copy className="h-3 w-3"/>Copy JSON</button>
+        {/* Preview & Test */}
+        <TabsContent value="preview" className="mt-4">
+          <div className="grid lg:grid-cols-2 gap-4">
+            <Card className="p-5">
+              <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
+                <Eye className="h-4 w-4 text-[var(--gs-teal)]"/>API Tester
+              </h3>
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <Select value={previewMethod} onValueChange={setPreviewMethod}>
+                    <SelectTrigger className="w-24 h-9"><SelectValue/></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="GET">GET</SelectItem>
+                      <SelectItem value="POST">POST</SelectItem>
+                      <SelectItem value="PUT">PUT</SelectItem>
+                      <SelectItem value="DELETE">DELETE</SelectItem>
+                      <SelectItem value="PATCH">PATCH</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input placeholder="/api/v1/resource" value={previewUrl} onChange={e => setPreviewUrl(e.target.value)}/>
+                </div>
+                {(previewMethod === "POST" || previewMethod === "PUT" || previewMethod === "PATCH") && (
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wider text-[var(--gs-muted)] font-semibold">Request Body (JSON)</label>
+                    <Textarea value={previewBody} onChange={e => setPreviewBody(e.target.value)}
+                      placeholder='{"key": "value"}' className="mt-1 font-mono text-xs min-h-[120px]"/>
+                  </div>
+                )}
+                <Button className="w-full bg-[var(--gs-teal)]" onClick={previewAPI} disabled={previewLoading}>
+                  {previewLoading ? "Sending…" : "Send Request"}
+                </Button>
+              </div>
+            </Card>
+            <Card className="p-5">
+              <h3 className="font-semibold text-sm mb-4">Response</h3>
+              {previewResponse ? (
+                <pre className="text-xs font-mono bg-black text-green-400 p-4 rounded-lg overflow-x-auto min-h-[200px] max-h-[400px]">
+                  <code>{JSON.stringify(previewResponse, null, 2)}</code>
+                </pre>
+              ) : (
+                <div className="text-center py-12 text-[var(--gs-muted)] text-sm">
+                  Send a request to see the response
+                </div>
+              )}
+            </Card>
           </div>
-          <pre className="bg-[#0a0a0a] text-yellow-300 text-xs p-4 rounded-xl overflow-auto font-mono max-h-[500px]">{openApiJson}</pre>
-        </div>
-      )}
+        </TabsContent>
+
+        {/* History */}
+        <TabsContent value="history" className="mt-4">
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left" style={{ borderColor: "var(--gs-border)" }}>
+                    <th className="p-3 text-[10px] uppercase tracking-wider text-[var(--gs-muted)] font-semibold">Timestamp</th>
+                    <th className="p-3 text-[10px] uppercase tracking-wider text-[var(--gs-muted)] font-semibold">Type</th>
+                    <th className="p-3 text-[10px] uppercase tracking-wider text-[var(--gs-muted)] font-semibold">Collections</th>
+                    <th className="p-3 text-[10px] uppercase tracking-wider text-[var(--gs-muted)] font-semibold">Auth</th>
+                    <th className="p-3 text-[10px] uppercase tracking-wider text-[var(--gs-muted)] font-semibold">Status</th>
+                    <th className="p-3 text-[10px] uppercase tracking-wider text-[var(--gs-muted)] font-semibold text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y" style={{ borderColor: "var(--gs-border)" }}>
+                  {history.map((h, i) => (
+                    <tr key={h.id || i} className="hover:bg-[var(--gs-surface-2)]">
+                      <td className="p-3 text-xs text-[var(--gs-muted)]">{h.timestamp ? new Date(h.timestamp).toLocaleString("en-IN") : "—"}</td>
+                      <td className="p-3"><Badge variant="outline" className="text-[10px] uppercase">{h.type}</Badge></td>
+                      <td className="p-3">{(h.collections || []).join(", ")}</td>
+                      <td className="p-3"><Badge variant="outline" className="text-[10px]">{h.auth}</Badge></td>
+                      <td className="p-3">
+                        {h.status === "deployed" ? (
+                          <span className="flex items-center gap-1 text-emerald-600 text-xs"><CheckCircle2 className="h-3 w-3"/>Deployed</span>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px]">{h.status || "draft"}</Badge>
+                        )}
+                      </td>
+                      <td className="p-3 text-right">
+                        <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={() => deployAPI(h.id)}>
+                          <Rocket className="h-3 w-3 mr-1"/>Deploy
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {history.length === 0 && (
+                    <tr><td colSpan={6} className="p-6 text-center text-[var(--gs-muted)] text-sm">No API generation history</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

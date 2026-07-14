@@ -65,6 +65,11 @@ import FounderCommand from "@/pages/admin/FounderCommand";
 import EnterpriseSecurity from "@/pages/admin/EnterpriseSecurity";
 import DeployPlatform from "@/pages/admin/DeployPlatform";
 import SaaSBuilder from "@/pages/admin/SaaSBuilder";
+import WooSync from "@/pages/admin/WooSync";
+import APIBuilder from "@/pages/admin/APIBuilder";
+import MobileBuilder from "@/pages/admin/MobileBuilder";
+import BusinessBuilders from "@/pages/admin/BusinessBuilders";
+import AdvancedAnalytics from "@/pages/admin/AdvancedAnalytics";
 import GrowthEngine from "@/pages/admin/GrowthEngine";
 import Marketplace from "@/pages/admin/Marketplace";
 import LearningPlatform from "@/pages/admin/LearningPlatform";
@@ -205,6 +210,11 @@ export default function App() {
             <Route path="enterprise-security" element={<EnterpriseSecurity />} />
             <Route path="deploy-platform" element={<DeployPlatform />} />
             <Route path="saas-builder" element={<SaaSBuilder />} />
+            <Route path="woo-sync" element={<WooSync />} />
+            <Route path="api-builder" element={<APIBuilder />} />
+            <Route path="mobile-builder" element={<MobileBuilder />} />
+            <Route path="business-builders" element={<BusinessBuilders />} />
+            <Route path="analytics-advanced" element={<AdvancedAnalytics />} />
             <Route path="growth" element={<GrowthEngine />} />
             <Route path="marketplace" element={<Marketplace />} />
             <Route path="learning-platform" element={<LearningPlatform />} />

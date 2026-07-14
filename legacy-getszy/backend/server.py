@@ -65,6 +65,11 @@ from routes_saas_builder import router as saas_builder_router
 from routes_growth import router as growth_router
 from routes_marketplace import router as marketplace_router
 from routes_learning_platform import router as learning_platform_router
+from routes_woo_sync import router as woo_sync_router
+from routes_api_builder import router as api_builder_router
+from routes_mobile_builder import router as mobile_builder_router
+from routes_business_builders import router as business_builders_router
+from routes_advanced_analytics import router as advanced_analytics_router
 import skills.creator_skills  # noqa: F401 - register creator skills
 
 app = FastAPI(title='getszy API')
@@ -148,6 +153,13 @@ api_router.include_router(saas_builder_router)
 api_router.include_router(growth_router)
 api_router.include_router(marketplace_router)
 api_router.include_router(learning_platform_router)
+
+# ===== Business & Builder routers =====
+api_router.include_router(woo_sync_router)
+api_router.include_router(api_builder_router)
+api_router.include_router(mobile_builder_router)
+api_router.include_router(business_builders_router)
+api_router.include_router(advanced_analytics_router)
 
 app.include_router(api_router)
 
