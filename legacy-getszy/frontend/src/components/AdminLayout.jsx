@@ -294,7 +294,7 @@ export default function AdminLayout() {
           <div className="font-display text-lg">getszy admin</div>
         </div>
         <div className="flex items-center gap-2">
-          <NavLink to="/admin/notifications" className="relative">
+          <NavLink to="/admin/founder" className="relative">
             <Bell className="h-4 w-4 text-[var(--gs-muted)]"/>
           </NavLink>
           <NavLink to="/admin/chat" className="text-xs px-3 py-1.5 rounded-lg bg-[var(--gs-teal)] text-white flex items-center gap-1">
