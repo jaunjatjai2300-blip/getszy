@@ -50,7 +50,7 @@ export default function UsersAdmin() {
     if (!txEmail) return;
     try {
       const r = await api.get(`/credits/admin/transactions/${encodeURIComponent(txEmail)}?limit=30`);
-      setTxData(r.data);
+      setTxData(r.data.items || r.data || []);
     } catch { toast.error("User not found"); }
   };
 
