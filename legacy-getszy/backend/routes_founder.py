@@ -67,9 +67,28 @@ async def health_summary(_=Depends(get_current_admin)):
 
     overall = 'healthy' if all(s['status'] == 'healthy' for s in services.values()) else 'degraded'
 
+    # Check if backend API itself is responding (it is, since we're in this handler)
+    backend_ok = True
+
     return {
         'status': overall,
         'timestamp': _now(),
+        # Flat fields the frontend expects
+        'mongodb_ok': services['mongodb']['status'] == 'healthy',
+        'mongodb_detail': services['mongodb'].get('error', 'Connected'),
+        'redis_ok': services['redis']['status'] == 'healthy',
+        'redis_detail': services['redis'].get('error', 'Connected'),
+        'ollama_ok': services['ollama']['status'] == 'healthy',
+        'ollama_detail': services['ollama'].get('error', services['ollama'].get('models', 'Connected')),
+        'backend_ok': backend_ok,
+        'backend_detail': 'API responding',
+        'disk_usage': f"{round(disk.used / disk.total * 100, 1)}%",
+        'disk_detail': f"{round(disk.used / (1024**3), 1)}GB / {round(disk.total / (1024**3), 1)}GB",
+        'cpu_usage': f"{cpu}%",
+        'cpu_detail': f"{cpu}% utilized",
+        'ram_usage': f"{mem.percent}%",
+        'ram_detail': f"{round(mem.used / (1024**3), 1)}GB / {round(mem.total / (1024**3), 1)}GB",
+        # Keep nested format for backwards compatibility
         'services': services,
         'system': {
             'cpu_percent': cpu,
@@ -88,6 +107,7 @@ async def kpi(_=Depends(get_current_admin)):
     today_start = _today_start().isoformat()
 
     total_users = await db.users.count_documents({})
+    active_users = await db.users.count_documents({'last_login': {'$gte': today_start.isoformat()}})
     active_subscriptions = await db.subscriptions.count_documents({'status': 'active'})
     mrr_cursor = db.subscriptions.aggregate([
         {'$match': {'status': 'active'}},
@@ -111,6 +131,8 @@ async def kpi(_=Depends(get_current_admin)):
     revenue_today = today_result[0]['revenue'] if today_result else 0
 
     ai_jobs_today = await db.video_jobs.count_documents({'created_at': {'$gte': today_start}})
+    ai_jobs_total = await db.video_jobs.count_documents({})
+
     credits_today = db.users.aggregate([
         {'$match': {'created_at': {'$gte': today_start}}},
         {'$group': {'_id': None, 'total': {'$sum': '$credits_used'}}}
@@ -118,25 +140,43 @@ async def kpi(_=Depends(get_current_admin)):
     credits_result = await credits_today.to_list(1)
     credits_used_today = credits_result[0]['total'] if credits_result else 0
 
+    # Credits revenue (sum from billing_processed_payments or credits collection)
+    credits_rev_cursor = db.billing_processed_payments.aggregate([
+        {'$group': {'_id': None, 'total': {'$sum': '$amount'}}}
+    ])
+    credits_rev_result = await credits_rev_cursor.to_list(1)
+    credits_revenue = credits_rev_result[0]['total'] if credits_rev_result else 0
+
     total_projects = await db.build_projects.count_documents({})
     if total_projects == 0:
         total_projects = await db.builder_projects.count_documents({})
 
     active_deployments = await db.deployments.count_documents({'status': {'$in': ['live', 'building', 'deploying']}})
+    live_deployments = await db.deployments.count_documents({'status': 'live'})
     failed_jobs = await db.queue.count_documents({'status': 'failed'})
     low_stock = await db.products.count_documents({'stock': {'$lte': 5, '$gte': 0}})
 
     return {
+        # Flat fields the frontend expects
         'total_users': total_users,
+        'active_users': active_users,
+        'subscribers': active_subscriptions,
         'active_subscribers': active_subscriptions,
         'mrr': mrr,
+        'arr': mrr * 12,
+        'revenue': total_revenue,
         'total_revenue': total_revenue,
+        'credits_revenue': credits_revenue,
         'revenue_today': revenue_today,
         'orders_today': orders_today,
         'ai_jobs_today': ai_jobs_today,
+        'ai_jobs_total': ai_jobs_total,
         'credits_used_today': credits_used_today,
+        'projects': total_projects,
         'total_projects': total_projects,
+        'deployments': active_deployments,
         'active_deployments': active_deployments,
+        'deployments_live': live_deployments,
         'failed_jobs': failed_jobs,
         'low_stock_count': low_stock,
         'timestamp': _now()
@@ -226,9 +266,23 @@ async def system_health(_=Depends(get_current_admin)):
 async def alerts(_=Depends(get_current_admin)):
     alert_list = []
 
+    # Check service health for alerts
+    try:
+        await client.admin.command('ping')
+    except Exception as e:
+        alert_list.append({'type': 'mongodb_down', 'level': 'critical', 'severity': 'critical', 'message': f'MongoDB is down: {e}'})
+
+    redis_status = await _check_redis()
+    if redis_status['status'] != 'healthy':
+        alert_list.append({'type': 'redis_down', 'level': 'warning', 'severity': 'warning', 'message': f"Redis: {redis_status.get('error', 'unavailable')}"})
+
+    ollama_status = await _check_ollama()
+    if ollama_status['status'] != 'healthy':
+        alert_list.append({'type': 'ollama_down', 'level': 'info', 'severity': 'info', 'message': f"Ollama: {ollama_status.get('error', 'unavailable')}"})
+
     low_stock = await db.products.count_documents({'stock': {'$lte': 5, '$gte': 0}})
     if low_stock > 0:
-        alert_list.append({'type': 'low_stock', 'severity': 'warning', 'message': f'{low_stock} products with low stock', 'count': low_stock})
+        alert_list.append({'type': 'low_stock', 'level': 'warning', 'severity': 'warning', 'message': f'{low_stock} products with low stock', 'count': low_stock})
 
     total_users = await db.users.count_documents({})
     mrr_cursor = db.subscriptions.aggregate([
@@ -238,20 +292,20 @@ async def alerts(_=Depends(get_current_admin)):
     mrr_result = await mrr_cursor.to_list(1)
     mrr = mrr_result[0]['total'] if mrr_result else 0
     if mrr == 0 and total_users > 10:
-        alert_list.append({'type': 'zero_mrr', 'severity': 'critical', 'message': 'Zero MRR despite active users', 'user_count': total_users})
+        alert_list.append({'type': 'zero_mrr', 'level': 'critical', 'severity': 'critical', 'message': 'Zero MRR despite active users', 'user_count': total_users})
 
     disk = psutil.disk_usage('/')
     disk_pct = round(disk.used / disk.total * 100, 1)
     if disk_pct > 80:
-        alert_list.append({'type': 'disk_high', 'severity': 'critical', 'message': f'Disk usage at {disk_pct}%', 'percent': disk_pct})
+        alert_list.append({'type': 'disk_high', 'level': 'critical', 'severity': 'critical', 'message': f'Disk usage at {disk_pct}%', 'percent': disk_pct})
 
     failed_jobs = await db.queue.count_documents({'status': 'failed'})
     if failed_jobs > 0:
-        alert_list.append({'type': 'failed_jobs', 'severity': 'warning', 'message': f'{failed_jobs} failed jobs in queue', 'count': failed_jobs})
+        alert_list.append({'type': 'failed_jobs', 'level': 'warning', 'severity': 'warning', 'message': f'{failed_jobs} failed jobs in queue', 'count': failed_jobs})
 
     api_keys_set = os.environ.get('OPENAI_API_KEY', '')
     if not api_keys_set:
-        alert_list.append({'type': 'no_api_keys', 'severity': 'warning', 'message': 'No OpenAI API key configured'})
+        alert_list.append({'type': 'no_api_keys', 'level': 'info', 'severity': 'info', 'message': 'No OpenAI API key configured'})
 
     error_pipeline = [
         {'$match': {'status_code': {'$gte': 500}}},
@@ -261,9 +315,9 @@ async def alerts(_=Depends(get_current_admin)):
     total_errors = error_result[0]['count'] if error_result else 0
     total_requests = await db.request_logs.count_documents({})
     if total_requests > 100 and total_errors / max(total_requests, 1) > 0.05:
-        alert_list.append({'type': 'high_error_rate', 'severity': 'warning', 'message': f'Error rate: {round(total_errors/total_requests*100, 1)}%', 'errors': total_errors, 'total': total_requests})
+        alert_list.append({'type': 'high_error_rate', 'level': 'warning', 'severity': 'warning', 'message': f'Error rate: {round(total_errors/total_requests*100, 1)}%', 'errors': total_errors, 'total': total_requests})
 
-    return {'alerts': alert_list, 'count': len(alert_list), 'timestamp': _now()}
+    return {'alerts': alert_list, 'items': alert_list, 'count': len(alert_list), 'timestamp': _now()}
 
 
 @router.get('/revenue-chart')
@@ -314,10 +368,23 @@ async def growth_metrics(_=Depends(get_current_admin)):
         ai_jobs = await db.video_jobs.count_documents({'created_at': {'$gte': day.isoformat(), '$lt': next_day.isoformat()}})
         ai_growth.append({'date': label, 'count': ai_jobs})
 
+    # Compute current vs previous for trend display
+    def _trend(arr, key='count'):
+        if len(arr) < 2:
+            return {'current': 0, 'previous': 0}
+        current = sum(d[key] for d in arr[-7:])
+        previous = sum(d[key] for d in arr[-14:-7]) if len(arr) >= 14 else sum(d[key] for d in arr[:7])
+        return {'current': current, 'previous': previous}
+
     return {
+        # Array format (for charts)
         'user_growth': user_growth,
         'revenue_growth': revenue_growth,
         'subscriber_growth': subscriber_growth,
         'ai_usage_growth': ai_growth,
+        # Trend format (for the metrics cards)
+        'users_trend': _trend(user_growth, 'count'),
+        'revenue_trend': _trend(revenue_growth, 'revenue'),
+        'subscriber_trend': _trend(subscriber_growth, 'count'),
         'timestamp': _now()
     }
