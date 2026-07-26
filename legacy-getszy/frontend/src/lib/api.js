@@ -1,7 +1,7 @@
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-export const API_BASE = `${BACKEND_URL}/api`;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+export const API_BASE = BACKEND_URL ? `${BACKEND_URL}/api` : "/api";
 
 export const api = axios.create({ baseURL: API_BASE });
 
@@ -15,7 +15,10 @@ api.interceptors.response.use(
   (r) => r,
   (err) => {
     if (err?.response?.status === 401) {
-      // optionally clear
+      localStorage.removeItem("gs_token");
+      if (window.location.pathname.startsWith("/admin")) {
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(err);
   }

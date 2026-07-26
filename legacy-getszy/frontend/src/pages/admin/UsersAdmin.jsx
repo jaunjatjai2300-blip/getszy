@@ -49,7 +49,7 @@ export default function UsersAdmin() {
   const loadTx = async () => {
     if (!txEmail) return;
     try {
-      const r = await api.get(`/credits/admin/transactions?user_email=${txEmail}&limit=30`);
+      const r = await api.get(`/credits/admin/transactions/${encodeURIComponent(txEmail)}?limit=30`);
       setTxData(r.data);
     } catch { toast.error("User not found"); }
   };
