@@ -319,3 +319,11 @@ async def remove_domain(domain_id: str, _=Depends(get_current_admin)):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail='Domain not found')
     return {'status': 'removed'}
+
+
+# ── Frontend alias endpoints ──────────────────────────────────────────────────
+@router.get('/deployments/{deploy_id}/logs')
+async def deployment_logs_alias(deploy_id: str, _=Depends(get_current_admin)):
+    """Alias for /deploy-logs/{id} — frontend calls /deployments/{id}/logs."""
+    logs = await db.deploy_logs.find({'deploy_id': deploy_id}, {'_id': 0}).sort('timestamp', -1).to_list(100)
+    return {'logs': logs}

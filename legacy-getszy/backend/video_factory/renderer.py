@@ -6,9 +6,9 @@ Ties video_factory's storyboard + visual_plan into the existing video/ pipeline:
 - Final video assembly (ffmpeg)
 
 Outputs are stored as:
-- /app/backend/media/video_factory/{project_id}/scene_{N}.jpg
-- /app/backend/media/video_factory/{project_id}/voice.mp3
-- /app/backend/media/video_factory/{project_id}/final.mp4
+- legacy-getszy/backend/media/video_factory/{project_id}/scene_{N}.jpg
+- legacy-getszy/backend/media/video_factory/{project_id}/voice.mp3
+- legacy-getszy/backend/media/video_factory/{project_id}/final.mp4
 """
 import asyncio
 import logging

@@ -578,3 +578,37 @@ async def path_progress(path_id: str, user=Depends(get_current_user)):
         'overall_progress': overall_progress,
         'course_progress': course_progress,
     }
+
+
+# ── Frontend alias endpoints ──────────────────────────────────────────────────
+@router.get('/courses')
+async def list_courses(_=Depends(get_current_admin)):
+    """List all courses — frontend calls /courses."""
+    cur = db.courses.find({}, {'_id': 0}).sort('created_at', -1)
+    return {'items': [c async for c in cur]}
+
+
+@router.get('/progress')
+async def progress_no_user(_=Depends(get_current_admin)):
+    """Aggregate progress without user_id — frontend calls /progress."""
+    total_courses = await db.courses.count_documents({})
+    total_enrollments = await db.enrollments.count_documents({})
+    completed = await db.enrollments.count_documents({'progress': {'$gte': 1.0}})
+    avg_progress = 0
+    if total_enrollments > 0:
+        pipeline = [{'$group': {'_id': None, 'avg': {'$avg': '$progress'}}}]
+        result = await db.enrollments.aggregate(pipeline).to_list(1)
+        avg_progress = round(result[0]['avg'] * 100, 1) if result else 0
+    return {
+        'total_courses': total_courses,
+        'total_enrollments': total_enrollments,
+        'completed_enrollments': completed,
+        'avg_progress': avg_progress,
+    }
+
+
+@router.get('/modules/{module_id}/quiz')
+async def module_quiz(module_id: str, _=Depends(get_current_admin)):
+    """Get quiz for a module — frontend calls /modules/{id}/quiz."""
+    quiz = await db.quizzes.find_one({'module_id': module_id}, {'_id': 0})
+    return quiz or {'module_id': module_id, 'questions': []}

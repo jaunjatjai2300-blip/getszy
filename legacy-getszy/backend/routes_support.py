@@ -41,6 +41,7 @@ class TicketIn(BaseModel):
 
 
 @router.post('/ticket')
+@router.post('/tickets')
 async def create_ticket(body: TicketIn, user=Depends(get_current_user)):
     doc = {
         'id': str(uuid.uuid4()),

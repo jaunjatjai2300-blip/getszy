@@ -743,3 +743,18 @@ async def deploy_schema(schema_id: str, _=Depends(get_current_admin)):
         'deployed': True, 'deployed_path': filepath, 'deployed_at': _now(),
     }})
     return {'deployed': True, 'path': filepath, 'schema_id': schema_id}
+
+
+# ── Frontend alias endpoints ──────────────────────────────────────────────────
+@router.get('/collections')
+async def list_collections_alias(_=Depends(get_current_admin)):
+    """Alias for /schemas — frontend calls /collections."""
+    cur = db.api_schemas.find({}, {'_id': 0, 'code': 0}).sort('created_at', -1)
+    return {'items': [s async for s in cur]}
+
+
+@router.get('/history')
+async def list_history(_=Depends(get_current_admin)):
+    """Alias for /generated — frontend calls /history."""
+    cur = db.api_schemas.find({}, {'_id': 0, 'code': 0}).sort('created_at', -1).limit(50)
+    return {'items': [s async for s in cur]}

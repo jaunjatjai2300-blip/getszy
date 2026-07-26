@@ -10,68 +10,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 from db import db, client
-from routes_auth import router as auth_router
-from routes_catalog import router as catalog_router
-from routes_cart_orders import router as cart_router
-from routes_admin import router as admin_router
-from routes_learning import router as learning_router
-from routes_builder import router as builder_router
-from routes_subscription import router as sub_router
-from routes_ai_ops import router as ai_ops_router
-from routes_sourcing import router as sourcing_router
-from routes_media import router as media_router
-from routes_deploy import router as deploy_router
-from routes_skills import router as skills_router
-from routes_stacks import router as stacks_router
-from routes_copilot import router as copilot_router
-from routes_waitlist import router as waitlist_router
-from routes_creator import router as creator_router
-from routes_video import router as video_router
-from routes_publishing import router as publishing_router
-from routes_workforce import router as workforce_router
-from routes_chat_builder import router as chat_builder_router
-from routes_workspace import router as workspace_router
-from routes_hosting import router as hosting_router, host_router
-from routes_razorpay import router as razorpay_router
-from routes_legal import router as legal_router
-from routes_support import router as support_router
-from routes_video_factory import router as video_factory_router
-from routes_credits import router as credits_router
-from routes_social import router as social_router
-from routes_workflows import router as workflows_router
-from routes_avatar import router as avatar_router
-from routes_projects import router as projects_router
-from routes_commerce_extra import router as commerce_extra_router
-from routes_ai_platform import router as ai_platform_router
-from routes_ws import router as ws_router
-from routes_images import router as images_router
-from routes_voice import router as voice_router
-from routes_audit import router as audit_router
-from routes_queue import router as queue_router
-from routes_git import router as git_router
-from routes_extras import router as extras_router
-from routes_notifications import router as notifications_router
-from routes_creator_platform import router as creator_platform_router
-from routes_build_studio import router as build_studio_router
-from routes_operations import router as operations_router
-from routes_security import router as security_router
-from routes_settings import router as settings_router
-from routes_ai_workforce import router as ai_workforce_router
-from routes_releases import router as releases_router
-from routes_founder import router as founder_router
-from routes_enterprise_security import router as enterprise_security_router
-from routes_deploy_platform import router as deploy_platform_router
-from routes_saas_builder import router as saas_builder_router
-from routes_growth import router as growth_router
-from routes_marketplace import router as marketplace_router
-from routes_learning_platform import router as learning_platform_router
-from routes_woo_sync import router as woo_sync_router
-from routes_api_builder import router as api_builder_router
-from routes_mobile_builder import router as mobile_builder_router
-from routes_business_builders import router as business_builders_router
-from routes_advanced_analytics import router as advanced_analytics_router
-from creator_engine import router as creator_engine_router
-import skills.creator_skills  # noqa: F401 - register creator skills
+from app.router_registry import load_all_routers
 
 app = FastAPI(title='getszy API')
 api_router = APIRouter(prefix='/api')
@@ -91,98 +30,32 @@ async def health():
         return {'status': 'error', 'detail': str(e)}
 
 
-# ===== Core routers =====
-api_router.include_router(auth_router)
-api_router.include_router(catalog_router)
-api_router.include_router(cart_router)
-api_router.include_router(admin_router)
-api_router.include_router(learning_router)
-api_router.include_router(builder_router)
-api_router.include_router(sub_router)
-api_router.include_router(ai_ops_router)
-api_router.include_router(sourcing_router)
-api_router.include_router(media_router)
-api_router.include_router(deploy_router)
-api_router.include_router(skills_router)
-api_router.include_router(stacks_router)
-api_router.include_router(copilot_router)
-api_router.include_router(waitlist_router)
-api_router.include_router(creator_router)
-api_router.include_router(video_router)
-api_router.include_router(publishing_router)
-api_router.include_router(workforce_router)
-api_router.include_router(chat_builder_router)
-api_router.include_router(workspace_router)
-api_router.include_router(hosting_router)
-api_router.include_router(host_router)
-api_router.include_router(razorpay_router)
-api_router.include_router(legal_router)
-api_router.include_router(support_router)
-api_router.include_router(video_factory_router)
-api_router.include_router(credits_router)
-api_router.include_router(social_router)
-api_router.include_router(workflows_router)
-api_router.include_router(avatar_router)
-api_router.include_router(projects_router)
-api_router.include_router(commerce_extra_router)
-api_router.include_router(ai_platform_router)
-
-# ===== New module routers =====
-api_router.include_router(ws_router)
-api_router.include_router(images_router)
-api_router.include_router(voice_router)
-api_router.include_router(audit_router)
-api_router.include_router(queue_router)
-api_router.include_router(git_router)
-api_router.include_router(extras_router)
-api_router.include_router(notifications_router)
-
-# ===== Medium-priority module routers =====
-api_router.include_router(creator_platform_router)
-api_router.include_router(build_studio_router)
-api_router.include_router(operations_router)
-api_router.include_router(security_router)
-api_router.include_router(settings_router)
-api_router.include_router(ai_workforce_router)
-api_router.include_router(releases_router)
-
-# ===== New platform routers =====
-api_router.include_router(founder_router)
-api_router.include_router(enterprise_security_router)
-api_router.include_router(deploy_platform_router)
-api_router.include_router(saas_builder_router)
-api_router.include_router(growth_router)
-api_router.include_router(marketplace_router)
-api_router.include_router(learning_platform_router)
-
-# ===== Business & Builder routers =====
-api_router.include_router(woo_sync_router)
-api_router.include_router(api_builder_router)
-api_router.include_router(mobile_builder_router)
-api_router.include_router(business_builders_router)
-api_router.include_router(advanced_analytics_router)
-
-# ===== Founder's Creator Engine =====
-api_router.include_router(creator_engine_router)
+# ===== Load all routers via registry =====
+registered_router = load_all_routers()
+api_router.include_router(registered_router)
 
 app.include_router(api_router)
 
 # ===== Security middleware =====
+ALLOWED_ORIGINS = [
+    'https://getszy.com',
+    'https://www.getszy.com',
+    'http://localhost:3000',  # local dev
+    'http://localhost:5173',  # vite dev
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=['*'],
-    allow_headers=['*'],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allow_headers=['Authorization', 'Content-Type'],
 )
 
-try:
-    from middleware import RateLimitMiddleware, SecurityHeadersMiddleware, RequestLoggingMiddleware
-    app.add_middleware(RateLimitMiddleware)
-    app.add_middleware(SecurityHeadersMiddleware)
-    app.add_middleware(RequestLoggingMiddleware)
-except ImportError:
-    pass
+from middleware import RateLimitMiddleware, SecurityHeadersMiddleware, RequestLoggingMiddleware
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('getszy')
@@ -194,15 +67,47 @@ async def startup():
     from seed import seed_if_empty, seed_courses_if_empty
     await seed_if_empty()
     await seed_courses_if_empty()
-    # One-time migration: clear external video URLs in favour of branded placeholders
-    flag = await db.system.find_one({'_id': 'video_branding_v1'})
+    # Migration: restore video URLs that were accidentally blanked
+    flag = await db.system.find_one({'_id': 'video_restore_v1'})
     if not flag:
-        res = await db.lessons.update_many(
-            {'video_url': {'$regex': 'youtube|youtu.be|vimeo', '$options': 'i'}},
-            {'$set': {'video_url': ''}},
-        )
-        await db.system.insert_one({'_id': 'video_branding_v1', 'modified_lessons': res.modified_count})
-        logger.info(f'video migration: cleared {res.modified_count} external video URLs')
+        VIDEO_URLS = {
+            'welcome-why-ai-matters-for-women': 'https://www.youtube.com/embed/2ePf9rue1Ao',
+            'what-is-ai-in-simple-terms': 'https://www.youtube.com/embed/ad79nYk2keg',
+            'machine-learning-vs-deep-learning': 'https://www.youtube.com/embed/zjkBMFhNj_g',
+            'how-chatgpt-actually-works': 'https://www.youtube.com/embed/w65p_IIp6JY',
+            'your-first-ai-powered-task': 'https://www.youtube.com/embed/Yq0QkCxoTHM',
+            'anatomy-of-a-great-prompt': 'https://www.youtube.com/embed/jC4v5AS4RIM',
+            'role-context-task-framework': 'https://www.youtube.com/embed/dOxUroR57xs',
+            'chain-of-thought-prompting': 'https://www.youtube.com/embed/H4olM_mExl8',
+            'writing-content-that-converts': 'https://www.youtube.com/embed/aircAruvnKk',
+            'building-a-research-assistant': 'https://www.youtube.com/embed/IHZwWFHWa-w',
+            'custom-gpts-and-personas': 'https://www.youtube.com/embed/J0Aq44Pze-w',
+            'ai-income-landscape-2026': 'https://www.youtube.com/embed/m_d3kI23wlw',
+            'niche-selection-your-unfair-advantage': 'https://www.youtube.com/embed/H9M3n90gqdQ',
+            'ai-content-creation-as-a-service': 'https://www.youtube.com/embed/JTxsNm9IdYU',
+            'designing-digital-products-with-ai': 'https://www.youtube.com/embed/8jLOx1hD3_o',
+            'ai-virtual-assistant-business': 'https://www.youtube.com/embed/iAyJG-pYS9I',
+            'marketing-yourself-online': 'https://www.youtube.com/embed/1aA1WGON49E',
+            'pricing-payments-and-scaling': 'https://www.youtube.com/embed/u3rqe6jbAQc',
+            'ai-career-paths-for-women-2026': 'https://www.youtube.com/embed/3yPBVii7Ct0',
+            'deep-dive-prompt-engineering': 'https://www.youtube.com/embed/p09yRj47kNM',
+            'ai-tools-every-pro-must-know': 'https://www.youtube.com/embed/eyTtAheVm9w',
+            'building-an-ai-portfolio': 'https://www.youtube.com/embed/dPq7DDjBfnE',
+            'networking-personal-branding': 'https://www.youtube.com/embed/wOdmiOAYjQ4',
+            'consultancy-charge-50k-per-project': 'https://www.youtube.com/embed/JBoT_pEwiP0',
+            'interview-prep-for-ai-roles': 'https://www.youtube.com/embed/o42Cb1pTNVk',
+            'your-90-day-action-plan': 'https://www.youtube.com/embed/qXcUkN2x8KM',
+        }
+        restored = 0
+        for slug, url in VIDEO_URLS.items():
+            title_pattern = slug.replace('-', ' ')
+            res = await db.lessons.update_many(
+                {'title': {'$regex': title_pattern.split()[0], '$options': 'i'}, 'video_url': ''},
+                {'$set': {'video_url': url}}
+            )
+            restored += res.modified_count
+        await db.system.insert_one({'_id': 'video_restore_v1', 'restored_lessons': restored})
+        logger.info(f'video restore migration: restored {restored} lesson video URLs')
     # Ensure all premium-level courses are flagged
     await db.courses.update_many({'level': 'Advanced'}, {'$set': {'is_premium': True}})
     await db.courses.update_many({'level': {'$in': ['Beginner', 'Intermediate']}}, {'$set': {'is_premium': False}})

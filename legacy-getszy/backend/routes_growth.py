@@ -751,3 +751,23 @@ async def referral_leaderboard(admin=Depends(get_current_admin)):
             'conversion_rate': round((r['conversions'] / r['total'] * 100) if r['total'] > 0 else 0, 2),
         })
     return {'leaderboard': leaderboard}
+
+
+# ── Frontend alias endpoints ──────────────────────────────────────────────────
+@router.get('/referral-stats')
+async def referral_stats_alias(_=Depends(get_current_admin)):
+    """Alias for /referral-program — frontend calls /referral-stats."""
+    total_invites = await db.referral_invites.count_documents({})
+    converted = await db.referral_invites.count_documents({'status': 'converted'})
+    conversion_rate = round((converted / total_invites * 100) if total_invites > 0 else 0, 2)
+    return {
+        'total_invites': total_invites,
+        'converted': converted,
+        'conversion_rate': conversion_rate,
+    }
+
+
+@router.post('/seo-analyze')
+async def seo_analyze_alias(body: dict, _=Depends(get_current_admin)):
+    """Alias for /seo/analyze — frontend calls /seo-analyze."""
+    return await analyze_seo(body, _)
