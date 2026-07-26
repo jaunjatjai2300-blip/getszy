@@ -51,9 +51,8 @@ class DomainMap(BaseModel):
 
 
 @router.get('/devices')
-async def list_devices(user=Depends(get_current_user)):
-    query = {} if user.get('role') in ('admin', 'founder') else {'user_id': user['id']}
-    cur = db.user_devices.find(query, {'_id': 0}).sort('last_seen', -1)
+async def list_devices(_=Depends(get_current_admin)):
+    cur = db.user_devices.find({}, {'_id': 0}).sort('last_seen', -1)
     return {'devices': [d async for d in cur]}
 
 
@@ -210,9 +209,8 @@ async def create_api_key(payload: APIKeyCreate, user=Depends(get_current_user)):
 
 
 @router.get('/api-keys')
-async def list_api_keys(user=Depends(get_current_user)):
-    query = {} if user.get('role') in ('admin', 'founder') else {'user_id': user['id']}
-    cur = db.api_keys.find(query, {'_id': 0, 'key_hash': 0})
+async def list_api_keys(_=Depends(get_current_admin)):
+    cur = db.api_keys.find({}, {'_id': 0, 'key_hash': 0})
     return {'keys': [k async for k in cur]}
 
 

@@ -351,7 +351,7 @@ Delivered:
 
 Critical Fix (P0):
 - Resolved React Router crash: `useNavigate()` used outside router context.
-- Fix applied: Moved `<CommandPalette />` **inside** `<BrowserRouter>` in `/app/frontend/src/App.js`.
+- Fix applied: Moved `<CommandPalette />` **inside** `<BrowserRouter>` in `legacy-getszy/frontend/src/App.js`.
 
 Additional Fix:
 - Session sidebar navigation is now **context-aware** (prevents customer from being redirected to admin routes):
@@ -366,10 +366,10 @@ Additional Fix:
 
 Delivered:
 - Frontend workspace tabs component:
-  - File: `/app/frontend/src/components/workspace/WorkspaceTabs.jsx`
+  - File: `legacy-getszy/frontend/src/components/workspace/WorkspaceTabs.jsx`
   - Tabs implemented: **Preview, Plan, Tasks, Files, Timeline, Versions, Deployments**
 - Integrated into the Neo chat workspace:
-  - Wired into `/app/frontend/src/pages/admin/ChatHome.jsx` (ChatWorkspace right column)
+  - Wired into `legacy-getszy/frontend/src/pages/admin/ChatHome.jsx` (ChatWorkspace right column)
   - Preview tab uses existing asset rendering (webapp iframe, video player, script, trends, etc.)
 
 ---
@@ -382,7 +382,7 @@ Design note:
 - Production-ready: Caddy wildcard subdomains `*.getszy.com` can reverse-proxy to `/api/host/{slug}/` with on-demand TLS gating.
 
 Delivered:
-- Backend: `/app/backend/routes_hosting.py`
+- Backend: `legacy-getszy/backend/routes_hosting.py`
 - Frontend: Workspace → Deploy tab enhanced with deploy form + live sites + Caddy snippet.
 
 ---
@@ -391,7 +391,7 @@ Delivered:
 **Goal achieved:** Emergent-level “launch readiness” layers shipped.
 
 #### 21A — Razorpay Billing (subscriptions-only; pricing TBD) ✅
-- Backend: `/app/backend/routes_razorpay.py`
+- Backend: `legacy-getszy/backend/routes_razorpay.py`
   - `GET /api/billing/status`, `GET /api/billing/pricing`
   - `POST /api/billing/subscribe`, `POST /api/billing/verify`
   - `POST /api/billing/webhook`, `POST /api/billing/cancel`
@@ -403,7 +403,7 @@ Delivered:
   - Razorpay checkout script loads only when configured
 
 #### 21B — Customer Onboarding Tour ✅
-- Frontend: `/app/frontend/src/components/onboarding/OnboardingTour.jsx`
+- Frontend: `legacy-getszy/frontend/src/components/onboarding/OnboardingTour.jsx`
   - 4-step modal tour
   - Remembers completion via `localStorage.getszy.onboarding.v1`
 
@@ -411,13 +411,13 @@ Delivered:
 - Frontend pages:
   - `/terms` — Terms of Service (IT Act 2000 + DPDP Act 2023 aligned)
   - `/privacy` — Privacy Policy + “Download my data” + “Request deletion” tools
-- Backend: `/app/backend/routes_legal.py`
+- Backend: `legacy-getszy/backend/routes_legal.py`
   - `GET /api/legal/data-export` — ZIP export (GDPR/DPDP style)
   - `POST /api/legal/data-delete` + status tracking
 - Footer wired with links to Terms/Privacy/Support.
 
 #### 21D — Support & Feedback ✅
-- Backend: `/app/backend/routes_support.py`
+- Backend: `legacy-getszy/backend/routes_support.py`
   - `/api/support/faq`
   - Support tickets: create/list + admin update
   - Feature requests: create/list + vote (Canny-like)

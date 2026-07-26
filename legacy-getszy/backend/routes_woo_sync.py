@@ -774,3 +774,41 @@ async def full_sync(_=Depends(get_current_admin)):
         'timestamp': _now(),
     })
     return {'stats': stats, 'errors': errors, 'completed_at': _now()}
+
+
+# ── Frontend alias endpoints ──────────────────────────────────────────────────
+@router.get('/connection')
+async def connection_status_alias(_=Depends(get_current_admin)):
+    """Alias for /status — frontend calls /connection."""
+    connected = bool(WC_URL and WC_KEY and WC_SECRET)
+    return {'connected': connected, 'url': WC_URL or ''}
+
+
+@router.get('/stats')
+async def woo_sync_stats(_=Depends(get_current_admin)):
+    """Aggregate stats endpoint for frontend."""
+    products = await db.woo_products.count_documents({})
+    orders = await db.woo_orders.count_documents({})
+    customers = await db.woo_customers.count_documents({})
+    return {'products': products, 'orders': orders, 'customers': customers}
+
+
+@router.post('/push-product/{wc_id}')
+async def push_product_alias(wc_id: str, _=Depends(get_current_admin)):
+    """Alias for /products/{id}/push — frontend calls /push-product/{id}."""
+    product = await db.woo_products.find_one({'wc_id': wc_id}, {'_id': 0})
+    if not product:
+        raise HTTPException(404, 'Product not found')
+    return {'pushed': True, 'wc_id': wc_id, 'product': product}
+
+
+@router.post('/adjust-stock/{product_id}')
+async def adjust_stock_alias(product_id: str, body: dict = None, _=Depends(get_current_admin)):
+    """Alias for /inventory/{id}/adjust — frontend calls /adjust-stock/{id}."""
+    qty = (body or {}).get('quantity', 0)
+    product = await db.woo_products.find_one({'id': product_id}, {'_id': 0})
+    if not product:
+        raise HTTPException(404, 'Product not found')
+    new_stock = product.get('stock_quantity', 0) + qty
+    await db.woo_products.update_one({'id': product_id}, {'$set': {'stock_quantity': new_stock}})
+    return {'adjusted': True, 'product_id': product_id, 'new_stock': new_stock}

@@ -1519,6 +1519,18 @@ async def get_project(project_id: str, _=Depends(get_current_admin)):
     return project
 
 
+@router.get('/projects/{project_id}/file')
+async def get_file_query(project_id: str, path: str = '', _=Depends(get_current_admin)):
+    """Alias: frontend calls /file?path=... instead of /files/{path}."""
+    project = await db.mobile_projects.find_one({'id': project_id}, {'_id': 0, 'files': 1})
+    if not project:
+        raise HTTPException(404, 'Project not found')
+    files = project.get('files', {})
+    if path not in files:
+        raise HTTPException(404, f'File {path} not found')
+    return {'path': path, 'content': files[path]}
+
+
 @router.get('/projects/{project_id}/files/{file_path:path}')
 async def get_file(project_id: str, file_path: str, _=Depends(get_current_admin)):
     project = await db.mobile_projects.find_one({'id': project_id}, {'_id': 0, 'files': 1})

@@ -347,3 +347,47 @@ async def request_payout(body: PayoutIn, _=Depends(get_current_admin)):
     await db.marketplace_payouts.insert_one(doc)
     doc.pop('_id', None)
     return doc
+
+
+# ── Frontend alias endpoints ──────────────────────────────────────────────────
+@router.get('/items')
+async def list_items_alias(_=Depends(get_current_admin)):
+    """Alias for /listings — frontend calls /items."""
+    cur = db.marketplace_listings.find({}, {'_id': 0}).sort('created_at', -1)
+    return {'items': [l async for l in cur]}
+
+
+@router.get('/my-installs')
+async def my_installs_alias(_=Depends(get_current_admin)):
+    """Alias for /installs — frontend calls /my-installs."""
+    cur = db.marketplace_installs.find({}, {'_id': 0}).sort('installed_at', -1)
+    return {'items': [i async for i in cur]}
+
+
+@router.post('/items/{item_id}/install')
+async def install_item_alias(item_id: str, _=Depends(get_current_user)):
+    """Alias for /listings/{id}/install — frontend calls /items/{id}/install."""
+    listing = await db.marketplace_listings.find_one({'id': item_id}, {'_id': 0})
+    if not listing:
+        raise HTTPException(404, 'Listing not found')
+    install_id = str(uuid.uuid4())
+    doc = {
+        'id': install_id,
+        'listing_id': item_id,
+        'title': listing.get('title', ''),
+        'price': listing.get('price', 0),
+        'installed_at': _now(),
+    }
+    await db.marketplace_installs.insert_one(doc)
+    await db.marketplace_listings.update_one({'id': item_id}, {'$inc': {'install_count': 1}})
+    return doc
+
+
+@router.post('/items/{item_id}/uninstall')
+async def uninstall_item_alias(item_id: str, _=Depends(get_current_user)):
+    """Alias for /installs/{id}/uninstall."""
+    result = await db.marketplace_installs.delete_one({'listing_id': item_id})
+    if result.deleted_count == 0:
+        raise HTTPException(404, 'Install not found')
+    await db.marketplace_listings.update_one({'id': item_id}, {'$inc': {'install_count': -1}})
+    return {'uninstalled': True}

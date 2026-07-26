@@ -180,3 +180,40 @@ async def get_request_logs(limit: int = 100, status: Optional[int] = None, _=Dep
         query['status_code'] = status
     cur = db.request_logs.find(query, {'_id': 0}).sort('timestamp', -1).limit(limit)
     return {'logs': [l async for l in cur]}
+
+
+# ── Frontend alias endpoints ──────────────────────────────────────────────────
+@router.get('/containers')
+async def list_containers(_=Depends(get_current_admin)):
+    """List Docker containers (placeholder)."""
+    return {'items': []}
+
+
+@router.get('/redis')
+async def redis_status(_=Depends(get_current_admin)):
+    """Redis status (placeholder)."""
+    return {'status': 'unknown', 'connected': False}
+
+
+@router.get('/mongodb')
+async def mongodb_status(_=Depends(get_current_admin)):
+    """MongoDB status."""
+    try:
+        from db import db as database
+        await database.command('ping')
+        return {'status': 'connected', 'connected': True}
+    except Exception as e:
+        return {'status': 'error', 'connected': False, 'error': str(e)}
+
+
+@router.get('/workers')
+async def list_workers(_=Depends(get_current_admin)):
+    """List background workers (placeholder)."""
+    return {'items': []}
+
+
+@router.get('/cron-jobs')
+async def list_cron_jobs(_=Depends(get_current_admin)):
+    """List cron jobs."""
+    cur = db.queue.find({'type': 'cron'}, {'_id': 0}).sort('created_at', -1).limit(50)
+    return {'items': [j async for j in cur]}

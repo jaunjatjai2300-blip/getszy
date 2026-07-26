@@ -925,3 +925,22 @@ async def export_analytics(
         )
 
     return {'data': export_data, 'metrics': metric_list, 'format': format}
+
+
+# ── Frontend alias endpoints ──────────────────────────────────────────────────
+@router.get('/revenue')
+async def revenue_alias(_=Depends(get_current_admin)):
+    """Alias for /revenue-analytics — frontend calls /revenue."""
+    return await revenue_analytics(_)
+
+
+@router.get('/users')
+async def users_alias(_=Depends(get_current_admin)):
+    """Alias for /user-analytics — frontend calls /users."""
+    return await user_analytics(_)
+
+
+@router.get('/segments')
+async def segments_alias(_=Depends(get_current_admin)):
+    """Alias for /segmentation — frontend calls /segments."""
+    return await user_segmentation(_)
