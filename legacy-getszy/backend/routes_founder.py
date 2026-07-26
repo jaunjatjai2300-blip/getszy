@@ -2,11 +2,15 @@ import os
 import uuid
 import asyncio
 import subprocess
-import psutil
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 from auth import get_current_admin
 from db import db, client
@@ -278,18 +282,24 @@ async def system_health(_=Depends(get_current_admin)):
     health['services']['redis'] = (await _check_redis())['status']
     health['services']['ollama'] = (await _check_ollama())['status']
 
-    disk = psutil.disk_usage('/')
-    mem = psutil.virtual_memory()
-    cpu = psutil.cpu_percent(interval=0.5)
-    health['system'] = {
-        'cpu_percent': cpu,
-        'ram_total_gb': round(mem.total / (1024**3), 2),
-        'ram_used_gb': round(mem.used / (1024**3), 2),
-        'ram_percent': mem.percent,
-        'disk_total_gb': round(disk.total / (1024**3), 2),
-        'disk_used_gb': round(disk.used / (1024**3), 2),
-        'disk_percent': round(disk.used / disk.total * 100, 1),
-    }
+    try:
+        if psutil:
+            disk = psutil.disk_usage('/')
+            mem = psutil.virtual_memory()
+            cpu = psutil.cpu_percent(interval=0)
+            health['system'] = {
+                'cpu_percent': cpu,
+                'ram_total_gb': round(mem.total / (1024**3), 2),
+                'ram_used_gb': round(mem.used / (1024**3), 2),
+                'ram_percent': mem.percent,
+                'disk_total_gb': round(disk.total / (1024**3), 2),
+                'disk_used_gb': round(disk.used / (1024**3), 2),
+                'disk_percent': round(disk.used / disk.total * 100, 1),
+            }
+        else:
+            health['system'] = {'error': 'psutil not available'}
+    except Exception as e:
+        health['system'] = {'error': str(e)}
 
     try:
         result = subprocess.run(['docker', 'ps', '--format', '{{.Names}}\t{{.Status}}'], capture_output=True, text=True, timeout=5)
@@ -352,10 +362,14 @@ async def alerts(_=Depends(get_current_admin)):
     if mrr == 0 and total_users > 10:
         alert_list.append({'type': 'zero_mrr', 'level': 'critical', 'severity': 'critical', 'message': 'Zero MRR despite active users', 'user_count': total_users})
 
-    disk = psutil.disk_usage('/')
-    disk_pct = round(disk.used / disk.total * 100, 1)
-    if disk_pct > 80:
-        alert_list.append({'type': 'disk_high', 'level': 'critical', 'severity': 'critical', 'message': f'Disk usage at {disk_pct}%', 'percent': disk_pct})
+    try:
+        if psutil:
+            disk = psutil.disk_usage('/')
+            disk_pct = round(disk.used / disk.total * 100, 1)
+            if disk_pct > 80:
+                alert_list.append({'type': 'disk_high', 'level': 'critical', 'severity': 'critical', 'message': f'Disk usage at {disk_pct}%', 'percent': disk_pct})
+    except Exception:
+        pass
 
     failed_jobs = await db.queue.count_documents({'status': 'failed'})
     if failed_jobs > 0:
