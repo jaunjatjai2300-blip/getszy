@@ -59,12 +59,21 @@ async def get_balance(user_id: str) -> int:
 
 
 async def has_enough(user: dict, action: str, qty: int = 1) -> bool:
+    if user.get('role') in ('admin', 'founder'):
+        return True
     cost = cost_of(action, qty)
     return int(user.get('credits', 0) or 0) >= cost
 
 
-async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] = None) -> tuple[bool, str, int]:
-    """Atomically deduct credits. Returns (ok, message, balance_after)."""
+async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] = None, user: Optional[dict] = None) -> tuple[bool, str, int]:
+    """Atomically deduct credits. Returns (ok, message, balance_after).
+    Admin and founder roles bypass credit checks entirely."""
+    # Admin/founder bypass — they can use everything for free
+    if not user:
+        user = await db.users.find_one({'id': user_id}, {'_id': 0, 'role': 1, 'credits': 1})
+    if user and user.get('role') in ('admin', 'founder'):
+        return True, '', int(user.get('credits', 0) or 0)
+
     cost = cost_of(action, qty)
     updated = await db.users.find_one_and_update(
         {'id': user_id, 'credits': {'$gte': cost}},
