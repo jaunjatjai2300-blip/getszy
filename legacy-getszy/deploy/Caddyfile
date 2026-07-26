@@ -5,6 +5,10 @@ getszy.com, www.getszy.com, dash.getszy.com {
         reverse_proxy backend:8001
     }
 
+    handle /docs /docs/* /redoc /redoc/* /openapi.json {
+        reverse_proxy backend:8001
+    }
+
     handle /hooks/* {
         uri strip_prefix /hooks
         reverse_proxy host.docker.internal:9000

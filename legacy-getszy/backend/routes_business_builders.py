@@ -1455,3 +1455,16 @@ async def booking_dashboard(_=Depends(get_current_admin)):
         'revenue_today': round(revenue_today, 2),
         'popular_service': popular_service,
     }
+
+
+# ── Frontend alias endpoints ──────────────────────────────────────────────────
+@router.get('/crm/stats')
+async def crm_stats_alias(_=Depends(get_current_admin)):
+    """Alias for /crm/dashboard — frontend calls /crm/stats."""
+    return await crm_dashboard(_)
+
+
+@router.get('/booking/today')
+async def booking_today_alias(_=Depends(get_current_admin)):
+    """Alias for /booking/dashboard — frontend calls /booking/today."""
+    return await booking_dashboard(_)

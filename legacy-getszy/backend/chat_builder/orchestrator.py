@@ -94,7 +94,18 @@ async def process_message(project_id: str, user: Dict[str, Any], user_text: str)
     # 4. Dispatch
     cap = CAPABILITIES[intent]
     try:
-        result = await cap['run'](user, params, emit)
+        # Check if this intent needs multi-step agent loop
+        from chat_builder.agent_loop import run_agent_loop, MULTI_STEP_INTENTS
+        if intent in MULTI_STEP_INTENTS:
+            await emit('status', {'phase': 'agent_loop', 'msg': 'Running multi-step process...'})
+            agent_result = await run_agent_loop(intent, params, user, context=human_reply)
+            result = {
+                'kind': 'agent_result',
+                'title': f'{intent} completed',
+                'data': agent_result,
+            }
+        else:
+            result = await cap['run'](user, params, emit)
     except Exception as e:
         result = {'kind': 'error', 'title': f'{intent} failed', 'data': {'error': str(e)[:400]}}
         await emit('error', {'intent': intent, 'error': str(e)[:400]})

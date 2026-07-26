@@ -159,6 +159,14 @@ async def seed_if_empty():
 
 async def seed_courses_if_empty():
     if await db.courses.count_documents({}) > 0:
+        # Restore any blank video URLs from seed data
+        for cdata in COURSES:
+            for l in cdata.get('lessons', []):
+                if l.get('video_url'):
+                    await db.lessons.update_many(
+                        {'course_slug': cdata['slug'], 'title': l['title'], 'video_url': ''},
+                        {'$set': {'video_url': l['video_url']}}
+                    )
         return
     for cdata in COURSES:
         lessons_data = cdata.pop('lessons', [])

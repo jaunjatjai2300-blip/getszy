@@ -163,7 +163,7 @@
   },
 
   "design_tokens_css": {
-    "instructions": "Add these to /app/frontend/src/index.css under :root (keep shadcn tokens; extend with --gs-*). Avoid transition: all.",
+    "instructions": "Add these to legacy-getszy/frontend/src/index.css under :root (keep shadcn tokens; extend with --gs-*). Avoid transition: all.",
     "css": ":root {\n  --gs-bg: #FBF7F2;\n  --gs-surface: #FFFDFB;\n  --gs-surface-2: #F1E7DD;\n  --gs-border: #E7D9CE;\n  --gs-ink: #1B1A18;\n  --gs-muted: #6B625B;\n\n  --gs-primary: #C58B7A;\n  --gs-primary-2: #A86B5B;\n  --gs-champagne: #F3E2C7;\n  --gs-teal: #2F7E7A;\n  --gs-teal-soft: #D7F0EE;\n\n  --gs-radius-sm: 12px;\n  --gs-radius-md: 16px;\n  --gs-radius-lg: 22px;\n\n  --gs-shadow-sm: 0 1px 2px rgba(27,26,24,0.06);\n  --gs-shadow-md: 0 10px 30px rgba(27,26,24,0.10);\n  --gs-shadow-lg: 0 18px 60px rgba(27,26,24,0.14);\n\n  --gs-focus: 0 0 0 4px rgba(197,139,122,0.22);\n\n  --gs-container: 1120px;\n  --gs-gutter: 16px;\n}\n\n::selection { background: rgba(197,139,122,0.25); }\n\nbody { background: var(--gs-bg); }\n\n.gs-noise::before {\n  content: \"\";\n  position: absolute;\n  inset: 0;\n  pointer-events: none;\n  opacity: 0.06;\n  mix-blend-mode: multiply;\n  background-image: url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"160\"><filter id=\"n\"><feTurbulence type=\"fractalNoise\" baseFrequency=\"0.9\" numOctaves=\"3\" stitchTiles=\"stitch\"/></filter><rect width=\"160\" height=\"160\" filter=\"url(%23n)\" opacity=\"0.35\"/></svg>');\n}\n"
   },
 
@@ -183,32 +183,32 @@
 
   "component_path": {
     "shadcn_primary": {
-      "button": "/app/frontend/src/components/ui/button.jsx",
-      "card": "/app/frontend/src/components/ui/card.jsx",
-      "badge": "/app/frontend/src/components/ui/badge.jsx",
-      "input": "/app/frontend/src/components/ui/input.jsx",
-      "textarea": "/app/frontend/src/components/ui/textarea.jsx",
-      "select": "/app/frontend/src/components/ui/select.jsx",
-      "checkbox": "/app/frontend/src/components/ui/checkbox.jsx",
-      "radio_group": "/app/frontend/src/components/ui/radio-group.jsx",
-      "tabs": "/app/frontend/src/components/ui/tabs.jsx",
-      "table": "/app/frontend/src/components/ui/table.jsx",
-      "pagination": "/app/frontend/src/components/ui/pagination.jsx",
-      "sheet_drawer": "/app/frontend/src/components/ui/sheet.jsx",
-      "dialog": "/app/frontend/src/components/ui/dialog.jsx",
-      "alert_dialog": "/app/frontend/src/components/ui/alert-dialog.jsx",
-      "dropdown_menu": "/app/frontend/src/components/ui/dropdown-menu.jsx",
-      "navigation_menu": "/app/frontend/src/components/ui/navigation-menu.jsx",
-      "breadcrumb": "/app/frontend/src/components/ui/breadcrumb.jsx",
-      "carousel": "/app/frontend/src/components/ui/carousel.jsx",
-      "scroll_area": "/app/frontend/src/components/ui/scroll-area.jsx",
-      "separator": "/app/frontend/src/components/ui/separator.jsx",
-      "skeleton": "/app/frontend/src/components/ui/skeleton.jsx",
-      "sonner_toast": "/app/frontend/src/components/ui/sonner.jsx",
-      "calendar": "/app/frontend/src/components/ui/calendar.jsx",
-      "command": "/app/frontend/src/components/ui/command.jsx",
-      "tooltip": "/app/frontend/src/components/ui/tooltip.jsx",
-      "avatar": "/app/frontend/src/components/ui/avatar.jsx"
+      "button": "legacy-getszy/frontend/src/components/ui/button.jsx",
+      "card": "legacy-getszy/frontend/src/components/ui/card.jsx",
+      "badge": "legacy-getszy/frontend/src/components/ui/badge.jsx",
+      "input": "legacy-getszy/frontend/src/components/ui/input.jsx",
+      "textarea": "legacy-getszy/frontend/src/components/ui/textarea.jsx",
+      "select": "legacy-getszy/frontend/src/components/ui/select.jsx",
+      "checkbox": "legacy-getszy/frontend/src/components/ui/checkbox.jsx",
+      "radio_group": "legacy-getszy/frontend/src/components/ui/radio-group.jsx",
+      "tabs": "legacy-getszy/frontend/src/components/ui/tabs.jsx",
+      "table": "legacy-getszy/frontend/src/components/ui/table.jsx",
+      "pagination": "legacy-getszy/frontend/src/components/ui/pagination.jsx",
+      "sheet_drawer": "legacy-getszy/frontend/src/components/ui/sheet.jsx",
+      "dialog": "legacy-getszy/frontend/src/components/ui/dialog.jsx",
+      "alert_dialog": "legacy-getszy/frontend/src/components/ui/alert-dialog.jsx",
+      "dropdown_menu": "legacy-getszy/frontend/src/components/ui/dropdown-menu.jsx",
+      "navigation_menu": "legacy-getszy/frontend/src/components/ui/navigation-menu.jsx",
+      "breadcrumb": "legacy-getszy/frontend/src/components/ui/breadcrumb.jsx",
+      "carousel": "legacy-getszy/frontend/src/components/ui/carousel.jsx",
+      "scroll_area": "legacy-getszy/frontend/src/components/ui/scroll-area.jsx",
+      "separator": "legacy-getszy/frontend/src/components/ui/separator.jsx",
+      "skeleton": "legacy-getszy/frontend/src/components/ui/skeleton.jsx",
+      "sonner_toast": "legacy-getszy/frontend/src/components/ui/sonner.jsx",
+      "calendar": "legacy-getszy/frontend/src/components/ui/calendar.jsx",
+      "command": "legacy-getszy/frontend/src/components/ui/command.jsx",
+      "tooltip": "legacy-getszy/frontend/src/components/ui/tooltip.jsx",
+      "avatar": "legacy-getszy/frontend/src/components/ui/avatar.jsx"
     },
     "recommended_additions": {
       "framer_motion": {
@@ -508,7 +508,7 @@
   "instructions_to_main_agent": {
     "global": [
       "Remove default CRA App.css centered header usage; do not center the whole app container.",
-      "Update /app/frontend/src/index.css :root shadcn HSL tokens to match semantic_tokens_hsl_for_shadcn; then add --gs-* tokens.",
+      "Update legacy-getszy/frontend/src/index.css :root shadcn HSL tokens to match semantic_tokens_hsl_for_shadcn; then add --gs-* tokens.",
       "Use Manrope for body and Gloock for hero headings via Google Fonts import in index.html or CSS.",
       "All interactive + key informational elements MUST include data-testid (kebab-case).",
       "No emoji icons; use lucide-react.",
@@ -536,5 +536,5 @@
     ]
   },
 
-  "appendix_general_ui_ux_design_guidelines": "- You must **not** apply universal transition. Eg: `transition: all`. This results in breaking transforms. Always add transitions for specific interactive elements like button, input excluding transforms\n- You must **not** center align the app container, ie do not add `.App { text-align: center; }` in the css file. This disrupts the human natural reading flow of text\n- NEVER: use AI assistant Emoji characters like`🤖🧠💭💡🔮🎯📚🎭🎬🎪🎉🎊🎁🎀🎂🍰🎈🎨🎰💰💵💳🏦💎🪙💸🤑📊📈📉💹🔢🏆🥇 etc for icons. Always use **FontAwesome cdn** or **lucid-react** library already installed in the package.json\n\n **GRADIENT RESTRICTION RULE**\nNEVER use dark/saturated gradient combos (e.g., purple/pink) on any UI element.  Prohibited gradients: blue-500 to purple 600, purple 500 to pink-500, green-500 to blue-500, red to pink etc\nNEVER use dark gradients for logo, testimonial, footer etc\nNEVER let gradients cover more than 20% of the viewport.\nNEVER apply gradients to text-heavy content or reading areas.\nNEVER use gradients on small UI elements (<100px width).\nNEVER stack multiple gradient layers in the same viewport.\n\n**ENFORCEMENT RULE:**\n    • Id gradient area exceeds 20% of viewport OR affects readability, **THEN** use solid colors\n\n**How and where to use:**\n   • Section backgrounds (not content backgrounds)\n   • Hero section header content. Eg: dark to light to dark color\n   • Decorative overlays and accent elements only\n   • Hero section with 2-3 mild color\n   • Gradients creation can be done for any angle say horizontal, vertical or diagonal\n\n- For AI chat, voice application, **do not use purple color. Use color like light green, ocean blue, peach orange etc**\n\n</Font Guidelines>\n\n- Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead. \n   \n- Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.\n\n- Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.\n   \n- Before generating UI, infer the visual style from the problem statement (palette, contrast, mood, motion) and immediately instantiate it by setting global design tokens (primary, secondary/accent, background, foreground, ring, state colors), rather than relying on any library defaults. Don't make the background dark as a default step, always understand problem first and define colors accordingly\n    Eg: - if it implies playful/energetic, choose a colorful scheme\n           - if it implies monochrome/minimal, choose a black–white/neutral scheme\n\n**Component Reuse:**\n\t- Prioritize using pre-existing components from src/components/ui when applicable\n\t- Create new components that match the style and conventions of existing components when needed\n\t- Examine existing components to understand the project's component patterns before creating new ones\n\n**IMPORTANT**: Do not use HTML based component like dropdown, calendar, toast etc. You **MUST** always use `/app/frontend/src/components/ui/ ` only as a primary components as these are modern and stylish component\n\n**Best Practices:**\n\t- Use Shadcn/UI as the primary component library for consistency and accessibility\n\t- Import path: ./components/[component-name]\n\n**Export Conventions:**\n\t- Components MUST use named exports (export const ComponentName = ...)\n\t- Pages MUST use default exports (export default function PageName() {...})\n\n**Toasts:**\n  - Use `sonner` for toasts\"\n  - Sonner component are located in `/app/src/components/ui/sonner.tsx`\n\nUse 2–4 color gradients, subtle textures/noise overlays, or CSS-based noise to avoid flat visuals."
+  "appendix_general_ui_ux_design_guidelines": "- You must **not** apply universal transition. Eg: `transition: all`. This results in breaking transforms. Always add transitions for specific interactive elements like button, input excluding transforms\n- You must **not** center align the app container, ie do not add `.App { text-align: center; }` in the css file. This disrupts the human natural reading flow of text\n- NEVER: use AI assistant Emoji characters like`🤖🧠💭💡🔮🎯📚🎭🎬🎪🎉🎊🎁🎀🎂🍰🎈🎨🎰💰💵💳🏦💎🪙💸🤑📊📈📉💹🔢🏆🥇 etc for icons. Always use **FontAwesome cdn** or **lucid-react** library already installed in the package.json\n\n **GRADIENT RESTRICTION RULE**\nNEVER use dark/saturated gradient combos (e.g., purple/pink) on any UI element.  Prohibited gradients: blue-500 to purple 600, purple 500 to pink-500, green-500 to blue-500, red to pink etc\nNEVER use dark gradients for logo, testimonial, footer etc\nNEVER let gradients cover more than 20% of the viewport.\nNEVER apply gradients to text-heavy content or reading areas.\nNEVER use gradients on small UI elements (<100px width).\nNEVER stack multiple gradient layers in the same viewport.\n\n**ENFORCEMENT RULE:**\n    • Id gradient area exceeds 20% of viewport OR affects readability, **THEN** use solid colors\n\n**How and where to use:**\n   • Section backgrounds (not content backgrounds)\n   • Hero section header content. Eg: dark to light to dark color\n   • Decorative overlays and accent elements only\n   • Hero section with 2-3 mild color\n   • Gradients creation can be done for any angle say horizontal, vertical or diagonal\n\n- For AI chat, voice application, **do not use purple color. Use color like light green, ocean blue, peach orange etc**\n\n</Font Guidelines>\n\n- Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead. \n   \n- Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.\n\n- Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.\n   \n- Before generating UI, infer the visual style from the problem statement (palette, contrast, mood, motion) and immediately instantiate it by setting global design tokens (primary, secondary/accent, background, foreground, ring, state colors), rather than relying on any library defaults. Don't make the background dark as a default step, always understand problem first and define colors accordingly\n    Eg: - if it implies playful/energetic, choose a colorful scheme\n           - if it implies monochrome/minimal, choose a black–white/neutral scheme\n\n**Component Reuse:**\n\t- Prioritize using pre-existing components from src/components/ui when applicable\n\t- Create new components that match the style and conventions of existing components when needed\n\t- Examine existing components to understand the project's component patterns before creating new ones\n\n**IMPORTANT**: Do not use HTML based component like dropdown, calendar, toast etc. You **MUST** always use `legacy-getszy/frontend/src/components/ui/ ` only as a primary components as these are modern and stylish component\n\n**Best Practices:**\n\t- Use Shadcn/UI as the primary component library for consistency and accessibility\n\t- Import path: ./components/[component-name]\n\n**Export Conventions:**\n\t- Components MUST use named exports (export const ComponentName = ...)\n\t- Pages MUST use default exports (export default function PageName() {...})\n\n**Toasts:**\n  - Use `sonner` for toasts\"\n  - Sonner component are located in `/app/src/components/ui/sonner.tsx`\n\nUse 2–4 color gradients, subtle textures/noise overlays, or CSS-based noise to avoid flat visuals."
 }
