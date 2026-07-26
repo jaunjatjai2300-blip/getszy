@@ -185,14 +185,51 @@ async def get_request_logs(limit: int = 100, status: Optional[int] = None, _=Dep
 # ── Frontend alias endpoints ──────────────────────────────────────────────────
 @router.get('/containers')
 async def list_containers(_=Depends(get_current_admin)):
-    """List Docker containers (placeholder)."""
-    return {'items': []}
+    """List Docker containers via docker ps."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ['docker', 'ps', '-a', '--format', '{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'],
+            capture_output=True, text=True, timeout=10,
+        )
+        items = []
+        for line in result.stdout.strip().split('\n'):
+            if not line:
+                continue
+            parts = line.split('\t')
+            if len(parts) >= 4:
+                items.append({
+                    'id': parts[0], 'name': parts[1], 'image': parts[2],
+                    'status': parts[3], 'ports': parts[4] if len(parts) > 4 else '',
+                })
+        return {'items': items, 'total': len(items)}
+    except FileNotFoundError:
+        return {'items': [], 'total': 0, 'error': 'docker not available'}
+    except Exception as e:
+        return {'items': [], 'total': 0, 'error': str(e)}
 
 
 @router.get('/redis')
 async def redis_status(_=Depends(get_current_admin)):
-    """Redis status (placeholder)."""
-    return {'status': 'unknown', 'connected': False}
+    """Check Redis connection status."""
+    try:
+        import redis.asyncio as aioredis
+        r = aioredis.from_url('redis://localhost:6379', socket_connect_timeout=3)
+        await r.ping()
+        info = await r.info('server')
+        memory = await r.info('memory')
+        await r.close()
+        return {
+            'connected': True,
+            'status': 'healthy',
+            'version': info.get('redis_version', 'unknown'),
+            'used_memory': memory.get('used_memory_human', 'unknown'),
+            'connected_clients': info.get('connected_clients', 0),
+        }
+    except ImportError:
+        return {'connected': False, 'status': 'unavailable', 'error': 'redis package not installed'}
+    except Exception as e:
+        return {'connected': False, 'status': 'error', 'error': str(e)}
 
 
 @router.get('/mongodb')
@@ -208,8 +245,23 @@ async def mongodb_status(_=Depends(get_current_admin)):
 
 @router.get('/workers')
 async def list_workers(_=Depends(get_current_admin)):
-    """List background workers (placeholder)."""
-    return {'items': []}
+    """List background workers — check queue status from MongoDB."""
+    try:
+        pipeline = [
+            {'$group': {'_id': '$status', 'count': {'$sum': 1}}},
+        ]
+        status_counts = await db.queue.aggregate(pipeline).to_list(20)
+        total = sum(s['count'] for s in status_counts)
+        by_status = {s['_id']: s['count'] for s in status_counts}
+
+        recent = await db.queue.find({}, {'_id': 0, 'payload': 0}).sort('created_at', -1).limit(20).to_list(20)
+        return {
+            'items': recent,
+            'total': total,
+            'by_status': by_status,
+        }
+    except Exception as e:
+        return {'items': [], 'total': 0, 'error': str(e)}
 
 
 @router.get('/cron-jobs')

@@ -11,6 +11,7 @@ load_dotenv(ROOT_DIR / '.env')
 
 from db import db, client
 from app.router_registry import load_all_routers
+from monitoring import init_monitoring
 
 app = FastAPI(title='getszy API')
 api_router = APIRouter(prefix='/api')
@@ -64,6 +65,7 @@ logger = logging.getLogger('getszy')
 @app.on_event('startup')
 async def startup():
     logger.info('getszy backend starting')
+    init_monitoring()
     from seed import seed_if_empty, seed_courses_if_empty
     await seed_if_empty()
     await seed_courses_if_empty()

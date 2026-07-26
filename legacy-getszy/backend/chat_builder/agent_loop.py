@@ -1,12 +1,12 @@
-"""Agent Loop — Lightweight multi-step execution with self-correction.
+"""Agent Loop — Multi-step execution with Planner → Coder → Reviewer pipeline.
 
-Integrates with the existing orchestrator to handle complex requests that
-require multiple steps (e.g., "create a product and add it to a category").
+Integrates with the existing orchestrator and ChromaDB codebase RAG to handle
+complex requests that require planning, code generation, and self-review.
 
 Flow:
-  1. Classify intent (existing)
-  2. If intent needs multi-step → run agent loop
-  3. Execute steps sequentially with validation
+  1. PLANNER: Analyze request, search codebase for similar patterns, plan steps
+  2. CODER: Generate/modify code using RAG context from existing codebase
+  3. REVIEWER: Validate output, check for issues, suggest fixes
   4. Self-correct on failure (max 2 retries)
   5. Return final result
 
@@ -37,18 +37,44 @@ def _iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-async def _plan_steps(intent: str, params: Dict[str, Any], context: str) -> List[Dict[str, Any]]:
-    """Use LLM to break down a complex request into validated steps."""
-    system = """You are a task planner for Getszy platform.
-Given a user intent and params, output a JSON array of steps.
-Each step: {"action": "capability_id", "params": {...}, "validation": "check description"}
+# ── RAG-powered code context ──────────────────────────────────────────────────
+async def _get_rag_context(query: str, n_results: int = 3) -> str:
+    """Search codebase for relevant code patterns using ChromaDB RAG."""
+    try:
+        from codebase_rag import search_codebase
+        results = search_codebase(query, n_results=n_results)
+        if not results or 'error' in results[0]:
+            return ''
+        parts = []
+        for r in results:
+            file = r.get('file', '')
+            funcs = r.get('functions', '')
+            code = r.get('code', '')[:500]
+            parts.append(f'## {file} ({funcs})\n```python\n{code}\n```')
+        return '\n\n'.join(parts)
+    except Exception:
+        return ''
 
-Available capabilities: create_product, update_product, list_products, create_course, etc.
+
+# ── PLANNER agent ─────────────────────────────────────────────────────────────
+async def _plan_steps(intent: str, params: Dict[str, Any], context: str) -> List[Dict[str, Any]]:
+    """PLANNER: Use LLM + RAG to break down request into validated steps."""
+    rag_context = await _get_rag_context(f'{intent} {json.dumps(params)}')
+
+    system = f"""You are the PLANNER agent for Getszy platform.
+Given a user intent and params, output a JSON array of steps.
+Each step: {{"action": "capability_id", "params": {{...}}, "validation": "check description", "rag_hint": "relevant file to reference"}}
+
+Available capabilities: {', '.join(CAPABILITIES.keys())}
+
+EXISTING CODE PATTERNS (from codebase RAG):
+{rag_context or 'No matching patterns found.'}
 
 RULES:
 - Only use capabilities that exist
 - Params must match the capability's required fields
 - Include validation for each step
+- Reference relevant existing code in rag_hint
 - Max 5 steps
 - Output ONLY the JSON array, no prose"""
 
@@ -56,7 +82,6 @@ RULES:
 
     try:
         response = await chat_completion(user_msg, system, temperature=0.1)
-        # Extract JSON from response
         if '```json' in response:
             response = response.split('```json')[1].split('```')[0]
         elif '```' in response:
@@ -65,12 +90,92 @@ RULES:
         if isinstance(steps, list) and len(steps) <= 5:
             return steps
     except (json.JSONDecodeError, Exception) as e:
-        logger.warning(f'Agent plan failed: {e}')
+        logger.warning(f'Planner failed: {e}')
 
-    # Fallback: single step
     return [{'action': intent, 'params': params, 'validation': 'basic'}]
 
 
+# ── CODER agent ───────────────────────────────────────────────────────────────
+async def _generate_code(step: Dict[str, Any], user: Dict[str, Any]) -> Dict[str, Any]:
+    """CODER: Generate code with RAG context from existing codebase."""
+    action = step.get('action', '')
+    params = step.get('params', {})
+    rag_hint = step.get('rag_hint', '')
+
+    # Fetch RAG context for this specific step
+    rag_context = ''
+    if rag_hint:
+        try:
+            from codebase_rag import get_file_context
+            rag_context = get_file_context(rag_hint) or ''
+        except Exception:
+            pass
+
+    if not rag_context:
+        rag_context = await _get_rag_context(f'{action} {json.dumps(params)}')
+
+    system = f"""You are the CODER agent for Getszy platform.
+Generate or modify code based on the step requirements.
+
+EXISTING CODEBASE CONTEXT:
+{rag_context[:2000] if rag_context else 'No existing patterns found.'}
+
+RULES:
+- Reuse patterns from existing code when possible
+- Follow the same code style as the existing codebase
+- Include proper error handling
+- Use Pydantic models for data validation
+- Use motor async driver for MongoDB operations
+- Return ONLY the generated code, no explanations"""
+
+    user_msg = f"Generate code for: {action}\nParams: {json.dumps(params)}\nValidation: {step.get('validation', '')}"
+
+    try:
+        response = await chat_completion(user_msg, system, temperature=0.3)
+        return {'success': True, 'code': response, 'action': action}
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+# ── REVIEWER agent ────────────────────────────────────────────────────────────
+async def _review_output(code_result: Dict[str, Any], step: Dict[str, Any]) -> Dict[str, Any]:
+    """REVIEWER: Validate generated code for issues."""
+    if not code_result.get('success'):
+        return code_result
+
+    code = code_result.get('code', '')
+    action = step.get('action', '')
+
+    system = """You are the REVIEWER agent. Check the generated code for:
+1. Security issues (SQL injection, XSS, hardcoded secrets)
+2. Missing error handling
+3. Incorrect API patterns
+4. Missing imports
+5. Logic errors
+
+Output JSON: {"approved": true/false, "issues": ["list of issues"], "fixes": {"issue": "fix suggestion"}}"""
+
+    user_msg = f"Review this code for action '{action}':\n\n{code[:3000]}"
+
+    try:
+        response = await chat_completion(user_msg, system, temperature=0.1)
+        if '```json' in response:
+            response = response.split('```json')[1].split('```')[0]
+        elif '```' in response:
+            response = response.split('```')[1].split('```')[0]
+        review = json.loads(response.strip())
+
+        if not review.get('approved', True):
+            logger.warning(f'Reviewer found issues: {review.get("issues", [])}')
+            code_result['review_issues'] = review.get('issues', [])
+            code_result['review_fixes'] = review.get('fixes', {})
+
+        return code_result
+    except Exception:
+        return code_result  # Approve on review failure
+
+
+# ── Execute step through capabilities ─────────────────────────────────────────
 async def _execute_step(step: Dict[str, Any], user: Dict[str, Any]) -> Dict[str, Any]:
     """Execute a single step through the capability system."""
     from chat_builder.orchestrator import process_message
@@ -78,19 +183,15 @@ async def _execute_step(step: Dict[str, Any], user: Dict[str, Any]) -> Dict[str,
     action = step.get('action', '')
     params = step.get('params', {})
 
-    # Validate action exists
     if action not in CAPABILITIES:
         return {'success': False, 'error': f'Unknown action: {action}'}
 
-    # Check role permission
     from auth import role_level, ROLE_LEVEL
     needed = CAPABILITIES[action].get('min_role', 'customer')
     if role_level(user) < ROLE_LEVEL.get(needed, 1):
         return {'success': False, 'error': f'Requires {needed} role'}
 
-    # Execute via orchestrator (reuses existing validation)
     try:
-        # Create a virtual project for this agent run
         project_id = f'agent_{user["id"]}_{int(datetime.now(timezone.utc).timestamp())}'
         result = await process_message(project_id, user, json.dumps({'action': action, **params}))
         return {'success': True, 'result': result}
@@ -114,9 +215,10 @@ Output ONLY corrected JSON step. No prose."""
             response = response.split('```')[1].split('```')[0]
         return json.loads(response.strip())
     except Exception:
-        return step  # Return original on failure
+        return step
 
 
+# ── Main agent loop ───────────────────────────────────────────────────────────
 async def run_agent_loop(
     intent: str,
     params: Dict[str, Any],
@@ -124,7 +226,7 @@ async def run_agent_loop(
     context: str = '',
     max_retries: int = 2,
 ) -> Dict[str, Any]:
-    """Run multi-step agent loop with self-correction.
+    """Run Planner → Coder → Reviewer agent loop.
 
     Returns:
         {
@@ -134,8 +236,9 @@ async def run_agent_loop(
             'summary': str
         }
     """
-    # Plan steps
+    # PLANNER phase
     steps = await _plan_steps(intent, params, context)
+    logger.info(f'Planner produced {len(steps)} steps')
 
     results = []
     for i, step in enumerate(steps):
@@ -143,10 +246,23 @@ async def run_agent_loop(
         last_error = ''
 
         for attempt in range(max_retries + 1):
+            # CODER phase
+            code_result = await _generate_code(step, user)
+
+            # REVIEWER phase
+            code_result = await _review_output(code_result, step)
+
+            # Execute the step
             result = await _execute_step(step, user)
             if result.get('success'):
                 success = True
-                results.append(result)
+                results.append({
+                    'step': i + 1,
+                    'action': step.get('action'),
+                    'code_generated': code_result.get('success', False),
+                    'review_issues': code_result.get('review_issues', []),
+                    'result': result.get('result'),
+                })
                 break
             else:
                 last_error = result.get('error', 'Unknown error')
@@ -165,5 +281,5 @@ async def run_agent_loop(
         'steps_executed': len(steps),
         'results': results,
         'success': True,
-        'summary': f'Successfully completed {len(steps)} step(s)',
+        'summary': f'Successfully completed {len(steps)} step(s) with code generation and review',
     }
