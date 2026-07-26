@@ -38,66 +38,124 @@ async def _check_redis():
 
 
 async def _check_ollama():
-    try:
-        import httpx
-        async with httpx.AsyncClient(timeout=5) as hx:
-            resp = await hx.get('http://host.docker.internal:11434/api/tags')
-            data = resp.json()
-            models = [m['name'] for m in data.get('models', [])]
-            return {'status': 'healthy', 'models': models}
-    except Exception as e:
-        return {'status': 'unhealthy', 'error': str(e)}
+    # Try multiple URLs — Docker internal, localhost, and env var
+    urls = [
+        os.environ.get('OLLAMA_BASE_URL', ''),
+        'http://host.docker.internal:11434/api/tags',
+        'http://localhost:11434/api/tags',
+        'http://127.0.0.1:11434/api/tags',
+    ]
+    urls = [u for u in urls if u and u != '']
+
+    import httpx
+    for url in urls:
+        try:
+            # Append /api/tags if the URL doesn't already have it
+            if not url.endswith('/api/tags'):
+                url = url.rstrip('/') + '/api/tags'
+            async with httpx.AsyncClient(timeout=3) as hx:
+                resp = await hx.get(url)
+                data = resp.json()
+                models = [m['name'] for m in data.get('models', [])]
+                return {'status': 'healthy', 'models': models}
+        except Exception:
+            continue
+
+    return {'status': 'unhealthy', 'error': 'Ollama not reachable on any URL'}
 
 
 @router.get('/health-summary')
 async def health_summary(_=Depends(get_current_admin)):
+    # Default safe values — never let the endpoint fail
     services = {}
+    mongodb_ok = False
+    redis_ok = False
+    ollama_ok = False
+    backend_ok = True  # If this handler runs, backend IS up
+    disk_pct = 0.0
+    cpu_pct = 0.0
+    ram_pct = 0.0
+    disk_used = 0.0
+    disk_total = 0.0
+    ram_used = 0.0
+    ram_total = 0.0
+
+    # MongoDB
     try:
         await client.admin.command('ping')
+        mongodb_ok = True
         services['mongodb'] = {'status': 'healthy'}
     except Exception as e:
-        services['mongodb'] = {'status': 'unhealthy', 'error': str(e)}
+        services['mongodb'] = {'status': 'unhealthy', 'error': str(e)[:100]}
 
-    services['redis'] = await _check_redis()
-    services['ollama'] = await _check_ollama()
+    # Redis
+    try:
+        redis_result = await _check_redis()
+        redis_ok = redis_result['status'] == 'healthy'
+        services['redis'] = redis_result
+    except Exception as e:
+        services['redis'] = {'status': 'unhealthy', 'error': str(e)[:100]}
 
-    disk = psutil.disk_usage('/')
-    mem = psutil.virtual_memory()
-    cpu = psutil.cpu_percent(interval=0.5)
+    # Ollama
+    try:
+        ollama_result = await _check_ollama()
+        ollama_ok = ollama_result['status'] == 'healthy'
+        services['ollama'] = ollama_result
+    except Exception as e:
+        services['ollama'] = {'status': 'unhealthy', 'error': str(e)[:100]}
 
-    overall = 'healthy' if all(s['status'] == 'healthy' for s in services.values()) else 'degraded'
+    # System metrics (non-critical)
+    try:
+        disk = psutil.disk_usage('/')
+        disk_pct = round(disk.used / disk.total * 100, 1)
+        disk_used = round(disk.used / (1024**3), 1)
+        disk_total = round(disk.total / (1024**3), 1)
+    except Exception:
+        pass
 
-    # Check if backend API itself is responding (it is, since we're in this handler)
-    backend_ok = True
+    try:
+        mem = psutil.virtual_memory()
+        ram_pct = mem.percent
+        ram_used = round(mem.used / (1024**3), 1)
+        ram_total = round(mem.total / (1024**3), 1)
+    except Exception:
+        pass
+
+    try:
+        cpu_pct = psutil.cpu_percent(interval=0)
+    except Exception:
+        pass
+
+    overall = 'healthy' if all(s.get('status') == 'healthy' for s in services.values()) else 'degraded'
 
     return {
         'status': overall,
         'timestamp': _now(),
         # Flat fields the frontend expects
-        'mongodb_ok': services['mongodb']['status'] == 'healthy',
-        'mongodb_detail': services['mongodb'].get('error', 'Connected'),
-        'redis_ok': services['redis']['status'] == 'healthy',
-        'redis_detail': services['redis'].get('error', 'Connected'),
-        'ollama_ok': services['ollama']['status'] == 'healthy',
-        'ollama_detail': services['ollama'].get('error', services['ollama'].get('models', 'Connected')),
+        'mongodb_ok': mongodb_ok,
+        'mongodb_detail': services.get('mongodb', {}).get('error', 'Connected'),
+        'redis_ok': redis_ok,
+        'redis_detail': services.get('redis', {}).get('error', 'Connected'),
+        'ollama_ok': ollama_ok,
+        'ollama_detail': services.get('ollama', {}).get('error', services.get('ollama', {}).get('models', 'Connected')),
         'backend_ok': backend_ok,
         'backend_detail': 'API responding',
-        'disk_usage': f"{round(disk.used / disk.total * 100, 1)}%",
-        'disk_detail': f"{round(disk.used / (1024**3), 1)}GB / {round(disk.total / (1024**3), 1)}GB",
-        'cpu_usage': f"{cpu}%",
-        'cpu_detail': f"{cpu}% utilized",
-        'ram_usage': f"{mem.percent}%",
-        'ram_detail': f"{round(mem.used / (1024**3), 1)}GB / {round(mem.total / (1024**3), 1)}GB",
-        # Keep nested format for backwards compatibility
+        'disk_usage': f"{disk_pct}%" if disk_pct else "—",
+        'disk_detail': f"{disk_used}GB / {disk_total}GB" if disk_total else "—",
+        'cpu_usage': f"{cpu_pct}%" if cpu_pct else "—",
+        'cpu_detail': f"{cpu_pct}% utilized" if cpu_pct else "—",
+        'ram_usage': f"{ram_pct}%" if ram_pct else "—",
+        'ram_detail': f"{ram_used}GB / {ram_total}GB" if ram_total else "—",
+        # Nested format for backwards compatibility
         'services': services,
         'system': {
-            'cpu_percent': cpu,
-            'ram_total_gb': round(mem.total / (1024**3), 2),
-            'ram_used_gb': round(mem.used / (1024**3), 2),
-            'ram_percent': mem.percent,
-            'disk_total_gb': round(disk.total / (1024**3), 2),
-            'disk_used_gb': round(disk.used / (1024**3), 2),
-            'disk_percent': round(disk.used / disk.total * 100, 1),
+            'cpu_percent': cpu_pct,
+            'ram_total_gb': ram_total,
+            'ram_used_gb': ram_used,
+            'ram_percent': ram_pct,
+            'disk_total_gb': disk_total,
+            'disk_used_gb': disk_used,
+            'disk_percent': disk_pct,
         }
     }
 
