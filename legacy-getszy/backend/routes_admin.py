@@ -544,3 +544,251 @@ async def live_activity(limit: int = 20):
         events.append({'type': 'signup', 'msg': f"New signup: {u.get('email', '')[:20]}", 'at': u.get('created_at'), 'id': u.get('id')})
     events.sort(key=lambda x: x.get('at', ''), reverse=True)
     return {'items': events[:limit]}
+
+
+# ── Executive Dashboard — single-call aggregated data ──────────────────────
+
+@router.get('/dashboard/executive', dependencies=[Depends(get_current_admin)])
+async def executive_dashboard():
+    """Single endpoint returning all dashboard data to minimize API calls."""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = now - timedelta(days=7)
+    month_start = now - timedelta(days=30)
+    prev_month_start = now - timedelta(days=60)
+
+    # ── Users ──
+    total_users = await db.users.count_documents({})
+    customers = await db.users.count_documents({'role': 'customer'})
+    admins = await db.users.count_documents({'role': {'$in': ['admin', 'founder']}})
+    users_today = await db.users.count_documents({'created_at': {'$gte': today_start.isoformat()}})
+    users_week = await db.users.count_documents({'created_at': {'$gte': week_start.isoformat()}})
+    users_month = await db.users.count_documents({'created_at': {'$gte': month_start.isoformat()}})
+    users_prev_month = await db.users.count_documents({'created_at': {'$gte': prev_month_start.isoformat(), '$lt': month_start.isoformat()}})
+    active_users = await db.users.count_documents({'last_login': {'$gte': (now - timedelta(days=30)).isoformat()}})
+
+    # ── Subscriptions ──
+    try:
+        active_subs = await db.subscriptions.count_documents({'status': 'active'})
+        pro_subs = await db.subscriptions.count_documents({'status': 'active', 'plan': 'pro'})
+        elite_subs = await db.subscriptions.count_documents({'status': 'active', 'plan': 'elite'})
+        trial_subs = await db.subscriptions.count_documents({'status': 'trial'})
+        subs = await db.subscriptions.find({'status': 'active'}, {'_id': 0, 'amount': 1, 'plan': 1}).to_list(1000)
+        mrr = sum(s.get('amount', 0) for s in subs)
+        arr = mrr * 12
+    except Exception:
+        active_subs = pro_subs = elite_subs = trial_subs = 0
+        mrr = arr = 0
+
+    # ── Products ──
+    total_products = await db.products.count_documents({})
+    active_products = await db.products.count_documents({'is_active': True})
+    low_stock = await db.products.count_documents({'stock': {'$lte': 5}})
+    out_of_stock = await db.products.count_documents({'stock': 0})
+
+    # ── Orders ──
+    total_orders = await db.orders.count_documents({})
+    orders_today = await db.orders.count_documents({'created_at': {'$gte': today_start.isoformat()}})
+    orders_week = await db.orders.count_documents({'created_at': {'$gte': week_start.isoformat()}})
+    orders_month = await db.orders.count_documents({'created_at': {'$gte': month_start.isoformat()}})
+
+    # Revenue
+    rev_pipeline = [{'$group': {'_id': None, 'total': {'$sum': '$total'}, 'profit': {'$sum': '$profit'}, 'count': {'$sum': 1}}}]
+    rev_all = await db.orders.aggregate(rev_pipeline).to_list(1)
+    total_revenue = round(rev_all[0]['total'], 2) if rev_all else 0
+    total_profit = round(rev_all[0]['profit'], 2) if rev_all else 0
+
+    rev_today_agg = await db.orders.aggregate([{'$match': {'created_at': {'$gte': today_start.isoformat()}}}, *rev_pipeline]).to_list(1)
+    revenue_today = round(rev_today_agg[0]['total'], 2) if rev_today_agg else 0
+
+    rev_week_agg = await db.orders.aggregate([{'$match': {'created_at': {'$gte': week_start.isoformat()}}}, *rev_pipeline]).to_list(1)
+    revenue_week = round(rev_week_agg[0]['total'], 2) if rev_week_agg else 0
+
+    rev_month_agg = await db.orders.aggregate([{'$match': {'created_at': {'$gte': month_start.isoformat()}}}, *rev_pipeline]).to_list(1)
+    revenue_month = round(rev_month_agg[0]['total'], 2) if rev_month_agg else 0
+
+    rev_prev_month_agg = await db.orders.aggregate([{'$match': {'created_at': {'$gte': prev_month_start.isoformat(), '$lt': month_start.isoformat()}}}, *rev_pipeline]).to_list(1)
+    revenue_prev_month = round(rev_prev_month_agg[0]['total'], 2) if rev_prev_month_agg else 0
+
+    avg_order_value = round(total_revenue / total_orders, 2) if total_orders else 0
+
+    # ── AI Jobs ──
+    ai_today = await db.video_jobs.count_documents({'created_at': {'$gte': today_start.isoformat()}})
+    ai_week = await db.video_jobs.count_documents({'created_at': {'$gte': week_start.isoformat()}})
+    ai_month = await db.video_jobs.count_documents({'created_at': {'$gte': month_start.isoformat()}})
+    total_videos = await db.video_jobs.count_documents({'status': 'done'})
+    total_images = await db.ai_jobs.count_documents({'type': 'image', 'status': 'done'})
+    total_voice = await db.ai_jobs.count_documents({'type': 'voice_clone', 'status': 'done'})
+
+    # ── Credits ──
+    try:
+        tx_today = await db.credit_transactions.find({'created_at': {'$gte': today_start.isoformat()}, 'delta': {'$lt': 0}}, {'delta': 1, '_id': 0}).to_list(10000)
+        credits_used_today = abs(sum(t.get('delta', 0) for t in tx_today))
+        tx_month = await db.credit_transactions.find({'created_at': {'$gte': month_start.isoformat()}, 'delta': {'$lt': 0}}, {'delta': 1, '_id': 0}).to_list(10000)
+        credits_used_month = abs(sum(t.get('delta', 0) for t in tx_month))
+    except Exception:
+        credits_used_today = credits_used_month = 0
+
+    # ── 7-day Revenue Series ──
+    series_7d = []
+    for i in range(6, -1, -1):
+        day = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day + timedelta(days=1)
+        day_agg = await db.orders.aggregate([
+            {'$match': {'created_at': {'$gte': day.isoformat(), '$lt': day_end.isoformat()}}},
+            {'$group': {'_id': None, 'revenue': {'$sum': '$total'}, 'count': {'$sum': 1}}},
+        ]).to_list(1)
+        series_7d.append({
+            'date': day.strftime('%b %d'),
+            'revenue': round(day_agg[0]['revenue'], 2) if day_agg else 0,
+            'orders': day_agg[0]['count'] if day_agg else 0,
+        })
+
+    # ── 30-day Revenue Series ──
+    series_30d = []
+    for i in range(29, -1, -1):
+        day = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day + timedelta(days=1)
+        day_agg = await db.orders.aggregate([
+            {'$match': {'created_at': {'$gte': day.isoformat(), '$lt': day_end.isoformat()}}},
+            {'$group': {'_id': None, 'revenue': {'$sum': '$total'}, 'count': {'$sum': 1}}},
+        ]).to_list(1)
+        series_30d.append({
+            'date': day.strftime('%b %d'),
+            'revenue': round(day_agg[0]['revenue'], 2) if day_agg else 0,
+            'orders': day_agg[0]['count'] if day_agg else 0,
+        })
+
+    # ── 30-day User Signups Series ──
+    user_series_30d = []
+    for i in range(29, -1, -1):
+        day = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day + timedelta(days=1)
+        count = await db.users.count_documents({'created_at': {'$gte': day.isoformat(), '$lt': day_end.isoformat()}})
+        user_series_30d.append({'date': day.strftime('%b %d'), 'signups': count})
+
+    # ── Top Products ──
+    top_products = []
+    try:
+        tpipeline = [
+            {'$unwind': '$items'},
+            {'$group': {'_id': '$items.name', 'revenue': {'$sum': '$total'}, 'qty': {'$sum': '$items.quantity'}, 'orders': {'$sum': 1}}},
+            {'$sort': {'revenue': -1}},
+            {'$limit': 5},
+        ]
+        top_products = await db.orders.aggregate(tpipeline).to_list(5)
+        top_products = [{'name': p['_id'], 'revenue': round(p['revenue'], 2), 'qty': p['qty'], 'orders': p['orders']} for p in top_products]
+    except Exception:
+        pass
+
+    # ── Recent Orders ──
+    recent_orders = await db.orders.find({}, {'_id': 0}).sort('created_at', -1).limit(8).to_list(8)
+
+    # ── Live Activity ──
+    events = []
+    try:
+        recent_o = await db.orders.find({}, {'_id': 0, 'id': 1, 'total': 1, 'customer_name': 1, 'created_at': 1}).sort('created_at', -1).to_list(5)
+        for o in recent_o:
+            events.append({'type': 'order', 'msg': f"Order ₹{o.get('total',0)} — {o.get('customer_name','')}", 'at': o.get('created_at'), 'id': o.get('id')})
+        recent_j = await db.video_jobs.find({}, {'_id': 0, 'id': 1, 'type': 1, 'created_at': 1}).sort('created_at', -1).to_list(5)
+        for j in recent_j:
+            events.append({'type': 'ai_job', 'msg': f"AI: {j.get('type','job')}", 'at': j.get('created_at'), 'id': j.get('id')})
+        recent_u = await db.users.find({'role': 'customer'}, {'_id': 0, 'id': 1, 'email': 1, 'created_at': 1}).sort('created_at', -1).to_list(5)
+        for u in recent_u:
+            events.append({'type': 'signup', 'msg': f"Signup: {u.get('email','')[:25]}", 'at': u.get('created_at'), 'id': u.get('id')})
+        events.sort(key=lambda x: x.get('at', ''), reverse=True)
+    except Exception:
+        pass
+
+    # ── Conversion Funnel ──
+    funnel = {'visitors': total_users, 'signups': customers, 'subscribers': active_subs}
+    conv_rate = round((active_subs / customers * 100), 1) if customers else 0
+
+    # ── Cohort (users this month vs last) ──
+    user_growth_pct = round(((users_month - users_prev_month) / users_prev_month * 100), 1) if users_prev_month else 0
+    rev_growth_pct = round(((revenue_month - revenue_prev_month) / revenue_prev_month * 100), 1) if revenue_prev_month else 0
+
+    # ── Alerts ──
+    alerts = []
+    if low_stock > 0:
+        alerts.append({'level': 'warn', 'msg': f'{low_stock} products low on stock'})
+    if out_of_stock > 0:
+        alerts.append({'level': 'error', 'msg': f'{out_of_stock} products out of stock'})
+    if active_subs == 0 and customers > 5:
+        alerts.append({'level': 'warn', 'msg': 'No active subscribers — pricing needs attention'})
+    if total_orders == 0 and customers > 0:
+        alerts.append({'level': 'info', 'msg': 'Users exist but no orders yet — check checkout flow'})
+
+    # ── System Health (quick check) ──
+    mongo_ok = False
+    try:
+        await db.command('ping')
+        mongo_ok = True
+    except Exception:
+        pass
+
+    # ── Env Health ──
+    env_health = {
+        'MONGO_URL': bool(os.getenv('MONGO_URL')),
+        'JWT_SECRET': bool(os.getenv('JWT_SECRET')),
+        'OLLAMA_BASE_URL': bool(os.getenv('OLLAMA_BASE_URL')),
+        'GROQ_API_KEY': bool(os.getenv('GROQ_API_KEY')),
+        'GEMINI_API_KEY': bool(os.getenv('GEMINI_API_KEY')),
+        'OPENROUTER_API_KEY': bool(os.getenv('OPENROUTER_API_KEY')),
+        'RAZORPAY_KEY_ID': bool(os.getenv('RAZORPAY_KEY_ID')),
+    }
+
+    # ── Business Health Score (0-100) ──
+    score = 50  # base
+    if mongo_ok: score += 10
+    if active_subs > 0: score += 10
+    if revenue_month > 0: score += 10
+    if users_month > 0: score += 5
+    if total_products > 0: score += 5
+    if total_orders > 0: score += 5
+    if env_health.get('GROQ_API_KEY') or env_health.get('GEMINI_API_KEY') or env_health.get('OPENROUTER_API_KEY'):
+        score += 5
+    score = min(score, 100)
+
+    return {
+        'timestamp': now.isoformat(),
+        'health_score': score,
+
+        'kpi': {
+            'total_users': total_users, 'customers': customers, 'admins': admins,
+            'users_today': users_today, 'users_week': users_week, 'users_month': users_month,
+            'active_users': active_users, 'user_growth_pct': user_growth_pct,
+            'total_orders': total_orders, 'orders_today': orders_today,
+            'orders_week': orders_week, 'orders_month': orders_month,
+            'total_revenue': total_revenue, 'total_profit': total_profit,
+            'revenue_today': revenue_today, 'revenue_week': revenue_week,
+            'revenue_month': revenue_month, 'revenue_prev_month': revenue_prev_month,
+            'rev_growth_pct': rev_growth_pct, 'avg_order_value': avg_order_value,
+            'mrr': mrr, 'arr': arr,
+            'active_subs': active_subs, 'pro_subs': pro_subs, 'elite_subs': elite_subs,
+            'trial_subs': trial_subs,
+            'total_products': total_products, 'active_products': active_products,
+            'low_stock': low_stock, 'out_of_stock': out_of_stock,
+            'ai_today': ai_today, 'ai_week': ai_week, 'ai_month': ai_month,
+            'total_videos': total_videos, 'total_images': total_images, 'total_voice': total_voice,
+            'credits_used_today': credits_used_today, 'credits_used_month': credits_used_month,
+        },
+
+        'series': {
+            'revenue_7d': series_7d,
+            'revenue_30d': series_30d,
+            'users_30d': user_series_30d,
+        },
+
+        'funnel': funnel,
+        'conversion_rate': conv_rate,
+
+        'top_products': top_products,
+        'recent_orders': recent_orders,
+        'activity': events[:15],
+
+        'alerts': alerts,
+        'env_health': env_health,
+
+        'mongo_ok': mongo_ok,
+    }

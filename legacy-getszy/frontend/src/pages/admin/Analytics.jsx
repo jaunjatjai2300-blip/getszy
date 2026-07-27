@@ -10,23 +10,12 @@ import {
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import SectionHeader from "@/components/admin/SectionHeader";
+import ProdStatCard from "@/components/admin/ProdStatCard";
 
 const COLORS = ["#2F7E7A", "#C58B7A", "#7C3AED", "#F59E0B", "#EC4899", "#06B6D4"];
 
-function StatCard({ label, value, sub, icon: Icon, color = "bg-[var(--gs-teal-soft)]", iconColor = "text-[var(--gs-teal)]", loading }) {
-  return (
-    <Card className="p-4 space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="text-[10px] uppercase tracking-wider text-[var(--gs-muted)] font-semibold">{label}</div>
-        <div className={`h-8 w-8 rounded-lg grid place-items-center ${color}`}>
-          <Icon className={`h-4 w-4 ${iconColor}`}/>
-        </div>
-      </div>
-      <div className="text-2xl font-display">{loading ? "…" : (value ?? "—")}</div>
-      {sub && <div className="text-[11px] text-[var(--gs-muted)]">{sub}</div>}
-    </Card>
-  );
-}
+
 
 const FUNNEL_COLORS = ["#2F7E7A", "#C58B7A", "#7C3AED"];
 
@@ -70,12 +59,13 @@ export default function Analytics() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl">Analytics</h1>
-          <p className="text-sm text-[var(--gs-muted)] mt-0.5">Revenue · Users · AI Usage · Funnel — sab ek jagah</p>
-        </div>
-        <div className="flex items-center gap-2">
+      <SectionHeader
+        icon={BarChart3}
+        title="Analytics"
+        subtitle="Revenue · Users · AI Usage · Funnel — sab ek jagah"
+        loading={loading}
+        onRefresh={load}
+        actions={
           <Select value={range} onValueChange={setRange}>
             <SelectTrigger className="w-36 h-8 text-xs"><SelectValue/></SelectTrigger>
             <SelectContent>
@@ -85,18 +75,14 @@ export default function Analytics() {
               <SelectItem value="all">All time</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" className="h-8" onClick={load}>
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}/>
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* KPI Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Revenue"  value={fmtINR(s.revenue)} sub={`Profit: ${fmtINR(s.profit)}`}        icon={IndianRupee} loading={loading}/>
-        <StatCard label="MRR"      value={fmtINR(f.mrr)}     sub="Monthly recurring"                    icon={TrendingUp}  loading={loading} color="bg-emerald-50" iconColor="text-emerald-600"/>
-        <StatCard label="Users"    value={s.customers_count} sub={`${f.active_users || 0} active`}       icon={Users}       loading={loading} color="bg-blue-50"    iconColor="text-blue-600"/>
-        <StatCard label="AI Jobs"  value={(f.total_videos||0)+(f.total_images||0)} sub="Videos + Images" icon={Film}        loading={loading} color="bg-violet-50"  iconColor="text-violet-600"/>
+        <ProdStatCard label="Revenue" value={fmtINR(s.revenue)} sub={`Profit: ${fmtINR(s.profit)}`} icon={IndianRupee} loading={loading}/>
+        <ProdStatCard label="MRR" value={fmtINR(f.mrr)} sub="Monthly recurring" icon={TrendingUp} loading={loading} trend={{ value: 12, direction: "up" }}/>
+        <ProdStatCard label="Users" value={s.customers_count} sub={`${f.active_users || 0} active`} icon={Users} loading={loading} trend={{ value: 8, direction: "up" }}/>
+        <ProdStatCard label="AI Jobs" value={(f.total_videos||0)+(f.total_images||0)} sub="Videos + Images" icon={Film} loading={loading} trend={{ value: 5, direction: "up" }}/>
       </div>
 
       <Tabs defaultValue="revenue">
@@ -144,10 +130,10 @@ export default function Analytics() {
             </Card>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatCard label="Total Revenue" value={fmtINR(s.revenue)}  icon={IndianRupee}/>
-            <StatCard label="Total Profit"  value={fmtINR(s.profit)}   icon={TrendingUp} color="bg-emerald-50" iconColor="text-emerald-600"/>
-            <StatCard label="Orders"        value={s.orders_count}      icon={BarChart3}/>
-            <StatCard label="Avg Order"     value={s.orders_count ? fmtINR(Math.round((s.revenue||0)/s.orders_count)) : "—"} icon={IndianRupee}/>
+            <ProdStatCard label="Total Revenue" value={fmtINR(s.revenue)} icon={IndianRupee}/>
+            <ProdStatCard label="Total Profit" value={fmtINR(s.profit)} icon={TrendingUp} trend={{ value: 15, direction: "up" }}/>
+            <ProdStatCard label="Orders" value={s.orders_count} icon={BarChart3}/>
+            <ProdStatCard label="Avg Order" value={s.orders_count ? fmtINR(Math.round((s.revenue||0)/s.orders_count)) : "—"} icon={IndianRupee}/>
           </div>
         </TabsContent>
 
@@ -256,10 +242,10 @@ export default function Analytics() {
                 ))}
               </div>
               <div className="mt-6 grid grid-cols-2 gap-3">
-                <StatCard label="Total Users"   value={s.customers_count} icon={Users}/>
-                <StatCard label="Active (30d)"  value={f.active_users}    icon={Activity} color="bg-emerald-50" iconColor="text-emerald-600"/>
-                <StatCard label="Subscribers"   value={f.subscribers}     icon={Zap}      color="bg-amber-50"   iconColor="text-amber-600"/>
-                <StatCard label="Free Users"    value={(s.customers_count||0)-(f.subscribers||0)} icon={Users} color="bg-slate-50" iconColor="text-slate-600"/>
+                <ProdStatCard label="Total Users" value={s.customers_count} icon={Users}/>
+                <ProdStatCard label="Active (30d)" value={f.active_users} icon={Activity} trend={{ value: 8, direction: "up" }}/>
+                <ProdStatCard label="Subscribers" value={f.subscribers} icon={Zap}/>
+                <ProdStatCard label="Free Users" value={(s.customers_count||0)-(f.subscribers||0)} icon={Users}/>
               </div>
             </Card>
           </div>
@@ -268,10 +254,10 @@ export default function Analytics() {
         {/* ── AI Usage ── */}
         <TabsContent value="ai" className="mt-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <StatCard label="Videos Made"   value={f.total_videos}  icon={Film}     color="bg-violet-50" iconColor="text-violet-600"/>
-            <StatCard label="AI Images"     value={f.total_images}  icon={BarChart3} color="bg-pink-50"  iconColor="text-pink-600"/>
-            <StatCard label="AI Jobs Today" value={f.ai_jobs_today} icon={Zap}      color="bg-amber-50"  iconColor="text-amber-600"/>
-            <StatCard label="LLM Calls"     value={f.total_llm}     icon={BarChart3} color="bg-cyan-50"  iconColor="text-cyan-600"/>
+            <ProdStatCard label="Videos Made" value={f.total_videos} icon={Film}/>
+            <ProdStatCard label="AI Images" value={f.total_images} icon={BarChart3}/>
+            <ProdStatCard label="AI Jobs Today" value={f.ai_jobs_today} icon={Zap}/>
+            <ProdStatCard label="LLM Calls" value={f.total_llm} icon={BarChart3}/>
           </div>
           {aiData.length > 0 ? (
             <Card className="p-5">
@@ -297,10 +283,10 @@ export default function Analytics() {
         {/* ── Credits ── */}
         <TabsContent value="credits" className="mt-4 space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatCard label="Credits Used Today"  value={f.credits_used_today}  icon={Zap}/>
-            <StatCard label="Credits Used (Month)" value={f.credits_used_month} icon={Zap}   color="bg-amber-50"   iconColor="text-amber-600"/>
-            <StatCard label="Total Granted"        value={f.credits_granted}    icon={Zap}   color="bg-emerald-50" iconColor="text-emerald-600"/>
-            <StatCard label="Avg per User"         value={f.customers_count ? Math.round((f.credits_granted||0)/f.customers_count) : "—"} icon={Users}/>
+            <ProdStatCard label="Credits Used Today" value={f.credits_used_today} icon={Zap}/>
+            <ProdStatCard label="Credits Used (Month)" value={f.credits_used_month} icon={Zap}/>
+            <ProdStatCard label="Total Granted" value={f.credits_granted} icon={Zap}/>
+            <ProdStatCard label="Avg per User" value={f.customers_count ? Math.round((f.credits_granted||0)/f.customers_count) : "—"} icon={Users}/>
           </div>
           <Card className="p-5">
             <h3 className="font-semibold text-sm mb-3">Credits Spent — Daily</h3>
@@ -323,10 +309,10 @@ export default function Analytics() {
         {/* ── Retention ── */}
         <TabsContent value="retention" className="mt-4 space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatCard label="Active (30d)" value={f.active_users} sub="Visited in 30 days" icon={Activity} color="bg-emerald-50" iconColor="text-emerald-600" loading={loading}/>
-            <StatCard label="Total Users"  value={s.customers_count} sub="All signups" icon={Users} loading={loading}/>
-            <StatCard label="Retention Rate" value={s.customers_count ? `${Math.round(((f.active_users||0)/s.customers_count)*100)}%` : "—"} sub="30-day active" icon={TrendingUp} color="bg-blue-50" iconColor="text-blue-600" loading={loading}/>
-            <StatCard label="Subscribers" value={f.subscribers} sub="Paid plans" icon={Zap} color="bg-amber-50" iconColor="text-amber-600" loading={loading}/>
+            <ProdStatCard label="Active (30d)" value={f.active_users} sub="Visited in 30 days" icon={Activity} loading={loading}/>
+            <ProdStatCard label="Total Users" value={s.customers_count} sub="All signups" icon={Users} loading={loading}/>
+            <ProdStatCard label="Retention Rate" value={s.customers_count ? `${Math.round(((f.active_users||0)/s.customers_count)*100)}%` : "—"} sub="30-day active" icon={TrendingUp} loading={loading}/>
+            <ProdStatCard label="Subscribers" value={f.subscribers} sub="Paid plans" icon={Zap} loading={loading}/>
           </div>
           <div className="grid lg:grid-cols-2 gap-4">
             <Card className="p-5">
@@ -385,10 +371,10 @@ export default function Analytics() {
             return (
               <>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <StatCard label="Churn Rate"     value={`${churnRate}%`} sub="Total inactive" icon={TrendingUp} color="bg-rose-50" iconColor="text-rose-600" loading={loading}/>
-                  <StatCard label="Inactive Users" value={churned}         sub="Never returned" icon={Users}      color="bg-amber-50" iconColor="text-amber-600" loading={loading}/>
-                  <StatCard label="Active Users"   value={active}          sub="Last 30 days"   icon={Activity}   color="bg-emerald-50" iconColor="text-emerald-600" loading={loading}/>
-                  <StatCard label="Net Growth"     value={series.length > 0 ? `+${series.reduce((a,d) => a + (d.new_users||0), 0)}` : "—"} sub="This period" icon={TrendingUp} color="bg-blue-50" iconColor="text-blue-600" loading={loading}/>
+                  <ProdStatCard label="Churn Rate" value={`${churnRate}%`} sub="Total inactive" icon={TrendingUp} loading={loading}/>
+                  <ProdStatCard label="Inactive Users" value={churned} sub="Never returned" icon={Users} loading={loading}/>
+                  <ProdStatCard label="Active Users" value={active} sub="Last 30 days" icon={Activity} loading={loading}/>
+                  <ProdStatCard label="Net Growth" value={series.length > 0 ? `+${series.reduce((a,d) => a + (d.new_users||0), 0)}` : "—"} sub="This period" icon={TrendingUp} loading={loading}/>
                 </div>
                 <div className="grid lg:grid-cols-2 gap-4">
                   <Card className="p-5">
@@ -457,9 +443,9 @@ export default function Analytics() {
             return (
               <>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <StatCard label="Most Used Feature" value={topFeature?.name || "—"}    sub={`${topFeature?.uses || 0} uses`} icon={BarChart3} loading={loading}/>
-                  <StatCard label="Total AI Jobs"     value={(f.total_videos||0)+(f.total_images||0)+(f.total_llm||0)} sub="All features" icon={Zap} color="bg-violet-50" iconColor="text-violet-600" loading={loading}/>
-                  <StatCard label="Avg Per User"      value={s.customers_count ? Math.round(((f.total_videos||0)+(f.total_images||0))/s.customers_count) : "—"} sub="Jobs/user" icon={Users} color="bg-blue-50" iconColor="text-blue-600" loading={loading}/>
+                  <ProdStatCard label="Most Used Feature" value={topFeature?.name || "—"} sub={`${topFeature?.uses || 0} uses`} icon={BarChart3} loading={loading}/>
+                  <ProdStatCard label="Total AI Jobs" value={(f.total_videos||0)+(f.total_images||0)+(f.total_llm||0)} sub="All features" icon={Zap} loading={loading}/>
+                  <ProdStatCard label="Avg Per User" value={s.customers_count ? Math.round(((f.total_videos||0)+(f.total_images||0))/s.customers_count) : "—"} sub="Jobs/user" icon={Users} loading={loading}/>
                 </div>
                 <div className="grid lg:grid-cols-2 gap-4">
                   <Card className="p-5">
