@@ -34,6 +34,8 @@ services:
       OLLAMA_MODEL: "${OLLAMA_MODEL:-qwen2.5:7b}"
       OLLAMA_MODEL_2: "${OLLAMA_MODEL_2:-qwen2.5-coder:14b}"
       OLLAMA_MODEL_3: "${OLLAMA_MODEL_3:-llama3.2:3b}"
+      LMSTUDIO_BASE_URL: "${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}"
+      LMSTUDIO_MODEL: "${LMSTUDIO_MODEL:-longcat2.0}"
       SEED_ADMIN_EMAIL: "${SEED_ADMIN_EMAIL:-admin@getszy.com}"
       SEED_ADMIN_PASSWORD: "${SEED_ADMIN_PASSWORD}"
       SEED_CUSTOMER_EMAIL: "${SEED_CUSTOMER_EMAIL:-customer@getszy.com}"
