@@ -1,10 +1,11 @@
 """LLM Provider — Cost Guard with Multi-Provider Fallback
 
-Priority chain (Ollama first = zero cost):
+Priority chain (local free providers first):
   1. Ollama     — local, free, unlimited (3 models on VPS)
-  2. Groq       — free tier, 11K req/day
-  3. Gemini     — free tier, 1500 req/day
-  4. OpenRouter — paid (your credits, many models available)
+  2. LM Studio  — local, free, OpenAI-compatible (longcat2.0, etc.)
+  3. Groq       — free tier, 11K req/day
+  4. Gemini     — free tier, 1500 req/day
+  5. OpenRouter — paid (your credits, many models available)
 """
 import os
 import httpx
@@ -22,6 +23,8 @@ OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '').strip()
 OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'qwen/qwen-2.5-72b-instruct').strip()
 OLLAMA_BASE_URL  = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
 OLLAMA_SECRET    = os.environ.get('OLLAMA_SECRET', '')
+LMSTUDIO_BASE_URL = os.environ.get('LMSTUDIO_BASE_URL', 'http://localhost:1234/v1')
+LMSTUDIO_MODEL   = os.environ.get('LMSTUDIO_MODEL', 'longcat2.0')
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 EMERGENT_MODEL   = os.environ.get('EMERGENT_MODEL', 'gpt-4o-mini')
 
@@ -122,6 +125,25 @@ async def _ollama_single(model: str, system: str, user: str, temperature: float)
         return r.json().get('message', {}).get('content', '')
 
 
+async def _lmstudio(system: str, user: str, temperature: float) -> str:
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        r = await client.post(
+            f'{LMSTUDIO_BASE_URL}/chat/completions',
+            json={
+                'model': LMSTUDIO_MODEL,
+                'messages': [
+                    {'role': 'system', 'content': system},
+                    {'role': 'user', 'content': user},
+                ],
+                'temperature': temperature,
+                'max_tokens': 4096,
+                'stream': False,
+            },
+        )
+        r.raise_for_status()
+        return r.json()['choices'][0]['message']['content']
+
+
 async def _ollama_chain(system: str, user: str, temperature: float) -> str:
     """Try each Ollama model in order until one works."""
     last_error = None
@@ -188,7 +210,15 @@ async def chat_completion(
         except Exception as e:
             logger.warning(f'LLM ollama chain failed: {e}')
 
-    # 2. Groq — free, fast
+    # 2. LM Studio — local, free, OpenAI-compatible (longcat2.0, etc.)
+    try:
+        result = await _lmstudio(system, user, temperature)
+        logger.info(f'LLM: lmstudio ({LMSTUDIO_MODEL})')
+        return result
+    except Exception as e:
+        logger.warning(f'LLM lmstudio failed: {e}')
+
+    # 3. Groq — free, fast
     if GROQ_API_KEY and _under_limit('groq'):
         try:
             result = await _groq(system, user, temperature)
@@ -241,10 +271,12 @@ def provider_info() -> dict:
             'groq':    {'available': bool(GROQ_API_KEY),   'used_today': groq_used,   'limit': GROQ_DAILY_LIMIT,   'remaining': max(0, GROQ_DAILY_LIMIT - groq_used)},
             'gemini':  {'available': bool(GEMINI_API_KEY), 'used_today': gemini_used, 'limit': GEMINI_DAILY_LIMIT, 'remaining': max(0, GEMINI_DAILY_LIMIT - gemini_used)},
             'ollama':  {'available': True, 'models': OLLAMA_MODELS, 'active_model': OLLAMA_MODELS[0] if OLLAMA_MODELS else None, 'description': '100% free, runs on VPS'},
+            'lmstudio':{'available': True, 'model': LMSTUDIO_MODEL, 'base_url': LMSTUDIO_BASE_URL, 'description': '100% free, local OpenAI-compatible'},
             'emergent':{'available': bool(EMERGENT_LLM_KEY) and not FREE_ONLY, 'blocked_by_free_only': FREE_ONLY},
         },
         'active_chain': (
             f'ollama ({OLLAMA_MODELS[0]})' if OLLAMA_MODELS else
+            f'lmstudio ({LMSTUDIO_MODEL})' if LMSTUDIO_BASE_URL else
             'groq' if GROQ_API_KEY and _under_limit('groq') else
             'gemini' if GEMINI_API_KEY and _under_limit('gemini') else
             'none'

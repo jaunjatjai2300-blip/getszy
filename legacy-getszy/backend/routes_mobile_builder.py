@@ -1210,6 +1210,414 @@ class {screen_name}Screen extends StatelessWidget {{
 }}''')
 
 
+def _generate_expo_project(name: str, template: str, features: list, backend_url: str) -> dict:
+    """Generate Expo SDK 52 project with Expo Router for live preview via Expo Go."""
+    tpl = MOBILE_TEMPLATES.get(template, MOBILE_TEMPLATES['ecommerce'])
+    safe_name = name.replace(' ', '-').replace('_', '-').lower()
+    pkg = safe_name.replace('-', '')
+
+    files = {}
+    files['package.json'] = json.dumps({
+        'name': safe_name,
+        'version': '1.0.0',
+        'main': 'expo-router/entry',
+        'scripts': {
+            'start': 'expo start',
+            'android': 'expo start --android',
+            'ios': 'expo start --ios',
+            'web': 'expo start --web',
+        },
+        'dependencies': {
+            'expo': '~52.0.0',
+            'expo-router': '~4.0.0',
+            'expo-status-bar': '~2.0.0',
+            'expo-linking': '~7.0.0',
+            'expo-constants': '~17.0.0',
+            'expo-font': '~13.0.0',
+            'expo-splash-screen': '~0.29.0',
+            'react': '18.3.1',
+            'react-native': '0.76.0',
+            'react-native-safe-area-context': '4.12.0',
+            'react-native-screens': '~4.1.0',
+            'react-native-web': '~0.19.13',
+            '@expo/vector-icons': '^14.0.0',
+            'axios': '^1.6.0',
+            '@react-native-async-storage/async-storage': '1.23.1',
+            **({'expo-notifications': '~0.29.0'} if 'push_notifications' in features else {}),
+            **({'expo-image-picker': '~16.0.0'} if 'camera' in features else {}),
+            **({'expo-location': '~18.0.0'} if 'location' in features else {}),
+            **({'expo-web-browser': '~14.0.0'} if 'deep_links' in features else {}),
+        },
+        'devDependencies': {
+            '@types/react': '~18.3.0',
+            'typescript': '^5.3.0',
+        },
+    }, indent=2)
+
+    files['app.json'] = json.dumps({
+        'expo': {
+            'name': name,
+            'slug': safe_name,
+            'version': '1.0.0',
+            'orientation': 'portrait',
+            'icon': './assets/icon.png',
+            'scheme': safe_name,
+            'userInterfaceStyle': 'automatic',
+            'splash': {'backgroundColor': '#ffffff'},
+            'assetBundlePatterns': ['**/*'],
+            'ios': {'supportsTablet': True, 'bundleIdentifier': f'com.getszy.{pkg}'},
+            'android': {'adaptiveIcon': {'backgroundColor': '#ffffff'}, 'package': f'com.getszy.{pkg}'},
+            'web': {'bundler': 'metro', 'favicon': './assets/favicon.png'},
+            'plugins': ['expo-router'],
+        },
+    }, indent=2)
+
+    files['tsconfig.json'] = json.dumps({
+        'extends': 'expo/tsconfig.base',
+        'compilerOptions': {'strict': True, 'paths': {'@/*': ['./src/*']}},
+    }, indent=2)
+
+    files['babel.config.js'] = "module.exports = function(api) { api.cache(true); return { presets: ['babel-preset-expo'] }; };\n"
+
+    # Expo Router app directory structure
+    files['app/_layout.tsx'] = f'''import React from 'react';
+import {{ Stack }} from 'expo-router';
+import {{ AuthProvider }} from '../src/context/AuthContext';
+import {{ ThemeProvider }} from '../src/context/ThemeContext';
+
+export default function RootLayout() {{
+  return (
+    <AuthProvider>
+      <ThemeProvider>
+        <Stack screenOptions={{{{ headerShown: false }}}}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="(tabs)" />
+        </Stack>
+      </ThemeProvider>
+    </AuthProvider>
+  );
+}}
+'''
+
+    files['app/index.tsx'] = '''import React, { useEffect } from 'react';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../src/context/AuthContext';
+
+export default function Index() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading) {
+      router.replace(user ? '/(tabs)' : '/login');
+    }
+  }, [user, loading]);
+
+  return (
+    <View style={styles.container}>
+      <ActivityIndicator size="large" color="#2563eb" />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' },
+});
+'''
+
+    files['app/login.tsx'] = '''import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../src/context/AuthContext';
+
+export default function LoginScreen() {
+  const { login } = useAuth();
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    setLoading(true);
+    try {
+      await login(email, password);
+      router.replace('/(tabs)');
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <Text style={styles.title}>Welcome Back</Text>
+      <TextInput style={styles.input} placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+      <TextInput style={styles.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
+      <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
+        <Text style={styles.buttonText}>{loading ? 'Loading...' : 'Log In'}</Text>
+      </TouchableOpacity>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#f8fafc' },
+  title: { fontSize: 32, fontWeight: 'bold', textAlign: 'center', marginBottom: 32, color: '#1e293b' },
+  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 12 },
+  button: { backgroundColor: '#2563eb', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+});
+'''
+
+    # Tab layout for main app
+    files['app/(tabs)/_layout.tsx'] = '''import React from 'react';
+import { Tabs } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+
+export default function TabLayout() {
+  return (
+    <Tabs screenOptions={{
+      tabBarActiveTintColor: '#2563eb',
+      headerShown: false,
+    }}>
+      <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} /> }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} /> }} />
+      <Tabs.Screen name="settings" options={{ title: 'Settings', tabBarIcon: ({ color, size }) => <Ionicons name="settings" size={size} color={color} /> }} />
+    </Tabs>
+  );
+}
+'''
+
+    # Generate tab screens based on template
+    screens = tpl.get('screens', ['home', 'profile', 'settings'])
+    tab_screens = [s for s in screens if s in ('home', 'feed', 'profile', 'settings')][:3]
+    if not tab_screens:
+        tab_screens = ['home', 'profile', 'settings']
+
+    for screen in tab_screens:
+        screen_name = screen.replace('_', '')
+        if screen_name in ('home', 'feed'):
+            files['app/(tabs)/index.tsx'] = (
+                "import React, { useState, useEffect } from 'react';\n"
+                "import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';\n"
+                "import { SafeAreaView } from 'react-native-safe-area-context';\n"
+                "import api from '../../src/services/ApiService';\n"
+                "\n"
+                "export default function HomeTab() {\n"
+                "  const [items, setItems] = useState([]);\n"
+                "  const [refreshing, setRefreshing] = useState(false);\n"
+                "\n"
+                "  const fetchData = async () => {\n"
+                "    try {\n"
+                "      const resp = await api.get('/items');\n"
+                "      setItems(resp.data.items || resp.data || []);\n"
+                "    } catch (e) { console.log('Fetch failed:', e); }\n"
+                "  };\n"
+                "\n"
+                "  useEffect(() => { fetchData(); }, []);\n"
+                "\n"
+                "  return (\n"
+                "    <SafeAreaView style={styles.container}>\n"
+                "      <FlatList\n"
+                "        data={items}\n"
+                "        keyExtractor={(item, i) => item.id || String(i)}\n"
+                "        contentContainerStyle={styles.list}\n"
+                "        renderItem={({ item }) => (\n"
+                "          <TouchableOpacity style={styles.card}>\n"
+                "            <Text style={styles.cardTitle}>{item.title || item.name || 'Item'}</Text>\n"
+                "            <Text style={styles.cardDesc}>{item.description || ''}</Text>\n"
+                "          </TouchableOpacity>\n"
+                "        )}\n"
+                "      />\n"
+                "    </SafeAreaView>\n"
+                "  );\n"
+                "}\n"
+                "\n"
+                "const styles = StyleSheet.create({\n"
+                "  container: { flex: 1, backgroundColor: '#f8fafc' },\n"
+                "  list: { padding: 16 },\n"
+                "  card: { backgroundColor: '#fff', marginBottom: 12, padding: 16, borderRadius: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },\n"
+                "  cardTitle: { fontSize: 18, fontWeight: '600', color: '#1e293b' },\n"
+                "  cardDesc: { fontSize: 14, color: '#64748b', marginTop: 4 },\n"
+                "});\n"
+            )
+        elif screen_name == 'profile':
+            files['app/(tabs)/profile.tsx'] = '''import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../../src/context/AuthContext';
+import { Ionicons } from '@expo/vector-icons';
+
+export default function ProfileTab() {
+  const { user, logout } = useAuth();
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView>
+        <View style={styles.header}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{(user?.name || 'U')[0].toUpperCase()}</Text>
+          </View>
+          <Text style={styles.name}>{user?.name || 'User'}</Text>
+          <Text style={styles.email}>{user?.email || ''}</Text>
+        </View>
+        <View style={styles.section}>
+          <TouchableOpacity style={styles.row}>
+            <Ionicons name="person-outline" size={20} color="#64748b" />
+            <Text style={styles.rowText}>Edit Profile</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.row} onPress={logout}>
+            <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+            <Text style={[styles.rowText, { color: '#ef4444' }]}>Log Out</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f8fafc' },
+  header: { alignItems: 'center', paddingVertical: 32, backgroundColor: '#fff' },
+  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#2563eb', justifyContent: 'center', alignItems: 'center' },
+  avatarText: { color: '#fff', fontSize: 32, fontWeight: 'bold' },
+  name: { fontSize: 22, fontWeight: 'bold', marginTop: 12, color: '#1e293b' },
+  email: { fontSize: 14, color: '#64748b', marginTop: 4 },
+  section: { marginTop: 16, backgroundColor: '#fff', marginHorizontal: 16, borderRadius: 12, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  rowText: { fontSize: 16, color: '#1e293b' },
+});
+'''
+        elif screen_name == 'settings':
+            files['app/(tabs)/settings.tsx'] = '''import React from 'react';
+import { View, Text, Switch, StyleSheet, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../../src/context/ThemeContext';
+
+export default function SettingsTab() {
+  const { isDark, toggleTheme } = useTheme();
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView>
+        <View style={styles.section}>
+          <View style={styles.row}>
+            <Text style={styles.rowText}>Dark Mode</Text>
+            <Switch value={isDark} onValueChange={toggleTheme} />
+          </View>
+        </View>
+        <View style={styles.section}>
+          <View style={styles.row}>
+            <Text style={styles.rowText}>Version</Text>
+            <Text style={styles.rowValue}>1.0.0</Text>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f8fafc' },
+  section: { marginTop: 16, backgroundColor: '#fff', marginHorizontal: 16, borderRadius: 12, overflow: 'hidden' },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  rowText: { fontSize: 16, color: '#1e293b' },
+  rowValue: { fontSize: 16, color: '#64748b' },
+});
+'''
+
+    # Shared services
+    files['src/services/ApiService.ts'] = f'''import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const api = axios.create({{
+  baseURL: '{backend_url}',
+  timeout: 30000,
+  headers: {{ 'Content-Type': 'application/json' }},
+}});
+
+api.interceptors.request.use(async (config) => {{
+  const token = await AsyncStorage.getItem('auth_token');
+  if (token) config.headers.Authorization = `Bearer ${{token}}`;
+  return config;
+}});
+
+export default api;
+'''
+
+    files['src/context/AuthContext.tsx'] = '''import React, { createContext, useContext, useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../services/ApiService';
+
+const AuthContext = createContext({});
+
+export const useAuth = () => useContext(AuthContext);
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { checkAuth(); }, []);
+
+  const checkAuth = async () => {
+    const token = await AsyncStorage.getItem('auth_token');
+    if (token) {
+      try {
+        const resp = await api.get('/auth/me');
+        setUser(resp.data);
+      } catch { await AsyncStorage.removeItem('auth_token'); }
+    }
+    setLoading(false);
+  };
+
+  const login = async (email, password) => {
+    const resp = await api.post('/auth/login', { email, password });
+    await AsyncStorage.setItem('auth_token', resp.data.token);
+    setUser(resp.data.user);
+  };
+
+  const logout = async () => {
+    await AsyncStorage.removeItem('auth_token');
+    setUser(null);
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+'''
+
+    files['src/context/ThemeContext.tsx'] = '''import React, { createContext, useContext, useState } from 'react';
+import { useColorScheme } from 'react-native';
+
+const ThemeContext = createContext({});
+
+export const useTheme = () => useContext(ThemeContext);
+
+export const ThemeProvider = ({ children }) => {
+  const systemScheme = useColorScheme();
+  const [isDark, setIsDark] = useState(systemScheme === 'dark');
+  const toggleTheme = () => setIsDark(!isDark);
+
+  return (
+    <ThemeContext.Provider value={{ isDark, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+};
+'''
+
+    files['assets/.gitkeep'] = ''
+    files['.gitignore'] = 'node_modules/\n.expo/\ndist/\n*.log\n.DS_Store\n'
+
+    return files
+
+
 def _generate_react_native_project(name: str, template: str, features: list, backend_url: str) -> dict:
     tpl = MOBILE_TEMPLATES.get(template, MOBILE_TEMPLATES['ecommerce'])
     safe_name = name.replace(' ', '_').replace('-', '_').lower()
@@ -1378,22 +1786,204 @@ export const ThemeProvider = ({ children }) => {
     screens = tpl.get('screens', ['SplashScreen', 'HomeScreen', 'LoginScreen'])
     for screen in screens:
         screen_name = ''.join(w.capitalize() for w in screen.split('_'))
-        files[f'src/screens/{screen_name}.tsx'] = f'''import React from 'react';
-import {{ View, Text, StyleSheet }} from 'react-native';
+        # Generate real UI screens based on screen type
+        if 'login' in screen.lower() or 'signup' in screen.lower():
+            files[f'src/screens/{screen_name}.tsx'] = f'''import React, {{ useState }} from 'react';
+import {{ View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform }} from 'react-native';
+import {{ useAuth }} from '../context/AuthContext';
 
-const {screen_name} = ({{ navigation }}) => (
-  <View style={styles.container}>
-    <Text style={styles.title}>{screen_name}</Text>
-  </View>
-);
+const {screen_name} = ({{ navigation }}) => {{
+  const {{ login }} = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleAuth = async () => {{
+    setLoading(true);
+    try {{
+      await login(email, password);
+      navigation.replace('Home');
+    }} catch (e) {{
+      alert(e.response?.data?.detail || 'Auth failed');
+    }} finally {{
+      setLoading(false);
+    }}
+  }};
+
+  return (
+    <KeyboardAvoidingView style={{styles.container}} behavior={{Platform.OS === 'ios' ? 'padding' : 'height'}}>
+      <Text style={{styles.title}}>{'{'}screen_name.replace('Screen', ''){'}'}</Text>
+      <TextInput style={{styles.input}} placeholder="Email" value={{email}} onChangeText={{setEmail}} autoCapitalize="none" keyboardType="email-address" />
+      <TextInput style={{styles.input}} placeholder="Password" value={{password}} onChangeText={{setPassword}} secureTextEntry />
+      <TouchableOpacity style={{styles.button}} onPress={{handleAuth}} disabled={{loading}}>
+        <Text style={{styles.buttonText}}>{{loading ? 'Loading...' : '{'Login' if 'login' in screen.lower() else 'Sign Up'}'}}</Text>
+      </TouchableOpacity>
+    </KeyboardAvoidingView>
+  );
+}};
 
 const styles = StyleSheet.create({{
-  container: {{ flex: 1, justifyContent: 'center', alignItems: 'center' }},
-  title: {{ fontSize: 24, fontWeight: 'bold' }},
+  container: {{ flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#f8fafc' }},
+  title: {{ fontSize: 32, fontWeight: 'bold', textAlign: 'center', marginBottom: 32, color: '#1e293b' }},
+  input: {{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 12 }},
+  button: {{ backgroundColor: '#2563eb', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 }},
+  buttonText: {{ color: '#fff', fontSize: 16, fontWeight: '600' }},
 }});
 
 export default {screen_name};
 '''
+        elif 'home' in screen.lower() or 'feed' in screen.lower():
+            files[f'src/screens/{screen_name}.tsx'] = (
+                "import React, { useState, useEffect } from 'react';\n"
+                "import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';\n"
+                "import api from '../services/ApiService';\n"
+                "\n"
+                f"const {screen_name} = ({{ navigation }}) => {{\n"
+                "  const [items, setItems] = useState([]);\n"
+                "  const [refreshing, setRefreshing] = useState(false);\n"
+                "\n"
+                "  const fetchData = async () => {\n"
+                "    try {\n"
+                "      const resp = await api.get('/items');\n"
+                "      setItems(resp.data.items || resp.data || []);\n"
+                "    } catch (e) {\n"
+                "      console.log('Fetch failed:', e);\n"
+                "    }\n"
+                "  };\n"
+                "\n"
+                "  useEffect(() => { fetchData(); }, []);\n"
+                "\n"
+                "  const onRefresh = async () => {\n"
+                "    setRefreshing(true);\n"
+                "    await fetchData();\n"
+                "    setRefreshing(false);\n"
+                "  };\n"
+                "\n"
+                "  return (\n"
+                "    <View style={styles.container}>\n"
+                "      <FlatList\n"
+                "        data={items}\n"
+                "        keyExtractor={(item, i) => item.id || String(i)}\n"
+                "        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}\n"
+                "        renderItem={({ item }) => (\n"
+                "          <TouchableOpacity style={styles.card}>\n"
+                "            <Text style={styles.cardTitle}>{item.title || item.name || 'Item'}</Text>\n"
+                "            <Text style={styles.cardDesc}>{item.description || item.subtitle || ''}</Text>\n"
+                "          </TouchableOpacity>\n"
+                "        )}\n"
+                "      />\n"
+                "    </View>\n"
+                "  );\n"
+                "};\n"
+                "\n"
+                "const styles = StyleSheet.create({\n"
+                "  container: { flex: 1, backgroundColor: '#f8fafc' },\n"
+                "  card: { backgroundColor: '#fff', marginHorizontal: 16, marginTop: 12, padding: 16, borderRadius: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },\n"
+                "  cardTitle: { fontSize: 18, fontWeight: '600', color: '#1e293b' },\n"
+                "  cardDesc: { fontSize: 14, color: '#64748b', marginTop: 4 },\n"
+                "});\n"
+                "\n"
+                f"export default {screen_name};\n"
+            )
+        elif 'profile' in screen.lower() or 'settings' in screen.lower():
+            files[f'src/screens/{screen_name}.tsx'] = (
+                "import React from 'react';\n"
+                "import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';\n"
+                "import { useAuth } from '../context/AuthContext';\n"
+                "import { useTheme } from '../context/ThemeContext';\n"
+                "\n"
+                f"const {screen_name} = ({{ navigation }}) => {{\n"
+                "  const { user, logout } = useAuth();\n"
+                "  const { isDark, toggleTheme } = useTheme();\n"
+                "\n"
+                "  const handleLogout = async () => {\n"
+                "    await logout();\n"
+                "    navigation.replace('Login');\n"
+                "  };\n"
+                "\n"
+                "  return (\n"
+                "    <ScrollView style={styles.container}>\n"
+                "      <View style={styles.header}>\n"
+                "        <View style={styles.avatar}>\n"
+                "          <Text style={styles.avatarText}>{(user?.name || 'U')[0].toUpperCase()}</Text>\n"
+                "        </View>\n"
+                "        <Text style={styles.name}>{user?.name || 'User'}</Text>\n"
+                "        <Text style={styles.email}>{user?.email || ''}</Text>\n"
+                "      </View>\n"
+                "      <View style={styles.section}>\n"
+                "        <TouchableOpacity style={styles.row} onPress={toggleTheme}>\n"
+                "          <Text style={styles.rowText}>Dark Mode</Text>\n"
+                "          <Text style={styles.rowValue}>{isDark ? 'On' : 'Off'}</Text>\n"
+                "        </TouchableOpacity>\n"
+                "        <TouchableOpacity style={styles.row} onPress={handleLogout}>\n"
+                "          <Text style={[styles.rowText, {color: '#ef4444'}]}>Log Out</Text>\n"
+                "        </TouchableOpacity>\n"
+                "      </View>\n"
+                "    </ScrollView>\n"
+                "  );\n"
+                "};\n"
+                "\n"
+                "const styles = StyleSheet.create({\n"
+                "  container: { flex: 1, backgroundColor: '#f8fafc' },\n"
+                "  header: { alignItems: 'center', paddingVertical: 32, backgroundColor: '#fff' },\n"
+                "  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#2563eb', justifyContent: 'center', alignItems: 'center' },\n"
+                "  avatarText: { color: '#fff', fontSize: 32, fontWeight: 'bold' },\n"
+                "  name: { fontSize: 22, fontWeight: 'bold', marginTop: 12, color: '#1e293b' },\n"
+                "  email: { fontSize: 14, color: '#64748b', marginTop: 4 },\n"
+                "  section: { marginTop: 16, backgroundColor: '#fff', marginHorizontal: 16, borderRadius: 12, overflow: 'hidden' },\n"
+                "  row: { flexDirection: 'row', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },\n"
+                "  rowText: { fontSize: 16, color: '#1e293b' },\n"
+                "  rowValue: { fontSize: 16, color: '#64748b' },\n"
+                "});\n"
+                "\n"
+                f"export default {screen_name};\n"
+            )
+        else:
+            screen_api = screen.lower().replace('screen', '')
+            files[f'src/screens/{screen_name}.tsx'] = (
+                "import React, { useState, useEffect } from 'react';\n"
+                "import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';\n"
+                "import api from '../services/ApiService';\n"
+                "\n"
+                f"const {screen_name} = ({{ navigation }}) => {{\n"
+                "  const [data, setData] = useState(null);\n"
+                "  const [refreshing, setRefreshing] = useState(false);\n"
+                "\n"
+                "  const fetchData = async () => {\n"
+                "    try {\n"
+                f"      const resp = await api.get('/{screen_api}');\n"
+                "      setData(resp.data);\n"
+                "    } catch (e) {\n"
+                "      console.log('Fetch failed:', e);\n"
+                "    }\n"
+                "  };\n"
+                "\n"
+                "  useEffect(() => { fetchData(); }, []);\n"
+                "\n"
+                "  return (\n"
+                "    <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await fetchData(); setRefreshing(false); }} />}>\n"
+                "      <View style={styles.content}>\n"
+                f"        <Text style={styles.title}>{screen_name.replace('Screen', '')}</Text>\n"
+                "        {data ? (\n"
+                "          <Text style={styles.data}>{JSON.stringify(data, null, 2)}</Text>\n"
+                "        ) : (\n"
+                "          <Text style={styles.loading}>Loading...</Text>\n"
+                "        )}\n"
+                "      </View>\n"
+                "    </ScrollView>\n"
+                "  );\n"
+                "};\n"
+                "\n"
+                "const styles = StyleSheet.create({\n"
+                "  container: { flex: 1, backgroundColor: '#f8fafc' },\n"
+                "  content: { padding: 16 },\n"
+                "  title: { fontSize: 28, fontWeight: 'bold', color: '#1e293b', marginBottom: 16 },\n"
+                "  data: { fontSize: 14, color: '#475569', fontFamily: 'monospace' },\n"
+                "  loading: { fontSize: 16, color: '#94a3b8' },\n"
+                "});\n"
+                "\n"
+                f"export default {screen_name};\n"
+            )
 
     files['src/components/CustomButton.tsx'] = '''import React from 'react';
 import { TouchableOpacity, Text, ActivityIndicator, StyleSheet } from 'react-native';
@@ -1461,8 +2051,8 @@ API: {backend_url}
 async def generate_project(body: MobileProjectIn, _=Depends(get_current_admin)):
     if body.template not in MOBILE_TEMPLATES:
         raise HTTPException(400, f'Invalid template: {body.template}. Available: {list(MOBILE_TEMPLATES.keys())}')
-    if body.platform not in ('flutter', 'react_native'):
-        raise HTTPException(400, 'Platform must be flutter or react_native')
+    if body.platform not in ('flutter', 'react_native', 'expo'):
+        raise HTTPException(400, 'Platform must be flutter, react_native, or expo')
 
     invalid_features = [f for f in body.features if f not in MOBILE_FEATURES]
     if invalid_features:
@@ -1470,6 +2060,8 @@ async def generate_project(body: MobileProjectIn, _=Depends(get_current_admin)):
 
     if body.platform == 'flutter':
         files = _generate_flutter_project(body.name, body.template, body.features, body.backend_url)
+    elif body.platform == 'expo':
+        files = _generate_expo_project(body.name, body.template, body.features, body.backend_url)
     else:
         files = _generate_react_native_project(body.name, body.template, body.features, body.backend_url)
 
