@@ -1,0 +1,344 @@
+{
+  "total": 42,
+  "passed": 36,
+  "failed": 6,
+  "skipped": 0,
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/",
+      "description": "Root API info",
+      "status": "passed",
+      "response_code": 200,
+      "error": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check",
+      "status": "passed",
+      "response_code": 200,
+      "error": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/signup",
+      "description": "User signup",
+      "status": "failed",
+      "response_code": null,
+      "error": "'NoneType' object can't be awaited"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "description": "User login",
+      "status": "failed",
+      "response_code": null,
+      "error": "'NoneType' object can't be awaited"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "description": "Get current user",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "description": "Invalid login",
+      "status": "failed",
+      "response_code": null,
+      "error": "'NoneType' object can't be awaited"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/signup",
+      "description": "Duplicate signup",
+      "status": "failed",
+      "response_code": null,
+      "error": "'NoneType' object can't be awaited"
+    },
+    {
+      "method": "GET",
+      "path": "/api/categories",
+      "description": "List categories",
+      "status": "failed",
+      "response_code": null,
+      "error": "'Cursor' object has no attribute 'to_list'"
+    },
+    {
+      "method": "GET",
+      "path": "/api/products",
+      "description": "List products",
+      "status": "failed",
+      "response_code": null,
+      "error": "'Cursor' object has no attribute 'to_list'"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/products",
+      "description": "Admin list products",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/products",
+      "description": "Admin create product",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/categories",
+      "description": "Admin create category",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cart",
+      "description": "Get cart",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/cart/add",
+      "description": "Add to cart",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/orders/mine",
+      "description": "My orders",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stats",
+      "description": "Admin stats",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stats?range=today",
+      "description": "Stats today",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stats?range=week",
+      "description": "Stats week",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stats?range=month",
+      "description": "Stats month",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/customers",
+      "description": "Customers list",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/orders",
+      "description": "Orders list",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/founder-stats",
+      "description": "Founder stats",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/system-stats",
+      "description": "System stats",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/login-sessions",
+      "description": "Login sessions",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/api-keys",
+      "description": "API keys list",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/projects",
+      "description": "Admin projects",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/analytics/series",
+      "description": "Analytics series",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/analytics/funnel",
+      "description": "Analytics funnel",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/settings",
+      "description": "Admin settings",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/audit-logs",
+      "description": "Audit logs",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/live-activity",
+      "description": "Live activity",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/dashboard/executive",
+      "description": "Executive dashboard",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/blocked-ips",
+      "description": "Blocked IPs",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/chat/sessions",
+      "description": "Chat sessions",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/chat",
+      "description": "Admin chat",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/chat/history",
+      "description": "Chat history",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/settings",
+      "description": "Save settings",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/api-keys",
+      "description": "Create API key",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/blocked-ips",
+      "description": "Block IP",
+      "status": "passed",
+      "response_code": 401,
+      "error": "Auth required (expected)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stats",
+      "description": "Stats WITHOUT auth",
+      "status": "passed",
+      "response_code": 401,
+      "error": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/customers",
+      "description": "Customers WITHOUT auth",
+      "status": "passed",
+      "response_code": 401,
+      "error": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/dashboard/executive",
+      "description": "Executive WITHOUT auth",
+      "status": "passed",
+      "response_code": 401,
+      "error": null
+    }
+  ]
+}

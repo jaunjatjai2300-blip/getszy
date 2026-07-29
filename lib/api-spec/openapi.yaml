@@ -1,15 +1,137 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
-  title: Api
-  version: 0.1.0
-  description: API specification
+  title: Getszy API
+  version: 2.0.0
+  description: AI-Powered Business Builder Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: catalog
+    description: Products, categories, suppliers
+  - name: cart-orders
+    description: Shopping cart and orders
+  - name: admin
+    description: Admin dashboard and management
+  - name: learning
+    description: Courses, lessons, enrollment
+  - name: ai-ops
+    description: AI operations and chat
+  - name: ai-platform
+    description: AI platform features
+  - name: ai-workforce
+    description: AI workforce management
+  - name: chat-builder
+    description: Chat builder functionality
+  - name: subscription
+    description: Subscription management
+  - name: credits
+    description: Credits system
+  - name: razorpay
+    description: Razorpay payments
+  - name: media
+    description: Media management
+  - name: images
+    description: Image generation
+  - name: voice
+    description: Voice cloning
+  - name: video
+    description: Video generation
+  - name: video-factory
+    description: Video factory workflows
+  - name: publishing
+    description: Publishing operations
+  - name: avatar
+    description: Avatar generation
+  - name: creator
+    description: Creator tools
+  - name: creator-platform
+    description: Creator platform
+  - name: workforce
+    description: Workforce management
+  - name: builder
+    description: Builder studio
+  - name: build-studio
+    description: Build studio
+  - name: api-builder
+    description: API builder
+  - name: mobile-builder
+    description: Mobile app builder
+  - name: business-builders
+    description: Business builders
+  - name: saas-builder
+    description: SaaS builder
+  - name: deploy
+    description: Deployment
+  - name: deploy-platform
+    description: Deploy platform
+  - name: hosting
+    description: Hosting management
+  - name: git
+    description: Git operations
+  - name: founder
+    description: Founder tools
+  - name: enterprise-security
+    description: Enterprise security
+  - name: security
+    description: Security operations
+  - name: operations
+    description: Platform operations
+  - name: settings
+    description: Settings management
+  - name: skills
+    description: Skills management
+  - name: stacks
+    description: Tech stacks
+  - name: support
+    description: Support tickets
+  - name: legal
+    description: Legal documents
+  - name: waitlist
+    description: Waitlist management
+  - name: advanced-analytics
+    description: Advanced analytics
+  - name: growth
+    description: Growth metrics
+  - name: marketplace
+    description: Marketplace
+  - name: workspace
+    description: Workspace management
+  - name: projects
+    description: Projects
+  - name: social
+    description: Social features
+  - name: workflows
+    description: Workflows
+  - name: notifications
+    description: Notifications
+  - name: audit
+    description: Audit logs
+  - name: queue
+    description: Queue management
+  - name: extras
+    description: Extra endpoints
+  - name: ws
+    description: WebSocket endpoints
+  - name: creator-engine
+    description: Creator engine
+  - name: copilot
+    description: AI Copilot
+  - name: commerce-extra
+    description: Extra commerce
+  - name: sourcing
+    description: Product sourcing
+  - name: learning-platform
+    description: Learning platform
+  - name: deploy-platform
+    description: Deploy platform
+  - name: routes-razorpay
+    description: Razorpay routes
+
 paths:
   /healthz:
     get:
@@ -24,13 +146,1636 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /health:
+    get:
+      operationId: health
+      tags: [health]
+      summary: Health check (detailed)
+      description: Returns detailed server health with database check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  ai:
+                    type: string
+
+  /auth/signup:
+    post:
+      operationId: authSignup
+      tags: [auth]
+      summary: User signup
+      description: Register a new user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupIn"
+      responses:
+        "200":
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: "#/components/schemas/UserOut"
+        "400":
+          description: Email already registered or validation error
+
+  /auth/login:
+    post:
+      operationId: authLogin
+      tags: [auth]
+      summary: User login
+      description: Authenticate user and return JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginIn"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: "#/components/schemas/UserOut"
+        "401":
+          description: Invalid email or password
+
+  /auth/me:
+    get:
+      operationId: authMe
+      tags: [auth]
+      summary: Get current user
+      description: Returns the authenticated user's profile with subscription and credits
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserOut"
+
+  /categories:
+    get:
+      operationId: listCategories
+      tags: [catalog]
+      summary: List all categories
+      description: Returns all product categories with product counts
+      responses:
+        "200":
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+
+  /admin/categories:
+    post:
+      operationId: createCategory
+      tags: [catalog]
+      summary: Create category (admin)
+      description: Create a new product category
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryIn"
+      responses:
+        "200":
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "400":
+          description: Category already exists
+
+  /admin/categories/{cat_id}:
+    delete:
+      operationId: deleteCategory
+      tags: [catalog]
+      summary: Delete category (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cat_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Category deleted
+
+  /products:
+    get:
+      operationId: listProducts
+      tags: [catalog]
+      summary: List products
+      description: Returns active products with optional filtering
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: featured
+          in: query
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 60
+      responses:
+        "200":
+          description: List of products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+
+  /products/{pid}:
+    get:
+      operationId: getProduct
+      tags: [catalog]
+      summary: Get product by ID or slug
+      parameters:
+        - name: pid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          description: Product not found
+
+  /admin/products:
+    get:
+      operationId: adminListProducts
+      tags: [catalog]
+      summary: List all products (admin)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: List of all products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+    post:
+      operationId: adminCreateProduct
+      tags: [catalog]
+      summary: Create product (admin)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductIn"
+      responses:
+        "200":
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /admin/products/{pid}:
+    put:
+      operationId: adminUpdateProduct
+      tags: [catalog]
+      summary: Update product (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: pid
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductIn"
+      responses:
+        "200":
+          description: Product updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          description: Product not found
+    delete:
+      operationId: adminDeleteProduct
+      tags: [catalog]
+      summary: Delete product (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: pid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product deleted
+
+  /admin/suppliers:
+    get:
+      operationId: listSuppliers
+      tags: [catalog]
+      summary: List suppliers (admin)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: List of suppliers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Supplier"
+    post:
+      operationId: createSupplier
+      tags: [catalog]
+      summary: Create supplier (admin)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplierIn"
+      responses:
+        "200":
+          description: Supplier created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+
+  /admin/suppliers/{sid}:
+    put:
+      operationId: updateSupplier
+      tags: [catalog]
+      summary: Update supplier (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sid
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplierUpdateIn"
+      responses:
+        "200":
+          description: Supplier updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+        "404":
+          description: Supplier not found
+    delete:
+      operationId: deleteSupplier
+      tags: [catalog]
+      summary: Delete supplier (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Supplier deleted
+
+  /cart:
+    get:
+      operationId: getCart
+      tags: [cart-orders]
+      summary: Get user's cart
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Cart with enriched items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CartResponse"
+
+  /cart/add:
+    post:
+      operationId: addToCart
+      tags: [cart-orders]
+      summary: Add item to cart
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CartItem"
+      responses:
+        "200":
+          description: Item added to cart
+
+  /cart/update:
+    post:
+      operationId: updateCart
+      tags: [cart-orders]
+      summary: Update cart item quantity
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CartItem"
+      responses:
+        "200":
+          description: Cart updated
+
+  /cart/clear:
+    post:
+      operationId: clearCart
+      tags: [cart-orders]
+      summary: Clear cart
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Cart cleared
+
+  /orders/checkout:
+    post:
+      operationId: checkout
+      tags: [cart-orders]
+      summary: Checkout and create order
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutIn"
+      responses:
+        "200":
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          description: Cart is empty
+
+  /orders/mine:
+    get:
+      operationId: myOrders
+      tags: [cart-orders]
+      summary: Get current user's orders
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: List of user's orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+
+  /admin/orders:
+    get:
+      operationId: allOrders
+      tags: [cart-orders]
+      summary: Get all orders (admin)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: List of all orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+
+  /admin/orders/{order_id}/status:
+    put:
+      operationId: updateOrderStatus
+      tags: [cart-orders]
+      summary: Update order status (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderStatusUpdate"
+      responses:
+        "200":
+          description: Order status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "404":
+          description: Order not found
+
+  /admin/stats:
+    get:
+      operationId: adminStats
+      tags: [admin]
+      summary: Get admin dashboard stats
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: range
+          in: query
+          schema:
+            type: string
+            enum: [today, week, month]
+            default: today
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+
+  /admin/customers:
+    get:
+      operationId: adminCustomers
+      tags: [admin]
+      summary: Get all customers (admin)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: List of customers with order stats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminCustomer"
+
+  /admin/chat:
+    post:
+      operationId: adminChat
+      tags: [admin]
+      summary: Admin AI chat
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminChatIn"
+      responses:
+        "200":
+          description: Chat response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminChatResponse"
+
+  /admin/chat/history:
+    get:
+      operationId: adminChatHistory
+      tags: [admin]
+      summary: Get admin chat history
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: session_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Chat history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminChatMessage"
+
+  /admin/founder-stats:
+    get:
+      operationId: founderStats
+      tags: [admin]
+      summary: Get founder dashboard stats
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Founder stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FounderStats"
+
+  /admin/chat/sessions:
+    get:
+      operationId: adminChatSessions
+      tags: [admin]
+      summary: Get admin chat sessions
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: List of chat sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatSession"
+
+  /admin/system-stats:
+    get:
+      operationId: systemStats
+      tags: [admin]
+      summary: Get system health stats
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: System stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemStats"
+
+  /admin/login-sessions:
+    get:
+      operationId: loginSessions
+      tags: [admin]
+      summary: Get recent login sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Login sessions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginSessionsResponse"
+
+  /admin/api-keys:
+    get:
+      operationId: listApiKeys
+      tags: [admin]
+      summary: List API keys (admin)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeysResponse"
+    post:
+      operationId: createApiKey
+      tags: [admin]
+      summary: Create API key (admin)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApiKeyIn"
+      responses:
+        "200":
+          description: API key created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyCreated"
+
+  /admin/api-keys/{key_id}:
+    delete:
+      operationId: revokeApiKey
+      tags: [admin]
+      summary: Revoke API key (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: key_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: API key revoked
+        "404":
+          description: Key not found
+
+  /admin/projects:
+    get:
+      operationId: adminAllProjects
+      tags: [admin]
+      summary: Get all builder projects (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectsResponse"
+
+  /admin/analytics/series:
+    get:
+      operationId: analyticsSeries
+      tags: [admin]
+      summary: Get analytics time series (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Analytics series
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsSeriesResponse"
+
+  /admin/analytics/funnel:
+    get:
+      operationId: analyticsFunnel
+      tags: [admin]
+      summary: Get conversion funnel (admin)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Funnel data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsFunnelResponse"
+
+  /admin/settings:
+    get:
+      operationId: getSettings
+      tags: [admin]
+      summary: Get workspace settings (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: section
+          in: query
+          schema:
+            type: string
+            default: workspace
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsResponse"
+    post:
+      operationId: saveSettings
+      tags: [admin]
+      summary: Save workspace settings (admin)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingsIn"
+      responses:
+        "200":
+          description: Settings saved
+
+  /admin/audit-logs:
+    get:
+      operationId: getAuditLogs
+      tags: [admin]
+      summary: Get audit logs (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: action
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogsResponse"
+
+  /admin/sessions/revoke-all:
+    post:
+      operationId: revokeAllSessions
+      tags: [admin]
+      summary: Revoke all user sessions (admin)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Sessions revoked
+
+  /admin/blocked-ips:
+    get:
+      operationId: listBlockedIps
+      tags: [admin]
+      summary: List blocked IPs (admin)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Blocked IPs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockedIpsResponse"
+    post:
+      operationId: blockIp
+      tags: [admin]
+      summary: Block IP (admin)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BlockIpIn"
+      responses:
+        "200":
+          description: IP blocked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockedIp"
+        "400":
+          description: IP already blocked
+
+  /admin/blocked-ips/{ip_id}:
+    delete:
+      operationId: unblockIp
+      tags: [admin]
+      summary: Unblock IP (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: ip_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: IP unblocked
+        "404":
+          description: Not found
+
+  /admin/live-activity:
+    get:
+      operationId: liveActivity
+      tags: [admin]
+      summary: Get live activity feed (admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Live activity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveActivityResponse"
+
+  /admin/dashboard/executive:
+    get:
+      operationId: executiveDashboard
+      tags: [admin]
+      summary: Get executive dashboard (admin)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Executive dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutiveDashboardResponse"
+
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     HealthStatus:
       type: object
+      required:
+        - status
       properties:
         status:
           type: string
+
+    SignupIn:
+      type: object
+      required:
+        - name
+        - email
+        - password
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        phone:
+          type: string
+
+    LoginIn:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    UserOut:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+        subscription:
+          type: object
+        credits:
+          type: integer
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        image:
+          type: string
+        description:
+          type: string
+        product_count:
+          type: integer
+
+    CategoryIn:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        image:
+          type: string
+        description:
+          type: string
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        cost_price:
+          type: number
+        images:
+          type: array
+          items:
+            type: string
+        category:
+          type: string
+        supplier:
+          type: string
+        stock:
+          type: integer
+        is_active:
+          type: boolean
+        is_featured:
+          type: boolean
+        created_at:
+          type: string
+
+    ProductIn:
+      type: object
+      required:
+        - name
+        - description
+        - price
+        - category
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        cost_price:
+          type: number
+        images:
+          type: array
+          items:
+            type: string
+        category:
+          type: string
+        supplier:
+          type: string
+        stock:
+          type: integer
+        is_active:
+          type: boolean
+        is_featured:
+          type: boolean
+
+    Supplier:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        contact:
+          type: string
+        email:
+          type: string
+        notes:
+          type: string
+        created_at:
+          type: string
+
+    SupplierIn:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        contact:
+          type: string
+        email:
+          type: string
+        notes:
+          type: string
+
+    SupplierUpdateIn:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        contact:
+          type: string
+        email:
+          type: string
+        notes:
+          type: string
+
+    CartItem:
+      type: object
+      required:
+        - product_id
+        - quantity
+      properties:
+        product_id:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+
+    CartResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              product_id:
+                type: string
+              quantity:
+                type: integer
+              product:
+                $ref: "#/components/schemas/Product"
+              line_total:
+                type: number
+        total:
+          type: number
+        count:
+          type: integer
+
+    CheckoutIn:
+      type: object
+      required:
+        - address
+      properties:
+        address:
+          type: object
+        notes:
+          type: string
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+        order_number:
+          type: string
+        user_id:
+          type: string
+        customer_name:
+          type: string
+        customer_email:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItem"
+        subtotal:
+          type: number
+        shipping_fee:
+          type: number
+        total:
+          type: number
+        cost_total:
+          type: number
+        profit:
+          type: number
+        status:
+          type: string
+        address:
+          type: object
+        notes:
+          type: string
+        created_at:
+          type: string
+
+    OrderItem:
+      type: object
+      properties:
+        product_id:
+          type: string
+        name:
+          type: string
+        image:
+          type: string
+        price:
+          type: number
+        cost_price:
+          type: number
+        quantity:
+          type: integer
+        supplier:
+          type: string
+
+    OrderStatusUpdate:
+      type: object
       required:
         - status
+      properties:
+        status:
+          type: string
+        tracking_number:
+          type: string
 
+    AdminStats:
+      type: object
+      properties:
+        range:
+          type: string
+        revenue:
+          type: number
+        profit:
+          type: number
+        orders_count:
+          type: integer
+        customers_count:
+          type: integer
+        products_count:
+          type: integer
+        low_stock_count:
+          type: integer
+        series_7d:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              revenue:
+                type: number
+              orders:
+                type: integer
+        recent_orders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Order"
+
+    AdminCustomer:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        orders_count:
+          type: integer
+        lifetime_value:
+          type: number
+        credits:
+          type: integer
+        plan:
+          type: string
+        last_login:
+          type: string
+
+    AdminChatIn:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+        session_id:
+          type: string
+
+    AdminChatMessage:
+      type: object
+      properties:
+        session_id:
+          type: string
+        role:
+          type: string
+        text:
+          type: string
+        intent:
+          type: string
+        params:
+          type: object
+        result:
+          type: object
+        created_at:
+          type: string
+
+    AdminChatResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+        intent:
+          type: string
+        params:
+          type: object
+        reply:
+          type: string
+        result:
+          type: object
+
+    FounderStats:
+      type: object
+      properties:
+        mrr:
+          type: number
+        arr:
+          type: number
+        total_users:
+          type: integer
+        active_users:
+          type: integer
+        subscribers:
+          type: integer
+        ai_jobs_today:
+          type: integer
+        total_videos:
+          type: integer
+        total_images:
+          type: integer
+        total_voice:
+          type: integer
+        total_llm:
+          type: integer
+        credits_used_today:
+          type: integer
+        credits_used_month:
+          type: integer
+        credits_granted:
+          type: integer
+        uptime_seconds:
+          type: integer
+        env_health:
+          type: object
+        hf_token_set:
+          type: boolean
+        groq_set:
+          type: boolean
+        openrouter_set:
+          type: boolean
+
+    ChatSession:
+      type: object
+      properties:
+        session_id:
+          type: string
+        last:
+          type: string
+        created_at:
+          type: string
+        count:
+          type: integer
+
+    SystemStats:
+      type: object
+      properties:
+        uptime_s:
+          type: integer
+        cpu_load:
+          type: object
+        ram:
+          type: object
+        disk:
+          type: object
+        mongo:
+          type: object
+        gpu:
+          type: object
+        gpu_available:
+          type: boolean
+
+    LoginSessionsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              email:
+                type: string
+              name:
+                type: string
+              ip:
+                type: string
+              user_agent:
+                type: string
+              created_at:
+                type: string
+              active:
+                type: boolean
+
+    ApiKeysResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              key_prefix:
+                type: string
+              created_at:
+                type: string
+              last_used:
+                type: string
+              revoked:
+                type: boolean
+
+    ApiKeyIn:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+
+    ApiKeyCreated:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        key:
+          type: string
+        key_prefix:
+          type: string
+
+    ProjectsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+        total:
+          type: integer
+
+    AnalyticsSeriesResponse:
+      type: object
+      properties:
+        series:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              new_users:
+                type: integer
+              orders:
+                type: integer
+              ai_jobs:
+                type: integer
+              credits_spent:
+                type: number
+        days:
+          type: integer
+
+    AnalyticsFunnelResponse:
+      type: object
+      properties:
+        funnel:
+          type: array
+          items:
+            type: object
+            properties:
+              stage:
+                type: string
+              count:
+                type: integer
+              pct:
+                type: number
+
+    SettingsIn:
+      type: object
+      required:
+        - section
+        - data
+      properties:
+        section:
+          type: string
+        data:
+          type: object
+
+    SettingsResponse:
+      type: object
+      properties:
+        section:
+          type: string
+        data:
+          type: object
+
+    AuditLogsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              admin_id:
+                type: string
+              action:
+                type: string
+              detail:
+                type: string
+              level:
+                type: string
+              created_at:
+                type: string
+        total:
+          type: integer
+
+    BlockIpIn:
+      type: object
+      required:
+        - ip
+      properties:
+        ip:
+          type: string
+        reason:
+          type: string
+
+    BlockedIpsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlockedIp"
+
+    BlockedIp:
+      type: object
+      properties:
+        id:
+          type: string
+        ip:
+          type: string
+        reason:
+          type: string
+        created_at:
+          type: string
+
+    LiveActivityResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              msg:
+                type: string
+              at:
+                type: string
+              id:
+                type: string
+
+    ExecutiveDashboardResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+        health_score:
+          type: integer
+        kpi:
+          type: object
+        series:
+          type: object
+        funnel:
+          type: object
+        conversion_rate:
+          type: number
+        top_products:
+          type: array
+        recent_orders:
+          type: array
+        activity:
+          type: array
+        alerts:
+          type: array
+        env_health:
+          type: object
+        mongo_ok:
+          type: boolean
