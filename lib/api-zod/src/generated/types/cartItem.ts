@@ -6,6 +6,8 @@
  * OpenAPI spec version: 2.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface CartItem {
+  product_id: string;
+  /** @minimum 1 */
+  quantity: number;
 }

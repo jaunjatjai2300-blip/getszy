@@ -5,7 +5,8 @@
  * AI-Powered Business Builder Platform API
  * OpenAPI spec version: 2.0.0
  */
+import type { BlockedIp } from './blockedIp';
 
-export interface HealthStatus {
-  status: string;
+export interface BlockedIpsResponse {
+  items?: BlockedIp[];
 }

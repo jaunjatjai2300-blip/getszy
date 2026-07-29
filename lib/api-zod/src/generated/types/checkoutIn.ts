@@ -5,7 +5,9 @@
  * AI-Powered Business Builder Platform API
  * OpenAPI spec version: 2.0.0
  */
+import type { CheckoutInAddress } from './checkoutInAddress';
 
-export interface HealthStatus {
-  status: string;
+export interface CheckoutIn {
+  address: CheckoutInAddress;
+  notes?: string;
 }

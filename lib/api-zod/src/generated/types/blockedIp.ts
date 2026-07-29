@@ -6,6 +6,9 @@
  * OpenAPI spec version: 2.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface BlockedIp {
+  id?: string;
+  ip?: string;
+  reason?: string;
+  created_at?: string;
 }

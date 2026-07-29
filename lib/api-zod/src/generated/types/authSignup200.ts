@@ -5,7 +5,9 @@
  * AI-Powered Business Builder Platform API
  * OpenAPI spec version: 2.0.0
  */
+import type { UserOut } from './userOut';
 
-export interface HealthStatus {
-  status: string;
-}
+export type AuthSignup200 = {
+  token?: string;
+  user?: UserOut;
+};
