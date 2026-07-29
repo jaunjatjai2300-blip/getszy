@@ -1,0 +1,2739 @@
+{
+  "timestamp": "2026-07-29T00:47:57.582095+00:00",
+  "summary": {
+    "total": 65,
+    "passed": 64,
+    "failed": 1,
+    "pass_rate_pct": 98.5
+  },
+  "categories": {
+    "Auth": {
+      "pass": 2,
+      "fail": 0,
+      "total": 2
+    },
+    "Stats": {
+      "pass": 5,
+      "fail": 0,
+      "total": 5
+    },
+    "Executive Dashboard": {
+      "pass": 2,
+      "fail": 0,
+      "total": 2
+    },
+    "Founder Dashboard": {
+      "pass": 10,
+      "fail": 0,
+      "total": 10
+    },
+    "Other": {
+      "pass": 1,
+      "fail": 0,
+      "total": 1
+    },
+    "Categories": {
+      "pass": 2,
+      "fail": 0,
+      "total": 2
+    },
+    "Catalog": {
+      "pass": 3,
+      "fail": 0,
+      "total": 3
+    },
+    "Customers": {
+      "pass": 2,
+      "fail": 0,
+      "total": 2
+    },
+    "Orders": {
+      "pass": 2,
+      "fail": 0,
+      "total": 2
+    },
+    "Analytics": {
+      "pass": 3,
+      "fail": 0,
+      "total": 3
+    },
+    "API Keys": {
+      "pass": 3,
+      "fail": 0,
+      "total": 3
+    },
+    "IP Blocking": {
+      "pass": 2,
+      "fail": 1,
+      "total": 3
+    },
+    "Settings": {
+      "pass": 3,
+      "fail": 0,
+      "total": 3
+    },
+    "Audit Logs": {
+      "pass": 2,
+      "fail": 0,
+      "total": 2
+    },
+    "Live Activity": {
+      "pass": 1,
+      "fail": 0,
+      "total": 1
+    },
+    "Projects": {
+      "pass": 1,
+      "fail": 0,
+      "total": 1
+    },
+    "Operations": {
+      "pass": 11,
+      "fail": 0,
+      "total": 11
+    },
+    "Enterprise Security": {
+      "pass": 7,
+      "fail": 0,
+      "total": 7
+    },
+    "Sessions": {
+      "pass": 2,
+      "fail": 0,
+      "total": 2
+    }
+  },
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "desc": "Get current user /me",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "id": "eb742262-2a98-4538-aa32-f13268b3ee82",
+        "name": "Audit Admin",
+        "email": "audit-admin@getszy.com",
+        "role": "admin",
+        "phone": null,
+        "credits": 0,
+        "subscription": {
+          "plan": "free",
+          "status": "active",
+          "trial_started_at": null,
+          "trial_ends_at": null,
+          "current_period_end": null,
+          "cancelled_at": null,
+          "studio_builds_used": 0,
+          "studio_builds_reset_at": "2026-08-01T00:00:00+00:00",
+          "quota": {
+            "studio_builds": 0,
+            "advanced_courses": false,
+            "ai_tutor": true
+          }
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stats",
+      "desc": "Stats today",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "range": "today",
+        "revenue": 0,
+        "profit": 0,
+        "orders_count": 0,
+        "customers_count": 0,
+        "products_count": 0,
+        "low_stock_count": 0,
+        "series_7d": [
+          {
+            "date": "Thu",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Fri",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Sat",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Sun",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Mon",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Tue",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Wed",
+            "revenue": 0,
+            "orders": 0
+          }
+        ],
+        "recent_orders": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stats?range=today",
+      "desc": "Stats today explicit",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "range": "today",
+        "revenue": 0,
+        "profit": 0,
+        "orders_count": 0,
+        "customers_count": 0,
+        "products_count": 0,
+        "low_stock_count": 0,
+        "series_7d": [
+          {
+            "date": "Thu",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Fri",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Sat",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Sun",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Mon",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Tue",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Wed",
+            "revenue": 0,
+            "orders": 0
+          }
+        ],
+        "recent_orders": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stats?range=week",
+      "desc": "Stats week",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "range": "week",
+        "revenue": 0,
+        "profit": 0,
+        "orders_count": 0,
+        "customers_count": 0,
+        "products_count": 0,
+        "low_stock_count": 0,
+        "series_7d": [
+          {
+            "date": "Thu",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Fri",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Sat",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Sun",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Mon",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Tue",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Wed",
+            "revenue": 0,
+            "orders": 0
+          }
+        ],
+        "recent_orders": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stats?range=month",
+      "desc": "Stats month",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "range": "month",
+        "revenue": 0,
+        "profit": 0,
+        "orders_count": 0,
+        "customers_count": 0,
+        "products_count": 0,
+        "low_stock_count": 0,
+        "series_7d": [
+          {
+            "date": "Thu",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Fri",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Sat",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Sun",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Mon",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Tue",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "Wed",
+            "revenue": 0,
+            "orders": 0
+          }
+        ],
+        "recent_orders": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/dashboard/executive",
+      "desc": "Executive dashboard (big one)",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "timestamp": "2026-07-29T00:47:43.627220+00:00",
+        "health_score": 65,
+        "kpi": {
+          "total_users": 1,
+          "customers": 0,
+          "admins": 1,
+          "users_today": 1,
+          "users_week": 1,
+          "users_month": 1,
+          "active_users": 1,
+          "user_growth_pct": 0,
+          "total_orders": 0,
+          "orders_today": 0,
+          "orders_week": 0,
+          "orders_month": 0,
+          "total_revenue": 0,
+          "total_profit": 0,
+          "revenue_today": 0,
+          "revenue_week": 0,
+          "revenue_month": 0,
+          "revenue_prev_month": 0,
+          "rev_growth_pct": 0,
+          "avg_order_value": 0,
+          "mrr": 0,
+          "arr": 0,
+          "active_subs": 0,
+          "pro_subs": 0,
+          "elite_subs": 0,
+          "trial_subs": 0,
+          "total_products": 0,
+          "active_products": 0,
+          "low_stock": 0,
+          "out_of_stock": 0,
+          "ai_today": 0,
+          "ai_week": 0,
+          "ai_month": 0,
+          "total_videos": 0,
+          "total_images": 0,
+          "total_voice": 0,
+          "credits_used_today": 0,
+          "credits_used_month": 0
+        },
+        "series": {
+          "revenue_7d": [
+            {
+              "date": "Jul 23",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 24",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 25",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 26",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 27",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 28",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 29",
+              "revenue": 0,
+              "orders": 0
+            }
+          ],
+          "revenue_30d": [
+            {
+              "date": "Jun 30",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 01",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 02",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 03",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 04",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 05",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 06",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 07",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 08",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 09",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 10",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 11",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 12",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 13",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 14",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 15",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 16",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 17",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 18",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 19",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 20",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 21",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 22",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 23",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 24",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 25",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 26",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 27",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 28",
+              "revenue": 0,
+              "orders": 0
+            },
+            {
+              "date": "Jul 29",
+              "revenue": 0,
+              "orders": 0
+            }
+          ],
+          "users_30d": [
+            {
+              "date": "Jun 30",
+              "signups": 0
+            },
+            {
+              "date": "Jul 01",
+              "signups": 0
+            },
+            {
+              "date": "Jul 02",
+              "signups": 0
+            },
+            {
+              "date": "Jul 03",
+              "signups": 0
+            },
+            {
+              "date": "Jul 04",
+              "signups": 0
+            },
+            {
+              "date": "Jul 05",
+              "signups": 0
+            },
+            {
+              "date": "Jul 06",
+              "signups": 0
+            },
+            {
+              "date": "Jul 07",
+              "signups": 0
+            },
+            {
+              "date": "Jul 08",
+              "signups": 0
+            },
+            {
+              "date": "Jul 09",
+              "signups": 0
+            },
+            {
+              "date": "Jul 10",
+              "signups": 0
+            },
+            {
+              "date": "Jul 11",
+              "signups": 0
+            },
+            {
+              "date": "Jul 12",
+              "signups": 0
+            },
+            {
+              "date": "Jul 13",
+              "signups": 0
+            },
+            {
+              "date": "Jul 14",
+              "signups": 0
+            },
+            {
+              "date": "Jul 15",
+              "signups": 0
+            },
+            {
+              "date": "Jul 16",
+              "signups": 0
+            },
+            {
+              "date": "Jul 17",
+              "signups": 0
+            },
+            {
+              "date": "Jul 18",
+              "signups": 0
+            },
+            {
+              "date": "Jul 19",
+              "signups": 0
+            },
+            {
+              "date": "Jul 20",
+              "signups": 0
+            },
+            {
+              "date": "Jul 21",
+              "signups": 0
+            },
+            {
+              "date": "Jul 22",
+              "signups": 0
+            },
+            {
+              "date": "Jul 23",
+              "signups": 0
+            },
+            {
+              "date": "Jul 24",
+              "signups": 0
+            },
+            {
+              "date": "Jul 25",
+              "signups": 0
+            },
+            {
+              "date": "Jul 26",
+              "signups": 0
+            },
+            {
+              "date": "Jul 27",
+              "signups": 0
+            },
+            {
+              "date": "Jul 28",
+              "signups": 0
+            },
+            {
+              "date": "Jul 29",
+              "signups": 1
+            }
+          ]
+        },
+        "funnel": {
+          "visitors": 1,
+          "signups": 0,
+          "subscribers": 0
+        },
+        "conversion_rate": 0,
+        "top_products": [],
+        "recent_orders": [],
+        "activity": [],
+        "alerts": [],
+        "env_health": {
+          "MONGO_URL": true,
+          "JWT_SECRET": true,
+          "OLLAMA_BASE_URL": false,
+          "GROQ_API_KEY": false,
+          "GEMINI_API_KEY": false,
+          "OPENROUTER_API_KEY": false,
+          "RAZORPAY_KEY_ID": false
+        },
+        "mongo_ok": true
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/founder-stats",
+      "desc": "Founder stats",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "mrr": 0,
+        "arr": 0,
+        "total_users": 0,
+        "active_users": 0,
+        "subscribers": 0,
+        "ai_jobs_today": 0,
+        "total_videos": 0,
+        "total_images": 0,
+        "total_voice": 0,
+        "total_llm": 0,
+        "credits_used_today": 0,
+        "credits_used_month": 0,
+        "credits_granted": 0,
+        "uptime_seconds": null,
+        "env_health": {
+          "MONGO_URL": true,
+          "JWT_SECRET": true,
+          "SESSION_SECRET": false,
+          "GROQ_API_KEY": false,
+          "HF_TOKEN": false,
+          "OPENROUTER_API_KEY": false,
+          "RAZORPAY_KEY_ID": false
+        },
+        "hf_token_set": false,
+        "groq_set": false,
+        "openrouter_set": false
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/system-stats",
+      "desc": "System stats (VPS health)",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "uptime_s": null,
+        "cpu_load": null,
+        "ram": null,
+        "disk": null,
+        "mongo": {
+          "ok": true,
+          "ping_ms": 0.0
+        },
+        "gpu": null,
+        "gpu_available": false
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/categories",
+      "desc": "Create category",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "id": "9b2a6b80-c0a7-41a0-b4dd-4eeabec406bc",
+        "name": "Electronics",
+        "slug": "electronics",
+        "image": null,
+        "description": null,
+        "created_at": "2026-07-29T00:47:43.680597+00:00"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/categories",
+      "desc": "List categories (public)",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": [
+        {
+          "id": "9b2a6b80-c0a7-41a0-b4dd-4eeabec406bc",
+          "name": "Electronics",
+          "slug": "electronics",
+          "image": null,
+          "description": null,
+          "created_at": "2026-07-29T00:47:43.680597+00:00",
+          "product_count": 0
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/products",
+      "desc": "Create product",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "id": "7859504e-7094-4c05-a553-c292c61418c5",
+        "name": "Test Phone",
+        "slug": "test-phone",
+        "description": "A test phone",
+        "images": [],
+        "price": 599.99,
+        "cost_price": 0.0,
+        "stock": 25,
+        "category": "electronics",
+        "supplier": null,
+        "is_digital": false,
+        "is_featured": false,
+        "is_active": true,
+        "created_at": "2026-07-29T00:47:43.704073+00:00"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/products",
+      "desc": "Admin list products",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": [
+        {
+          "id": "7859504e-7094-4c05-a553-c292c61418c5",
+          "name": "Test Phone",
+          "slug": "test-phone",
+          "description": "A test phone",
+          "images": [],
+          "price": 599.99,
+          "cost_price": 0.0,
+          "stock": 25,
+          "category": "electronics",
+          "supplier": null,
+          "is_digital": false,
+          "is_featured": false,
+          "is_active": true,
+          "created_at": "2026-07-29T00:47:43.704073+00:00"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/products",
+      "desc": "Public list products",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": [
+        {
+          "id": "7859504e-7094-4c05-a553-c292c61418c5",
+          "name": "Test Phone",
+          "slug": "test-phone",
+          "description": "A test phone",
+          "images": [],
+          "price": 599.99,
+          "stock": 25,
+          "category": "electronics",
+          "supplier": null,
+          "is_digital": false,
+          "is_featured": false,
+          "is_active": true,
+          "created_at": "2026-07-29T00:47:43.704073+00:00"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/signup",
+      "desc": "Signup customer",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzYzhkNDRlYi01Y2I4LTRiZTUtYTUzZC05YzI1ODM4ZjI5ODUiLCJyb2xlIjoiY3VzdG9tZXIiLCJleHAiOjE3ODc4NzgwNjR9.AeXIBxHtIkpkW7Q2FdElRrQpzh3KMl609aqnhChPgLg",
+        "user": {
+          "id": "3c8d44eb-5cb8-4be5-a53d-9c25838f2985",
+          "name": "Test Customer",
+          "email": "cust@getszy.com",
+          "role": "customer",
+          "phone": null,
+          "credits": 0
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/customers",
+      "desc": "List customers",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": [
+        {
+          "id": "3c8d44eb-5cb8-4be5-a53d-9c25838f2985",
+          "name": "Test Customer",
+          "email": "cust@getszy.com",
+          "role": "customer",
+          "phone": null,
+          "credits": 0,
+          "created_at": "2026-07-29T00:47:44.104831+00:00",
+          "orders_count": 0,
+          "lifetime_value": 0,
+          "plan": "free"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/orders",
+      "desc": "Admin list orders",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orders/mine",
+      "desc": "Customer my orders",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/analytics/series",
+      "desc": "Analytics time series",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "series": [
+          {
+            "date": "30 Jun",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "01 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "02 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "03 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "04 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "05 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "06 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "07 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "08 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "09 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "10 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "11 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "12 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "13 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "14 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "15 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "16 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "17 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "18 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "19 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "20 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "21 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "22 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "23 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "24 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "25 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "26 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "27 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "28 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "29 Jul",
+            "new_users": 2,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          }
+        ],
+        "days": 30
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/analytics/series?days=7",
+      "desc": "Analytics 7-day series",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "series": [
+          {
+            "date": "23 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "24 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "25 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "26 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "27 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "28 Jul",
+            "new_users": 0,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          },
+          {
+            "date": "29 Jul",
+            "new_users": 2,
+            "orders": 0,
+            "ai_jobs": 0,
+            "credits_spent": 0
+          }
+        ],
+        "days": 7
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/analytics/funnel",
+      "desc": "Conversion funnel",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "funnel": [
+          {
+            "stage": "Signed Up",
+            "count": 1,
+            "pct": 100
+          },
+          {
+            "stage": "Placed Order",
+            "count": 0,
+            "pct": 0.0
+          },
+          {
+            "stage": "Subscribed",
+            "count": 0,
+            "pct": 0.0
+          }
+        ]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/api-keys",
+      "desc": "Create API key",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "id": "a94c3359-8f13-48f4-8284-7bf86933ecf7",
+        "name": "Test Integration Key",
+        "key": "gs_bpKg68YQAKk2gH1vCFmguuhp_CU0Ff9-tq_nBYbwEio",
+        "key_prefix": "gs_bpKg68Y"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/api-keys",
+      "desc": "List API keys",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "items": [
+          {
+            "id": "a94c3359-8f13-48f4-8284-7bf86933ecf7",
+            "name": "Test Integration Key",
+            "key_prefix": "gs_bpKg68Y",
+            "created_at": "2026-07-29T00:47:44.200817+00:00",
+            "last_used": null,
+            "revoked": false
+          }
+        ]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/blocked-ips",
+      "desc": "Block IP",
+      "status": "FAIL",
+      "code": null,
+      "error": "[TypeError(\"'ObjectId' object is not iterable\"), TypeError('vars() argument must have __dict__ attribute')]"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/blocked-ips",
+      "desc": "Block duplicate IP (expect 400)",
+      "status": "PASS",
+      "code": 400,
+      "error": null,
+      "data": {
+        "detail": "IP already blocked"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/blocked-ips",
+      "desc": "List blocked IPs",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "items": [
+          {
+            "id": "9fd08c1b-e9ca-4cca-9d06-e6261750d958",
+            "ip": "192.168.1.100",
+            "reason": "Suspicious activity",
+            "created_at": "2026-07-29T00:47:44.223589+00:00"
+          }
+        ]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/settings",
+      "desc": "Save settings",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "ok": true,
+        "section": "workspace"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/settings",
+      "desc": "Get settings",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "section": "workspace",
+        "data": {
+          "theme": "dark",
+          "language": "en"
+        },
+        "updated_at": "2026-07-29T00:47:44.259578+00:00"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/settings?section=workspace",
+      "desc": "Get workspace settings",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "section": "workspace",
+        "data": {
+          "theme": "dark",
+          "language": "en"
+        },
+        "updated_at": "2026-07-29T00:47:44.259578+00:00"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/audit-logs",
+      "desc": "Get audit logs",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "items": [],
+        "total": 0
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/audit-logs?limit=10",
+      "desc": "Get audit logs (limit 10)",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "items": [],
+        "total": 0
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/live-activity",
+      "desc": "Live activity feed",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "items": [
+          {
+            "type": "signup",
+            "msg": "New signup: cust@getszy.com",
+            "at": "2026-07-29T00:47:44.104831+00:00",
+            "id": "3c8d44eb-5cb8-4be5-a53d-9c25838f2985"
+          }
+        ]
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/projects",
+      "desc": "Admin projects list",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "items": [],
+        "total": 0
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/founder/health-summary",
+      "desc": "Founder health summary",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "status": "degraded",
+        "timestamp": "2026-07-29T00:47:48.234352+00:00",
+        "mongodb_ok": true,
+        "mongodb_detail": "Connected",
+        "redis_ok": false,
+        "redis_detail": "No module named 'redis'",
+        "ollama_ok": true,
+        "ollama_detail": [],
+        "backend_ok": true,
+        "backend_detail": "API responding",
+        "disk_usage": "\u2014",
+        "disk_detail": "\u2014",
+        "cpu_usage": "\u2014",
+        "cpu_detail": "\u2014",
+        "ram_usage": "\u2014",
+        "ram_detail": "\u2014",
+        "services": {
+          "mongodb": {
+            "status": "healthy"
+          },
+          "redis": {
+            "status": "unhealthy",
+            "error": "No module named 'redis'"
+          },
+          "ollama": {
+            "status": "healthy",
+            "models": []
+          }
+        },
+        "system": {
+          "cpu_percent": 0.0,
+          "ram_total_gb": 0.0,
+          "ram_used_gb": 0.0,
+          "ram_percent": 0.0,
+          "disk_total_gb": 0.0,
+          "disk_used_gb": 0.0,
+          "disk_percent": 0.0
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/founder/kpi",
+      "desc": "Founder KPI",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "total_users": 2,
+        "active_users": 1,
+        "subscribers": 0,
+        "active_subscribers": 0,
+        "mrr": 0,
+        "arr": 0,
+        "revenue": 0,
+        "total_revenue": 0,
+        "credits_revenue": 0,
+        "revenue_today": 0,
+        "orders_today": 0,
+        "ai_jobs_today": 0,
+        "ai_jobs_total": 0,
+        "credits_used_today": 0,
+        "projects": 0,
+        "total_projects": 0,
+        "deployments": 0,
+        "active_deployments": 0,
+        "deployments_live": 0,
+        "failed_jobs": 0,
+        "low_stock_count": 0,
+        "timestamp": "2026-07-29T00:47:48.263245+00:00"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/founder/activity-feed",
+      "desc": "Founder activity feed",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "feed": [
+          {
+            "type": "signup",
+            "message": "New user: cust@getszy.com",
+            "timestamp": "2026-07-29T00:47:44.104831+00:00"
+          },
+          {
+            "type": "signup",
+            "message": "New user: audit-admin@getszy.com",
+            "timestamp": "2026-07-29T00:47:43.481018+00:00"
+          }
+        ],
+        "timestamp": "2026-07-29T00:47:48.287619+00:00"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/founder/system-health",
+      "desc": "Founder system health",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "timestamp": "2026-07-29T00:47:48.312566+00:00",
+        "services": {
+          "mongodb": "healthy",
+          "redis": "unhealthy",
+          "ollama": "healthy",
+          "docker": {
+            "status": "healthy",
+            "containers": []
+          }
+        },
+        "system": {
+          "error": "psutil not available"
+        },
+        "ssl": {
+          "status": "valid",
+          "expires_in_days": 72
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/founder/alerts",
+      "desc": "Founder alerts",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "alerts": [
+          {
+            "type": "redis_down",
+            "level": "warning",
+            "severity": "warning",
+            "message": "Redis: No module named 'redis'"
+          },
+          {
+            "type": "no_api_keys",
+            "level": "info",
+            "severity": "info",
+            "message": "No OpenAI API key configured"
+          }
+        ],
+        "items": [
+          {
+            "type": "redis_down",
+            "level": "warning",
+            "severity": "warning",
+            "message": "Redis: No module named 'redis'"
+          },
+          {
+            "type": "no_api_keys",
+            "level": "info",
+            "severity": "info",
+            "message": "No OpenAI API key configured"
+          }
+        ],
+        "count": 2,
+        "timestamp": "2026-07-29T00:47:56.202100+00:00"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/founder/revenue-chart",
+      "desc": "Founder revenue chart",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "range": "7d",
+        "data": [
+          {
+            "date": "2026-07-23",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-24",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-25",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-26",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-27",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-28",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-29",
+            "revenue": 0,
+            "orders": 0
+          }
+        ],
+        "timestamp": "2026-07-29T00:47:56.227455+00:00"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/founder/revenue-chart?range=30d",
+      "desc": "Revenue chart 30d",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "range": "30d",
+        "data": [
+          {
+            "date": "2026-06-30",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-01",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-02",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-03",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-04",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-05",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-06",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-07",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-08",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-09",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-10",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-11",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-12",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-13",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-14",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-15",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-16",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-17",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-18",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-19",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-20",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-21",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-22",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-23",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-24",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-25",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-26",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-27",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-28",
+            "revenue": 0,
+            "orders": 0
+          },
+          {
+            "date": "2026-07-29",
+            "revenue": 0,
+            "orders": 0
+          }
+        ],
+        "timestamp": "2026-07-29T00:47:56.250573+00:00"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/founder/growth-metrics",
+      "desc": "Founder growth metrics",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "user_growth": [
+          {
+            "date": "2026-06-30",
+            "count": 0
+          },
+          {
+            "date": "2026-07-01",
+            "count": 0
+          },
+          {
+            "date": "2026-07-02",
+            "count": 0
+          },
+          {
+            "date": "2026-07-03",
+            "count": 0
+          },
+          {
+            "date": "2026-07-04",
+            "count": 0
+          },
+          {
+            "date": "2026-07-05",
+            "count": 0
+          },
+          {
+            "date": "2026-07-06",
+            "count": 0
+          },
+          {
+            "date": "2026-07-07",
+            "count": 0
+          },
+          {
+            "date": "2026-07-08",
+            "count": 0
+          },
+          {
+            "date": "2026-07-09",
+            "count": 0
+          },
+          {
+            "date": "2026-07-10",
+            "count": 0
+          },
+          {
+            "date": "2026-07-11",
+            "count": 0
+          },
+          {
+            "date": "2026-07-12",
+            "count": 0
+          },
+          {
+            "date": "2026-07-13",
+            "count": 0
+          },
+          {
+            "date": "2026-07-14",
+            "count": 0
+          },
+          {
+            "date": "2026-07-15",
+            "count": 0
+          },
+          {
+            "date": "2026-07-16",
+            "count": 0
+          },
+          {
+            "date": "2026-07-17",
+            "count": 0
+          },
+          {
+            "date": "2026-07-18",
+            "count": 0
+          },
+          {
+            "date": "2026-07-19",
+            "count": 0
+          },
+          {
+            "date": "2026-07-20",
+            "count": 0
+          },
+          {
+            "date": "2026-07-21",
+            "count": 0
+          },
+          {
+            "date": "2026-07-22",
+            "count": 0
+          },
+          {
+            "date": "2026-07-23",
+            "count": 0
+          },
+          {
+            "date": "2026-07-24",
+            "count": 0
+          },
+          {
+            "date": "2026-07-25",
+            "count": 0
+          },
+          {
+            "date": "2026-07-26",
+            "count": 0
+          },
+          {
+            "date": "2026-07-27",
+            "count": 0
+          },
+          {
+            "date": "2026-07-28",
+            "count": 0
+          },
+          {
+            "date": "2026-07-29",
+            "count": 2
+          }
+        ],
+        "revenue_growth": [
+          {
+            "date": "2026-06-30",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-01",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-02",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-03",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-04",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-05",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-06",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-07",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-08",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-09",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-10",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-11",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-12",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-13",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-14",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-15",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-16",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-17",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-18",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-19",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-20",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-21",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-22",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-23",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-24",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-25",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-26",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-27",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-28",
+            "revenue": 0
+          },
+          {
+            "date": "2026-07-29",
+            "revenue": 0
+          }
+        ],
+        "subscriber_growth": [
+          {
+            "date": "2026-06-30",
+            "count": 0
+          },
+          {
+            "date": "2026-07-01",
+            "count": 0
+          },
+          {
+            "date": "2026-07-02",
+            "count": 0
+          },
+          {
+            "date": "2026-07-03",
+            "count": 0
+          },
+          {
+            "date": "2026-07-04",
+            "count": 0
+          },
+          {
+            "date": "2026-07-05",
+            "count": 0
+          },
+          {
+            "date": "2026-07-06",
+            "count": 0
+          },
+          {
+            "date": "2026-07-07",
+            "count": 0
+          },
+          {
+            "date": "2026-07-08",
+            "count": 0
+          },
+          {
+            "date": "2026-07-09",
+            "count": 0
+          },
+          {
+            "date": "2026-07-10",
+            "count": 0
+          },
+          {
+            "date": "2026-07-11",
+            "count": 0
+          },
+          {
+            "date": "2026-07-12",
+            "count": 0
+          },
+          {
+            "date": "2026-07-13",
+            "count": 0
+          },
+          {
+            "date": "2026-07-14",
+            "count": 0
+          },
+          {
+            "date": "2026-07-15",
+            "count": 0
+          },
+          {
+            "date": "2026-07-16",
+            "count": 0
+          },
+          {
+            "date": "2026-07-17",
+            "count": 0
+          },
+          {
+            "date": "2026-07-18",
+            "count": 0
+          },
+          {
+            "date": "2026-07-19",
+            "count": 0
+          },
+          {
+            "date": "2026-07-20",
+            "count": 0
+          },
+          {
+            "date": "2026-07-21",
+            "count": 0
+          },
+          {
+            "date": "2026-07-22",
+            "count": 0
+          },
+          {
+            "date": "2026-07-23",
+            "count": 0
+          },
+          {
+            "date": "2026-07-24",
+            "count": 0
+          },
+          {
+            "date": "2026-07-25",
+            "count": 0
+          },
+          {
+            "date": "2026-07-26",
+            "count": 0
+          },
+          {
+            "date": "2026-07-27",
+            "count": 0
+          },
+          {
+            "date": "2026-07-28",
+            "count": 0
+          },
+          {
+            "date": "2026-07-29",
+            "count": 0
+          }
+        ],
+        "ai_usage_growth": [
+          {
+            "date": "2026-06-30",
+            "count": 0
+          },
+          {
+            "date": "2026-07-01",
+            "count": 0
+          },
+          {
+            "date": "2026-07-02",
+            "count": 0
+          },
+          {
+            "date": "2026-07-03",
+            "count": 0
+          },
+          {
+            "date": "2026-07-04",
+            "count": 0
+          },
+          {
+            "date": "2026-07-05",
+            "count": 0
+          },
+          {
+            "date": "2026-07-06",
+            "count": 0
+          },
+          {
+            "date": "2026-07-07",
+            "count": 0
+          },
+          {
+            "date": "2026-07-08",
+            "count": 0
+          },
+          {
+            "date": "2026-07-09",
+            "count": 0
+          },
+          {
+            "date": "2026-07-10",
+            "count": 0
+          },
+          {
+            "date": "2026-07-11",
+            "count": 0
+          },
+          {
+            "date": "2026-07-12",
+            "count": 0
+          },
+          {
+            "date": "2026-07-13",
+            "count": 0
+          },
+          {
+            "date": "2026-07-14",
+            "count": 0
+          },
+          {
+            "date": "2026-07-15",
+            "count": 0
+          },
+          {
+            "date": "2026-07-16",
+            "count": 0
+          },
+          {
+            "date": "2026-07-17",
+            "count": 0
+          },
+          {
+            "date": "2026-07-18",
+            "count": 0
+          },
+          {
+            "date": "2026-07-19",
+            "count": 0
+          },
+          {
+            "date": "2026-07-20",
+            "count": 0
+          },
+          {
+            "date": "2026-07-21",
+            "count": 0
+          },
+          {
+            "date": "2026-07-22",
+            "count": 0
+          },
+          {
+            "date": "2026-07-23",
+            "count": 0
+          },
+          {
+            "date": "2026-07-24",
+            "count": 0
+          },
+          {
+            "date": "2026-07-25",
+            "count": 0
+          },
+          {
+            "date": "2026-07-26",
+            "count": 0
+          },
+          {
+            "date": "2026-07-27",
+            "count": 0
+          },
+          {
+            "date": "2026-07-28",
+            "count": 0
+          },
+          {
+            "date": "2026-07-29",
+            "count": 0
+          }
+        ],
+        "users_trend": {
+          "current": 2,
+          "previous": 0
+        },
+        "revenue_trend": {
+          "current": 0,
+          "previous": 0
+        },
+        "subscriber_trend": {
+          "current": 0,
+          "previous": 0
+        },
+        "timestamp": "2026-07-29T00:47:56.289307+00:00"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/ops/health",
+      "desc": "Ops health check",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "status": "healthy",
+        "timestamp": "2026-07-29T00:47:56.351133+00:00",
+        "services": {
+          "mongodb": "healthy",
+          "redis": "not connected: No module named 'redis'"
+        },
+        "disk": {
+          "total_gb": 274.5,
+          "used_gb": 135.3,
+          "free_gb": 139.2,
+          "percent": 49.3
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/ops/metrics",
+      "desc": "Ops metrics",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "total_users": 2,
+        "total_orders": 0,
+        "total_courses": 0,
+        "total_projects": 0,
+        "users_today": 2,
+        "collection_counts": {
+          "users": 2,
+          "request_logs": 40,
+          "products": 1,
+          "categories": 1,
+          "api_keys": 1,
+          "blocked_ips": 1,
+          "workspace_settings": 1
+        },
+        "timestamp": "2026-07-29T00:47:56.372262+00:00"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/ops/containers",
+      "desc": "Docker containers",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "items": [],
+        "total": 0
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/ops/redis",
+      "desc": "Redis status",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "connected": false,
+        "status": "unavailable",
+        "error": "redis package not installed"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/ops/mongodb",
+      "desc": "MongoDB status",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "status": "connected",
+        "connected": true
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/ops/workers",
+      "desc": "Background workers",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "items": [],
+        "total": 0,
+        "by_status": {}
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/ops/prometheus/status",
+      "desc": "Prometheus status",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "status": "configured",
+        "note": "Connect to Prometheus at your monitoring endpoint. Enable via PROMETHEUS_ENABLED=true.",
+        "endpoints": {
+          "metrics": "/metrics",
+          "prometheus_ui": "http://localhost:9090 (if running)"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/ops/grafana/status",
+      "desc": "Grafana status",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "status": "configured",
+        "note": "Connect to Grafana at http://localhost:3000 (if running).",
+        "dashboards": [
+          "System Health",
+          "User Activity",
+          "AI Usage",
+          "API Performance"
+        ]
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/ops/sentry/status",
+      "desc": "Sentry status",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "status": "not_configured",
+        "dsn_set": false,
+        "note": "Set SENTRY_DSN env var to enable error tracking."
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/enterprise-security/devices",
+      "desc": "List devices",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "devices": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/enterprise-security/threat-detection",
+      "desc": "Threat detection",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "threats": [],
+        "count": 0,
+        "checked_at": "2026-07-29T00:47:57.335444+00:00"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/enterprise-security/compliance",
+      "desc": "Compliance check",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "overall_score": 60.0,
+        "checks": {
+          "mfa_enabled_pct": 0.0,
+          "password_strength_pct": 100.0,
+          "session_health_pct": 100.0,
+          "ip_whitelist_coverage_pct": 0.0,
+          "api_key_health_pct": 100.0
+        },
+        "details": {
+          "total_users": 2,
+          "mfa_enabled": 0,
+          "weak_passwords": 0,
+          "active_sessions": 0,
+          "old_sessions": 0,
+          "api_keys_total": 1,
+          "api_keys_expired": 0
+        },
+        "timestamp": "2026-07-29T00:47:57.358489+00:00"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/enterprise-security/api-keys",
+      "desc": "Enterprise API keys",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "keys": [
+          {
+            "id": "a94c3359-8f13-48f4-8284-7bf86933ecf7",
+            "name": "Test Integration Key",
+            "key": "gs_bpKg68YQAKk2gH1vCFmguuhp_CU0Ff9-tq_nBYbwEio",
+            "key_prefix": "gs_bpKg68Y",
+            "created_at": "2026-07-29T00:47:44.200817+00:00",
+            "last_used": null,
+            "revoked": false
+          }
+        ]
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/enterprise-security/sso/status",
+      "desc": "SSO status",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "google": {
+          "configured": false,
+          "client_id": ""
+        },
+        "github": {
+          "configured": false,
+          "client_id": ""
+        },
+        "workspace": {
+          "configured": false,
+          "domain": ""
+        },
+        "timestamp": "2026-07-29T00:47:57.400916+00:00"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/enterprise-security/session-analytics",
+      "desc": "Session analytics",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "total_sessions": 0,
+        "by_device": {},
+        "by_location": {},
+        "by_hour": {},
+        "avg_duration_minutes": 0,
+        "timestamp": "2026-07-29T00:47:57.421839+00:00"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/login-sessions",
+      "desc": "Login sessions",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "items": [
+          {
+            "id": "eb742262-2a98-4538-aa32-f13268b3ee82",
+            "email": "audit-admin@getszy.com",
+            "name": "Audit Admin",
+            "ip": null,
+            "user_agent": null,
+            "created_at": "2026-07-29T00:47:43.481048+00:00",
+            "active": true
+          }
+        ]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/sessions/revoke-all",
+      "desc": "Revoke all sessions",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "ok": true,
+        "revoked": 0
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/ops/cron",
+      "desc": "Create cron job",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "id": "5d733bce-4593-435c-9194-ae9e773cb6fe",
+        "name": "Daily cleanup",
+        "schedule": "0 2 * * *",
+        "task": "cleanup_old_logs",
+        "enabled": true,
+        "last_run": null,
+        "next_run": null,
+        "created_at": "2026-07-29T00:47:57.468374+00:00"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/ops/cron",
+      "desc": "List cron jobs",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "jobs": [
+          {
+            "id": "5d733bce-4593-435c-9194-ae9e773cb6fe",
+            "name": "Daily cleanup",
+            "schedule": "0 2 * * *",
+            "task": "cleanup_old_logs",
+            "enabled": true,
+            "last_run": null,
+            "next_run": null,
+            "created_at": "2026-07-29T00:47:57.468374+00:00"
+          }
+        ]
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stats",
+      "desc": "Stats WITHOUT auth",
+      "status": "PASS",
+      "code": 401,
+      "error": null,
+      "data": {
+        "detail": "Not authenticated"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/customers",
+      "desc": "Customers WITHOUT auth",
+      "status": "PASS",
+      "code": 401,
+      "error": null,
+      "data": {
+        "detail": "Not authenticated"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/dashboard/executive",
+      "desc": "Executive WITHOUT auth",
+      "status": "PASS",
+      "code": 401,
+      "error": null,
+      "data": {
+        "detail": "Not authenticated"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/founder/kpi",
+      "desc": "Founder KPI WITHOUT auth",
+      "status": "PASS",
+      "code": 401,
+      "error": null,
+      "data": {
+        "detail": "Not authenticated"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/enterprise-security/threat-detection",
+      "desc": "Threats WITHOUT auth",
+      "status": "PASS",
+      "code": 401,
+      "error": null,
+      "data": {
+        "detail": "Not authenticated"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/api-keys/a94c3359-8f13-48f4-8284-7bf86933ecf7",
+      "desc": "Revoke API key",
+      "status": "PASS",
+      "code": 200,
+      "error": null,
+      "data": {
+        "ok": true
+      }
+    }
+  ]
+}
