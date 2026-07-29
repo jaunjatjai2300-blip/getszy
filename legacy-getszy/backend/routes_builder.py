@@ -1,6 +1,7 @@
 """Talk-to-Build Studio — multi-agent single-page-site generator (CPU-friendly)."""
 import io
 import re
+import json
 import zipfile
 import logging
 from datetime import datetime, timezone
@@ -12,29 +13,10 @@ from auth import get_current_user, get_optional_user
 from llm_provider import chat_completion
 from subscription import can_use_studio, increment_studio_builds
 from credits import deduct, refund
+from builder_agents import build_site, refine_element, plan_site, design_site
 
 logger = logging.getLogger('getszy.builder')
 router = APIRouter(prefix='/builder', tags=['builder'])
-
-
-SYSTEM_PROMPT_GENERATE = """You are an elite front-end web developer.
-
-TASK: Generate a stunning, modern, fully-responsive SINGLE-PAGE WEBSITE based on the user's request.
-
-STRICT OUTPUT RULES:
-1. Output ONLY a SINGLE complete HTML document. No prose. No markdown fences. No explanations.
-2. Begin with <!DOCTYPE html> and end with </html>.
-3. Use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
-4. Use Google Fonts via <link> for typography (one display + one body font).
-5. Use real, free, royalty-friendly placeholder images from https://images.unsplash.com (specific photo IDs) or https://picsum.photos. NEVER use placeholder.com or broken URLs.
-6. Include semantic sections: header/nav, hero, features/services, about/testimonials, CTA, footer.
-7. Animations must be CSS-only (transform/opacity transitions). No external JS frameworks. Tiny inline <script> for menu toggle is OK.
-8. Modern design: generous whitespace, premium typography, soft shadows, rounded corners, smooth hover states.
-9. Fully responsive (mobile-first).
-10. NEVER include forms that POST to external URLs. NEVER include trackers, analytics, or fetch() to third-party.
-11. Total HTML should be 200-800 lines (rich but loadable on CPU).
-
-START IMMEDIATELY WITH <!DOCTYPE html>. End with </html>. Nothing else."""
 
 
 SYSTEM_PROMPT_REFINE = """You are an elite front-end web developer refining an existing single-page website.
@@ -53,12 +35,10 @@ START IMMEDIATELY WITH <!DOCTYPE html>."""
 
 
 def _extract_html(raw: str) -> str:
-    """Pull the HTML doc out of the LLM response (strip any leading prose / fences)."""
+    """Pull HTML doc out of LLM response."""
     raw = raw.strip()
-    # Strip code fences
     raw = re.sub(r'^```(?:html)?\s*', '', raw)
     raw = re.sub(r'\s*```$', '', raw)
-    # Find <!DOCTYPE html> or <html
     m = re.search(r'<!DOCTYPE\s+html[^>]*>', raw, re.IGNORECASE)
     if m:
         raw = raw[m.start():]
@@ -66,7 +46,6 @@ def _extract_html(raw: str) -> str:
         m2 = re.search(r'<html', raw, re.IGNORECASE)
         if m2:
             raw = '<!DOCTYPE html>\n' + raw[m2.start():]
-    # Truncate after </html>
     end = re.search(r'</html\s*>', raw, re.IGNORECASE)
     if end:
         raw = raw[:end.end()]
@@ -75,32 +54,58 @@ def _extract_html(raw: str) -> str:
 
 def _sanitize(html: str) -> str:
     """Light sanitization — block dangerous patterns."""
-    # Remove any localhost / file:// references just in case
     html = re.sub(r'(file://|javascript:eval\()', '', html, flags=re.IGNORECASE)
     return html
 
 
 async def _generate_site(prompt: str, current_html: str | None = None, session_id: str = 'builder') -> str:
+    """Generate or refine a site using the multi-agent pipeline."""
     if current_html:
+        # Refinement: use single-pass refine (not full pipeline)
         user_msg = (
-            f"CURRENT HTML:\n```html\n{current_html}\n```\n\n"
+            f"CURRENT HTML:\n```html\n{current_html[:6000]}\n```\n\n"
             f"REFINEMENT REQUEST:\n{prompt}\n\n"
             "Now output the complete updated HTML document only."
         )
-        system = SYSTEM_PROMPT_REFINE
+        raw = await chat_completion(system=SYSTEM_PROMPT_REFINE, user=user_msg, session_id=session_id, temperature=0.6)
+        html = _sanitize(_extract_html(raw))
+        if not html.lower().startswith('<!doctype html'):
+            html = current_html  # Fallback: keep original
     else:
-        user_msg = f"Build this website:\n\n{prompt}"
-        system = SYSTEM_PROMPT_GENERATE
-    raw = await chat_completion(system=system, user=user_msg, session_id=session_id, temperature=0.6)
-    html = _sanitize(_extract_html(raw))
-    if not html.lower().startswith('<!doctype html'):
-        # Fallback: wrap as html if model returned something weird
-        html = (
-            "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Generated</title>"
-            "<script src='https://cdn.tailwindcss.com'></script></head><body class='p-8 font-sans'>"
-            f"<pre class='whitespace-pre-wrap'>{raw}</pre></body></html>"
-        )
+        # New site: run full multi-agent pipeline
+        html = await build_site(prompt, session_id)
     return html
+
+
+async def _stream_build_steps(prompt: str, session_id: str = 'builder'):
+    """Generator that yields SSE events for each pipeline step."""
+    async def emit(event: str, data: dict):
+        yield f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+    # Step 1: Plan
+    yield emit('step', {'name': 'planner', 'status': 'started', 'message': 'Planning site structure...'})
+    plan = await plan_site(prompt, session_id)
+    yield emit('step', {'name': 'planner', 'status': 'done', 'plan': plan})
+
+    # Step 2: Design
+    yield emit('step', {'name': 'designer', 'status': 'started', 'message': 'Creating design brief...'})
+    design = await design_site(plan, prompt, session_id)
+    yield emit('step', {'name': 'designer', 'status': 'done', 'design': design})
+
+    # Step 3: Code
+    yield emit('step', {'name': 'coder', 'status': 'started', 'message': 'Generating HTML...'})
+    from builder_agents import code_site
+    html = await code_site(prompt, plan, design, session_id)
+    yield emit('step', {'name': 'coder', 'status': 'done', 'preview': html[:500]})
+
+    # Step 4: Review
+    yield emit('step', {'name': 'reviewer', 'status': 'started', 'message': 'Reviewing and fixing...'})
+    from builder_agents import review_site
+    html = await review_site(html, session_id)
+    yield emit('step', {'name': 'reviewer', 'status': 'done'})
+
+    # Final result
+    yield emit('complete', {'html': html})
 
 
 def _now():
@@ -210,6 +215,79 @@ async def preview_project(pid: str):
     if not p:
         return Response(content='<h1>Not found</h1>', media_type='text/html', status_code=404)
     return HTMLResponse(content=p.get('html_content', '<h1>Empty</h1>'))
+
+
+# ============================================================
+# Multi-Agent Streaming Build
+# ============================================================
+
+@router.post('/build/stream')
+async def build_stream(body: BuilderProjectIn, user=Depends(get_current_user)):
+    """Stream multi-agent pipeline steps via SSE."""
+    if not body.prompt.strip():
+        raise HTTPException(400, 'Prompt required')
+    ok, msg, _ = await deduct(user['id'], 'builder_website')
+    if not ok:
+        raise HTTPException(402, msg)
+
+    session_id = f'builder-stream-{user["id"]}'
+
+    async def event_generator():
+        try:
+            async for chunk in _stream_build_steps(body.prompt, session_id):
+                yield chunk
+        except Exception as e:
+            logger.exception('stream build failed')
+            yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no',
+        },
+    )
+
+
+@router.post('/projects/{pid}/refine-element')
+async def refine_project_element(pid: str, body: dict, user=Depends(get_current_user)):
+    """Refine a specific element/section of a project."""
+    p = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
+    if not p:
+        raise HTTPException(404, 'Project not found')
+    selector = body.get('selector', '')
+    instruction = body.get('instruction', '')
+    if not selector or not instruction:
+        raise HTTPException(400, 'selector and instruction required')
+
+    ok, msg, _ = await deduct(user['id'], 'builder_refine')
+    if not ok:
+        raise HTTPException(402, msg)
+
+    try:
+        new_html = await refine_element(
+            p.get('html_content', ''),
+            selector,
+            instruction,
+            session_id=f'builder-{pid}',
+        )
+    except Exception as e:
+        logger.exception('element refine failed')
+        await refund(user['id'], 'builder_refine', reason='generation_failed')
+        raise HTTPException(500, f'Refinement failed: {e}')
+
+    new_history = p.get('history', []) + [
+        {'timestamp': _now(), 'prompt': f'[{selector}] {instruction}', 'role': 'user', 'snapshot': None},
+        {'timestamp': _now(), 'prompt': 'Element refined', 'role': 'assistant', 'snapshot': new_html},
+    ]
+    await db.builder_projects.update_one(
+        {'id': pid},
+        {'$set': {'html_content': new_html, 'history': new_history, 'updated_at': _now()}},
+    )
+    await increment_studio_builds(user['id'])
+    return await db.builder_projects.find_one({'id': pid}, {'_id': 0})
 
 
 # ============================================================
