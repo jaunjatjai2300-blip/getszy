@@ -106,32 +106,21 @@ async def generate_script_with_backoff(topic: str, platform: str) -> str:
         METRICS['llm_errors_total'] += 1
         raise HTTPException(status_code=503, detail='LLM Circuit Breaker Tripped — model gateway unavailable')
 
-    import os
-    ollama_url = os.environ.get('OLLAMA_BASE_URL', 'http://host.docker.internal:11434') + '/api/chat'
-    model = os.environ.get('OLLAMA_MODEL', 'qwen2.5:7b')
     prompt = f'Write a viral {platform} video script about: {topic}. Make it engaging, concise, and platform-optimized.'
+    system = 'You are a viral content script writer. Write engaging, platform-optimized video scripts.'
 
-    import httpx
-    retries = [2, 5, 15]
-
-    for attempt, delay in enumerate(retries + [0]):
+    # Use the multi-provider fallback chain (Ollama -> Groq -> Gemini -> etc.)
+    from llm_provider import chat_completion
+    for attempt in range(3):
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                resp = await client.post(ollama_url, json={
-                    'model': model,
-                    'messages': [
-                        {'role': 'system', 'content': 'You are a viral content script writer. Write engaging, platform-optimized video scripts.'},
-                        {'role': 'user', 'content': prompt},
-                    ],
-                    'stream': False,
-                })
-                resp.raise_for_status()
-                CircuitBreaker.record_success()
-                return resp.json().get('message', {}).get('content', '')
+            result = await chat_completion(system=system, user=prompt, temperature=0.7)
+            CircuitBreaker.record_success()
+            return result
         except Exception as e:
             logger.warning(f'LLM attempt {attempt+1} failed: {e}')
-            if attempt < len(retries):
-                time.sleep(delay)
+            if attempt < 2:
+                import time
+                time.sleep([2, 5][attempt])
                 continue
             CircuitBreaker.record_failure()
             METRICS['llm_errors_total'] += 1

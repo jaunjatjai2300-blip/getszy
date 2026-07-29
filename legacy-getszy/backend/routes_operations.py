@@ -214,7 +214,9 @@ async def redis_status(_=Depends(get_current_admin)):
     """Check Redis connection status."""
     try:
         import redis.asyncio as aioredis
-        r = aioredis.from_url('redis://localhost:6379', socket_connect_timeout=3)
+        import os
+        redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+        r = aioredis.from_url(redis_url, socket_connect_timeout=3)
         await r.ping()
         info = await r.info('server')
         memory = await r.info('memory')
