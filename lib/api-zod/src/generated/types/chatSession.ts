@@ -6,6 +6,9 @@
  * OpenAPI spec version: 2.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface ChatSession {
+  session_id?: string;
+  last?: string;
+  created_at?: string;
+  count?: number;
 }

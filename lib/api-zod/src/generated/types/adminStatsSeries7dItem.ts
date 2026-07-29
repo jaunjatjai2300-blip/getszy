@@ -6,6 +6,8 @@
  * OpenAPI spec version: 2.0.0
  */
 
-export interface HealthStatus {
-  status: string;
-}
+export type AdminStatsSeries7dItem = {
+  date?: string;
+  revenue?: number;
+  orders?: number;
+};

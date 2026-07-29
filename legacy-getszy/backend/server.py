@@ -23,6 +23,7 @@ async def root():
 
 
 @api_router.get('/health')
+@api_router.get('/healthz')
 async def health():
     try:
         await db.command('ping')

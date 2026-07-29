@@ -5,7 +5,8 @@
  * AI-Powered Business Builder Platform API
  * OpenAPI spec version: 2.0.0
  */
+import type { ApiKeysResponseItemsItem } from './apiKeysResponseItemsItem';
 
-export interface HealthStatus {
-  status: string;
+export interface ApiKeysResponse {
+  items?: ApiKeysResponseItemsItem[];
 }

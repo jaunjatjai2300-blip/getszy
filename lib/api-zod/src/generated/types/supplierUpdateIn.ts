@@ -6,6 +6,10 @@
  * OpenAPI spec version: 2.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface SupplierUpdateIn {
+  /** @maxLength 200 */
+  name?: string;
+  contact?: string;
+  email?: string;
+  notes?: string;
 }

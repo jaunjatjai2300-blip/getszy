@@ -6,6 +6,9 @@
  * OpenAPI spec version: 2.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface ApiKeyCreated {
+  id?: string;
+  name?: string;
+  key?: string;
+  key_prefix?: string;
 }
