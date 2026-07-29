@@ -169,7 +169,7 @@ async def kpi(_=Depends(get_current_admin)):
     today_start = _today_start().isoformat()
 
     total_users = await db.users.count_documents({})
-    active_users = await db.users.count_documents({'last_login': {'$gte': today_start.isoformat()}})
+    active_users = await db.users.count_documents({'last_login': {'$gte': today_start}})
     active_subscriptions = await db.subscriptions.count_documents({'status': 'active'})
     mrr_cursor = db.subscriptions.aggregate([
         {'$match': {'status': 'active'}},
@@ -393,8 +393,8 @@ async def alerts(_=Depends(get_current_admin)):
 
 
 @router.get('/revenue-chart')
-async def revenue_chart(range: str = Query('7d', regex=r'^\d+d$'), _=Depends(get_current_admin)):
-    days = int(range[:-1])
+async def revenue_chart(days_range: str = Query('7d', alias='range', pattern=r'^\d+d$'), _=Depends(get_current_admin)):
+    days = int(days_range[:-1])
     results = []
     for i in range(days - 1, -1, -1):
         day = _days_ago(i)
@@ -409,7 +409,7 @@ async def revenue_chart(range: str = Query('7d', regex=r'^\d+d$'), _=Depends(get
             'revenue': data[0]['revenue'] if data else 0,
             'orders': data[0]['orders'] if data else 0
         })
-    return {'range': range, 'data': results, 'timestamp': _now()}
+    return {'range': days_range, 'data': results, 'timestamp': _now()}
 
 
 @router.get('/growth-metrics')
