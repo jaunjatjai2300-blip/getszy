@@ -33,7 +33,8 @@ def _days_ago(n):
 async def _check_redis():
     try:
         import redis.asyncio as aioredis
-        r = aioredis.from_url('redis://localhost:6379', socket_connect_timeout=2)
+        redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+        r = aioredis.from_url(redis_url, socket_connect_timeout=2)
         await r.ping()
         await r.close()
         return {'status': 'healthy'}
@@ -45,9 +46,9 @@ async def _check_ollama():
     # Try multiple URLs — Docker internal, localhost, and env var
     urls = [
         os.environ.get('OLLAMA_BASE_URL', ''),
-        'http://host.docker.internal:11434/api/tags',
         'http://localhost:11434/api/tags',
         'http://127.0.0.1:11434/api/tags',
+        'http://host.docker.internal:11434/api/tags',
     ]
     urls = [u for u in urls if u and u != '']
 
@@ -346,7 +347,7 @@ async def alerts(_=Depends(get_current_admin)):
 
     ollama_status = await _check_ollama()
     if ollama_status['status'] != 'healthy':
-        alert_list.append({'type': 'ollama_down', 'level': 'info', 'severity': 'info', 'message': f"Ollama: {ollama_status.get('error', 'unavailable')}"})
+        alert_list.append({'type': 'ollama_down', 'level': 'warning', 'severity': 'warning', 'message': f"Ollama: {ollama_status.get('error', 'unavailable')}"})
 
     low_stock = await db.products.count_documents({'stock': {'$lte': 5, '$gte': 0}})
     if low_stock > 0:

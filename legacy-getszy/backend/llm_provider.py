@@ -20,7 +20,7 @@ GROQ_API_KEY     = os.environ.get('GROQ_API_KEY', '').strip()
 GEMINI_API_KEY   = os.environ.get('GEMINI_API_KEY', '').strip()
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '').strip()
 OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'qwen/qwen-2.5-72b-instruct').strip()
-OLLAMA_BASE_URL  = os.environ.get('OLLAMA_BASE_URL', 'http://host.docker.internal:11434')
+OLLAMA_BASE_URL  = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
 OLLAMA_SECRET    = os.environ.get('OLLAMA_SECRET', '')
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 EMERGENT_MODEL   = os.environ.get('EMERGENT_MODEL', 'gpt-4o-mini')
@@ -104,7 +104,7 @@ async def _ollama_single(model: str, system: str, user: str, temperature: float)
     headers = {}
     if OLLAMA_SECRET:
         headers['Authorization'] = f'Bearer {OLLAMA_SECRET}'
-    async with httpx.AsyncClient(timeout=300.0) as client:
+    async with httpx.AsyncClient(timeout=90.0) as client:
         r = await client.post(
             f'{OLLAMA_BASE_URL}/api/chat',
             headers=headers,
