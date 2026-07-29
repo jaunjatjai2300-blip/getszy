@@ -227,19 +227,78 @@ async def gen_voice(payload: VoiceGenIn, user=Depends(get_current_user)):
         raise
 
 
-# ===== VIDEO (PENDING) =====
+# ===== VIDEO (Queue job — real generation via FAL/HF when configured) =====
 @router.post('/video')
 async def gen_video(payload: VideoGenIn, user=Depends(get_current_user)):
-    if not (HF_TOKEN or FAL_KEY):
-        return {
-            'status': 'pending_provider',
-            'message': '4K Video Studio is launching soon. Configure FAL_KEY for Kling/Veo or HF_TOKEN for AnimateDiff.',
-            'prompt': payload.prompt,
-        }
     ok, msg, _ = await deduct(user['id'], 'video_quick')
     if not ok:
         raise HTTPException(status_code=402, detail=msg)
-    return {'status': 'queued', 'message': 'Video generation queued'}
+
+    job_id = str(uuid.uuid4())
+    job = {
+        'id': job_id,
+        'user_id': user['id'],
+        'type': 'video',
+        'prompt': payload.prompt,
+        'duration_seconds': payload.duration_seconds,
+        'aspect': payload.aspect,
+        'status': 'queued',
+        'provider': None,
+        'created_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+    if FAL_KEY:
+        job['provider'] = 'fal'
+        job['status'] = 'processing'
+        await db.video_jobs.insert_one(job)
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                r = await client.post(
+                    'https://fal.run/fal-ai/animatediff',
+                    headers={'Authorization': f'Key {FAL_KEY}'},
+                    json={'prompt': payload.prompt, 'num_frames': payload.duration_seconds * 8},
+                )
+                if r.status_code == 200:
+                    result = r.json()
+                    job['status'] = 'done'
+                    job['video_url'] = result.get('video', {}).get('url', '')
+                else:
+                    job['status'] = 'failed'
+                    job['error'] = f'FAL API error: {r.status_code}'
+        except Exception as e:
+            job['status'] = 'failed'
+            job['error'] = str(e)[:200]
+    elif HF_TOKEN:
+        job['provider'] = 'huggingface'
+        job['status'] = 'processing'
+        await db.video_jobs.insert_one(job)
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                r = await client.post(
+                    'https://api-inference.huggingface.co/models/guyteich/AnimatedDiff',
+                    headers={'Authorization': f'Bearer {HF_TOKEN}'},
+                    json={'inputs': payload.prompt},
+                )
+                if r.status_code == 200:
+                    asset_id = str(uuid.uuid4())
+                    out_path = CACHE_DIR / f'{asset_id}.mp4'
+                    out_path.write_bytes(r.content)
+                    job['status'] = 'done'
+                    job['video_url'] = f'/api/media/file/{asset_id}.mp4'
+                else:
+                    job['status'] = 'failed'
+                    job['error'] = f'HF API error: {r.status_code}'
+        except Exception as e:
+            job['status'] = 'failed'
+            job['error'] = str(e)[:200]
+    else:
+        job['provider'] = 'none'
+        job['status'] = 'pending_provider'
+        job['message'] = 'Video generation queued. Configure FAL_KEY or HF_TOKEN for processing.'
+        await db.video_jobs.insert_one(job)
+
+    job.pop('_id', None)
+    return job
 
 
 class TryOnIn(BaseModel):
@@ -250,18 +309,54 @@ class TryOnIn(BaseModel):
     setting: str = 'studio'  # studio | outdoor | festive
 
 
-# ===== MIRROR (PENDING) =====
+# ===== MIRROR (Queue job — real generation via FAL LivePortrait when configured) =====
 @router.post('/mirror')
 async def gen_mirror(payload: MirrorGenIn, user=Depends(get_current_user)):
-    if not (HF_TOKEN or FAL_KEY):
-        return {
-            'status': 'pending_provider',
-            'message': 'Mirror AI is launching soon. Configure FAL_KEY (Live Portrait) to enable.',
-        }
     ok, msg, _ = await deduct(user['id'], 'mirror')
     if not ok:
         raise HTTPException(status_code=402, detail=msg)
-    return {'status': 'queued', 'message': 'Mirror AI queued'}
+
+    job_id = str(uuid.uuid4())
+    job = {
+        'id': job_id,
+        'user_id': user['id'],
+        'type': 'mirror',
+        'source_image_url': payload.source_image_url,
+        'target_image_url': payload.target_image_url,
+        'status': 'queued',
+        'provider': None,
+        'created_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+    if FAL_KEY:
+        job['provider'] = 'fal'
+        job['status'] = 'processing'
+        await db.video_jobs.insert_one(job)
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                r = await client.post(
+                    'https://fal.run/fal-ai/live-portrait',
+                    headers={'Authorization': f'Key {FAL_KEY}'},
+                    json={'source_image_url': payload.source_image_url, 'driving_image_url': payload.target_image_url},
+                )
+                if r.status_code == 200:
+                    result = r.json()
+                    job['status'] = 'done'
+                    job['result_url'] = result.get('video', {}).get('url', '')
+                else:
+                    job['status'] = 'failed'
+                    job['error'] = f'FAL API error: {r.status_code}'
+        except Exception as e:
+            job['status'] = 'failed'
+            job['error'] = str(e)[:200]
+    else:
+        job['provider'] = 'none'
+        job['status'] = 'pending_provider'
+        job['message'] = 'Mirror AI queued. Configure FAL_KEY for Live Portrait processing.'
+        await db.video_jobs.insert_one(job)
+
+    job.pop('_id', None)
+    return job
 
 
 # ===== VIRTUAL TRY-ON (LIVE - product try-on via Pollinations + cache) =====
