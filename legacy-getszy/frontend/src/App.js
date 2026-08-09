@@ -17,6 +17,7 @@ import Privacy from "@/pages/Privacy";
 import Support from "@/pages/Support";
 import AdminLayout from "@/components/AdminLayout";
 import VideoStudio from "@/pages/dashboard/VideoStudio";
+import DashboardBuild from "@/pages/dashboard/BuildStudio";
 import DashboardLayout from "@/components/DashboardLayout";
 import LabsHome from "@/pages/labs/LabsHome";
 import CommandPalette from "@/components/ux/CommandPalette";
@@ -239,8 +240,8 @@ export default function App() {
             <Route path="chat/:sessionId" element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />
             <Route path="projects" element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />
             <Route path="video-studio" element={<VideoStudio />} />
-            <Route path="build" element={<Suspense fallback={<AdminFallback />}><AdminBuildStudio /></Suspense>} />
-            <Route path="build/:category" element={<Suspense fallback={<AdminFallback />}><AdminBuildStudio /></Suspense>} />
+            <Route path="build" element={<DashboardBuild />} />
+            <Route path="build/:category" element={<DashboardBuild />} />
           </Route>
 
           <Route path="/labs" element={<DashboardLayout />}>
