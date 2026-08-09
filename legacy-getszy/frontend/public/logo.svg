@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48" fill="none">
+  <!-- Getszy Wordmark Logo -->
+  <defs>
+    <linearGradient id="roseGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C58B7A"/>
+      <stop offset="50%" stop-color="#D4A08F"/>
+      <stop offset="100%" stop-color="#B87A6A"/>
+    </linearGradient>
+    <linearGradient id="sparkle" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2F7E7A"/>
+      <stop offset="100%" stop-color="#3A9E99"/>
+    </linearGradient>
+  </defs>
+  <!-- Sparkle accent -->
+  <path d="M8 24 L12 16 L16 24 L12 32 Z" fill="url(#sparkle)" opacity="0.9"/>
+  <circle cx="12" cy="12" r="2" fill="url(#sparkle)" opacity="0.6"/>
+  <circle cx="20" cy="20" r="1.5" fill="url(#roseGold)" opacity="0.5"/>
+  <!-- Wordmark -->
+  <text x="32" y="34" font-family="Georgia, 'Times New Roman', serif" font-size="36" font-weight="400" letter-spacing="-1" fill="#2D2D2D">getszy</text>
+</svg>

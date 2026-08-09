@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { GetszyLogo } from "@/components/GetszyLogo";
 import { api, fmtINR } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/cart";
@@ -661,7 +662,7 @@ export default function Home() {
       ═══════════════════════════════════════════════════════════════════ */}
       <div className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b" style={{ borderColor: "var(--gs-border)" }}>
         <div className="gs-container py-3 flex items-center gap-4">
-          <Link to="/" className="font-display text-xl sm:text-2xl tracking-tight shrink-0">getszy</Link>
+          <Link to="/" className="shrink-0"><GetszyLogo size="sm"/></Link>
           <div className="hidden sm:flex flex-1 max-w-xl mx-4">
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--gs-muted)]"/>
