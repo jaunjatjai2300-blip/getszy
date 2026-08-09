@@ -66,7 +66,6 @@ import EnterpriseSecurity from "@/pages/admin/EnterpriseSecurity";
 import DeployPlatform from "@/pages/admin/DeployPlatform";
 import SaaSBuilder from "@/pages/admin/SaaSBuilder";
 import WooSync from "@/pages/admin/WooSync";
-import APIBuilder from "@/pages/admin/APIBuilder";
 import MobileBuilder from "@/pages/admin/MobileBuilder";
 import BusinessBuilders from "@/pages/admin/BusinessBuilders";
 import AdvancedAnalytics from "@/pages/admin/AdvancedAnalytics";
@@ -86,6 +85,11 @@ import OnboardingTour from "@/components/onboarding/OnboardingTour";
 import CookieConsent from "@/components/legal/CookieConsent";
 import StorefrontLayout from "@/components/StorefrontLayout";
 import NotFound from "@/pages/NotFound";
+import CostTracking from "@/pages/admin/CostTracking";
+import QuizCerts from "@/pages/admin/QuizCerts";
+import VoiceGen from "@/pages/admin/VoiceGen";
+import ImageGen from "@/pages/admin/ImageGen";
+import Releases from "@/pages/admin/Releases";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export default function App() {
@@ -144,10 +148,10 @@ export default function App() {
             {/* AI Platform */}
             <Route path="video" element={<AdminVideoStudio />} />
             <Route path="creator" element={<AdminCreatorOS />} />
-            <Route path="avatar" element={<AdminVideoStudio />} />
+            <Route path="avatar" element={<AvatarSetup />} />
             <Route path="workforce" element={<AdminWorkforce />} />
             <Route path="ai-models" element={<AdminAiOps />} />
-            <Route path="voice" element={<AdminCreatorOS />} />
+            <Route path="voice" element={<VoiceGen />} />
             <Route path="ai/prompts" element={<AdminPromptLibrary />} />
             <Route path="ai/knowledge" element={<AdminKnowledgeBase />} />
             <Route path="ai/memory" element={<AdminAIMemory />} />
@@ -184,8 +188,8 @@ export default function App() {
             {/* Automation */}
             <Route path="skills" element={<AdminSkills />} />
             <Route path="stacks" element={<AdminStacks />} />
-            <Route path="workflows" element={<AdminStacks />} />
-            <Route path="scheduler" element={<AdminStacks />} />
+            <Route path="workflows" element={<AdminWorkflows />} />
+            <Route path="scheduler" element={<AdminScheduler />} />
             <Route path="webhooks" element={<AdminStacks />} />
 
             {/* Deploy */}
@@ -194,8 +198,6 @@ export default function App() {
             {/* Operations */}
             <Route path="ai-ops" element={<AdminAiOps />} />
             <Route path="servers" element={<AdminServers />} />
-            <Route path="workflows" element={<AdminWorkflows />} />
-            <Route path="scheduler" element={<AdminScheduler />} />
             <Route path="ai-chat" element={<AdminAIChat />} />
             <Route path="avatar-setup" element={<AvatarSetup />} />
 
@@ -211,7 +213,7 @@ export default function App() {
             <Route path="deploy-platform" element={<DeployPlatform />} />
             <Route path="saas-builder" element={<SaaSBuilder />} />
             <Route path="woo-sync" element={<WooSync />} />
-            <Route path="api-builder" element={<APIBuilder />} />
+            <Route path="api-builder" element={<AdminAPIBuilder />} />
             <Route path="mobile-builder" element={<MobileBuilder />} />
             <Route path="business-builders" element={<BusinessBuilders />} />
             <Route path="analytics-advanced" element={<AdvancedAnalytics />} />
@@ -219,6 +221,10 @@ export default function App() {
             <Route path="marketplace" element={<Marketplace />} />
             <Route path="learning-platform" element={<LearningPlatform />} />
             <Route path="ops-center" element={<OperationsCenter />} />
+            <Route path="cost-tracking" element={<CostTracking />} />
+            <Route path="quiz-certs" element={<QuizCerts />} />
+            <Route path="image-gen" element={<ImageGen />} />
+            <Route path="releases" element={<Releases />} />
 
             {/* Settings */}
             <Route path="settings" element={<AdminSettings />} />

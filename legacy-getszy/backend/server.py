@@ -40,10 +40,10 @@ app.include_router(api_router)
 
 # ===== Security middleware =====
 ALLOWED_ORIGINS = [
-    'https://getszy.com',
-    'https://www.getszy.com',
-    'http://localhost:3000',  # local dev
-    'http://localhost:5173',  # vite dev
+    o.strip() for o in os.environ.get(
+        'CORS_ORIGINS',
+        'https://getszy.com,https://www.getszy.com,http://localhost:3000,http://localhost:5173'
+    ).split(',') if o.strip()
 ]
 
 app.add_middleware(
