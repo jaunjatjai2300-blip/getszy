@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { ShoppingBag, Search, User, Menu, Sparkles, LogOut, LayoutDashboard, X } from "lucide-react";
+import { ShoppingBag, Search, User, Menu, Sparkle, LogOut, LayoutDashboard, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -86,7 +86,7 @@ export function Header() {
                   <PlanBadge plan={user.subscription?.plan || "free"} status={user.subscription?.status}/>
                   {credits !== null && (
                     <Link to="/pricing" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--gs-teal-soft)] text-[var(--gs-teal)]" data-testid="header-credit-balance">
-                      <Sparkles className="h-3 w-3"/>{credits} credits
+                      <Sparkle className="h-3 w-3"/>{credits} credits
                     </Link>
                   )}
                 </div>

@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Rocket, Bot, Wand2, Palette, Code2, ShieldCheck, GitBranch, Globe, RefreshCw, CheckCircle2, AlertCircle, Sparkles, Clock, GitCommit, ExternalLink } from "lucide-react";
+import { Rocket, Bot, Wand2, Palette, Code2, ShieldCheck, GitBranch, Globe, RefreshCw, CheckCircle2, AlertCircle, Sparkle, Clock, GitCommit, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 const AGENTS = [
@@ -151,7 +151,7 @@ export default function AdminDeploy() {
         <div className="gs-card p-5 space-y-3" data-testid="deploy-current-job">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-[var(--gs-teal)]"/><h3 className="font-display text-xl">Plan ready</h3>
+              <div className="flex items-center gap-2"><Sparkle className="h-4 w-4 text-[var(--gs-teal)]"/><h3 className="font-display text-xl">Plan ready</h3>
                 <Badge className="bg-[var(--gs-teal-soft)] text-[var(--gs-teal)]">{job.status}</Badge>
               </div>
               <div className="text-xs text-[var(--gs-muted)] mt-1">Job ID: {job.id?.slice(0, 8)}</div>

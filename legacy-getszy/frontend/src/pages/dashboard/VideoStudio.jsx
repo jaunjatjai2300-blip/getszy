@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Film, Sparkles, Wand2, Search, PenTool, Layers, Eye, Loader2,
+  Film, Sparkle, Wand2, Search, PenTool, Layers, Eye, Loader2,
   Plus, RefreshCw, Lock, Unlock, ChevronRight, TrendingUp,
   Lightbulb, ListChecks, PlayCircle, CheckCircle2, Download, Video,
 } from "lucide-react";
@@ -142,7 +142,7 @@ export default function VideoStudio() {
             className="w-full bg-[var(--gs-teal)] gap-1 h-9"
             data-testid="video-create-btn"
           >
-            {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin"/> : <Sparkles className="h-3.5 w-3.5"/>}
+            {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin"/> : <Sparkle className="h-3.5 w-3.5"/>}
             Start factory
           </Button>
         </div>

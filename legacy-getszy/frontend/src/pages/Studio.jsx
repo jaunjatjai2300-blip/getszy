@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
-import { Sparkles, Clock, Coffee, Mic2, Wand2, Loader2, CheckCircle2, ChevronRight, Youtube, Instagram, Facebook } from "lucide-react";
+import { Sparkle, Clock, Coffee, Mic2, Wand2, Loader2, CheckCircle2, ChevronRight, Youtube, Instagram, Facebook } from "lucide-react";
 
 const HOURS = [
   { time: "6 AM",  task: "Trending research",          done: true },
@@ -39,7 +39,7 @@ export default function Studio() {
         {/* HERO */}
         <div className="text-center">
           <Badge className="mb-5 text-sm px-3 py-1.5" style={{ background: "var(--gs-teal)", color: "white" }} data-testid="reels-studio-badge">
-            <Sparkles className="h-3.5 w-3.5 inline mr-1"/>Coming Soon
+            <Sparkle className="h-3.5 w-3.5 inline mr-1"/>Coming Soon
           </Badge>
 
           <h1 className="font-display text-5xl sm:text-7xl leading-tight" data-testid="reels-studio-title">

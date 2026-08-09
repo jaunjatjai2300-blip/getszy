@@ -3,7 +3,7 @@ import { api, fmtINR, API_BASE } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { TrendingUp, Sparkles, Package, Truck, RefreshCw, Plus, IndianRupee, Globe, AlertCircle, CheckCircle2, Key, Search } from "lucide-react";
+import { TrendingUp, Sparkle, Package, Truck, RefreshCw, Plus, IndianRupee, Globe, AlertCircle, CheckCircle2, Key, Search } from "lucide-react";
 import { toast } from "sonner";
 
 const AUDIENCE_COLORS = { women: "#9b6a3f", girls: "#c97a87", kids: "#5d8f8e" };
@@ -88,7 +88,7 @@ export default function AdminSourcing() {
             <Key className="h-3.5 w-3.5"/>Configure Keys
           </Button>
           <Button onClick={scan} disabled={scanning} data-testid="trending-scan-button" className="gap-2">
-            {scanning ? <RefreshCw className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4"/>}
+            {scanning ? <RefreshCw className="h-4 w-4 animate-spin"/> : <Sparkle className="h-4 w-4"/>}
             {scanning ? "Scanning…" : "Scan trending"}
           </Button>
         </div>
@@ -202,7 +202,7 @@ export default function AdminSourcing() {
         <div className="flex items-center gap-2 mb-3"><TrendingUp className="h-5 w-5 text-[var(--gs-teal)]"/><h2 className="font-display text-2xl">Trending picks for India</h2></div>
         {!trending.items?.length ? (
           <div className="gs-card p-10 text-center">
-            <Sparkles className="h-10 w-10 mx-auto text-[var(--gs-muted)] mb-2"/>
+            <Sparkle className="h-10 w-10 mx-auto text-[var(--gs-muted)] mb-2"/>
             <p className="text-sm text-[var(--gs-muted)] mb-3">No scan yet — hit “Scan trending now” to let the AI agents curate today’s picks.</p>
           </div>
         ) : (
@@ -211,7 +211,7 @@ export default function AdminSourcing() {
               <article key={it.id} className="gs-card overflow-hidden flex flex-col">
                 <div className="aspect-[4/3] bg-[var(--gs-surface-2)] relative overflow-hidden">
                   <div className="absolute inset-0 grid place-items-center text-[var(--gs-muted)]">
-                    <Sparkles className="h-8 w-8 animate-pulse opacity-40"/>
+                    <Sparkle className="h-8 w-8 animate-pulse opacity-40"/>
                   </div>
                   <img src={resolveUrl(it.hero_image)} alt={it.title} loading="lazy" className="relative w-full h-full object-cover" onLoad={(e) => e.currentTarget.classList.add("opacity-100")} onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ opacity: 0, transition: "opacity 300ms" }}/>
                   <div className="absolute top-2 left-2 flex items-center gap-1 bg-white/90 backdrop-blur px-2 py-1 rounded-full text-xs font-semibold"><TrendingUp className="h-3 w-3 text-[var(--gs-teal)]"/>{it.trend_score}</div>

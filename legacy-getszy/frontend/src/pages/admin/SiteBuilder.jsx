@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Globe, Plus, Trash2, Eye, Code2, Copy, Loader2, Sparkles, GripVertical, Image, Type, Layout } from "lucide-react";
+import { Globe, Plus, Trash2, Eye, Code2, Copy, Loader2, Sparkle, GripVertical, Image, Type, Layout } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 
@@ -145,7 +145,7 @@ export default function SiteBuilder() {
           <Button variant="outline" size="sm" onClick={()=>setPreview(p=>!p)}><Eye className="h-3.5 w-3.5 mr-1"/>{preview?"Edit":"Preview"}</Button>
           <Button variant="outline" size="sm" onClick={exportHTML}><Code2 className="h-3.5 w-3.5 mr-1"/>Export HTML</Button>
           <Button size="sm" onClick={generateContent} disabled={generating} style={{background:"var(--gs-teal)",color:"#fff"}}>
-            {generating?<Loader2 className="h-3.5 w-3.5 animate-spin mr-1"/>:<Sparkles className="h-3.5 w-3.5 mr-1"/>}AI Content
+            {generating?<Loader2 className="h-3.5 w-3.5 animate-spin mr-1"/>:<Sparkle className="h-3.5 w-3.5 mr-1"/>}AI Content
           </Button>
         </div>
       </div>

@@ -1,11 +1,11 @@
 import { Link } from "react-router-dom";
-import { Sparkles, Bot, GraduationCap, ShoppingBag } from "lucide-react";
+import { Sparkle, Bot, GraduationCap, ShoppingBag } from "lucide-react";
 
 export default function About() {
   return (
     <div className="gs-container py-12 max-w-3xl" data-testid="about-page">
       <div className="text-xs uppercase tracking-[0.18em] text-[var(--gs-primary-2)] mb-4 flex items-center gap-2">
-        <Sparkles className="h-3.5 w-3.5" /> Our story
+        <Sparkle className="h-3.5 w-3.5" /> Our story
       </div>
       <h1 className="font-display text-4xl mb-4">About getszy</h1>
       <p className="text-base text-[var(--gs-muted)] mb-8">

@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import {
   IndianRupee, Users, Film, Zap, TrendingUp, ShoppingBag,
   AlertTriangle, Activity, CheckCircle2, XCircle, Rocket,
-  ArrowUpRight, RefreshCw, Sparkles, Cpu, Server, Package,
+  ArrowUpRight, RefreshCw, Sparkle, Cpu, Server, Package,
   BarChart3, Radio, Heart, Globe, ShoppingCart, CreditCard,
   UserPlus, BoxesIcon, Brain, Eye, Clock, Target, Flame,
   ArrowRight, LayoutDashboard
@@ -25,7 +25,7 @@ import { StatusBadge } from "@/components/admin/StatusBadge";
 const QUICK_ACTIONS = [
   { label: "Add Product", icon: Package, to: "/admin/products", color: "bg-blue-500" },
   { label: "View Orders", icon: ShoppingCart, to: "/admin/orders", color: "bg-emerald-500" },
-  { label: "Neo AI", icon: Sparkles, to: "/admin/chat", color: "bg-violet-500" },
+  { label: "Neo AI", icon: Sparkle, to: "/admin/chat", color: "bg-violet-500" },
   { label: "Video Studio", icon: Film, to: "/admin/video", color: "bg-pink-500" },
   { label: "Analytics", icon: BarChart3, to: "/admin/analytics", color: "bg-cyan-500" },
   { label: "Deploy", icon: Rocket, to: "/admin/deploy", color: "bg-orange-500" },

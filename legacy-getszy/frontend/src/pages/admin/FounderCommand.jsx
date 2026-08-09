@@ -5,7 +5,7 @@ import {
   Heart, IndianRupee, Users, Zap, TrendingUp, Film, Cpu, Server,
   Database, HardDrive, RefreshCw, AlertTriangle, Activity, CheckCircle2,
   XCircle, Rocket, ArrowUpRight, Shield, Globe, Clock, BarChart3,
-  CreditCard, FolderOpen, GitBranch, Layers, Sparkles, Bell, Command,
+  CreditCard, FolderOpen, GitBranch, Layers, Sparkle, Bell, Command,
   Brain, ShoppingCart, UserPlus, Target, Flame, Eye, Gauge, Timer,
   TrendingDown, ArrowRight, Download, Calendar, DollarSign, BoxesIcon,
   LineChart, PieChart as PieChartIcon

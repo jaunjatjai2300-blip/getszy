@@ -4,7 +4,7 @@ import {
   Search, TrendingUp, Mail, Filter, Users, BarChart3, Target,
   Award, Share2, Link2, Megaphone, Plus, RefreshCw, Eye, Play,
   Pause, CheckCircle2, XCircle, ArrowUpRight, ArrowDownRight,
-  Trophy, Send, UserPlus, BarChart2, Globe, Gauge, Sparkles
+  Trophy, Send, UserPlus, BarChart2, Globe, Gauge, Sparkle
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,

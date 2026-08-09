@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import {
-  Sparkles, ListChecks, ClipboardList, FolderOpen, Eye, Clock, GitBranch,
+  Sparkle, ListChecks, ClipboardList, FolderOpen, Eye, Clock, GitBranch,
   Rocket, Plus, Trash2, Check, Circle, CircleDot, Loader2, RefreshCw,
   ExternalLink, FileText, Film, PenTool, Globe, Youtube, Bot, Layers,
   TrendingUp, Zap, Flame, Briefcase, Package, Smartphone, BookOpen,
@@ -68,7 +68,7 @@ export default function WorkspaceTabs({ projectId, assets, activeAsset, setActiv
     <Card className="col-span-12 lg:col-span-5 flex flex-col overflow-hidden" data-testid="workspace-tabs-panel">
       <Tabs value={tab} onValueChange={setTab} className="flex flex-col h-full">
         <div className="p-2 border-b flex items-center gap-2" style={{ borderColor: "var(--gs-border)" }}>
-          <Sparkles className="h-4 w-4 text-[var(--gs-teal)] shrink-0"/>
+          <Sparkle className="h-4 w-4 text-[var(--gs-teal)] shrink-0"/>
           <div className="font-semibold text-sm mr-2">Workspace</div>
           <TabsList className="bg-[var(--gs-surface-2)] p-0.5 gap-0.5 h-auto flex-wrap">
             {tabItems.map(t => (
@@ -123,7 +123,7 @@ function PreviewTab({ assets, activeAsset, setActiveAsset, renderAssetPreview })
     <div>
       <div className="flex flex-wrap gap-1 mb-3 pb-2 border-b" style={{ borderColor: "var(--gs-border)" }} data-testid="preview-asset-strip">
         {assets.map((a) => {
-          const Icon = KIND_ICONS[a.kind] || Sparkles;
+          const Icon = KIND_ICONS[a.kind] || Sparkle;
           const on = activeAsset?.id === a.id;
           return (
             <button key={a.id} onClick={() => setActiveAsset(a)}

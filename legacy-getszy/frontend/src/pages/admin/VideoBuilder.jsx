@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Film, Plus, Trash2, Play, Download, Copy, Loader2, Sparkles, GripVertical } from "lucide-react";
+import { Film, Plus, Trash2, Play, Download, Copy, Loader2, Sparkle, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 
@@ -129,7 +129,7 @@ export default function VideoBuilder() {
           <div className="flex gap-2">
             <Input value={topic} onChange={e=>setTopic(e.target.value)} placeholder="Topic ya idea likhein…" className="h-9 flex-1"/>
             <Button onClick={generateScript} disabled={generating} size="sm" className="h-9 gap-1" style={{background:"var(--gs-teal)",color:"#fff"}}>
-              {generating?<Loader2 className="h-3.5 w-3.5 animate-spin"/>:<Sparkles className="h-3.5 w-3.5"/>}
+              {generating?<Loader2 className="h-3.5 w-3.5 animate-spin"/>:<Sparkle className="h-3.5 w-3.5"/>}
               {generating?"...":"AI"}
             </Button>
           </div>

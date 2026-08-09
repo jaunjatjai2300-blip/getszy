@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandEmpty } from "@/components/ui/command";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Sparkles, Film, PenTool, Globe, Youtube, TrendingUp, Package, Users, Rocket, Layers, GraduationCap, Settings, FlaskConical, Briefcase } from "lucide-react";
+import { Sparkle, Film, PenTool, Globe, Youtube, TrendingUp, Package, Users, Rocket, Layers, GraduationCap, Settings, FlaskConical, Briefcase } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 // Global Cmd+K palette. Works across the whole app.
@@ -35,7 +35,7 @@ export default function CommandPalette() {
           <CommandList>
             <CommandEmpty>Nothing found.</CommandEmpty>
             <CommandGroup heading="Neo">
-              <CommandItem onSelect={() => go("/dashboard")}><Sparkles className="mr-2 h-4 w-4"/>New chat</CommandItem>
+              <CommandItem onSelect={() => go("/dashboard")}><Sparkle className="mr-2 h-4 w-4"/>New chat</CommandItem>
               <CommandItem onSelect={() => go("/dashboard/projects")}><Layers className="mr-2 h-4 w-4"/>All projects</CommandItem>
             </CommandGroup>
             <CommandGroup heading="Create">

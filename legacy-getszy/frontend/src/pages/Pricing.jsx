@@ -4,10 +4,10 @@ import { api, fmtINR } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Sparkles, Crown, Zap, ArrowRight, Loader2, Info } from "lucide-react";
+import { Check, Sparkle, Crown, Zap, ArrowRight, Loader2, Info } from "lucide-react";
 import { toast } from "sonner";
 
-const ICONS = { lite: Zap, pro: Sparkles, ultra: Crown };
+const ICONS = { lite: Zap, pro: Sparkle, ultra: Crown };
 const HIGHLIGHT_PACK = "pro";
 const RAZORPAY_SCRIPT = "https://checkout.razorpay.com/v1/checkout.js";
 
@@ -125,7 +125,7 @@ export default function Pricing() {
       <section className="gs-container pb-16 pt-6">
         <div className="grid md:grid-cols-3 gap-5">
           {plans.map((p) => {
-            const Icon = ICONS[p.id] || Sparkles;
+            const Icon = ICONS[p.id] || Sparkle;
             const highlight = p.id === HIGHLIGHT_PACK;
             const priceLabel = fmtINR(p.price_monthly);
             return (

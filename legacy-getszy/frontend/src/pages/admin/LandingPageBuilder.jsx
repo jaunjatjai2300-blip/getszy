@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Layout, Wand2, Loader2, Eye, Code2, Copy, RefreshCw, ExternalLink, Check, Sparkles } from "lucide-react";
+import { Layout, Wand2, Loader2, Eye, Code2, Copy, RefreshCw, ExternalLink, Check, Sparkle } from "lucide-react";
 import { toast } from "sonner";
 
 const TEMPLATES = [
@@ -123,7 +123,7 @@ Return ONLY the complete HTML code, nothing else.`;
               </Select>
             </div>
             <Button className="w-full h-11 bg-[var(--gs-teal)] text-base font-semibold" onClick={generate}>
-              <Sparkles className="h-5 w-5 mr-2"/>AI se Generate Karo
+              <Sparkle className="h-5 w-5 mr-2"/>AI se Generate Karo
             </Button>
           </div>
         </div>

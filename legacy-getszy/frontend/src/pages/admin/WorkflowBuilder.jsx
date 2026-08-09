@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { GitBranch, Plus, Trash2, Copy, Play, Loader2, Sparkles, ArrowRight, Users, Clock } from "lucide-react";
+import { GitBranch, Plus, Trash2, Copy, Play, Loader2, Sparkle, ArrowRight, Users, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 
@@ -128,7 +128,7 @@ export default function WorkflowBuilder() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={exportJSON}><Copy className="h-3.5 w-3.5 mr-1"/>Export JSON</Button>
           <Button size="sm" onClick={generateWorkflow} disabled={generating} style={{background:"var(--gs-teal)",color:"#fff"}}>
-            {generating?<Loader2 className="h-3.5 w-3.5 animate-spin mr-1"/>:<Sparkles className="h-3.5 w-3.5 mr-1"/>}AI Generate
+            {generating?<Loader2 className="h-3.5 w-3.5 animate-spin mr-1"/>:<Sparkle className="h-3.5 w-3.5 mr-1"/>}AI Generate
           </Button>
         </div>
       </div>

@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import {
   Workflow, Plus, RefreshCw, Play, Trash2, ToggleLeft, ToggleRight,
   Zap, Clock, Video, Users, ShoppingCart, Bell, Share2, Mail,
-  Globe, Sparkles, CheckCircle2, XCircle, AlertCircle, Loader2,
+  Globe, Sparkle, CheckCircle2, XCircle, AlertCircle, Loader2,
   ChevronRight, Package
 } from "lucide-react";
 import { toast } from "sonner";
@@ -29,7 +29,7 @@ const ACTION_META = {
   post_social:      { icon: Share2,    color: "text-pink-600",          label: "Post to Social" },
   grant_credits:    { icon: Zap,       color: "text-amber-600",         label: "Grant Credits" },
   send_email:       { icon: Mail,      color: "text-blue-600",          label: "Send Email" },
-  generate_content: { icon: Sparkles,  color: "text-[var(--gs-teal)]",  label: "Generate Content" },
+  generate_content: { icon: Sparkle,  color: "text-[var(--gs-teal)]",  label: "Generate Content" },
   webhook:          { icon: Globe,     color: "text-violet-600",        label: "Webhook" },
   notify_slack:     { icon: Bell,      color: "text-emerald-600",       label: "Slack Notify" },
 };

@@ -3,7 +3,7 @@ import { api, fmtINR } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Send, Loader2, CheckCircle2, AlertCircle, Plus, History, Trash2 } from "lucide-react";
+import { Sparkle, Send, Loader2, CheckCircle2, AlertCircle, Plus, History, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -110,14 +110,14 @@ export default function AdminAIChat() {
 
       <section className="flex flex-col h-[calc(100vh-2rem)]">
         <div className="border-b p-4 flex items-center gap-3" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)" }}>
-          <div className="h-9 w-9 rounded-xl grid place-items-center" style={{ background: "var(--gs-teal-soft)" }}><Sparkles className="h-5 w-5 text-[var(--gs-teal)]"/></div>
+          <div className="h-9 w-9 rounded-xl grid place-items-center" style={{ background: "var(--gs-teal-soft)" }}><Sparkle className="h-5 w-5 text-[var(--gs-teal)]"/></div>
           <div><div className="font-semibold">AI Admin Chat</div><div className="text-xs text-[var(--gs-muted)]">Type natural commands. I'll run them for you.</div></div>
         </div>
 
         <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-4">
           {messages.length === 0 && (
             <div className="max-w-xl mx-auto text-center py-10">
-              <div className="h-14 w-14 mx-auto rounded-2xl grid place-items-center mb-4" style={{ background: "var(--gs-teal-soft)" }}><Sparkles className="h-7 w-7 text-[var(--gs-teal)]"/></div>
+              <div className="h-14 w-14 mx-auto rounded-2xl grid place-items-center mb-4" style={{ background: "var(--gs-teal-soft)" }}><Sparkle className="h-7 w-7 text-[var(--gs-teal)]"/></div>
               <h2 className="font-display text-2xl mb-2">What can I help you with today?</h2>
               <p className="text-sm text-[var(--gs-muted)] mb-6">Try one of these commands or type your own.</p>
               <div className="flex flex-wrap gap-2 justify-center">{SUGGESTIONS.map((s) => (<button key={s} onClick={() => send(s)} className="text-xs px-3 py-2 rounded-full border hover:bg-[var(--gs-surface-2)]" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)" }} data-testid={`ai-suggestion-${s.slice(0,10)}`}>{s}</button>))}</div>

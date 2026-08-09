@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import * as Icons from "lucide-react";
-import { Wand2, Loader2, Play, Download, Trash2, ExternalLink, Copy, Sparkles, Plus } from "lucide-react";
+import { Wand2, Loader2, Play, Download, Trash2, ExternalLink, Copy, Sparkle, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
@@ -54,7 +54,7 @@ export default function BuildStudio() {
               <div className="mt-3 font-display text-xl">{c.title}</div>
               <div className="text-xs text-[var(--gs-muted)] mt-1">{c.desc}</div>
               <div className="mt-3 text-xs font-semibold flex items-center gap-1" style={{ color: c.color }}>
-                Build <Sparkles className="h-3.5 w-3.5"/>
+                Build <Sparkle className="h-3.5 w-3.5"/>
               </div>
             </button>
           );
@@ -125,7 +125,7 @@ function WebAppBuilder({ color }) {
         <Input value={name} onChange={(e) => setName(e.target.value)} data-testid="wa-name"/>
       </div>
       <Button onClick={build} disabled={busy} className="w-full text-white" style={{ background: color }} data-testid="wa-build-btn">
-        {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkles className="h-4 w-4 mr-2"/>}
+        {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
         {busy ? "Building…" : "Build Web App"}
       </Button>
 
@@ -224,7 +224,7 @@ function ChannelBuilder({ color }) {
         </div>
       </div>
       <Button onClick={plan} disabled={busy} className="w-full text-white" style={{ background: color }} data-testid="ch-plan-btn">
-        {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkles className="h-4 w-4 mr-2"/>}
+        {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
         {busy ? "Planning…" : "Plan 30-day Channel"}
       </Button>
 
