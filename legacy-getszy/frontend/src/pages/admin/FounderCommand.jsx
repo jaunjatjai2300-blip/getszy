@@ -8,7 +8,7 @@ import {
   CreditCard, FolderOpen, GitBranch, Layers, Sparkle, Bell, Command,
   Brain, ShoppingCart, UserPlus, Target, Flame, Eye, Gauge, Timer,
   TrendingDown, ArrowRight, Download, Calendar, DollarSign, BoxesIcon,
-  LineChart, PieChart as PieChartIcon
+  PieChart as PieChartIcon
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip,
