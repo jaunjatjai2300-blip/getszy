@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { PenTool, TrendingUp, Zap, Flame, Repeat, Target, History, Sparkles, Loader2, Copy } from "lucide-react";
+import { PenTool, TrendingUp, Zap, Flame, Repeat, Target, History, Sparkle, Loader2, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 const FORMAT_OPTIONS = [
@@ -194,7 +194,7 @@ export default function CreatorOS() {
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-3xl flex items-center gap-2">
-            <Sparkles className="h-7 w-7 text-[var(--gs-teal)]" /> Creator OS
+            <Sparkle className="h-7 w-7 text-[var(--gs-teal)]" /> Creator OS
           </h1>
           <p className="text-sm text-[var(--gs-muted)] mt-1">
             Script → Hook → Trend → Viral predict — all-in-one workflow for Indian creators.

@@ -1,9 +1,9 @@
-import { Crown, Sparkles, Zap } from "lucide-react";
+import { Crown, Sparkle, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const CFG = {
   free: { label: "Free", icon: Zap, bg: "bg-[var(--gs-surface-2)]", color: "text-[var(--gs-muted)]" },
-  pro: { label: "Pro", icon: Sparkles, bg: "bg-[var(--gs-teal-soft)]", color: "text-[var(--gs-teal)]" },
+  pro: { label: "Pro", icon: Sparkle, bg: "bg-[var(--gs-teal-soft)]", color: "text-[var(--gs-teal)]" },
   elite: { label: "Elite", icon: Crown, bg: "bg-[var(--gs-champagne)]", color: "text-[var(--gs-ink)]" },
 };
 

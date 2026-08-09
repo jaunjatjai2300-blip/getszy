@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ImageIcon, Loader2, Download, History, Sparkles } from "lucide-react";
+import { ImageIcon, Loader2, Download, History, Sparkle } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ImageGen() {
@@ -54,7 +54,7 @@ export default function ImageGen() {
 
       <Tabs defaultValue="generate">
         <TabsList>
-          <TabsTrigger value="generate"><Sparkles className="h-4 w-4 mr-1" /> Generate</TabsTrigger>
+          <TabsTrigger value="generate"><Sparkle className="h-4 w-4 mr-1" /> Generate</TabsTrigger>
           <TabsTrigger value="history" onClick={loadHistory}><History className="h-4 w-4 mr-1" /> History</TabsTrigger>
         </TabsList>
 
@@ -92,7 +92,7 @@ export default function ImageGen() {
             </div>
             <div className="flex gap-2">
               <Button onClick={generate} disabled={generating} className="bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]/90">
-                {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkle className="h-4 w-4 mr-2" />}
                 Generate Image
               </Button>
             </div>

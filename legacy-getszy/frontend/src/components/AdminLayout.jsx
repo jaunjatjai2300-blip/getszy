@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard, FolderOpen, Layers, Bot, ShoppingBag, Users, BarChart3,
   Zap, Rocket, Monitor, Shield, Settings, LogOut, Store, Menu, ChevronDown,
-  ChevronRight, Sparkles, Wand2, Film, PenTool, Briefcase, Package, ShoppingCart,
+  ChevronRight, Sparkle, Wand2, Film, PenTool, Briefcase, Package, ShoppingCart,
   Truck, TrendingUp, GraduationCap, Globe, Smartphone, Code2, Workflow,
   CalendarClock, Webhook, Activity, Server, Lock, Key, AlertTriangle,
   Bell, Search, Share2, Database, Image, Mic, MessageCircle, Cpu, Building2,
@@ -66,7 +66,7 @@ const NAV = [
     label: "🤖 AI Platform",
     icon: Bot,
     items: [
-      { to: "/admin/chat",           label: "Neo AI",           icon: Sparkles },
+      { to: "/admin/chat",           label: "Neo AI",           icon: Sparkle },
       { to: "/admin/video",          label: "Video Studio",     icon: Film },
       { to: "/admin/creator",        label: "Creator OS",       icon: PenTool },
       { to: "/admin/avatar",         label: "Avatar Studio",    icon: Image },
@@ -298,7 +298,7 @@ export default function AdminLayout() {
             <Bell className="h-4 w-4 text-[var(--gs-muted)]"/>
           </NavLink>
           <NavLink to="/admin/chat" className="text-xs px-3 py-1.5 rounded-lg bg-[var(--gs-teal)] text-white flex items-center gap-1">
-            <Sparkles className="h-3 w-3"/>Neo
+            <Sparkle className="h-3 w-3"/>Neo
           </NavLink>
         </div>
       </div>

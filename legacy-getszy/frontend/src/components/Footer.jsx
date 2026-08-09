@@ -1,4 +1,4 @@
-import { Sparkles, Instagram, Twitter, Facebook } from "lucide-react";
+import { Sparkle, Instagram, Twitter, Facebook } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export function Footer() {
@@ -28,7 +28,7 @@ export function Footer() {
           </ul>
         </div>
         <div>
-          <div className="font-semibold mb-3 text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-[var(--gs-primary)]"/>Stay in the loop</div>
+          <div className="font-semibold mb-3 text-sm flex items-center gap-2"><Sparkle className="h-4 w-4 text-[var(--gs-primary)]"/>Stay in the loop</div>
           <p className="text-xs text-[var(--gs-muted)] mb-2">New drops, AI launches, women-first stories.</p>
           <div className="flex gap-3 text-[var(--gs-muted)]"><Instagram className="h-4 w-4"/><Twitter className="h-4 w-4"/><Facebook className="h-4 w-4"/></div>
         </div>

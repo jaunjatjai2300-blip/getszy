@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import * as Icons from "lucide-react";
-import { Wand2, RefreshCw, Play, ChevronRight, Sparkles } from "lucide-react";
+import { Wand2, RefreshCw, Play, ChevronRight, Sparkle } from "lucide-react";
 import { toast } from "sonner";
 
 const CATEGORY_META = {
@@ -76,7 +76,7 @@ export default function AdminSkills() {
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {items.map((s) => {
-                const Icon = Icons[s.icon] || Sparkles;
+                const Icon = Icons[s.icon] || Sparkle;
                 return (
                   <button key={s.name} onClick={() => openSkill(s)} data-testid={`skill-card-${s.name}`}
                     className="gs-card p-4 text-left hover:bg-[var(--gs-surface-2)] transition">

@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle2, Circle, ArrowLeft, Sparkles, Send, Loader2, Award, PlayCircle, BookOpen } from "lucide-react";
+import { CheckCircle2, Circle, ArrowLeft, Sparkle, Send, Loader2, Award, PlayCircle, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { Progress } from "@/components/ui/progress";
@@ -122,7 +122,7 @@ export default function Learn() {
       {/* Right: AI Tutor */}
       <aside className="hidden lg:flex flex-col border-l h-screen sticky top-0" style={{ background: "var(--gs-surface)", borderColor: "var(--gs-border)" }} data-testid="learn-tutor-panel">
         <div className="p-4 border-b flex items-center gap-3" style={{ borderColor: "var(--gs-border)" }}>
-          <div className="h-9 w-9 rounded-xl grid place-items-center" style={{ background: "var(--gs-teal-soft)" }}><Sparkles className="h-5 w-5 text-[var(--gs-teal)]"/></div>
+          <div className="h-9 w-9 rounded-xl grid place-items-center" style={{ background: "var(--gs-teal-soft)" }}><Sparkle className="h-5 w-5 text-[var(--gs-teal)]"/></div>
           <div><div className="font-semibold text-sm">AI Tutor</div><div className="text-xs text-[var(--gs-muted)]">Ask anything about this course</div></div>
         </div>
         <div className="flex-1 overflow-auto p-3 space-y-3">

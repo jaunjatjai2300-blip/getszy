@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, BookOpen, CheckCircle2, PlayCircle, Award, Sparkles, ArrowRight, Lock } from "lucide-react";import { toast } from "sonner";
+import { Clock, BookOpen, CheckCircle2, PlayCircle, Award, Sparkle, ArrowRight, Lock } from "lucide-react";import { toast } from "sonner";
 
 const LEVEL_COLOR = { Beginner: "bg-emerald-100 text-emerald-800", Intermediate: "bg-amber-100 text-amber-800", Advanced: "bg-rose-100 text-rose-800" };
 
@@ -49,7 +49,7 @@ export default function CourseDetail() {
             <div className="flex flex-wrap gap-4 text-sm text-[var(--gs-muted)]">
               <span className="flex items-center gap-1"><Clock className="h-4 w-4"/>{course.duration_hours} hours</span>
               <span className="flex items-center gap-1"><BookOpen className="h-4 w-4"/>{course.total_lessons} lessons</span>
-              <span className="flex items-center gap-1"><Sparkles className="h-4 w-4 text-[var(--gs-teal)]"/>AI Tutor included</span>
+              <span className="flex items-center gap-1"><Sparkle className="h-4 w-4 text-[var(--gs-teal)]"/>AI Tutor included</span>
             </div>
           </div>
           <div className="gs-card overflow-hidden md:sticky md:top-24">

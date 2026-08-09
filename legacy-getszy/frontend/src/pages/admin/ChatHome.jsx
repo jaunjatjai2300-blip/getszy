@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Sparkles, Send, Plus, MessageSquare, Loader2, Trash2, Film, PenTool, TrendingUp, Zap, Flame, Globe, Youtube, Bot, Briefcase, Smartphone, Layers, BookOpen, Package, ArrowUp, RefreshCw, ExternalLink, Download, Rocket } from "lucide-react";
+import { Sparkle, Send, Plus, MessageSquare, Loader2, Trash2, Film, PenTool, TrendingUp, Zap, Flame, Globe, Youtube, Bot, Briefcase, Smartphone, Layers, BookOpen, Package, ArrowUp, RefreshCw, ExternalLink, Download, Rocket } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { undoableDelete, errorWithRetry } from "@/lib/ux";
@@ -122,7 +122,7 @@ function WelcomeScreen({ onStart }) {
   return (
     <Card className="h-full p-8 flex flex-col items-center justify-center text-center" data-testid="chat-welcome">
       <div className="h-16 w-16 rounded-3xl grid place-items-center bg-[var(--gs-teal)]/15 mb-4">
-        <Sparkles className="h-8 w-8 text-[var(--gs-teal)]"/>
+        <Sparkle className="h-8 w-8 text-[var(--gs-teal)]"/>
       </div>
       <h1 className="font-display text-4xl">Neo — Getszy's AI Builder</h1>
       <p className="text-sm text-[var(--gs-muted)] mt-2 max-w-xl">Ek chat, ek dashboard, sab kuch. Videos · Scripts · Web apps · Channels · Agents · Trends — bas bata kya banana hai.</p>
@@ -248,7 +248,7 @@ function ChatWorkspace({ sessionId, onProjectUpdate }) {
       {/* Conversation column */}
       <Card className="col-span-12 lg:col-span-7 flex flex-col overflow-hidden">
         <div className="p-3 border-b flex items-center gap-2" style={{ borderColor: "var(--gs-border)" }}>
-          <Sparkles className="h-4 w-4 text-[var(--gs-teal)]"/>
+          <Sparkle className="h-4 w-4 text-[var(--gs-teal)]"/>
           <div className="font-display text-sm truncate flex-1">{project?.title || "New chat"}</div>
           {(project?.capabilities_used || []).slice(0, 3).map(c => <Badge key={c} variant="outline" className="text-[9px]">{c}</Badge>)}
         </div>

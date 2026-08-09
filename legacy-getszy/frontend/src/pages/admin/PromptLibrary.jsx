@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { BookOpen, Plus, Search, Copy, Trash2, Edit2, Sparkles, Tag, TrendingUp } from "lucide-react";
+import { BookOpen, Plus, Search, Copy, Trash2, Edit2, Sparkle, Tag, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 
 const CATEGORIES = ["general", "marketing", "coding", "content", "sales", "support", "seo", "email", "social", "data"];
@@ -98,7 +98,7 @@ export default function PromptLibrary() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{[1,2,3,4,5,6].map(i=><div key={i} className="h-44 animate-pulse rounded-2xl bg-[var(--gs-surface-2)]"/>)}</div>
       ) : prompts.length === 0 ? (
         <div className="text-center py-16 text-[var(--gs-muted)]">
-          <Sparkles className="h-12 w-12 mx-auto mb-3 opacity-20"/>
+          <Sparkle className="h-12 w-12 mx-auto mb-3 opacity-20"/>
           <p>Koi prompt nahi mila — pehla prompt banao!</p>
         </div>
       ) : (

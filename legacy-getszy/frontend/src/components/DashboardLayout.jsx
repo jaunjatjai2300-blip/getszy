@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Sparkles, LogOut, Store, GraduationCap, Rocket, Settings, ShoppingBag, FlaskConical, LayoutGrid, ChevronDown, ChevronRight, Film, Menu } from "lucide-react";
+import { Sparkle, LogOut, Store, GraduationCap, Rocket, Settings, ShoppingBag, FlaskConical, LayoutGrid, ChevronDown, ChevronRight, Film, Menu } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 // Customer-facing dashboard: Neo is the front door. Traditional menus are
 // secondary and grouped, so users mostly stay inside the chat.
 const PRIMARY = [
-  { to: "/dashboard", label: "Neo", icon: Sparkles, end: true, primary: true },
+  { to: "/dashboard", label: "Neo", icon: Sparkle, end: true, primary: true },
   { to: "/dashboard/video-studio", label: "Video Studio", icon: Film, primary: true, badge: "NEW" },
 ];
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Bot, Send, RefreshCw, X, Sparkles, Zap, ChevronUp } from "lucide-react";
+import { Bot, Send, RefreshCw, X, Sparkle, Zap, ChevronUp } from "lucide-react";
 
 const SUGGESTIONS = [
   "Yesterday ki sales report do",
@@ -74,7 +74,7 @@ export default function CopilotSidebar() {
           <div className="flex-1 overflow-y-auto p-3 space-y-3 text-sm" data-testid="copilot-messages">
             {messages.length === 0 && (
               <div className="text-center mt-6">
-                <div className="h-12 w-12 rounded-full mx-auto grid place-items-center mb-2" style={{ background: "var(--gs-teal-soft)" }}><Sparkles className="h-6 w-6 text-[var(--gs-teal)]"/></div>
+                <div className="h-12 w-12 rounded-full mx-auto grid place-items-center mb-2" style={{ background: "var(--gs-teal-soft)" }}><Sparkle className="h-6 w-6 text-[var(--gs-teal)]"/></div>
                 <h4 className="font-display text-lg">Namaste! Main aapki kaise help karu?</h4>
                 <p className="text-xs text-[var(--gs-muted)] mb-4">Try one of these:</p>
                 <div className="flex flex-wrap gap-2 justify-center">

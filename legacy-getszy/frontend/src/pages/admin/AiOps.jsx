@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Sparkles, Wand2, Bot, GraduationCap, Activity, Zap, Cpu, TrendingUp } from "lucide-react";
+import { Sparkle, Wand2, Bot, GraduationCap, Activity, Zap, Cpu, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 
@@ -34,7 +34,7 @@ export default function AdminAiOps() {
       {/* Agents */}
       <div className="grid sm:grid-cols-3 gap-4" data-testid="ai-ops-agents-grid">
         {data.agents.map((a) => {
-          const Icon = AGENT_ICONS[a.name] || Sparkles;
+          const Icon = AGENT_ICONS[a.name] || Sparkle;
           return (
             <div key={a.name} className="gs-card p-5 relative overflow-hidden">
               <div className="absolute inset-x-0 top-0 h-1" style={{ background: "var(--gs-teal)" }}/>
@@ -102,7 +102,7 @@ export default function AdminAiOps() {
           ) : (
             <div className="space-y-2 max-h-[320px] overflow-auto pr-1">
               {data.feed.map((f, i) => {
-                const Icon = FEED_ICONS[f.icon] || Sparkles;
+                const Icon = FEED_ICONS[f.icon] || Sparkle;
                 return (
                   <div key={i} className="flex items-start gap-2 text-sm py-1.5">
                     <div className="h-7 w-7 rounded-lg grid place-items-center flex-shrink-0" style={{ background: "var(--gs-teal-soft)" }}><Icon className="h-3.5 w-3.5 text-[var(--gs-teal)]"/></div>

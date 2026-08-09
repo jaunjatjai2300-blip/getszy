@@ -9,7 +9,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Film, Play, Loader2, Download, Trash2, RefreshCw, Layers, Sparkles,
+  Film, Play, Loader2, Download, Trash2, RefreshCw, Layers, Sparkle,
   FileText, BookOpen, Calendar, Share2, CheckCircle, XCircle, Clock,
   Youtube, Instagram, Facebook, Twitter, Send, Link, Unlink, AlertCircle,
   Image, Mic, User, Zap, Upload, Wand2, Copy, ExternalLink
@@ -614,7 +614,7 @@ export default function VideoStudio() {
             </div>
             <Button onClick={generateStory} disabled={storyBusy}
                     className="w-full bg-gradient-to-r from-[var(--gs-teal)] to-[#7c3aed] hover:opacity-90">
-              {storyBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkles className="h-4 w-4 mr-2"/>}
+              {storyBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
               {storyBusy ? "Creating story…" : "Generate AI Story Video"}
             </Button>
             <p className="text-[11px] text-[var(--gs-muted)]">

@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Sparkles, PenTool, Film, Globe, Youtube, Rocket, Layers, ArrowRight, Check } from "lucide-react";
+import { Sparkle, PenTool, Film, Globe, Youtube, Rocket, Layers, ArrowRight, Check } from "lucide-react";
 
 const STEPS = [
   {
     key: "welcome",
-    icon: Sparkles,
+    icon: Sparkle,
     title: "Welcome to Getszy — meet Neo",
     body: "Neo is your AI Builder. Just tell it what to build — a reel script, faceless video, landing page, or channel plan — and it orchestrates the whole stack for you.",
     primary: { label: "Show me around", next: true },

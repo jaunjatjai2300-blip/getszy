@@ -4,7 +4,7 @@ import { api, fmtINR, API_BASE } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ShoppingBag, Plus, Minus, Truck, ShieldCheck, RotateCcw, ScanFace, Sparkles, Download, RefreshCw } from "lucide-react";
+import { ShoppingBag, Plus, Minus, Truck, ShieldCheck, RotateCcw, ScanFace, Sparkle, Download, RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/cart";
 import { toast } from "sonner";
@@ -105,7 +105,7 @@ export default function ProductDetail() {
             <DialogContent className="max-w-2xl" data-testid="mirror-ai-dialog">
               <DialogHeader>
                 <DialogTitle className="font-display text-2xl flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-[var(--gs-teal)]"/>Mirror AI · Virtual Try-On
+                  <Sparkle className="h-5 w-5 text-[var(--gs-teal)]"/>Mirror AI · Virtual Try-On
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
@@ -139,7 +139,7 @@ export default function ProductDetail() {
                 )}
 
                 <Button onClick={runTryOn} disabled={tryOnBusy} className="w-full h-11 gap-2 bg-[var(--gs-primary)] hover:bg-[var(--gs-primary-2)]" data-testid="mirror-ai-generate-button">
-                  {tryOnBusy ? <RefreshCw className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4"/>}
+                  {tryOnBusy ? <RefreshCw className="h-4 w-4 animate-spin"/> : <Sparkle className="h-4 w-4"/>}
                   {tryOnResult ? "Try another look" : "Generate Mirror AI"}
                 </Button>
                 <p className="text-[10px] text-center text-[var(--gs-muted)]">{tryOnCost != null ? `Costs ${tryOnCost} credits per try-on.` : "Uses AI credits from your balance."} <Link to="/pricing" className="underline text-[var(--gs-teal)]">Top up</Link></p>

@@ -20,7 +20,7 @@ const CATEGORIES = [
   { id: "plugins", label: "Plugins", icon: Zap },
   { id: "themes", label: "Themes", icon: Paintbrush },
   { id: "integrations", label: "Integrations", icon: Globe },
-  { id: "ai-tools", label: "AI Tools", icon: Sparkles },
+  { id: "ai-tools", label: "AI Tools", icon: Sparkle },
   { id: "dev-tools", label: "Dev Tools", icon: Code2 },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "security", label: "Security", icon: Shield },

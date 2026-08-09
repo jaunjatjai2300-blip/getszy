@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { HelpCircle, MessageSquare, ThumbsUp, Send, Sparkles, Loader2, Plus, ChevronUp } from "lucide-react";
+import { HelpCircle, MessageSquare, ThumbsUp, Send, Sparkle, Loader2, Plus, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Support() {
@@ -79,7 +79,7 @@ export default function Support() {
         {[
           { k: "faq", label: "FAQ", Icon: HelpCircle },
           { k: "ticket", label: "Contact", Icon: MessageSquare },
-          { k: "features", label: "Feature requests", Icon: Sparkles },
+          { k: "features", label: "Feature requests", Icon: Sparkle },
         ].map(t => (
           <button key={t.k} onClick={() => setTab(t.k)}
             role="tab" aria-selected={tab === t.k}

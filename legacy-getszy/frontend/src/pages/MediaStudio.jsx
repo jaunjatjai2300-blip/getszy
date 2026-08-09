@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Image as ImageIcon, Mic2, Film, RefreshCw, Download, Wand2, Palette, ScanFace, ChevronRight, Lock } from "lucide-react";
+import { Sparkle, Image as ImageIcon, Mic2, Film, RefreshCw, Download, Wand2, Palette, ScanFace, ChevronRight, Lock } from "lucide-react";
 import { toast } from "sonner";
 
 const TOOL_ICONS = { image: ImageIcon, logo: Palette, voice: Mic2, video: Film, mirror: ScanFace };
@@ -112,7 +112,7 @@ export default function MediaStudio() {
         <div className="grid lg:grid-cols-[280px_1fr] gap-6">
           <aside className="space-y-2">
             {tools.tools.map((t) => {
-              const Icon = TOOL_ICONS[t.id] || Sparkles;
+              const Icon = TOOL_ICONS[t.id] || Sparkle;
               return (
                 <button key={t.id} onClick={() => setActive(t.id)} data-testid={`media-tool-${t.id}`}
                   className={`w-full text-left gs-card p-4 transition-all ${active === t.id ? "ring-2 ring-[var(--gs-teal)]" : "hover:bg-[var(--gs-surface-2)]"}`}>

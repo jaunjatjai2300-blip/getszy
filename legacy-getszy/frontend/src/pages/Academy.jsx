@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { CourseCard } from "@/components/CourseCard";
-import { Sparkles, Users, Award, Brain } from "lucide-react";
+import { Sparkle, Users, Award, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 
@@ -20,7 +20,7 @@ export default function Academy() {
       <section className="relative overflow-hidden" data-testid="academy-hero">
         <div className="absolute inset-0 gs-ai-glow pointer-events-none"/>
         <div className="gs-container relative py-16 lg:py-24 text-center">
-          <div className="text-xs uppercase tracking-[0.18em] text-[var(--gs-teal)] mb-4 flex items-center justify-center gap-2"><Sparkles className="h-3.5 w-3.5"/>AI Learning Academy</div>
+          <div className="text-xs uppercase tracking-[0.18em] text-[var(--gs-teal)] mb-4 flex items-center justify-center gap-2"><Sparkle className="h-3.5 w-3.5"/>AI Learning Academy</div>
           <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl leading-[1.05] tracking-tight max-w-3xl mx-auto">Become <span className="text-[var(--gs-teal)]">AI Independent</span>.<br/>From basics to brilliance.</h1>
           <p className="mt-6 text-base sm:text-lg text-[var(--gs-muted)] max-w-2xl mx-auto">Designed for women who want to learn AI in plain language and build real income. Free for now — with a personal AI Tutor.</p>
           <div className="mt-8 flex flex-wrap gap-6 justify-center text-sm text-[var(--gs-muted)]">
