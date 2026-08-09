@@ -197,7 +197,7 @@ dependencies:
   intl: ^0.19.0
   google_fonts: ^6.1.0
   shimmer: ^3.0.0
-  pull_to_refresh: ^2.0.0
+pull_to_refresh: ^2.0.0
   flutter_staggered_animations: ^1.1.1
   connectivity_plus: ^5.0.2
   path_provider: ^2.1.1
@@ -206,11 +206,11 @@ dependencies:
   flutter_local_notifications: ^16.1.0
   firebase_core: ^2.24.0
   firebase_messaging: ^14.7.0
-{"".join(f'  geolocator: ^11.0.0\\n  permission_handler: ^11.1.0\\n' if f == "location" else "" for f in features)}
-{"".join(f'  flutter_polyline_points: ^2.0.0\\n' if f == "location" else "" for f in features)}
-{"".join(f'  stripe_payment: ^3.1.0\\n' if f == "payments" else "" for f in features)}
-{"".join(f'  video_player: ^2.8.1\\n' if f == "video" else "" for f in features)}
-{"".join(f'  web_socket_channel: ^2.4.0\\n' if f == "chat" else "" for f in features)}
+{"".join(f'  geolocator: ^11.0.0{chr(10)}  permission_handler: ^11.1.0{chr(10)}' if f == "location" else "" for f in features)}
+{"".join(f'  flutter_polyline_points: ^2.0.0{chr(10)}' if f == "location" else "" for f in features)}
+{"".join(f'  stripe_payment: ^3.1.0{chr(10)}' if f == "payments" else "" for f in features)}
+{"".join(f'  video_player: ^2.8.1{chr(10)}' if f == "video" else "" for f in features)}
+{"".join(f'  web_socket_channel: ^2.4.0{chr(10)}' if f == "chat" else "" for f in features)}
 
 dev_dependencies:
   flutter_test:
