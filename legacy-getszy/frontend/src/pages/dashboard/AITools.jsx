@@ -193,7 +193,7 @@ function CopyTool({ color }) {
     if (!desc.trim()) return toast.error("Describe your page");
     setBusy(true); toast.loading("Writing copy…", { id: "copy" });
     try {
-      const r = await api.post("/ai/chat/completions", {
+      const r = await api.post("/ai-tools/chat/completions", {
         messages: [
           { role: "system", content: "You are an expert copywriter. Write compelling website copy with headlines, subheadlines, body text, and CTAs. Format as clean markdown." },
           { role: "user", content: `Write website copy for: ${desc}\nGoal: ${goal}\n\nProvide: 3 headline options, subheadline, body paragraphs, and 2 CTA button texts.` }
@@ -242,7 +242,7 @@ function LandingTool({ color }) {
     if (!desc.trim()) return toast.error("Describe your landing page");
     setBusy(true); toast.loading("Building landing page…", { id: "land" });
     try {
-      const r = await api.post("/ai/chat/completions", {
+      const r = await api.post("/ai-tools/chat/completions", {
         messages: [
           { role: "system", content: "You are a landing page specialist. Generate a complete landing page structure with: Hero (headline + subheadline + CTA), Benefits (3-4 items), Social Proof (testimonials), FAQ, and Final CTA. Use compelling copy. Format as clean markdown." },
           { role: "user", content: `Create a landing page for: ${desc}` }
@@ -318,7 +318,7 @@ function SEOTool({ color }) {
     if (!url.trim()) return toast.error("Enter a URL");
     setBusy(true); toast.loading("Analyzing SEO…", { id: "seo" });
     try {
-      const r = await api.post("/ai/chat/completions", {
+      const r = await api.post("/ai-tools/chat/completions", {
         messages: [
           { role: "system", content: "You are an SEO expert. Analyze the given URL and provide: 1) Title & meta review, 2) Heading structure, 3) Content quality, 4) Technical issues, 5) Recommendations. Be specific and actionable. Format as clean markdown." },
           { role: "user", content: `Perform SEO audit for: ${url}` }
@@ -356,7 +356,7 @@ function ContentTool({ color }) {
     if (!topic.trim()) return toast.error("Enter a topic");
     setBusy(true); toast.loading("Writing content…", { id: "content" });
     try {
-      const r = await api.post("/ai/chat/completions", {
+      const r = await api.post("/ai-tools/chat/completions", {
         messages: [
           { role: "system", content: "You are a content writer. Write engaging, well-structured long-form content with introduction, main sections with H2/H3 headings, bullet points, and a conclusion. Format as clean markdown." },
           { role: "user", content: `Write about: ${topic}\nTarget audience: ${audience || 'general'}\nLength: 800-1200 words` }
@@ -400,7 +400,7 @@ function BGRemoveTool({ color }) {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const r = await api.post("/media/bg-remove", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      const r = await api.post("/ai-tools/bg-remove", fd, { headers: { "Content-Type": "multipart/form-data" } });
       setResult(r.data.url || "");
       toast.success("Background removed ✅", { id: "bg" });
     } catch (e) { toast.error(e?.response?.data?.detail || "Upload an image first", { id: "bg" }); }
@@ -441,7 +441,7 @@ function HeatmapTool({ color }) {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const r = await api.post("/media/heatmap", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      const r = await api.post("/ai-tools/heatmap", fd, { headers: { "Content-Type": "multipart/form-data" } });
       setResult(r.data.url || "");
       toast.success("Heatmap ready ✅", { id: "heat" });
     } catch (e) { toast.error(e?.response?.data?.detail || "Upload a screenshot first", { id: "heat" }); }
@@ -482,7 +482,7 @@ function UpscalerTool({ color }) {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const r = await api.post("/media/upscale", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      const r = await api.post("/ai-tools/upscale", fd, { headers: { "Content-Type": "multipart/form-data" } });
       setResult(r.data.url || "");
       toast.success("Upscaled ✅", { id: "up" });
     } catch (e) { toast.error(e?.response?.data?.detail || "Upload an image first", { id: "up" }); }
@@ -520,7 +520,7 @@ function ValidateTool({ color }) {
     if (!idea.trim()) return toast.error("Describe your idea");
     setBusy(true); toast.loading("Analyzing idea…", { id: "val" });
     try {
-      const r = await api.post("/ai/chat/completions", {
+      const r = await api.post("/ai-tools/chat/completions", {
         messages: [
           { role: "system", content: "You are a brutal-honest startup advisor. Evaluate the business idea and provide: 1) One-line verdict (Go/Iterate/Stop), 2) Market size estimate, 3) Top 3 risks, 4) Competitive landscape, 5) Suggested next steps (3 actionable items). Be direct and honest. Format as clean markdown." },
           { role: "user", content: `Validate this business idea: ${idea}` }

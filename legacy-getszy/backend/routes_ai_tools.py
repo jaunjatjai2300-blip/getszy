@@ -22,7 +22,7 @@ from db import db
 from llm_provider import chat_completion
 from credits import deduct, refund
 
-router = APIRouter(tags=['ai-tools'])
+router = APIRouter(prefix='/ai-tools', tags=['ai-tools'])
 
 CACHE_DIR = Path(os.environ.get('MEDIA_CACHE_DIR', str(Path(__file__).resolve().parent / 'media_cache')))
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -42,7 +42,7 @@ class ChatCompletionIn(BaseModel):
     max_tokens: Optional[int] = None
 
 
-@router.post('/ai/chat/completions')
+@router.post('/chat/completions')
 async def chat_completions(payload: ChatCompletionIn, user=Depends(get_current_user)):
     """OpenAI-compatible chat completions endpoint for customer AI tools."""
     if not payload.messages:
@@ -79,7 +79,7 @@ async def chat_completions(payload: ChatCompletionIn, user=Depends(get_current_u
 # Background Removal — uses Pollinations' image transformation
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@router.post('/media/bg-remove')
+@router.post('/bg-remove')
 async def remove_background(file: UploadFile = File(...), user=Depends(get_current_user)):
     """Remove background from an uploaded image using Pollinations.
 
@@ -145,7 +145,7 @@ async def remove_background(file: UploadFile = File(...), user=Depends(get_curre
 # AI Heatmap — predicted attention heatmap via contrast analysis
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@router.post('/media/heatmap')
+@router.post('/heatmap')
 async def generate_heatmap(file: UploadFile = File(...), user=Depends(get_current_user)):
     """Generate a predicted-attention heatmap from a screenshot.
 
@@ -231,7 +231,7 @@ async def generate_heatmap(file: UploadFile = File(...), user=Depends(get_curren
 # Image Upscaler — 4x nearest-neighbor upscaling with sharpening
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@router.post('/media/upscale')
+@router.post('/upscale')
 async def upscale_image(file: UploadFile = File(...), user=Depends(get_current_user)):
     """Upscale an image to 4x resolution with sharpening.
 
