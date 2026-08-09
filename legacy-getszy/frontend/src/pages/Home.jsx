@@ -81,7 +81,7 @@ function useNLSearch() {
 const CATEGORIES_META = [
   { slug: "fashion", title: "Fashion", tagline: "Style that moves with you.", emoji: "👗", img: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600" },
   { slug: "jewellery", title: "Jewellery", tagline: "Small details. Big statement.", emoji: "💎", img: "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=600" },
-  { slug: "beauty", title: "Beauty", tagline: "Glow, simplified.", emoji: "✨", img: "https://images.unsplash.com/photo-1522335789203-aaa2f6ed9b51?w=600" },
+  { slug: "beauty", title: "Beauty", tagline: "Glow, simplified.", emoji: "✨", img: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600" },
   { slug: "home-decor", title: "Home", tagline: "Make your space yours.", emoji: "🏡", img: "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=600" },
   { slug: "kids", title: "Kids", tagline: "Made for little moments.", emoji: "🧸", img: "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=600" },
   { slug: "gadgets", title: "Gadgets", tagline: "Tech that fits your life.", emoji: "📱", img: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=600" },
@@ -786,7 +786,7 @@ export default function Home() {
             <div className="grid grid-cols-2 grid-rows-2 gap-3 sm:gap-4 aspect-[1.1/1]">
               <div className="row-span-2 rounded-3xl overflow-hidden shadow-xl"><img src="https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800" alt="Fashion" className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/></div>
               <div className="rounded-3xl overflow-hidden shadow-xl"><img src="https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=600" alt="Jewellery" className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/></div>
-              <div className="rounded-3xl overflow-hidden shadow-xl"><img src="https://images.unsplash.com/photo-1522335789203-aaa2f6ed9b51?w=600" alt="Beauty" className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/></div>
+              <div className="rounded-3xl overflow-hidden shadow-xl"><img src="https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600" alt="Beauty" className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/></div>
             </div>
             <div className="absolute -bottom-4 -left-4 bg-white rounded-2xl p-4 shadow-lg flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-[var(--gs-teal-soft)] grid place-items-center"><Bot className="h-5 w-5 text-[var(--gs-teal)]"/></div>
