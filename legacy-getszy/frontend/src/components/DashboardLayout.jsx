@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Sparkle, LogOut, Store, GraduationCap, Rocket, Settings, ShoppingBag, FlaskConical, LayoutGrid, ChevronDown, ChevronRight, Film, Wand2, Menu } from "lucide-react";
+import { Sparkle, LogOut, Store, GraduationCap, Rocket, Settings, ShoppingBag, FlaskConical, LayoutGrid, ChevronDown, ChevronRight, Film, Wand2, Menu, Users, Plug } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -11,6 +11,9 @@ const PRIMARY = [
   { to: "/dashboard", label: "Neo", icon: Sparkle, end: true, primary: true },
   { to: "/dashboard/video-studio", label: "Video Studio", icon: Film, primary: true, badge: "NEW" },
   { to: "/dashboard/build", label: "Build Studio", icon: Wand2, primary: true, badge: "AI" },
+  { to: "/dashboard/ai-tools", label: "AI Tools", icon: Wand2, primary: true, badge: "NEW" },
+  { to: "/dashboard/agents", label: "Agents", icon: Users, primary: true, badge: "NEW" },
+  { to: "/dashboard/integrations", label: "Integrations", icon: Plug, primary: true, badge: "NEW" },
 ];
 
 const GROUPS = [

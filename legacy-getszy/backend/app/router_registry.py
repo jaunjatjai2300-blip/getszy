@@ -99,6 +99,13 @@ ANALYTICS_ROUTERS = [
 ]
 
 # ── Misc & Extras ─────────────────────────────────────────────────────────────
+# ── AI Tools (customer-facing) ─────────────────────────────────────────────────
+AI_TOOLS_ROUTERS = [
+    ('ai_tools', 'routes_ai_tools', 'ai-tools'),
+    ('agents', 'routes_agents', 'agents'),
+    ('integrations', 'routes_integrations', 'integrations'),
+]
+
 MISC_ROUTERS = [
     ('workspace', 'routes_workspace', 'workspace'),
     ('projects', 'routes_projects', 'projects'),
@@ -124,7 +131,7 @@ def load_all_routers() -> APIRouter:
         CORE_ROUTERS + LEARNING_ROUTERS + AI_ROUTERS + COMMERCE_ROUTERS +
         MEDIA_ROUTERS + CREATOR_ROUTERS + BUILD_ROUTERS + DEPLOY_ROUTERS +
         PLATFORM_ROUTERS + SUPPORT_ROUTERS + ANALYTICS_ROUTERS + MISC_ROUTERS +
-        ENGINE_ROUTERS
+        AI_TOOLS_ROUTERS + ENGINE_ROUTERS
     )
     for name, module_name, prefix in all_categories:
         try:

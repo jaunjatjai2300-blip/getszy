@@ -94,6 +94,11 @@ const QuizCerts = lazy(() => import("@/pages/admin/QuizCerts"));
 const VoiceGen = lazy(() => import("@/pages/admin/VoiceGen"));
 const ImageGen = lazy(() => import("@/pages/admin/ImageGen"));
 const Releases = lazy(() => import("@/pages/admin/Releases"));
+const AgentsAdmin = lazy(() => import("@/pages/admin/AgentsAdmin"));
+const IntegrationsAdmin = lazy(() => import("@/pages/admin/IntegrationsAdmin"));
+const AITools = lazy(() => import("@/pages/dashboard/AITools"));
+const Agents = lazy(() => import("@/pages/dashboard/Agents"));
+const Integrations = lazy(() => import("@/pages/dashboard/Integrations"));
 
 function AdminFallback() {
   return (
@@ -227,6 +232,8 @@ export default function App() {
             <Route path="quiz-certs" element={<Suspense fallback={<AdminFallback />}><QuizCerts /></Suspense>} />
             <Route path="image-gen" element={<Suspense fallback={<AdminFallback />}><ImageGen /></Suspense>} />
             <Route path="releases" element={<Suspense fallback={<AdminFallback />}><Releases /></Suspense>} />
+            <Route path="agents-admin" element={<Suspense fallback={<AdminFallback />}><AgentsAdmin /></Suspense>} />
+            <Route path="integrations-admin" element={<Suspense fallback={<AdminFallback />}><IntegrationsAdmin /></Suspense>} />
 
             <Route path="settings" element={<Suspense fallback={<AdminFallback />}><AdminSettings /></Suspense>} />
             <Route path="settings/branding" element={<Suspense fallback={<AdminFallback />}><AdminSettings /></Suspense>} />
@@ -242,6 +249,10 @@ export default function App() {
             <Route path="video-studio" element={<VideoStudio />} />
             <Route path="build" element={<DashboardBuild />} />
             <Route path="build/:category" element={<DashboardBuild />} />
+            <Route path="ai-tools" element={<Suspense fallback={<AdminFallback />}><AITools /></Suspense>} />
+            <Route path="agents" element={<Suspense fallback={<AdminFallback />}><Agents /></Suspense>} />
+            <Route path="agents/:agentId" element={<Suspense fallback={<AdminFallback />}><Agents /></Suspense>} />
+            <Route path="integrations" element={<Suspense fallback={<AdminFallback />}><Integrations /></Suspense>} />
           </Route>
 
           <Route path="/labs" element={<DashboardLayout />}>
