@@ -129,6 +129,17 @@ async def startup():
     await db.notifications.create_index([('user_id', 1), ('created_at', -1)])
     await db.video_jobs.create_index('user_id')
     await db.request_logs.create_index('timestamp', expireAfterSeconds=604800)
+    # New indexes from audit
+    await db.credit_transactions.create_index('user_id')
+    await db.credit_transactions.create_index('created_at')
+    await db.admin_chat.create_index('session_id')
+    await db.chat_projects.create_index('user_id')
+    await db.chat_messages.create_index('project_id')
+    await db.media_assets.create_index('user_id')
+    await db.enrollments.create_index('user_id')
+    await db.builder_projects.create_index('user_id')
+    await db.custom_agents.create_index('user_id')
+    await db.deploy_jobs.create_index('created_at')
     logger.info('indexes ensured')
 
 

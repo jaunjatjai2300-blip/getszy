@@ -1,12 +1,31 @@
 """WebSocket endpoint for real-time updates."""
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from websocket_manager import manager
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+import jwt
+import os
 
 router = APIRouter(tags=['websocket'])
 
+JWT_SECRET = os.environ.get('JWT_SECRET', '')
+JWT_ALG = 'HS256'
+
+
+def _verify_ws_token(token: str) -> str | None:
+    """Return user_id from JWT or None if invalid."""
+    if not token or not JWT_SECRET:
+        return None
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+        return payload.get('sub')
+    except Exception:
+        return None
+
 
 @router.websocket('/ws')
-async def websocket_endpoint(websocket: WebSocket, channel: str = 'general', user_id: str = ''):
+async def websocket_endpoint(websocket: WebSocket, channel: str = 'general', token: str = Query(default='')):
+    user_id = _verify_ws_token(token)
+    if not user_id:
+        await websocket.close(code=4001, reason='Invalid or missing token')
+        return
     await manager.connect(websocket, channel, user_id)
     try:
         while True:
@@ -17,7 +36,11 @@ async def websocket_endpoint(websocket: WebSocket, channel: str = 'general', use
 
 
 @router.websocket('/ws/notifications/{user_id}')
-async def notifications_ws(websocket: WebSocket, user_id: str):
+async def notifications_ws(websocket: WebSocket, user_id: str, token: str = Query(default='')):
+    verified_id = _verify_ws_token(token)
+    if not verified_id or verified_id != user_id:
+        await websocket.close(code=4001, reason='Unauthorized')
+        return
     await manager.connect(websocket, f'notifications:{user_id}', user_id)
     try:
         while True:

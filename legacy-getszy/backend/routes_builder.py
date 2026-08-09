@@ -53,8 +53,18 @@ def _extract_html(raw: str) -> str:
 
 
 def _sanitize(html: str) -> str:
-    """Light sanitization — block dangerous patterns."""
-    html = re.sub(r'(file://|javascript:eval\()', '', html, flags=re.IGNORECASE)
+    """Strip dangerous patterns from LLM-generated HTML."""
+    # Remove script tags and event handlers
+    html = re.sub(r'<script[\s\S]*?</script>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'\bon\w+\s*=', '', html, flags=re.IGNORECASE)
+    # Remove dangerous URIs
+    html = re.sub(r'(file://|javascript:|data:text/html)', '', html, flags=re.IGNORECASE)
+    # Remove iframe/object/embed
+    html = re.sub(r'<(iframe|object|embed)[\s\S]*?</\1>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'<(iframe|object|embed)[^>]*/?>', '', html, flags=re.IGNORECASE)
+    # Remove style expressions (IE-based XSS)
+    html = re.sub(r'expression\s*\(', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'@import\s', '', html, flags=re.IGNORECASE)
     return html
 
 
