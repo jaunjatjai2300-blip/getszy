@@ -75,5 +75,4 @@ __pycache__/
 docker-compose.override.yml
 
 # Lock files (use pnpm)
-yarn.lock
 package-lock.json
