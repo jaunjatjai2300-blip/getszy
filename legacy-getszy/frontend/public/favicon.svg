@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Getszy Favicon - Monogram G with sparkle -->
+  <defs>
+    <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C58B7A"/>
+      <stop offset="100%" stop-color="#B87A6A"/>
+    </linearGradient>
+    <linearGradient id="tl" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2F7E7A"/>
+      <stop offset="100%" stop-color="#3A9E99"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="16" cy="16" r="15" fill="#FBF7F2" stroke="url(#rg)" stroke-width="1.5"/>
+  <!-- Letter G -->
+  <text x="16" y="23" text-anchor="middle" font-family="Georgia, serif" font-size="22" font-weight="400" fill="url(#rg)">g</text>
+  <!-- Sparkle dot -->
+  <circle cx="23" cy="9" r="2.5" fill="url(#tl)"/>
+  <path d="M23 5 L23.8 8.2 L27 9 L23.8 9.8 L23 13 L22.2 9.8 L19 9 L22.2 8.2 Z" fill="url(#tl)" opacity="0.4"/>
+</svg>

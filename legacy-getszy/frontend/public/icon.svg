@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Getszy App Icon / Social Media Icon -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FBF7F2"/>
+      <stop offset="100%" stop-color="#F5E6D3"/>
+    </linearGradient>
+    <linearGradient id="rgIcon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C58B7A"/>
+      <stop offset="100%" stop-color="#B87A6A"/>
+    </linearGradient>
+    <linearGradient id="tlIcon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2F7E7A"/>
+      <stop offset="100%" stop-color="#3A9E99"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#bg)" stroke="url(#rgIcon)" stroke-width="2"/>
+  <!-- Letter G -->
+  <text x="32" y="44" text-anchor="middle" font-family="Georgia, serif" font-size="38" font-weight="400" fill="url(#rgIcon)">g</text>
+  <!-- Sparkle -->
+  <path d="M48 12 L50 8 L52 12 L56 14 L52 16 L50 20 L48 16 L44 14 Z" fill="url(#tlIcon)" opacity="0.8"/>
+  <circle cx="50" cy="8" r="1.5" fill="url(#tlIcon)" opacity="0.5"/>
+</svg>
