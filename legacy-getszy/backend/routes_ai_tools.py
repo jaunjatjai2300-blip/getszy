@@ -284,3 +284,75 @@ async def upscale_image(file: UploadFile = File(...), user=Depends(get_current_u
     except Exception as e:
         await refund(user['id'], 'image', reason='upscale_failed')
         raise HTTPException(status_code=500, detail=str(e)[:200])
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Public Neo Chat — no auth, catalog-grounded (homepage concierge)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class PublicChatIn(BaseModel):
+    messages: List[ChatMessage]
+
+NEO_SYSTEM_PROMPT = """You are Neo, the AI assistant for Getszy — an Indian women-first e-commerce + AI platform.
+
+You help with:
+- Product recommendations (Fashion, Jewellery, Beauty, Home, Kids, Gadgets)
+- Gift ideas (occasion, budget, recipient)
+- Digital tools (AI courses, app builder, business tools)
+- General Getszy questions
+
+Rules:
+- Be warm, helpful, and concise (2-3 sentences max)
+- Recommend specific products when possible with prices in ₹
+- If you don't know something, say so honestly
+- Never invent products or prices
+- Reply in the same language the user writes in (Hinglish is fine)
+- Keep responses under 150 words"""
+
+
+@router.post('/neo/chat')
+async def neo_chat(payload: PublicChatIn):
+    """Public chat endpoint for homepage Neo — no auth required."""
+    if not payload.messages:
+        raise HTTPException(status_code=400, detail='Messages required')
+
+    user_parts = []
+    for m in payload.messages:
+        if m.role == 'user':
+            user_parts.append(m.content)
+        elif m.role == 'assistant':
+            user_parts.append(f'Assistant: {m.content}')
+
+    user_text = '\n\n'.join(user_parts) if user_parts else ''
+    if not user_text.strip():
+        raise HTTPException(status_code=400, detail='User message required')
+
+    # Fetch live catalog context
+    try:
+        products = await db.products.find(
+            {'is_active': True},
+            {'_id': 0, 'name': 1, 'price': 1, 'category': 1, 'description': 1, 'is_featured': 1, 'is_digital': 1}
+        ).limit(30).to_list(30)
+
+        categories = await db.categories.find({}, {'_id': 0, 'name': 1, 'slug': 1, 'product_count': 1}).to_list(10)
+
+        catalog_ctx = "Current catalog:\n"
+        for c in categories:
+            catalog_ctx += f"- {c['name']}: {c.get('product_count', 0)} products\n"
+        catalog_ctx += "\nFeatured products:\n"
+        for p in products[:15]:
+            tag = " [DIGITAL]" if p.get('is_digital') else ""
+            feat = " [FEATURED]" if p.get('is_featured') else ""
+            catalog_ctx += f"- {p['name']} — ₹{p['price']}{tag}{feat}\n"
+    except Exception:
+        catalog_ctx = ""
+
+    full_system = NEO_SYSTEM_PROMPT + "\n\n" + catalog_ctx
+
+    try:
+        content = await chat_completion(full_system, user_text, temperature=0.4)
+        return {
+            'choices': [{'message': {'role': 'assistant', 'content': content.strip()}, 'finish_reason': 'stop'}],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f'Neo is temporarily unavailable: {e}')

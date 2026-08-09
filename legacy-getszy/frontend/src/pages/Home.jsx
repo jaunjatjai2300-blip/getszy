@@ -314,7 +314,7 @@ function CartDrawer({ open, onClose }) {
 function AIConcierge() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { role: "assistant", text: "Hi! I'm Getszy AI. Ask me anything — product recommendations, gift ideas, or help with AI tools." },
+    { role: "assistant", text: "Hi! I'm Neo. Ask me anything — product recommendations, gift ideas, or help with AI tools." },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -329,9 +329,8 @@ function AIConcierge() {
     setMessages((m) => [...m, { role: "user", text: q }]);
     setLoading(true);
     try {
-      const { data } = await api.post("/ai-tools/chat/completions", {
+      const { data } = await api.post("/ai-tools/neo/chat", {
         messages: [...messages, { role: "user", content: q }].map((m) => ({ role: m.role, content: m.text || m.content })),
-        stream: false,
       });
       const reply = data?.choices?.[0]?.message?.content || data?.response || "I couldn't process that. Please try again.";
       setMessages((m) => [...m, { role: "assistant", text: reply }]);
@@ -363,10 +362,10 @@ function AIConcierge() {
               style={{ borderColor: "var(--gs-border)", height: "min(70vh, 500px)" }}
             >
               <div className="p-4 bg-[var(--gs-teal)] text-white flex items-center gap-3">
-                <div className="h-9 w-9 rounded-full bg-white/20 grid place-items-center"><Bot className="h-5 w-5"/></div>
+                <div className="h-9 w-9 rounded-full bg-white/20 grid place-items-center"><Sparkle className="h-5 w-5"/></div>
                 <div className="flex-1">
-                  <div className="text-sm font-semibold">Getszy AI</div>
-                  <div className="text-[10px] opacity-80">Ask about products, gifts, AI tools</div>
+                  <div className="text-sm font-semibold">Neo</div>
+                  <div className="text-[10px] opacity-80">Getszy's AI assistant</div>
                 </div>
                 <button onClick={() => setOpen(false)} className="h-8 w-8 rounded-full hover:bg-white/20 grid place-items-center"><X className="h-4 w-4"/></button>
               </div>
@@ -790,8 +789,8 @@ export default function Home() {
               <div className="rounded-3xl overflow-hidden shadow-xl"><img src="https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600" alt="Beauty" className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/></div>
             </div>
             <div className="absolute -bottom-4 -left-4 bg-white rounded-2xl p-4 shadow-lg flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-[var(--gs-teal-soft)] grid place-items-center"><Bot className="h-5 w-5 text-[var(--gs-teal)]"/></div>
-              <div><div className="text-xs font-semibold">Getszy AI</div><div className="text-[10px] text-[var(--gs-muted)]">Your shopping assistant</div></div>
+              <div className="h-10 w-10 rounded-xl bg-[var(--gs-teal-soft)] grid place-items-center"><Sparkle className="h-5 w-5 text-[var(--gs-teal)]"/></div>
+              <div><div className="text-xs font-semibold">Neo</div><div className="text-[10px] text-[var(--gs-muted)]">Your AI shopping assistant</div></div>
             </div>
           </motion.div>
         </motion.div>
