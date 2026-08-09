@@ -1,7 +1,7 @@
 const API = process.env.REACT_APP_API_URL || 'http://localhost:8001';
 
 export async function generateWithAI({ prompt, type, onChunk }) {
-  const token = localStorage.getItem('getszy_token');
+  const token = localStorage.getItem('gs_token');
   
   const res = await fetch(`${API}/admin/chat/completions`, {
     method: 'POST',

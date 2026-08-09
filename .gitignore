@@ -60,7 +60,6 @@ legacy-getszy/test_result.md
 legacy-getszy/memory/
 legacy-getszy/.emergent/
 legacy-getszy/.gitconfig
-legacy-getszy/yarn.lock
 
 # Python
 __pycache__/

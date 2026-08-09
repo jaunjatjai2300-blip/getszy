@@ -6,7 +6,9 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from db import db, serialize_doc
 
-JWT_SECRET = os.environ.get('JWT_SECRET', 'change-me')
+JWT_SECRET = os.environ.get('JWT_SECRET')
+if not JWT_SECRET or JWT_SECRET in ('change-me', 'CHANGE_ME'):
+    raise RuntimeError('JWT_SECRET env var is required and must not be the default value')
 JWT_ALG = 'HS256'
 JWT_EXP_DAYS = 30
 

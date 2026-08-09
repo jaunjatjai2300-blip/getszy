@@ -19,16 +19,22 @@ async def _get_or_create_cart(user_id: str):
 @router.get('/cart')
 async def get_cart(user=Depends(get_current_user)):
     cart = await _get_or_create_cart(user['id'])
-    # enrich items with product data
+    items = cart.get('items', [])
+    if not items:
+        return {'items': [], 'total': 0, 'count': 0}
+    # Bulk fetch all products in one query (fixes N+1)
+    product_ids = [it['product_id'] for it in items]
+    products = await db.products.find({'id': {'$in': product_ids}}, {'_id': 0, 'cost_price': 0}).to_list(len(product_ids))
+    product_map = {p['id']: p for p in products}
     enriched = []
     total = 0
-    for item in cart.get('items', []):
-        p = await db.products.find_one({'id': item['product_id']}, {'_id': 0, 'cost_price': 0})
+    for item in items:
+        p = product_map.get(item['product_id'])
         if p:
             line_total = p['price'] * item['quantity']
             total += line_total
             enriched.append({**item, 'product': p, 'line_total': line_total})
-    return {'items': enriched, 'total': total, 'count': sum(i['quantity'] for i in cart.get('items', []))}
+    return {'items': enriched, 'total': total, 'count': sum(i['quantity'] for i in items)}
 
 
 @router.post('/cart/add')
@@ -73,8 +79,14 @@ async def clear_cart(user=Depends(get_current_user)):
 
 
 async def _next_order_number():
-    count = await db.orders.count_documents({})
-    return f'ORD{1000 + count + 1}'
+    """Atomic order number generation using MongoDB findAndModify."""
+    counter = await db.counters.find_one_and_update(
+        {'_id': 'order_number'},
+        {'$inc': {'seq': 1}},
+        upsert=True,
+        return_document=True,
+    )
+    return f'ORD{1000 + counter["seq"]}'
 
 
 @router.post('/orders/checkout')
@@ -82,11 +94,15 @@ async def checkout(body: CheckoutIn, user=Depends(get_current_user)):
     cart = await _get_or_create_cart(user['id'])
     if not cart.get('items'):
         raise HTTPException(400, 'Cart is empty')
+    # Bulk fetch all products in one query (fixes N+1)
+    product_ids = [it['product_id'] for it in cart['items']]
+    products = await db.products.find({'id': {'$in': product_ids}}, {'_id': 0}).to_list(len(product_ids))
+    product_map = {p['id']: p for p in products}
     items_out = []
     subtotal = 0
     cost_total = 0
     for it in cart['items']:
-        p = await db.products.find_one({'id': it['product_id']}, {'_id': 0})
+        p = product_map.get(it['product_id'])
         if not p:
             continue
         line = p['price'] * it['quantity']
@@ -102,6 +118,8 @@ async def checkout(body: CheckoutIn, user=Depends(get_current_user)):
             quantity=it['quantity'],
             supplier=p.get('supplier'),
         ))
+    if not items_out:
+        raise HTTPException(400, 'No valid products in cart')
     shipping = 0.0 if subtotal >= 999 else 49.0
     total = subtotal + shipping
     order = Order(
