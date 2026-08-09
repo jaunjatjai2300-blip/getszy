@@ -33,7 +33,7 @@ PRICING = [
     },
     {
         'id': 'pro', 'name': 'Pro', 'tagline': 'Go beyond the basics', 'highlight': True,
-        'price_monthly': None, 'cta': 'Start Pro',
+        'price_monthly': 799, 'price_currency': 'INR', 'cta': 'Start Pro',
         'features': [
             'Everything in Free',
             'All Advanced courses unlocked',
@@ -45,7 +45,7 @@ PRICING = [
     },
     {
         'id': 'elite', 'name': 'Elite', 'tagline': 'For power users & creators',
-        'price_monthly': None, 'cta': 'Upgrade to Elite',
+        'price_monthly': 1999, 'price_currency': 'INR', 'cta': 'Upgrade to Elite',
         'features': [
             'Everything in Pro',
             'Unlimited Studio builds',

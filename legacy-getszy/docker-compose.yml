@@ -56,6 +56,8 @@ services:
       RAZORPAY_WEBHOOK_SECRET: "${RAZORPAY_WEBHOOK_SECRET:-}"
       RAZORPAY_PLAN_PRO: "${RAZORPAY_PLAN_PRO:-}"
       RAZORPAY_PLAN_ELITE: "${RAZORPAY_PLAN_ELITE:-}"
+      SENTRY_DSN: "${SENTRY_DSN:-}"
+      LOGTAIL_KEY: "${LOGTAIL_KEY:-}"
     networks: [getszy]
     volumes:
       - backend_media:/app/backend/media
