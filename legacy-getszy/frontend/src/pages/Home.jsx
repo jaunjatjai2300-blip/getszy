@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowRight, Sparkles, Bot, GraduationCap, Wand2 } from "lucide-react";
+import { ArrowRight, Sparkle, Bot, GraduationCap, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { ProductCard } from "@/components/ProductCard";
@@ -48,7 +48,7 @@ export default function Home() {
         <div className="absolute inset-x-0 top-0 h-[55%] gs-hero-wash pointer-events-none"/>
         <div className="gs-container relative grid lg:grid-cols-2 gap-10 py-12 lg:py-20 items-center">
           <div>
-            <div className="text-xs uppercase tracking-[0.18em] text-[var(--gs-primary-2)] mb-4 flex items-center gap-2"><Sparkles className="h-3.5 w-3.5"/>Made for women who do it all</div>
+            <div className="text-xs uppercase tracking-[0.18em] text-[var(--gs-primary-2)] mb-4 flex items-center gap-2"><Sparkle className="h-3.5 w-3.5"/>Made for women who do it all</div>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-display leading-[1.05] tracking-tight">Shop premium essentials.<br/>Learn AI.<br/>Run your business — without coding.</h1>
             <p className="mt-6 text-base sm:text-lg text-[var(--gs-muted)] max-w-xl">Fashion, beauty, kids, home + powerful digital tools.</p>
             <div className="mt-8 flex flex-wrap gap-3">
