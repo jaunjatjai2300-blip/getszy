@@ -294,7 +294,7 @@ async def gen_video(payload: VideoGenIn, user=Depends(get_current_user)):
     else:
         job['provider'] = 'none'
         job['status'] = 'pending_provider'
-        job['message'] = 'Video generation queued. Configure FAL_KEY or HF_TOKEN for processing.'
+        job['message'] = 'Video generation queued. Set FAL_KEY or HF_TOKEN in .env to enable processing.'
         await db.video_jobs.insert_one(job)
 
     job.pop('_id', None)
@@ -352,7 +352,7 @@ async def gen_mirror(payload: MirrorGenIn, user=Depends(get_current_user)):
     else:
         job['provider'] = 'none'
         job['status'] = 'pending_provider'
-        job['message'] = 'Mirror AI queued. Configure FAL_KEY for Live Portrait processing.'
+        job['message'] = 'Mirror AI queued. Set FAL_KEY in .env for Live Portrait processing.'
         await db.video_jobs.insert_one(job)
 
     job.pop('_id', None)

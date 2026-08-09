@@ -34,7 +34,7 @@ async def auth_token() -> Optional[str]:
 
 async def search_products(keyword: str, page: int = 1) -> dict:
     if not is_configured():
-        return {'status': 'not_configured', 'message': 'CJ Dropshipping API key not set. Add CJ_EMAIL and CJ_API_KEY env vars.', 'items': []}
+        return {'status': 'not_configured', 'message': 'CJ Dropshipping not configured. Set CJ_EMAIL and CJ_API_KEY in .env. Get keys at developers.cjdropshipping.com', 'items': []}
     token = await auth_token()
     if not token:
         return {'status': 'auth_failed', 'message': 'Could not authenticate with CJ Dropshipping', 'items': []}
