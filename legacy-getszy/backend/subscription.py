@@ -17,7 +17,7 @@ STATUS_CANCELLED = 'cancelled'
 QUOTAS = {
     PLAN_FREE: {'studio_builds': 0, 'advanced_courses': False, 'ai_tutor': True},
     PLAN_PRO: {'studio_builds': 10, 'advanced_courses': True, 'ai_tutor': True},
-    PLAN_ELITE: {'studio_builds': 9999, 'advanced_courses': True, 'ai_tutor': True},
+    PLAN_ELITE: {'studio_builds': 50, 'advanced_courses': True, 'ai_tutor': True},
 }
 
 PRICING = [
@@ -48,7 +48,7 @@ PRICING = [
         'price_monthly': 1999, 'price_currency': 'INR', 'cta': 'Upgrade to Elite',
         'features': [
             'Everything in Pro',
-            'Unlimited Studio builds',
+            '50 Studio builds / month',
             'Priority AI queue',
             'Early access to AI Image/Video Studio',
             'Direct support',
