@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Mic, Play, Loader2, History, ListVoice } from "lucide-react";
+import { Mic, Play, Loader2, History, AudioLines } from "lucide-react";
 import { toast } from "sonner";
 
 export default function VoiceGen() {
@@ -73,7 +73,7 @@ export default function VoiceGen() {
       <Tabs defaultValue="generate">
         <TabsList>
           <TabsTrigger value="generate"><Mic className="h-4 w-4 mr-1" /> Generate</TabsTrigger>
-          <TabsTrigger value="voices"><ListVoice className="h-4 w-4 mr-1" /> Voices ({voices.length})</TabsTrigger>
+          <TabsTrigger value="voices"><AudioLines className="h-4 w-4 mr-1" /> Voices ({voices.length})</TabsTrigger>
           <TabsTrigger value="history" onClick={loadHistory}><History className="h-4 w-4 mr-1" /> History</TabsTrigger>
         </TabsList>
 
