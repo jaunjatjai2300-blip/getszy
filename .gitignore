@@ -76,3 +76,5 @@ docker-compose.override.yml
 
 # Lock files (use pnpm)
 package-lock.json
+backups/
+legacy-getszy/deploy/*.bak
