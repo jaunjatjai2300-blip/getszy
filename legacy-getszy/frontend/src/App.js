@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/auth";
@@ -15,68 +16,6 @@ import Terms from "@/pages/Terms";
 import Privacy from "@/pages/Privacy";
 import Support from "@/pages/Support";
 import AdminLayout from "@/components/AdminLayout";
-import AdminDashboard from "@/pages/admin/Dashboard";
-import AdminProducts from "@/pages/admin/Products";
-import AdminOrders from "@/pages/admin/Orders";
-import AdminSuppliers from "@/pages/admin/Suppliers";
-import AdminCustomers from "@/pages/admin/Customers";
-import AdminCourses from "@/pages/admin/Courses";
-import AdminAIChat from "@/pages/admin/AIChat";
-import AdminAiOps from "@/pages/admin/AiOps";
-import AdminSourcing from "@/pages/admin/Sourcing";
-import AdminDeploy from "@/pages/admin/Deploy";
-import AdminSkills from "@/pages/admin/Skills";
-import AdminStacks from "@/pages/admin/Stacks";
-import AdminCreatorOS from "@/pages/admin/CreatorOS";
-import AdminVideoStudio from "@/pages/admin/VideoStudio";
-import AdminPublishing from "@/pages/admin/Publishing";
-import AdminWorkforce from "@/pages/admin/Workforce";
-import AdminBuildStudio from "@/pages/admin/BuildStudio";
-import AdminChatHome from "@/pages/admin/ChatHome";
-import Analytics from "@/pages/admin/Analytics";
-import UsersAdmin from "@/pages/admin/UsersAdmin";
-import AdminSettings from "@/pages/admin/AdminSettings";
-import AdminProjects from "@/pages/admin/Projects";
-import AdminSecurity from "@/pages/admin/Security";
-import AdminServers from "@/pages/admin/Servers";
-import AdminWorkflows from "@/pages/admin/Workflows";
-import AdminScheduler from "@/pages/admin/Scheduler";
-import AvatarSetup from "@/pages/admin/AvatarSetup";
-import AdminCoupons from "@/pages/admin/Coupons";
-import AdminInvoices from "@/pages/admin/Invoices";
-import AdminReviews from "@/pages/admin/Reviews";
-import AdminAffiliates from "@/pages/admin/Affiliates";
-import AdminMemberships from "@/pages/admin/Memberships";
-import AdminFormBuilder from "@/pages/admin/FormBuilder";
-import AdminDashboardBuilder from "@/pages/admin/DashboardBuilder";
-import AdminEmailBuilder from "@/pages/admin/EmailBuilder";
-import AdminLandingPageBuilder from "@/pages/admin/LandingPageBuilder";
-import AdminDBBuilder from "@/pages/admin/DBBuilder";
-import AdminAPIBuilder from "@/pages/admin/APIBuilder";
-import AdminVideoBuilder from "@/pages/admin/VideoBuilder";
-import AdminChatbotBuilder from "@/pages/admin/ChatbotBuilder";
-import AdminAutomationBuilder from "@/pages/admin/AutomationBuilder";
-import AdminReportBuilder from "@/pages/admin/ReportBuilder";
-import AdminSiteBuilder from "@/pages/admin/SiteBuilder";
-import AdminWorkflowBuilder from "@/pages/admin/WorkflowBuilder";
-import AdminRefunds from "@/pages/admin/Refunds";
-import AdminGST from "@/pages/admin/GST";
-import FounderCommand from "@/pages/admin/FounderCommand";
-import EnterpriseSecurity from "@/pages/admin/EnterpriseSecurity";
-import DeployPlatform from "@/pages/admin/DeployPlatform";
-import SaaSBuilder from "@/pages/admin/SaaSBuilder";
-import WooSync from "@/pages/admin/WooSync";
-import MobileBuilder from "@/pages/admin/MobileBuilder";
-import BusinessBuilders from "@/pages/admin/BusinessBuilders";
-import AdvancedAnalytics from "@/pages/admin/AdvancedAnalytics";
-import GrowthEngine from "@/pages/admin/GrowthEngine";
-import Marketplace from "@/pages/admin/Marketplace";
-import LearningPlatform from "@/pages/admin/LearningPlatform";
-import OperationsCenter from "@/pages/admin/OperationsCenter";
-import AdminPromptLibrary from "@/pages/admin/PromptLibrary";
-import AdminKnowledgeBase from "@/pages/admin/KnowledgeBase";
-import AdminAIMemory from "@/pages/admin/AIMemory";
-import AdminAIPlayground from "@/pages/admin/AIPlayground";
 import VideoStudio from "@/pages/dashboard/VideoStudio";
 import DashboardLayout from "@/components/DashboardLayout";
 import LabsHome from "@/pages/labs/LabsHome";
@@ -85,12 +24,86 @@ import OnboardingTour from "@/components/onboarding/OnboardingTour";
 import CookieConsent from "@/components/legal/CookieConsent";
 import StorefrontLayout from "@/components/StorefrontLayout";
 import NotFound from "@/pages/NotFound";
-import CostTracking from "@/pages/admin/CostTracking";
-import QuizCerts from "@/pages/admin/QuizCerts";
-import VoiceGen from "@/pages/admin/VoiceGen";
-import ImageGen from "@/pages/admin/ImageGen";
-import Releases from "@/pages/admin/Releases";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+
+const AdminDashboard = lazy(() => import("@/pages/admin/Dashboard"));
+const AdminProducts = lazy(() => import("@/pages/admin/Products"));
+const AdminOrders = lazy(() => import("@/pages/admin/Orders"));
+const AdminSuppliers = lazy(() => import("@/pages/admin/Suppliers"));
+const AdminCustomers = lazy(() => import("@/pages/admin/Customers"));
+const AdminCourses = lazy(() => import("@/pages/admin/Courses"));
+const AdminAIChat = lazy(() => import("@/pages/admin/AIChat"));
+const AdminAiOps = lazy(() => import("@/pages/admin/AiOps"));
+const AdminSourcing = lazy(() => import("@/pages/admin/Sourcing"));
+const AdminDeploy = lazy(() => import("@/pages/admin/Deploy"));
+const AdminSkills = lazy(() => import("@/pages/admin/Skills"));
+const AdminStacks = lazy(() => import("@/pages/admin/Stacks"));
+const AdminCreatorOS = lazy(() => import("@/pages/admin/CreatorOS"));
+const AdminVideoStudio = lazy(() => import("@/pages/admin/VideoStudio"));
+const AdminPublishing = lazy(() => import("@/pages/admin/Publishing"));
+const AdminWorkforce = lazy(() => import("@/pages/admin/Workforce"));
+const AdminBuildStudio = lazy(() => import("@/pages/admin/BuildStudio"));
+const AdminChatHome = lazy(() => import("@/pages/admin/ChatHome"));
+const Analytics = lazy(() => import("@/pages/admin/Analytics"));
+const UsersAdmin = lazy(() => import("@/pages/admin/UsersAdmin"));
+const AdminSettings = lazy(() => import("@/pages/admin/AdminSettings"));
+const AdminProjects = lazy(() => import("@/pages/admin/Projects"));
+const AdminSecurity = lazy(() => import("@/pages/admin/Security"));
+const AdminServers = lazy(() => import("@/pages/admin/Servers"));
+const AdminWorkflows = lazy(() => import("@/pages/admin/Workflows"));
+const AdminScheduler = lazy(() => import("@/pages/admin/Scheduler"));
+const AvatarSetup = lazy(() => import("@/pages/admin/AvatarSetup"));
+const AdminCoupons = lazy(() => import("@/pages/admin/Coupons"));
+const AdminInvoices = lazy(() => import("@/pages/admin/Invoices"));
+const AdminReviews = lazy(() => import("@/pages/admin/Reviews"));
+const AdminAffiliates = lazy(() => import("@/pages/admin/Affiliates"));
+const AdminMemberships = lazy(() => import("@/pages/admin/Memberships"));
+const AdminFormBuilder = lazy(() => import("@/pages/admin/FormBuilder"));
+const AdminDashboardBuilder = lazy(() => import("@/pages/admin/DashboardBuilder"));
+const AdminEmailBuilder = lazy(() => import("@/pages/admin/EmailBuilder"));
+const AdminLandingPageBuilder = lazy(() => import("@/pages/admin/LandingPageBuilder"));
+const AdminDBBuilder = lazy(() => import("@/pages/admin/DBBuilder"));
+const AdminAPIBuilder = lazy(() => import("@/pages/admin/APIBuilder"));
+const AdminVideoBuilder = lazy(() => import("@/pages/admin/VideoBuilder"));
+const AdminChatbotBuilder = lazy(() => import("@/pages/admin/ChatbotBuilder"));
+const AdminAutomationBuilder = lazy(() => import("@/pages/admin/AutomationBuilder"));
+const AdminReportBuilder = lazy(() => import("@/pages/admin/ReportBuilder"));
+const AdminSiteBuilder = lazy(() => import("@/pages/admin/SiteBuilder"));
+const AdminWorkflowBuilder = lazy(() => import("@/pages/admin/WorkflowBuilder"));
+const AdminRefunds = lazy(() => import("@/pages/admin/Refunds"));
+const AdminGST = lazy(() => import("@/pages/admin/GST"));
+const FounderCommand = lazy(() => import("@/pages/admin/FounderCommand"));
+const EnterpriseSecurity = lazy(() => import("@/pages/admin/EnterpriseSecurity"));
+const DeployPlatform = lazy(() => import("@/pages/admin/DeployPlatform"));
+const SaaSBuilder = lazy(() => import("@/pages/admin/SaaSBuilder"));
+const WooSync = lazy(() => import("@/pages/admin/WooSync"));
+const MobileBuilder = lazy(() => import("@/pages/admin/MobileBuilder"));
+const BusinessBuilders = lazy(() => import("@/pages/admin/BusinessBuilders"));
+const AdvancedAnalytics = lazy(() => import("@/pages/admin/AdvancedAnalytics"));
+const GrowthEngine = lazy(() => import("@/pages/admin/GrowthEngine"));
+const Marketplace = lazy(() => import("@/pages/admin/Marketplace"));
+const LearningPlatform = lazy(() => import("@/pages/admin/LearningPlatform"));
+const OperationsCenter = lazy(() => import("@/pages/admin/OperationsCenter"));
+const AdminPromptLibrary = lazy(() => import("@/pages/admin/PromptLibrary"));
+const AdminKnowledgeBase = lazy(() => import("@/pages/admin/KnowledgeBase"));
+const AdminAIMemory = lazy(() => import("@/pages/admin/AIMemory"));
+const AdminAIPlayground = lazy(() => import("@/pages/admin/AIPlayground"));
+const CostTracking = lazy(() => import("@/pages/admin/CostTracking"));
+const QuizCerts = lazy(() => import("@/pages/admin/QuizCerts"));
+const VoiceGen = lazy(() => import("@/pages/admin/VoiceGen"));
+const ImageGen = lazy(() => import("@/pages/admin/ImageGen"));
+const Releases = lazy(() => import("@/pages/admin/Releases"));
+
+function AdminFallback() {
+  return (
+    <div className="flex items-center justify-center h-[60vh]">
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-8 w-8 border-2 border-[var(--gs-teal)] border-t-transparent rounded-full animate-spin" />
+        <span className="text-sm text-[var(--gs-muted)]">Loading...</span>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   return (
@@ -117,135 +130,120 @@ export default function App() {
           </Route>
 
           <Route path="/admin" element={<AdminLayout />}>
-            {/* Dashboard */}
-            <Route index element={<AdminDashboard />} />
-            <Route path="overview" element={<AdminDashboard />} />
-            <Route path="projects" element={<AdminProjects />} />
+            <Route index element={<Suspense fallback={<AdminFallback />}><AdminDashboard /></Suspense>} />
+            <Route path="overview" element={<Suspense fallback={<AdminFallback />}><AdminDashboard /></Suspense>} />
+            <Route path="projects" element={<Suspense fallback={<AdminFallback />}><AdminProjects /></Suspense>} />
 
-            {/* Neo AI Chat */}
-            <Route path="chat" element={<AdminChatHome />} />
-            <Route path="chat/:sessionId" element={<AdminChatHome />} />
+            <Route path="chat" element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />
+            <Route path="chat/:sessionId" element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />
 
-            {/* Builders */}
-            <Route path="build" element={<AdminBuildStudio />} />
-            <Route path="build-web" element={<AdminBuildStudio />} />
-            <Route path="build-mobile" element={<AdminBuildStudio />} />
-            <Route path="build-api" element={<AdminBuildStudio />} />
-            <Route path="build-db" element={<AdminBuildStudio />} />
-            <Route path="builder/form" element={<AdminFormBuilder />} />
-            <Route path="builder/dashboard" element={<AdminDashboardBuilder />} />
-            <Route path="builder/email" element={<AdminEmailBuilder />} />
-            <Route path="builder/landing" element={<AdminLandingPageBuilder />} />
-            <Route path="builder/db" element={<AdminDBBuilder />} />
-            <Route path="builder/api" element={<AdminAPIBuilder />} />
-            <Route path="builder/video" element={<AdminVideoBuilder />} />
-            <Route path="builder/chatbot" element={<AdminChatbotBuilder />} />
-            <Route path="builder/automation" element={<AdminAutomationBuilder />} />
-            <Route path="builder/report" element={<AdminReportBuilder />} />
-            <Route path="builder/site" element={<AdminSiteBuilder />} />
-            <Route path="builder/workflow" element={<AdminWorkflowBuilder />} />
+            <Route path="build" element={<Suspense fallback={<AdminFallback />}><AdminBuildStudio /></Suspense>} />
+            <Route path="build-web" element={<Suspense fallback={<AdminFallback />}><AdminBuildStudio /></Suspense>} />
+            <Route path="build-mobile" element={<Suspense fallback={<AdminFallback />}><AdminBuildStudio /></Suspense>} />
+            <Route path="build-api" element={<Suspense fallback={<AdminFallback />}><AdminBuildStudio /></Suspense>} />
+            <Route path="build-db" element={<Suspense fallback={<AdminFallback />}><AdminBuildStudio /></Suspense>} />
+            <Route path="builder/form" element={<Suspense fallback={<AdminFallback />}><AdminFormBuilder /></Suspense>} />
+            <Route path="builder/dashboard" element={<Suspense fallback={<AdminFallback />}><AdminDashboardBuilder /></Suspense>} />
+            <Route path="builder/email" element={<Suspense fallback={<AdminFallback />}><AdminEmailBuilder /></Suspense>} />
+            <Route path="builder/landing" element={<Suspense fallback={<AdminFallback />}><AdminLandingPageBuilder /></Suspense>} />
+            <Route path="builder/db" element={<Suspense fallback={<AdminFallback />}><AdminDBBuilder /></Suspense>} />
+            <Route path="builder/api" element={<Suspense fallback={<AdminFallback />}><AdminAPIBuilder /></Suspense>} />
+            <Route path="builder/video" element={<Suspense fallback={<AdminFallback />}><AdminVideoBuilder /></Suspense>} />
+            <Route path="builder/chatbot" element={<Suspense fallback={<AdminFallback />}><AdminChatbotBuilder /></Suspense>} />
+            <Route path="builder/automation" element={<Suspense fallback={<AdminFallback />}><AdminAutomationBuilder /></Suspense>} />
+            <Route path="builder/report" element={<Suspense fallback={<AdminFallback />}><AdminReportBuilder /></Suspense>} />
+            <Route path="builder/site" element={<Suspense fallback={<AdminFallback />}><AdminSiteBuilder /></Suspense>} />
+            <Route path="builder/workflow" element={<Suspense fallback={<AdminFallback />}><AdminWorkflowBuilder /></Suspense>} />
 
-            {/* AI Platform */}
-            <Route path="video" element={<AdminVideoStudio />} />
-            <Route path="creator" element={<AdminCreatorOS />} />
-            <Route path="avatar" element={<AvatarSetup />} />
-            <Route path="workforce" element={<AdminWorkforce />} />
-            <Route path="ai-models" element={<AdminAiOps />} />
-            <Route path="voice" element={<VoiceGen />} />
-            <Route path="ai/prompts" element={<AdminPromptLibrary />} />
-            <Route path="ai/knowledge" element={<AdminKnowledgeBase />} />
-            <Route path="ai/memory" element={<AdminAIMemory />} />
-            <Route path="ai/playground" element={<AdminAIPlayground />} />
+            <Route path="video" element={<Suspense fallback={<AdminFallback />}><AdminVideoStudio /></Suspense>} />
+            <Route path="creator" element={<Suspense fallback={<AdminFallback />}><AdminCreatorOS /></Suspense>} />
+            <Route path="avatar" element={<Suspense fallback={<AdminFallback />}><AvatarSetup /></Suspense>} />
+            <Route path="workforce" element={<Suspense fallback={<AdminFallback />}><AdminWorkforce /></Suspense>} />
+            <Route path="ai-models" element={<Suspense fallback={<AdminFallback />}><AdminAiOps /></Suspense>} />
+            <Route path="voice" element={<Suspense fallback={<AdminFallback />}><VoiceGen /></Suspense>} />
+            <Route path="ai/prompts" element={<Suspense fallback={<AdminFallback />}><AdminPromptLibrary /></Suspense>} />
+            <Route path="ai/knowledge" element={<Suspense fallback={<AdminFallback />}><AdminKnowledgeBase /></Suspense>} />
+            <Route path="ai/memory" element={<Suspense fallback={<AdminFallback />}><AdminAIMemory /></Suspense>} />
+            <Route path="ai/playground" element={<Suspense fallback={<AdminFallback />}><AdminAIPlayground /></Suspense>} />
 
-            {/* Commerce */}
-            <Route path="products" element={<AdminProducts />} />
-            <Route path="orders" element={<AdminOrders />} />
-            <Route path="customers" element={<AdminCustomers />} />
-            <Route path="suppliers" element={<AdminSuppliers />} />
-            <Route path="sourcing" element={<AdminSourcing />} />
-            <Route path="courses" element={<AdminCourses />} />
-            <Route path="publishing" element={<AdminPublishing />} />
-            <Route path="coupons" element={<AdminCoupons />} />
-            <Route path="invoices" element={<AdminInvoices />} />
-            <Route path="reviews" element={<AdminReviews />} />
-            <Route path="affiliates" element={<AdminAffiliates />} />
-            <Route path="memberships" element={<AdminMemberships />} />
-            <Route path="refunds" element={<AdminRefunds />} />
-            <Route path="gst" element={<AdminGST />} />
+            <Route path="products" element={<Suspense fallback={<AdminFallback />}><AdminProducts /></Suspense>} />
+            <Route path="orders" element={<Suspense fallback={<AdminFallback />}><AdminOrders /></Suspense>} />
+            <Route path="customers" element={<Suspense fallback={<AdminFallback />}><AdminCustomers /></Suspense>} />
+            <Route path="suppliers" element={<Suspense fallback={<AdminFallback />}><AdminSuppliers /></Suspense>} />
+            <Route path="sourcing" element={<Suspense fallback={<AdminFallback />}><AdminSourcing /></Suspense>} />
+            <Route path="courses" element={<Suspense fallback={<AdminFallback />}><AdminCourses /></Suspense>} />
+            <Route path="publishing" element={<Suspense fallback={<AdminFallback />}><AdminPublishing /></Suspense>} />
+            <Route path="coupons" element={<Suspense fallback={<AdminFallback />}><AdminCoupons /></Suspense>} />
+            <Route path="invoices" element={<Suspense fallback={<AdminFallback />}><AdminInvoices /></Suspense>} />
+            <Route path="reviews" element={<Suspense fallback={<AdminFallback />}><AdminReviews /></Suspense>} />
+            <Route path="affiliates" element={<Suspense fallback={<AdminFallback />}><AdminAffiliates /></Suspense>} />
+            <Route path="memberships" element={<Suspense fallback={<AdminFallback />}><AdminMemberships /></Suspense>} />
+            <Route path="refunds" element={<Suspense fallback={<AdminFallback />}><AdminRefunds /></Suspense>} />
+            <Route path="gst" element={<Suspense fallback={<AdminFallback />}><AdminGST /></Suspense>} />
 
-            {/* Users */}
-            <Route path="users" element={<UsersAdmin />} />
-            <Route path="users/credits" element={<UsersAdmin />} />
-            <Route path="users/subs" element={<UsersAdmin />} />
-            <Route path="users/sessions" element={<UsersAdmin />} />
+            <Route path="users" element={<Suspense fallback={<AdminFallback />}><UsersAdmin /></Suspense>} />
+            <Route path="users/credits" element={<Suspense fallback={<AdminFallback />}><UsersAdmin /></Suspense>} />
+            <Route path="users/subs" element={<Suspense fallback={<AdminFallback />}><UsersAdmin /></Suspense>} />
+            <Route path="users/sessions" element={<Suspense fallback={<AdminFallback />}><UsersAdmin /></Suspense>} />
 
-            {/* Analytics */}
-            <Route path="analytics" element={<Analytics />} />
-            <Route path="analytics/revenue" element={<Analytics />} />
-            <Route path="analytics/ai" element={<Analytics />} />
-            <Route path="analytics/content" element={<Analytics />} />
+            <Route path="analytics" element={<Suspense fallback={<AdminFallback />}><Analytics /></Suspense>} />
+            <Route path="analytics/revenue" element={<Suspense fallback={<AdminFallback />}><Analytics /></Suspense>} />
+            <Route path="analytics/ai" element={<Suspense fallback={<AdminFallback />}><Analytics /></Suspense>} />
+            <Route path="analytics/content" element={<Suspense fallback={<AdminFallback />}><Analytics /></Suspense>} />
 
-            {/* Automation */}
-            <Route path="skills" element={<AdminSkills />} />
-            <Route path="stacks" element={<AdminStacks />} />
-            <Route path="workflows" element={<AdminWorkflows />} />
-            <Route path="scheduler" element={<AdminScheduler />} />
-            <Route path="webhooks" element={<AdminStacks />} />
+            <Route path="skills" element={<Suspense fallback={<AdminFallback />}><AdminSkills /></Suspense>} />
+            <Route path="stacks" element={<Suspense fallback={<AdminFallback />}><AdminStacks /></Suspense>} />
+            <Route path="workflows" element={<Suspense fallback={<AdminFallback />}><AdminWorkflows /></Suspense>} />
+            <Route path="scheduler" element={<Suspense fallback={<AdminFallback />}><AdminScheduler /></Suspense>} />
+            <Route path="webhooks" element={<Suspense fallback={<AdminFallback />}><AdminStacks /></Suspense>} />
 
-            {/* Deploy */}
-            <Route path="deploy" element={<AdminDeploy />} />
+            <Route path="deploy" element={<Suspense fallback={<AdminFallback />}><AdminDeploy /></Suspense>} />
 
-            {/* Operations */}
-            <Route path="ai-ops" element={<AdminAiOps />} />
-            <Route path="servers" element={<AdminServers />} />
-            <Route path="ai-chat" element={<AdminAIChat />} />
-            <Route path="avatar-setup" element={<AvatarSetup />} />
+            <Route path="ai-ops" element={<Suspense fallback={<AdminFallback />}><AdminAiOps /></Suspense>} />
+            <Route path="servers" element={<Suspense fallback={<AdminFallback />}><AdminServers /></Suspense>} />
+            <Route path="ai-chat" element={<Suspense fallback={<AdminFallback />}><AdminAIChat /></Suspense>} />
+            <Route path="avatar-setup" element={<Suspense fallback={<AdminFallback />}><AvatarSetup /></Suspense>} />
 
-            {/* Security */}
-            <Route path="security" element={<AdminSecurity />} />
-            <Route path="security/logs" element={<AdminSecurity />} />
-            <Route path="security/keys" element={<AdminSecurity />} />
-            <Route path="security/alerts" element={<AdminSecurity />} />
+            <Route path="security" element={<Suspense fallback={<AdminFallback />}><AdminSecurity /></Suspense>} />
+            <Route path="security/logs" element={<Suspense fallback={<AdminFallback />}><AdminSecurity /></Suspense>} />
+            <Route path="security/keys" element={<Suspense fallback={<AdminFallback />}><AdminSecurity /></Suspense>} />
+            <Route path="security/alerts" element={<Suspense fallback={<AdminFallback />}><AdminSecurity /></Suspense>} />
 
-            {/* Enhanced Pages */}
-            <Route path="founder" element={<FounderCommand />} />
-            <Route path="enterprise-security" element={<EnterpriseSecurity />} />
-            <Route path="deploy-platform" element={<DeployPlatform />} />
-            <Route path="saas-builder" element={<SaaSBuilder />} />
-            <Route path="woo-sync" element={<WooSync />} />
-            <Route path="api-builder" element={<AdminAPIBuilder />} />
-            <Route path="mobile-builder" element={<MobileBuilder />} />
-            <Route path="business-builders" element={<BusinessBuilders />} />
-            <Route path="analytics-advanced" element={<AdvancedAnalytics />} />
-            <Route path="growth" element={<GrowthEngine />} />
-            <Route path="marketplace" element={<Marketplace />} />
-            <Route path="learning-platform" element={<LearningPlatform />} />
-            <Route path="ops-center" element={<OperationsCenter />} />
-            <Route path="cost-tracking" element={<CostTracking />} />
-            <Route path="quiz-certs" element={<QuizCerts />} />
-            <Route path="image-gen" element={<ImageGen />} />
-            <Route path="releases" element={<Releases />} />
+            <Route path="founder" element={<Suspense fallback={<AdminFallback />}><FounderCommand /></Suspense>} />
+            <Route path="enterprise-security" element={<Suspense fallback={<AdminFallback />}><EnterpriseSecurity /></Suspense>} />
+            <Route path="deploy-platform" element={<Suspense fallback={<AdminFallback />}><DeployPlatform /></Suspense>} />
+            <Route path="saas-builder" element={<Suspense fallback={<AdminFallback />}><SaaSBuilder /></Suspense>} />
+            <Route path="woo-sync" element={<Suspense fallback={<AdminFallback />}><WooSync /></Suspense>} />
+            <Route path="api-builder" element={<Suspense fallback={<AdminFallback />}><AdminAPIBuilder /></Suspense>} />
+            <Route path="mobile-builder" element={<Suspense fallback={<AdminFallback />}><MobileBuilder /></Suspense>} />
+            <Route path="business-builders" element={<Suspense fallback={<AdminFallback />}><BusinessBuilders /></Suspense>} />
+            <Route path="analytics-advanced" element={<Suspense fallback={<AdminFallback />}><AdvancedAnalytics /></Suspense>} />
+            <Route path="growth" element={<Suspense fallback={<AdminFallback />}><GrowthEngine /></Suspense>} />
+            <Route path="marketplace" element={<Suspense fallback={<AdminFallback />}><Marketplace /></Suspense>} />
+            <Route path="learning-platform" element={<Suspense fallback={<AdminFallback />}><LearningPlatform /></Suspense>} />
+            <Route path="ops-center" element={<Suspense fallback={<AdminFallback />}><OperationsCenter /></Suspense>} />
+            <Route path="cost-tracking" element={<Suspense fallback={<AdminFallback />}><CostTracking /></Suspense>} />
+            <Route path="quiz-certs" element={<Suspense fallback={<AdminFallback />}><QuizCerts /></Suspense>} />
+            <Route path="image-gen" element={<Suspense fallback={<AdminFallback />}><ImageGen /></Suspense>} />
+            <Route path="releases" element={<Suspense fallback={<AdminFallback />}><Releases /></Suspense>} />
 
-            {/* Settings */}
-            <Route path="settings" element={<AdminSettings />} />
-            <Route path="settings/branding" element={<AdminSettings />} />
-            <Route path="settings/billing" element={<AdminSettings />} />
-            <Route path="settings/integrations" element={<AdminSettings />} />
+            <Route path="settings" element={<Suspense fallback={<AdminFallback />}><AdminSettings /></Suspense>} />
+            <Route path="settings/branding" element={<Suspense fallback={<AdminFallback />}><AdminSettings /></Suspense>} />
+            <Route path="settings/billing" element={<Suspense fallback={<AdminFallback />}><AdminSettings /></Suspense>} />
+            <Route path="settings/integrations" element={<Suspense fallback={<AdminFallback />}><AdminSettings /></Suspense>} />
           </Route>
 
-          {/* Customer Workspace */}
           <Route path="/dashboard" element={<DashboardLayout />}>
-            <Route index element={<AdminChatHome />} />
-            <Route path="chat" element={<AdminChatHome />} />
-            <Route path="chat/:sessionId" element={<AdminChatHome />} />
-            <Route path="projects" element={<AdminChatHome />} />
+            <Route index element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />
+            <Route path="chat" element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />
+            <Route path="chat/:sessionId" element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />
+            <Route path="projects" element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />
             <Route path="video-studio" element={<VideoStudio />} />
           </Route>
 
-          {/* Founder Labs */}
           <Route path="/labs" element={<DashboardLayout />}>
             <Route index element={<LabsHome />} />
-            <Route path="chat/:sessionId" element={<AdminChatHome />} />
+            <Route path="chat/:sessionId" element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />
           </Route>
 
           <Route path="*" element={<NotFound />} />
