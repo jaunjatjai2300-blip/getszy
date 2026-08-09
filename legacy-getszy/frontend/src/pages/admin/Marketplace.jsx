@@ -4,7 +4,7 @@ import {
   Search, Star, Download, ShoppingCart, Plus, RefreshCw, Filter,
   Grid3X3, Tag, DollarSign, Eye, ExternalLink, Code2, Paintbrush,
   Database, Zap, Shield, Globe, Users, BarChart3, Layout, Briefcase,
-  Settings, Package, Rocket, Heart, Share2, ChevronRight
+  Settings, Package, Rocket, Heart, Share2, ChevronRight, Sparkle
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
