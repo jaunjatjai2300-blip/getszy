@@ -39,7 +39,7 @@ async def get_token() -> Optional[str]:
 
 async def create_shipment(order: dict) -> dict:
     if not is_configured():
-        return {'status': 'not_configured', 'message': 'Shiprocket not configured. Add SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD.'}
+        return {'status': 'not_configured', 'message': 'Shiprocket not configured. Set SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD in .env. Get keys at shiprocket.in'}
     token = await get_token()
     if not token:
         return {'status': 'auth_failed'}

@@ -44,7 +44,25 @@ def active_provider(capability: str) -> dict:
             return {'name': 'pollinations', 'status': 'live', 'cost': 'free', 'capability': capability}
         if have.get(p):
             return {'name': p, 'status': 'live', 'cost': 'paid' if p in ('fal', 'replicate') else 'local', 'capability': capability}
-    return {'name': 'pending', 'status': 'pending_provider', 'cost': '-', 'capability': capability}
+    return {
+        'name': 'pending',
+        'status': 'pending_provider',
+        'cost': '-',
+        'capability': capability,
+        'setup_guide': _setup_guide(capability),
+    }
+
+
+def _setup_guide(capability: str) -> str:
+    guides = {
+        'image': 'Image gen works free via Pollinations. For better quality, set FAL_KEY env var.',
+        'video': 'Set FAL_KEY or HF_TOKEN env var for video generation.',
+        'voice': 'Voice uses edge-tts (free). For premium voices, set FAL_KEY.',
+        'mirror': 'Set FAL_KEY env var for face-swap mirror feature.',
+        'music': 'Set HF_TOKEN env var for music generation.',
+        'upscale': 'Set REPLICATE_TOKEN env var for image upscaling.',
+    }
+    return guides.get(capability, 'Configure the relevant provider API key in .env')
 
 
 def readiness() -> dict:

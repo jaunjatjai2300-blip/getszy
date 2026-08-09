@@ -239,6 +239,8 @@ export default function App() {
             <Route path="chat/:sessionId" element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />
             <Route path="projects" element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />
             <Route path="video-studio" element={<VideoStudio />} />
+            <Route path="build" element={<Suspense fallback={<AdminFallback />}><AdminBuildStudio /></Suspense>} />
+            <Route path="build/:category" element={<Suspense fallback={<AdminFallback />}><AdminBuildStudio /></Suspense>} />
           </Route>
 
           <Route path="/labs" element={<DashboardLayout />}>
