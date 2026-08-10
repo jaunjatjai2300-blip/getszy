@@ -365,7 +365,7 @@ function EnhancedProductCard({ product, onQuickAdd, onWishlist, onQuickView, wis
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <Link to={`/product/${product.id}`} className="block">
+      <Link to={"/product/" + product.id} className="block">
         <div className="relative aspect-square overflow-hidden">
           <img
             src={hovered ? hoverImg : img}
@@ -717,7 +717,7 @@ function QuickViewDialog({ product, open, onClose, onAddToCart }) {
                 {!inStock ? "Sold Out" : product.is_digital ? "Get Access" : "Add to Cart"}
               </Button>
             </div>
-            <Link to={`/product/${product.id}`} className="text-center text-xs text-[var(--gs-primary-2)] mt-3 hover:underline">View full details →</Link>
+            <Link to={"/product/" + product.id} className="text-center text-xs text-[var(--gs-primary-2)] mt-3 hover:underline">View full details →</Link>
           </div>
         </div>
       </DialogContent>
@@ -796,7 +796,7 @@ function GiftFinder({ onSearch }) {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {results.map((p) => (
-                <Link key={p.id} to={`/product/${p.id}`} className="gs-card overflow-hidden group">
+                <Link key={p.id} to={"/product/" + p.id} className="gs-card overflow-hidden group">
                   <div className="relative aspect-square overflow-hidden">
                     <img src={p.images?.[0] || "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=400"} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy"/>
                   </div>
@@ -915,7 +915,7 @@ export default function Home() {
                         <p className="text-xs text-[var(--gs-muted)] mb-3">Try browsing our popular categories:</p>
                         <div className="flex flex-wrap gap-2 justify-center">
                           {cats.slice(0, 4).map((c) => (
-                            <Link key={c.slug} to={`/category/${c.slug}`} onClick={() => nlSearch.setOpen(false)}
+                            <Link key={c.slug} to={"/category/" + c.slug} onClick={() => nlSearch.setOpen(false)}
                               className="px-3 py-1 rounded-full bg-[var(--gs-surface)] text-xs hover:bg-[var(--gs-primary)]/10 transition-colors">{c.title}</Link>
                           ))}
                         </div>
@@ -923,7 +923,7 @@ export default function Home() {
                     ) : (
                       <div className="max-h-80 overflow-y-auto">
                         {nlSearch.results.map((p) => (
-                          <Link key={p.id} to={`/product/${p.id}`} onClick={() => nlSearch.setOpen(false)}
+                          <Link key={p.id} to={"/product/" + p.id} onClick={() => nlSearch.setOpen(false)}
                             className="flex items-center gap-3 p-3 hover:bg-[var(--gs-surface)] transition-colors">
                             <img src={p.images?.[0] || "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=80"} alt="" className="w-10 h-10 rounded-lg object-cover"/>
                             <div className="flex-1 min-w-0">
@@ -932,7 +932,7 @@ export default function Home() {
                             </div>
                           </Link>
                         ))}
-                        <Link to={`/shop?search=${encodeURIComponent(nlSearch.query)}`} onClick={() => nlSearch.setOpen(false)}
+                        <Link to={"/shop?search=" + encodeURIComponent(nlSearch.query)} onClick={() => nlSearch.setOpen(false)}
                           className="block p-3 text-center text-xs font-semibold text-[var(--gs-primary-2)] hover:bg-[var(--gs-surface)] border-t" style={{ borderColor: "var(--gs-border)" }}>
                           View all results for "{nlSearch.query}" →
                         </Link>
@@ -1085,7 +1085,7 @@ export default function Home() {
           </motion.div>
           <motion.div variants={fadeUp} className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {cats.map((c, i) => (
-              <Link key={c.slug} to={`/category/${c.slug}`}>
+              <Link key={c.slug} to={"/category/" + c.slug}>
                 <motion.div whileHover={{ y: -8, scale: 1.02 }} transition={{ type: "spring", stiffness: 300 }}
                   className={`relative rounded-3xl overflow-hidden group cursor-pointer gradient-border ${i === 0 ? "md:col-span-2 md:row-span-2" : ""}`}>
                   <img src={c.img} alt={c.title} className={`w-full object-cover group-hover:scale-110 transition-transform duration-700 ${i === 0 ? "aspect-square" : "aspect-[4/3]"}`} loading="lazy"/>
@@ -1189,7 +1189,7 @@ export default function Home() {
           {digitalProducts.length > 0 && (
             <motion.div variants={fadeUp} className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {digitalProducts.map((p) => (
-                <Link key={p.id} to={`/product/${p.id}`} className="group rounded-2xl overflow-hidden border border-white/10 bg-white/5 hover:bg-white/10 transition-colors">
+                <Link key={p.id} to={"/product/" + p.id} className="group rounded-2xl overflow-hidden border border-white/10 bg-white/5 hover:bg-white/10 transition-colors">
                   <div className="aspect-[3/2] overflow-hidden">
                     <img src={p.images?.[0] || "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400"} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy"/>
                   </div>
@@ -1250,7 +1250,7 @@ export default function Home() {
             </motion.div>
             <motion.div variants={fadeUp} className="grid md:grid-cols-3 gap-4 max-w-4xl mx-auto">
               {trending.slice(0, 3).map((p, i) => (
-                <Link key={p.id} to={`/product/${p.id}`} className="group relative rounded-2xl overflow-hidden">
+                <Link key={p.id} to={"/product/" + p.id} className="group relative rounded-2xl overflow-hidden">
                   <div className="aspect-[3/4] overflow-hidden">
                     <img src={p.images?.[0] || "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=500"} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" loading="lazy"/>
                   </div>
@@ -1540,14 +1540,14 @@ export default function Home() {
               </div>
             </div>
             {[
-              { title: "Shop", links: cats.filter(c => c.slug !== "digital-products").map(c => ({ name: c.title, slug: c.slug })) },
-              { title: "Digital", links: [{ name: "AI Tools", slug: "digital-products" }, { name: "Courses", slug: "digital-products" }, { name: "eBooks", slug: "digital-products" }] },
-              { title: "Company", links: [{ name: "About", slug: "about" }, { name: "Support", slug: "support" }, { name: "Privacy", slug: "privacy" }, { name: "Terms", slug: "terms" }] },
+              { title: "Shop", links: cats.filter(c => c.slug !== "digital-products").map(c => ({ name: c.title, to: "/category/" + c.slug })) },
+              { title: "Digital", links: [{ name: "AI Tools", to: "/category/digital-products" }, { name: "Courses", to: "/category/digital-products" }, { name: "eBooks", to: "/category/digital-products" }] },
+              { title: "Company", links: [{ name: "About", to: "/about" }, { name: "Support", to: "/support" }, { name: "Privacy", to: "/privacy" }, { name: "Terms", to: "/terms" }] },
             ].map((col) => (
               <div key={col.title}>
                 <h4 className="font-display text-sm font-semibold mb-3">{col.title}</h4>
                 <div className="space-y-2">
-                  {col.links.map((l) => <Link key={l.name} to={l.slug === "about" || l.slug === "support" || l.slug === "privacy" || l.slug === "terms" ? `/${l.slug}` : `/category/${l.slug}`} className="block text-xs text-[var(--gs-muted)] hover:text-[var(--gs-primary-2)] transition-colors">{l.name}</Link>)}
+                  {col.links.map((l) => <Link key={l.name} to={l.to} className="block text-xs text-[var(--gs-muted)] hover:text-[var(--gs-primary-2)] transition-colors">{l.name}</Link>)}
                 </div>
               </div>
             ))}
