@@ -25,6 +25,215 @@ const stagger = { visible: { transition: { staggerChildren: 0.1 } } };
 const scaleIn = { hidden: { opacity: 0, scale: 0.95 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.5 } } };
 const slideRight = { hidden: { opacity: 0, x: -30 }, visible: { opacity: 1, x: 0, transition: { duration: 0.5 } } };
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   VISUAL WOW — CSS Animations
+   ═══════════════════════════════════════════════════════════════════════════ */
+const WOW_STYLES = `
+  @keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  @keyframes float { 0%, 100% { transform: translateY(0px) rotate(0deg); } 50% { transform: translateY(-20px) rotate(5deg); } }
+  @keyframes floatSlow { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-12px); } }
+  @keyframes sparkle {
+    0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
+    50% { opacity: 1; transform: scale(1) rotate(180deg); }
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 20px rgba(197,139,122,0.2); }
+    50% { box-shadow: 0 0 40px rgba(197,139,122,0.4); }
+  }
+  @keyframes slideInFromLeft {
+    from { opacity: 0; transform: translateX(-60px) skewX(3deg); }
+    to { opacity: 1; transform: translateX(0) skewX(0deg); }
+  }
+  @keyframes slideInFromRight {
+    from { opacity: 0; transform: translateX(60px) skewX(-3deg); }
+    to { opacity: 1; transform: translateX(0) skewX(0deg); }
+  }
+  @keyframes revealUp {
+    from { clip-path: inset(100% 0 0 0); opacity: 0; }
+    to { clip-path: inset(0 0 0 0); opacity: 1; }
+  }
+  @keyframes morphBlob {
+    0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+    25% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
+    50% { border-radius: 50% 60% 30% 60% / 30% 60% 70% 40%; }
+    75% { border-radius: 60% 30% 60% 40% / 70% 40% 50% 60%; }
+  }
+  .hero-gradient {
+    background: linear-gradient(-45deg, #FBF7F2, #F5E6D3, #E8D5C0, #FBF7F2, #F3E2C7);
+    background-size: 400% 400%;
+    animation: gradientShift 15s ease infinite;
+  }
+  .sparkle-particle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: var(--gs-primary);
+    border-radius: 50%;
+    animation: sparkle 3s ease-in-out infinite;
+    pointer-events: none;
+  }
+  .float-element { animation: float 6s ease-in-out infinite; }
+  .float-slow { animation: floatSlow 8s ease-in-out infinite; }
+  .shimmer-text {
+    background: linear-gradient(90deg, var(--gs-ink) 0%, var(--gs-primary) 50%, var(--gs-ink) 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 3s linear infinite;
+  }
+  .morph-blob {
+    animation: morphBlob 8s ease-in-out infinite;
+  }
+  .card-3d {
+    transform-style: preserve-3d;
+    perspective: 1000px;
+  }
+  .card-3d-inner {
+    transition: transform 0.3s ease;
+    transform-style: preserve-3d;
+  }
+  .card-3d:hover .card-3d-inner {
+    transform: rotateY(-5deg) rotateX(5deg) scale(1.02);
+  }
+  .section-divider {
+    position: relative;
+  }
+  .section-divider::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 1440 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0,30 C360,60 720,0 1080,30 C1260,45 1380,15 1440,30 L1440,60 L0,60 Z' fill='%23FBF7F2'/%3E%3C/svg%3E") no-repeat bottom center;
+    background-size: cover;
+  }
+  .glow-on-hover:hover {
+    box-shadow: 0 0 30px rgba(197,139,122,0.3), 0 10px 40px rgba(0,0,0,0.1);
+  }
+  .magnetic-hover {
+    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .magnetic-hover:hover {
+    transform: scale(1.05);
+  }
+  .text-reveal {
+    overflow: hidden;
+  }
+  .text-reveal > span {
+    display: inline-block;
+    animation: revealUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .hero-bento img {
+    transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94), filter 0.5s ease;
+  }
+  .hero-bento:hover img {
+    filter: brightness(1.05) saturate(1.1);
+  }
+  .gradient-border {
+    position: relative;
+  }
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, var(--gs-primary), var(--gs-teal), var(--gs-primary));
+    background-size: 200% 200%;
+    animation: gradientShift 4s ease infinite;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .gradient-border:hover::before {
+    opacity: 1;
+  }
+`;
+
+if (typeof document !== 'undefined' && !document.getElementById('wow-styles')) {
+  const style = document.createElement('style');
+  style.id = 'wow-styles';
+  style.textContent = WOW_STYLES;
+  document.head.appendChild(style);
+}
+
+function SparkleParticles({ count = 12 }) {
+  const particles = Array.from({ length: count }, (_, i) => ({
+    id: i,
+    left: `${Math.random() * 100}%`,
+    top: `${Math.random() * 100}%`,
+    delay: `${Math.random() * 5}s`,
+    duration: `${2 + Math.random() * 4}s`,
+    size: `${2 + Math.random() * 4}px`,
+  }));
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {particles.map((p) => (
+        <div key={p.id} className="sparkle-particle" style={{
+          left: p.left, top: p.top,
+          animationDelay: p.delay, animationDuration: p.duration,
+          width: p.size, height: p.size,
+        }}/>
+      ))}
+    </div>
+  );
+}
+
+function FloatingShape({ className = "", delay = 0 }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0 }}
+      animate={{ opacity: 0.15, scale: 1 }}
+      transition={{ delay, duration: 1, type: "spring" }}
+      className={`absolute pointer-events-none ${className}`}
+    >
+      <div className="w-full h-full rounded-full morph-blob" style={{
+        background: "linear-gradient(135deg, var(--gs-primary), var(--gs-teal))",
+      }}/>
+    </motion.div>
+  );
+}
+
+function TiltCard({ children, className = "" }) {
+  const ref = useRef(null);
+  const handleMouseMove = (e) => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    ref.current.style.transform = `perspective(1000px) rotateY(${x * 10}deg) rotateX(${-y * 10}deg) scale3d(1.02,1.02,1.02)`;
+  };
+  const handleMouseLeave = () => {
+    if (ref.current) ref.current.style.transform = 'perspective(1000px) rotateY(0deg) rotateX(0deg) scale3d(1,1,1)';
+  };
+  return (
+    <div ref={ref} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}
+      className={`transition-transform duration-300 ease-out ${className}`}
+      style={{ transformStyle: 'preserve-3d' }}>
+      {children}
+    </div>
+  );
+}
+
+function CharacterReveal({ text, className = "", delay = 0 }) {
+  return (
+    <span className={`text-reveal inline-block ${className}`}>
+      {text.split("").map((char, i) => (
+        <span key={i} style={{ animationDelay: `${delay + i * 0.03}s`, display: "inline-block" }}>
+          {char === " " ? "\u00A0" : char}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function Section({ children, className = "", id = "" }) {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-80px" });
@@ -739,18 +948,24 @@ export default function Home() {
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════
-          HERO — Clean, two clear paths
+          HERO — Cinematic + Animated Gradient + Sparkles
       ═══════════════════════════════════════════════════════════════════ */}
-      <section ref={heroRef} className="relative min-h-[85vh] flex items-center overflow-hidden">
-        <div className="absolute inset-0 gs-hero-wash opacity-60 pointer-events-none"/>
-        <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(197,139,122,0.15), transparent)" }}/>
+      <section ref={heroRef} className="relative min-h-[90vh] flex items-center overflow-hidden">
+        <div className="absolute inset-0 hero-gradient opacity-40 pointer-events-none"/>
+        <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(197,139,122,0.2), transparent)" }}/>
+        <SparkleParticles count={20}/>
+        <FloatingShape className="w-64 h-64 -top-20 -right-20 opacity-10" delay={0.5}/>
+        <FloatingShape className="w-48 h-48 bottom-10 -left-10 opacity-10" delay={0.8}/>
+        <FloatingShape className="w-32 h-32 top-1/3 right-1/4 opacity-5" delay={1.2}/>
         <motion.div style={{ y: heroY, opacity: heroOpacity }} className="gs-container relative z-10 grid lg:grid-cols-2 gap-10 py-16 lg:py-24 items-center w-full">
           <motion.div variants={stagger} initial="hidden" animate="visible">
             <motion.div variants={fadeUp} className="text-xs uppercase tracking-[0.2em] text-[var(--gs-primary-2)] mb-5 flex items-center gap-2 font-semibold">
-              <Sparkle className="h-3.5 w-3.5"/>GETSZY INTELLIGENCE
+              <span className="inline-block animate-pulse"><Sparkle className="h-3.5 w-3.5"/></span>
+              GETSZY INTELLIGENCE
             </motion.div>
             <motion.h1 variants={fadeUp} className="text-4xl sm:text-5xl lg:text-[3.5rem] font-display leading-[1.08] tracking-tight">
-              Made for women who<br/>do it all.
+              <CharacterReveal text="Made for women who" delay={0.3}/><br/>
+              <span className="shimmer-text font-bold"><CharacterReveal text="do it all." delay={0.8}/></span>
             </motion.h1>
             <motion.p variants={fadeUp} className="mt-5 text-base sm:text-lg text-[var(--gs-muted)] max-w-xl leading-relaxed">
               Premium lifestyle products and powerful digital tools — designed to help you live better, learn faster and build without coding.
@@ -783,15 +998,18 @@ export default function Home() {
             </motion.div>
           </motion.div>
           <motion.div initial={{ opacity: 0, scale: 0.95, x: 30 }} animate={{ opacity: 1, scale: 1, x: 0 }} transition={{ duration: 0.8, delay: 0.3 }} className="relative">
-            <div className="grid grid-cols-2 grid-rows-2 gap-3 sm:gap-4 aspect-[1.1/1]">
-              <div className="row-span-2 rounded-3xl overflow-hidden shadow-xl"><img src="https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800" alt="Fashion" className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/></div>
-              <div className="rounded-3xl overflow-hidden shadow-xl"><img src="https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=600" alt="Jewellery" className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/></div>
-              <div className="rounded-3xl overflow-hidden shadow-xl"><img src="https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600" alt="Beauty" className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/></div>
-            </div>
-            <div className="absolute -bottom-4 -left-4 bg-white rounded-2xl p-4 shadow-lg flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-[var(--gs-teal-soft)] grid place-items-center"><Sparkle className="h-5 w-5 text-[var(--gs-teal)]"/></div>
+            <TiltCard>
+              <div className="grid grid-cols-2 grid-rows-2 gap-3 sm:gap-4 aspect-[1.1/1] hero-bento">
+                <div className="row-span-2 rounded-3xl overflow-hidden shadow-xl glow-on-hover"><img src="https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800" alt="Fashion" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700"/></div>
+                <div className="rounded-3xl overflow-hidden shadow-xl glow-on-hover"><img src="https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=600" alt="Jewellery" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700"/></div>
+                <div className="rounded-3xl overflow-hidden shadow-xl glow-on-hover"><img src="https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600" alt="Beauty" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700"/></div>
+              </div>
+            </TiltCard>
+            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1, duration: 0.6 }}
+              className="absolute -bottom-4 -left-4 bg-white rounded-2xl p-4 shadow-lg flex items-center gap-3 pulse-glow" style={{ animation: 'pulseGlow 3s ease-in-out infinite' }}>
+              <div className="h-10 w-10 rounded-xl bg-[var(--gs-teal-soft)] grid place-items-center float-slow"><Sparkle className="h-5 w-5 text-[var(--gs-teal)]"/></div>
               <div><div className="text-xs font-semibold">Neo</div><div className="text-[10px] text-[var(--gs-muted)]">Your AI shopping assistant</div></div>
-            </div>
+            </motion.div>
           </motion.div>
         </motion.div>
       </section>
@@ -799,19 +1017,24 @@ export default function Home() {
       {/* ═══════════════════════════════════════════════════════════════════
           GETSZY MOMENT — Cinematic brand story
       ═══════════════════════════════════════════════════════════════════ */}
-      <Section className="py-16 sm:py-24 overflow-hidden" style={{ background: "linear-gradient(180deg, var(--gs-bg) 0%, var(--gs-champagne) 50%, var(--gs-bg) 100%)" }}>
+      <Section className="py-20 sm:py-32 overflow-hidden relative" style={{ background: "linear-gradient(180deg, var(--gs-bg) 0%, var(--gs-champagne) 50%, var(--gs-bg) 100%)" }}>
+        <SparkleParticles count={8}/>
         <div className="gs-container text-center">
-          <motion.div variants={fadeUp} className="space-y-4">
-            <div className="text-xs uppercase tracking-[0.2em] text-[var(--gs-primary-2)] font-semibold mb-6">The Getszy Way</div>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8">
+          <motion.div variants={fadeUp} className="space-y-6">
+            <motion.div initial={{ opacity: 0, scale: 0.8 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ duration: 0.8, type: "spring" }}
+              className="text-xs uppercase tracking-[0.2em] text-[var(--gs-primary-2)] font-semibold mb-8">The Getszy Way</motion.div>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-10">
               {[
                 { word: "SHOP", desc: "something you love.", color: "var(--gs-primary)" },
                 { word: "LEARN", desc: "something useful.", color: "#8b5cf6" },
                 { word: "BUILD", desc: "something yours.", color: "var(--gs-teal)" },
               ].map((item, i) => (
-                <motion.div key={item.word} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-                  transition={{ delay: i * 0.2, duration: 0.6 }} className="flex items-center gap-3">
-                  <span className="font-display text-3xl sm:text-4xl font-bold" style={{ color: item.color }}>{item.word}</span>
+                <motion.div key={item.word} initial={{ opacity: 0, y: 30, scale: 0.9 }} whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                  viewport={{ once: true }} transition={{ delay: i * 0.25, duration: 0.7, type: "spring", bounce: 0.4 }}
+                  className="flex items-center gap-3 magnetic-hover">
+                  <span className="font-display text-4xl sm:text-5xl font-bold" style={{ color: item.color }}>
+                    <CharacterReveal text={item.word} delay={i * 0.3}/>
+                  </span>
                   <span className="text-lg sm:text-xl text-[var(--gs-muted)] font-display italic">{item.desc}</span>
                 </motion.div>
               ))}
@@ -835,12 +1058,19 @@ export default function Home() {
           <motion.div variants={fadeUp} className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {CATEGORIES_META.map((c, i) => (
               <Link key={c.slug} to={`/category/${c.slug}`}>
-                <motion.div whileHover={{ y: -6 }} className={`relative rounded-3xl overflow-hidden group cursor-pointer ${i === 0 ? "md:col-span-2 md:row-span-2" : ""}`}>
-                  <img src={c.img} alt={c.title} className={`w-full object-cover group-hover:scale-105 transition-transform duration-700 ${i === 0 ? "aspect-square" : "aspect-[4/3]"}`}/>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"/>
-                  <div className="absolute bottom-0 left-0 p-5">
-                    <h3 className="font-display text-xl text-white">{c.title}</h3>
+                <motion.div whileHover={{ y: -8, scale: 1.02 }} transition={{ type: "spring", stiffness: 300 }}
+                  className={`relative rounded-3xl overflow-hidden group cursor-pointer gradient-border ${i === 0 ? "md:col-span-2 md:row-span-2" : ""}`}>
+                  <img src={c.img} alt={c.title} className={`w-full object-cover group-hover:scale-110 transition-transform duration-700 ${i === 0 ? "aspect-square" : "aspect-[4/3]"}`}/>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"/>
+                  <div className="absolute bottom-0 left-0 p-5 sm:p-6">
+                    <motion.h3 initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+                      className="font-display text-xl sm:text-2xl text-white">{c.title}</motion.h3>
                     <p className="text-xs text-white/70 mt-1">{c.tagline}</p>
+                  </div>
+                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
+                    <div className="h-8 w-8 rounded-full bg-white/90 grid place-items-center shadow-lg">
+                      <ArrowRight className="h-4 w-4 text-[var(--gs-ink)]"/>
+                    </div>
                   </div>
                 </motion.div>
               </Link>
@@ -889,10 +1119,15 @@ export default function Home() {
       {/* ═══════════════════════════════════════════════════════════════════
           GETSZY DIGITAL — Separate world
       ═══════════════════════════════════════════════════════════════════ */}
-      <Section className="gs-section" style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)" }}>
-        <div className="gs-container">
+      <Section className="gs-section relative overflow-hidden" style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)" }}>
+        <div className="absolute inset-0" style={{ background: "radial-gradient(circle at 30% 50%, rgba(47,126,122,0.15), transparent 50%), radial-gradient(circle at 70% 50%, rgba(139,92,246,0.1), transparent 50%)" }}/>
+        <SparkleParticles count={10}/>
+        <div className="gs-container relative z-10">
           <motion.div variants={fadeUp} className="text-center mb-12">
-            <div className="text-xs uppercase tracking-[0.2em] text-[var(--gs-teal)] mb-3 font-semibold flex items-center justify-center gap-2"><Zap className="h-3.5 w-3.5"/>BEYOND SHOPPING</div>
+            <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+              className="text-xs uppercase tracking-[0.2em] text-[var(--gs-teal)] mb-3 font-semibold flex items-center justify-center gap-2">
+              <span className="inline-block animate-pulse"><Zap className="h-3.5 w-3.5"/></span>BEYOND SHOPPING
+            </motion.div>
             <h2 className="font-display text-3xl sm:text-4xl text-white">Learn AI. Build without coding. Grow your skills.</h2>
             <p className="text-gray-400 mt-3 max-w-lg mx-auto">Digital products and tools that help you create, learn and earn — all in one platform.</p>
           </motion.div>
@@ -902,17 +1137,21 @@ export default function Home() {
               { icon: Bot, title: "AI Admin", desc: "Run your everyday work with AI — schedule, draft, organise.", color: "#10b981", link: "/dashboard" },
               { icon: GraduationCap, title: "AI Learning", desc: "Learn practical AI skills in 10-minute lessons.", color: "#8b5cf6", link: "/category/digital-products" },
               { icon: Wand2, title: "App Generator", desc: "Your idea → AI → working app. No coding needed.", color: "#f59e0b", link: "/dashboard/build" },
-            ].map((t) => (
+            ].map((t, i) => (
               <Link key={t.title} to={t.link}>
-                <motion.div whileHover={{ y: -6, scale: 1.02 }} className="rounded-3xl p-6 sm:p-8 border border-white/10 bg-white/5 backdrop-blur-sm cursor-pointer group">
-                  <div className="h-14 w-14 rounded-2xl mb-5 grid place-items-center" style={{ background: `${t.color}20` }}>
-                    <t.icon className="h-7 w-7" style={{ color: t.color }}/>
+                <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.15 }}
+                  whileHover={{ y: -8, scale: 1.03 }} className="rounded-3xl p-6 sm:p-8 border border-white/10 bg-white/5 backdrop-blur-sm cursor-pointer group relative overflow-hidden">
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: `radial-gradient(circle at 50% 50%, ${t.color}15, transparent 70%)` }}/>
+                  <div className="relative z-10">
+                    <motion.div whileHover={{ rotate: 15, scale: 1.1 }} className="h-14 w-14 rounded-2xl mb-5 grid place-items-center" style={{ background: `${t.color}20` }}>
+                      <t.icon className="h-7 w-7" style={{ color: t.color }}/>
+                    </motion.div>
+                    <h3 className="font-display text-xl text-white mb-2">{t.title}</h3>
+                    <p className="text-sm text-gray-400 mb-4">{t.desc}</p>
+                    <span className="text-sm font-semibold flex items-center gap-1 group-hover:gap-3 transition-all" style={{ color: t.color }}>
+                      Explore <ArrowRight className="h-3.5 w-3.5"/>
+                    </span>
                   </div>
-                  <h3 className="font-display text-xl text-white mb-2">{t.title}</h3>
-                  <p className="text-sm text-gray-400 mb-4">{t.desc}</p>
-                  <span className="text-sm font-semibold flex items-center gap-1 group-hover:gap-2 transition-all" style={{ color: t.color }}>
-                    Explore <ArrowRight className="h-3.5 w-3.5"/>
-                  </span>
                 </motion.div>
               </Link>
             ))}
@@ -1098,21 +1337,27 @@ export default function Home() {
       {/* ═══════════════════════════════════════════════════════════════════
           REAL SOCIAL PROOF
       ═══════════════════════════════════════════════════════════════════ */}
-      <Section className="gs-section" style={{ background: "var(--gs-surface-2)" }}>
-        <div className="gs-container">
+      <Section className="gs-section relative overflow-hidden" style={{ background: "var(--gs-surface-2)" }}>
+        <div className="absolute inset-0" style={{ background: "radial-gradient(circle at 50% 50%, rgba(197,139,122,0.08), transparent 60%)" }}/>
+        <div className="gs-container relative z-10">
           <motion.div variants={fadeUp} className="grid grid-cols-2 lg:grid-cols-4 gap-6 text-center">
             {[
-              { value: "10000", suffix: "+", label: "Customers" },
-              { value: "500", suffix: "+", label: "Products" },
-              { value: "50", suffix: "+", label: "Digital Tools" },
-              { value: "98", suffix: "%", label: "Satisfaction" },
-            ].map((s) => (
-              <div key={s.label}>
+              { value: "10000", suffix: "+", label: "Customers", icon: Users },
+              { value: "500", suffix: "+", label: "Products", icon: Package },
+              { value: "50", suffix: "+", label: "Digital Tools", icon: Zap },
+              { value: "98", suffix: "%", label: "Satisfaction", icon: Heart },
+            ].map((s, i) => (
+              <motion.div key={s.label} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+                transition={{ delay: i * 0.15, type: "spring" }}
+                whileHover={{ y: -5, scale: 1.05 }} className="p-6 rounded-2xl bg-white/60 backdrop-blur-sm border border-white/80 shadow-sm">
+                <motion.div whileHover={{ rotate: 10 }} className="h-10 w-10 rounded-xl mx-auto mb-3 grid place-items-center" style={{ background: "rgba(197,139,122,0.1)" }}>
+                  <s.icon className="h-5 w-5 text-[var(--gs-primary)]"/>
+                </motion.div>
                 <div className="font-display text-3xl sm:text-4xl font-bold text-[var(--gs-primary)]">
                   <CountUp target={s.value} suffix={s.suffix}/>
                 </div>
                 <div className="text-sm text-[var(--gs-muted)] mt-1">{s.label}</div>
-              </div>
+              </motion.div>
             ))}
           </motion.div>
         </div>
@@ -1130,20 +1375,25 @@ export default function Home() {
           </motion.div>
           <motion.div variants={fadeUp} className="grid md:grid-cols-3 gap-5">
             {[
-              { q: "Maine ek week me apna dropshipping store launch kiya — sab AI chat se. Insane!", n: "Aanya", loc: "Mumbai", role: "Entrepreneur", verified: true },
-              { q: "AI Learning ke courses ne mujhe job dilai. Premium feel + practical content.", n: "Riya", loc: "Bengaluru", role: "AI Graduate", verified: true },
-              { q: "Beauty + jewellery quality genuinely premium hai. My new favourite store.", n: "Meher", loc: "Delhi", role: "Loyal Customer", verified: true },
+              { q: "Maine ek week me apna dropshipping store launch kiya — sab AI chat se. Insane!", n: "Aanya", loc: "Mumbai", role: "Entrepreneur", verified: true, color: "#C58B7A" },
+              { q: "AI Learning ke courses ne mujhe job dilai. Premium feel + practical content.", n: "Riya", loc: "Bengaluru", role: "AI Graduate", verified: true, color: "#8b5cf6" },
+              { q: "Beauty + jewellery quality genuinely premium hai. My new favourite store.", n: "Meher", loc: "Delhi", role: "Loyal Customer", verified: true, color: "#2F7E7A" },
             ].map((t, i) => (
-              <motion.div key={i} variants={scaleIn} whileHover={{ y: -4 }} className="gs-card p-6 sm:p-8">
+              <motion.div key={i} initial={{ opacity: 0, y: 30, rotateX: -5 }} whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+                viewport={{ once: true }} transition={{ delay: i * 0.15, type: "spring" }}
+                whileHover={{ y: -8, scale: 1.02 }}
+                className="gs-card p-6 sm:p-8 relative overflow-hidden backdrop-blur-sm bg-white/80 border border-white/60">
+                <div className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-10" style={{ background: `radial-gradient(circle, ${t.color}, transparent)` }}/>
                 <div className="flex items-center gap-2 mb-4">
                   <div className="flex gap-0.5">{[...Array(5)].map((_, j) => <Star key={j} className="h-4 w-4 fill-amber-400 text-amber-400"/>)}</div>
                   {t.verified && <Badge className="bg-green-100 text-green-700 text-[10px] border-0">Verified Purchase</Badge>}
                 </div>
-                <p className="font-display text-lg leading-relaxed mb-5">"{t.q}"</p>
+                <p className="font-display text-lg leading-relaxed mb-5 relative z-10">"{t.q}"</p>
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-[var(--gs-champagne)] grid place-items-center font-display font-bold text-sm text-[var(--gs-primary)]">
+                  <motion.div whileHover={{ scale: 1.1, rotate: 5 }}
+                    className="h-10 w-10 rounded-full grid place-items-center font-display font-bold text-sm text-white" style={{ background: `linear-gradient(135deg, ${t.color}, ${t.color}CC)` }}>
                     {t.n[0]}
-                  </div>
+                  </motion.div>
                   <div>
                     <div className="text-sm font-semibold">{t.n}</div>
                     <div className="text-xs text-[var(--gs-muted)]">{t.role} · {t.loc}</div>
@@ -1208,17 +1458,24 @@ export default function Home() {
       {/* ═══════════════════════════════════════════════════════════════════
           FINAL CTA
       ═══════════════════════════════════════════════════════════════════ */}
-      <Section className="py-20 sm:py-28">
-        <div className="gs-container text-center">
+      <Section className="py-20 sm:py-28 relative overflow-hidden">
+        <div className="absolute inset-0 hero-gradient opacity-30"/>
+        <SparkleParticles count={15}/>
+        <FloatingShape className="w-40 h-40 -top-10 left-1/4 opacity-10" delay={0.3}/>
+        <FloatingShape className="w-32 h-32 bottom-10 right-1/4 opacity-10" delay={0.6}/>
+        <div className="gs-container text-center relative z-10">
           <motion.div variants={fadeUp}>
-            <h2 className="font-display text-3xl sm:text-5xl mb-4">Ready to start your Getszy journey?</h2>
+            <h2 className="font-display text-3xl sm:text-5xl mb-4">
+              <CharacterReveal text="Ready to start your" delay={0.2}/><br/>
+              <span className="shimmer-text font-bold"><CharacterReveal text="Getszy journey?" delay={0.6}/></span>
+            </h2>
             <p className="text-[var(--gs-muted)] mb-8 max-w-lg mx-auto">Shop premium essentials. Learn AI. Build your business — all in one place.</p>
             <div className="flex flex-wrap gap-4 justify-center">
-              <Link to="/shop"><Button size="lg" className="bg-[var(--gs-primary)] hover:bg-[var(--gs-primary-2)] h-14 px-10 text-base rounded-2xl shadow-lg">
+              <Link to="/shop"><Button size="lg" className="bg-[var(--gs-primary)] hover:bg-[var(--gs-primary-2)] h-14 px-10 text-base rounded-2xl shadow-lg magnetic-hover glow-on-hover">
                 Shop Now <ArrowRight className="h-4 w-4 ml-2"/>
               </Button></Link>
-              <Link to="/dashboard"><Button size="lg" variant="outline" className="h-14 px-10 text-base rounded-2xl border-[var(--gs-border)]">
-                Try Getszy AI
+              <Link to="/dashboard"><Button size="lg" variant="outline" className="h-14 px-10 text-base rounded-2xl border-[var(--gs-border)] magnetic-hover">
+                Try Neo
               </Button></Link>
             </div>
           </motion.div>
