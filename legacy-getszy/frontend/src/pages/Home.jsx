@@ -288,20 +288,30 @@ function useNLSearch() {
   return { query, results, loading, open, setOpen, search };
 }
 
-const CATEGORIES_META = [
-  { slug: "fashion", title: "Fashion", tagline: "Style that moves with you.", emoji: "👗", img: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600" },
-  { slug: "jewellery", title: "Jewellery", tagline: "Small details. Big statement.", emoji: "💎", img: "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=600" },
-  { slug: "beauty", title: "Beauty", tagline: "Glow, simplified.", emoji: "✨", img: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600" },
-  { slug: "home-decor", title: "Home", tagline: "Make your space yours.", emoji: "🏡", img: "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=600" },
-  { slug: "kids", title: "Kids", tagline: "Made for little moments.", emoji: "🧸", img: "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=600" },
-  { slug: "gadgets", title: "Gadgets", tagline: "Tech that fits your life.", emoji: "📱", img: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=600" },
-];
+const CATEGORY_TAGLINES = {
+  fashion: "Style that moves with you.",
+  jewellery: "Small details. Big statement.",
+  beauty: "Glow, simplified.",
+  "home-decor": "Make your space yours.",
+  kids: "Made for little moments.",
+  gadgets: "Tech that fits your life.",
+  "digital-products": "Tools that help you build.",
+};
 
-const DIGITAL_CATEGORIES = [
-  { slug: "digital-products", title: "AI Tools", tagline: "Automate your workflow.", emoji: "🤖", img: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=600" },
-  { slug: "digital-products", title: "Courses", tagline: "Learn practical AI skills.", emoji: "📚", img: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600" },
-  { slug: "digital-products", title: "Business Tools", tagline: "Build without coding.", emoji: "⚡", img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600" },
-];
+const CATEGORY_EMOJIS = {
+  fashion: "👗", jewellery: "💎", beauty: "✨", "home-decor": "🏡",
+  kids: "🧸", gadgets: "📱", "digital-products": "⚡",
+};
+
+const CATEGORY_FALLBACKS = {
+  fashion: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600",
+  jewellery: "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=600",
+  beauty: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600",
+  "home-decor": "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=600",
+  kids: "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=600",
+  gadgets: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=600",
+  "digital-products": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600",
+};
 
 const GIFTS_OCCASIONS = [
   { label: "Birthday", emoji: "🎂" },
@@ -813,6 +823,7 @@ export default function Home() {
   const [newArrivals, setNewArrivals] = useState([]);
   const [bestsellers, setBestsellers] = useState([]);
   const [digitalProducts, setDigitalProducts] = useState([]);
+  const [heroProducts, setHeroProducts] = useState([]);
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterLoading, setNewsletterLoading] = useState(false);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
@@ -825,9 +836,19 @@ export default function Home() {
   const nlSearch = useNLSearch();
 
   useEffect(() => {
-    api.get("/categories").then(({ data }) => setCats(data)).catch(() => setCats([]));
+    api.get("/categories").then(({ data }) => {
+      const merged = (Array.isArray(data) ? data : []).map((c) => ({
+        ...c,
+        title: c.name,
+        tagline: CATEGORY_TAGLINES[c.slug] || "Discover something new.",
+        emoji: CATEGORY_EMOJIS[c.slug] || "🛍️",
+        img: c.image || CATEGORY_FALLBACKS[c.slug] || "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600",
+        product_count: c.product_count || 0,
+      }));
+      setCats(merged);
+    }).catch(() => setCats([]));
     api.get("/products?featured=true&limit=8").then(({ data }) => setTrending(data)).catch(() => setTrending([]));
-    api.get("/products?limit=8").then(({ data }) => setNewArrivals(data)).catch(() => setNewArrivals([]));
+    api.get("/products?limit=8").then(({ data }) => { setNewArrivals(data); setHeroProducts(data); }).catch(() => { setNewArrivals([]); setHeroProducts([]); });
     api.get("/products?featured=true&limit=4").then(({ data }) => setBestsellers(data)).catch(() => setBestsellers([]));
     api.get("/products?category=digital-products&limit=6").then(({ data }) => setDigitalProducts(data)).catch(() => setDigitalProducts([]));
   }, []);
@@ -893,7 +914,7 @@ export default function Home() {
                         <p className="text-sm font-semibold mb-1">No exact match found</p>
                         <p className="text-xs text-[var(--gs-muted)] mb-3">Try browsing our popular categories:</p>
                         <div className="flex flex-wrap gap-2 justify-center">
-                          {CATEGORIES_META.slice(0, 4).map((c) => (
+                          {cats.slice(0, 4).map((c) => (
                             <Link key={c.slug} to={`/category/${c.slug}`} onClick={() => nlSearch.setOpen(false)}
                               className="px-3 py-1 rounded-full bg-[var(--gs-surface)] text-xs hover:bg-[var(--gs-primary)]/10 transition-colors">{c.title}</Link>
                           ))}
@@ -1000,9 +1021,16 @@ export default function Home() {
           <motion.div initial={{ opacity: 0, scale: 0.95, x: 30 }} animate={{ opacity: 1, scale: 1, x: 0 }} transition={{ duration: 0.8, delay: 0.3 }} className="relative">
             <TiltCard>
               <div className="grid grid-cols-2 grid-rows-2 gap-3 sm:gap-4 aspect-[1.1/1] hero-bento">
-                <div className="row-span-2 rounded-3xl overflow-hidden shadow-xl glow-on-hover"><img src="https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800" alt="Fashion" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700"/></div>
-                <div className="rounded-3xl overflow-hidden shadow-xl glow-on-hover"><img src="https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=600" alt="Jewellery" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700"/></div>
-                <div className="rounded-3xl overflow-hidden shadow-xl glow-on-hover"><img src="https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600" alt="Beauty" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700"/></div>
+                {[
+                  heroProducts[0] || { images: ["https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800"], name: "Fashion" },
+                  heroProducts[1] || { images: ["https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=600"], name: "Jewellery" },
+                  heroProducts[2] || { images: ["https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600"], name: "Beauty" },
+                ].map((p, i) => (
+                  <div key={i} className={`${i === 0 ? "row-span-2" : ""} rounded-3xl overflow-hidden shadow-xl glow-on-hover relative group">
+                    <img src={p.images?.[0] || "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600"} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy"/>
+                    {p.price && <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 text-[10px] font-semibold shadow-sm">₹{p.price?.toLocaleString("en-IN")}</div>}
+                  </div>
+                ))}
               </div>
             </TiltCard>
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1, duration: 0.6 }}
@@ -1056,16 +1084,17 @@ export default function Home() {
             <Link to="/shop" className="text-sm gs-link flex items-center gap-1">View all <ArrowRight className="h-3 w-3"/></Link>
           </motion.div>
           <motion.div variants={fadeUp} className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {CATEGORIES_META.map((c, i) => (
+            {cats.map((c, i) => (
               <Link key={c.slug} to={`/category/${c.slug}`}>
                 <motion.div whileHover={{ y: -8, scale: 1.02 }} transition={{ type: "spring", stiffness: 300 }}
                   className={`relative rounded-3xl overflow-hidden group cursor-pointer gradient-border ${i === 0 ? "md:col-span-2 md:row-span-2" : ""}`}>
-                  <img src={c.img} alt={c.title} className={`w-full object-cover group-hover:scale-110 transition-transform duration-700 ${i === 0 ? "aspect-square" : "aspect-[4/3]"}`}/>
+                  <img src={c.img} alt={c.title} className={`w-full object-cover group-hover:scale-110 transition-transform duration-700 ${i === 0 ? "aspect-square" : "aspect-[4/3]"}`} loading="lazy"/>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"/>
                   <div className="absolute bottom-0 left-0 p-5 sm:p-6">
                     <motion.h3 initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
                       className="font-display text-xl sm:text-2xl text-white">{c.title}</motion.h3>
                     <p className="text-xs text-white/70 mt-1">{c.tagline}</p>
+                    {c.product_count > 0 && <p className="text-[10px] text-white/50 mt-1">{c.product_count} products</p>}
                   </div>
                   <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
                     <div className="h-8 w-8 rounded-full bg-white/90 grid place-items-center shadow-lg">
@@ -1257,7 +1286,7 @@ export default function Home() {
                 </Link>
               </div>
               <div className="relative h-64 md:h-full">
-                <img src="https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800" alt="The Everyday Edit" className="w-full h-full object-cover"/>
+                <img src={heroProducts[0]?.images?.[0] || newArrivals[0]?.images?.[0] || "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800"} alt="The Everyday Edit" className="w-full h-full object-cover" loading="lazy"/>
               </div>
             </div>
           </motion.div>
@@ -1511,14 +1540,14 @@ export default function Home() {
               </div>
             </div>
             {[
-              { title: "Shop", links: ["Fashion", "Jewellery", "Beauty", "Home", "Kids", "Gadgets"] },
-              { title: "Digital", links: ["AI Tools", "Courses", "eBooks", "Business Tools"] },
-              { title: "Company", links: ["About", "Support", "Privacy", "Terms"] },
+              { title: "Shop", links: cats.filter(c => c.slug !== "digital-products").map(c => ({ name: c.title, slug: c.slug })) },
+              { title: "Digital", links: [{ name: "AI Tools", slug: "digital-products" }, { name: "Courses", slug: "digital-products" }, { name: "eBooks", slug: "digital-products" }] },
+              { title: "Company", links: [{ name: "About", slug: "about" }, { name: "Support", slug: "support" }, { name: "Privacy", slug: "privacy" }, { name: "Terms", slug: "terms" }] },
             ].map((col) => (
               <div key={col.title}>
                 <h4 className="font-display text-sm font-semibold mb-3">{col.title}</h4>
                 <div className="space-y-2">
-                  {col.links.map((l) => <div key={l} className="text-xs text-[var(--gs-muted)] hover:text-[var(--gs-primary-2)] cursor-pointer transition-colors">{l}</div>)}
+                  {col.links.map((l) => <Link key={l.name} to={l.slug === "about" || l.slug === "support" || l.slug === "privacy" || l.slug === "terms" ? `/${l.slug}` : `/category/${l.slug}`} className="block text-xs text-[var(--gs-muted)] hover:text-[var(--gs-primary-2)] transition-colors">{l.name}</Link>)}
                 </div>
               </div>
             ))}
