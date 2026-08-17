@@ -175,7 +175,10 @@ async def _ollama_chain(system: str, user: str, temperature: float) -> str:
 async def _emergent(system: str, user: str, session_id: str) -> str:
     if FREE_ONLY:
         raise RuntimeError('FREE_ONLY mode: paid LLM blocked. Set FREE_ONLY=false to enable.')
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except ImportError:
+        raise RuntimeError('emergentintegrations package not installed (optional paid provider).')
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
         session_id=session_id,
