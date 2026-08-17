@@ -175,6 +175,7 @@ const NAV = [
       { to: "/admin/workflows", label: "Workflows",   icon: Workflow },
       { to: "/admin/scheduler", label: "Scheduler",   icon: CalendarClock },
       { to: "/admin/webhooks",  label: "Webhooks",    icon: Webhook },
+      { to: "/admin/automations", label: "Automations", icon: Zap },
     ],
   },
   {
