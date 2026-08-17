@@ -70,19 +70,33 @@ def _under_limit(provider: str) -> bool:
 
 # ── Provider implementations ──────────────────────────────────────────────────
 
+
+# --- Prompt truncation to avoid 413 Payload Too Large ---
+# Groq llama-3.3-70b: 128k ctx, but TPM caps request size. Keep safe budget.
+_MAX_CHARS_PER_MSG = 48000   # ~12k tokens per message, ~24k total, well under limits
+
+def _truncate(text: str, limit: int = _MAX_CHARS_PER_MSG) -> str:
+    if not text or len(text) <= limit:
+        return text
+    head = int(limit * 0.7)
+    tail = limit - head - 40
+    return text[:head] + "\n\n...[truncated for token limit]...\n\n" + text[-tail:]
+
 async def _groq(system: str, user: str, temperature: float) -> str:
+    system = _truncate(system)
+    user = _truncate(user)
     async with httpx.AsyncClient(timeout=60.0) as client:
         r = await client.post(
             'https://api.groq.com/openai/v1/chat/completions',
             headers={'Authorization': f'Bearer {GROQ_API_KEY}'},
             json={
-                'model': 'llama-3.1-8b-instant',
+                'model': 'llama-3.3-70b-versatile',
                 'messages': [
                     {'role': 'system', 'content': system},
                     {'role': 'user', 'content': user},
                 ],
                 'temperature': temperature,
-                'max_tokens': 2048,
+                'max_tokens': 4096,
             },
         )
         r.raise_for_status()
