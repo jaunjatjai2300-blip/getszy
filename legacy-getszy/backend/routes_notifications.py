@@ -8,6 +8,7 @@ from typing import Optional
 from auth import get_current_user, get_current_admin
 from db import db
 from websocket_manager import manager
+from notify_channels import dispatch, get_channels_config
 
 router = APIRouter(prefix='/notifications', tags=['notifications'])
 
@@ -57,3 +58,40 @@ async def send_notification(payload: NotificationIn, admin=Depends(get_current_a
 @router.get('/online')
 async def online_users(_=Depends(get_current_user)):
     return {'online': manager.get_online_users(), 'count': len(manager.get_online_users())}
+
+
+# ── Multi-channel config + broadcast (Tier 3) ─────────────────────────────────
+class ChannelConfig(BaseModel):
+    email_enabled: bool = False
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = 465
+    smtp_user: Optional[str] = None
+    smtp_pass: Optional[str] = None
+    smtp_from: Optional[str] = None
+    whatsapp_enabled: bool = False
+    whatsapp_api_url: Optional[str] = None
+    whatsapp_token: Optional[str] = None
+
+
+@router.get('/config', dependencies=[Depends(get_current_admin)])
+async def notification_config():
+    return await get_channels_config()
+
+
+@router.put('/config', dependencies=[Depends(get_current_admin)])
+async def update_notification_config(body: ChannelConfig):
+    await db.notification_config.replace_one({}, body.model_dump(), upsert=True)
+    return {'ok': True}
+
+
+class BroadcastIn(BaseModel):
+    title: str
+    message: str
+    emails: list[str] = []
+    phones: list[str] = []
+
+
+@router.post('/broadcast', dependencies=[Depends(get_current_admin)])
+async def broadcast_channels(payload: BroadcastIn):
+    results = await dispatch(payload.title, payload.message, payload.emails, payload.phones)
+    return {'ok': True, 'results': results}
