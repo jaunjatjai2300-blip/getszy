@@ -88,6 +88,7 @@ PLATFORM_ROUTERS = [
     ('bulk', 'routes_bulk', 'bulk'),
     ('observability', 'routes_observability', 'observability'),
     ('i18n', 'routes_i18n', 'i18n'),
+    ('einvoice', 'routes_einvoice', 'einvoice'),
 ]
 
 # ── Support & Legal ───────────────────────────────────────────────────────────
