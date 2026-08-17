@@ -6,6 +6,7 @@ the existing WebSocket manager (channel 'admin-live').
 from datetime import datetime, timezone
 
 from websocket_manager import manager
+from automation_engine import trigger_automations
 
 
 def broadcast_admin_event(event_type: str, payload: dict):
@@ -16,5 +17,10 @@ def broadcast_admin_event(event_type: str, payload: dict):
             'payload': payload,
             'ts': datetime.now(timezone.utc).isoformat(),
         })
+    except Exception:
+        pass
+    # Fire automation rules (notify / webhook / tag / log) — fire-and-forget.
+    try:
+        trigger_automations(event_type, payload)
     except Exception:
         pass

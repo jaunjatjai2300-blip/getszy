@@ -83,6 +83,7 @@ PLATFORM_ROUTERS = [
     ('skills', 'routes_skills', 'skills'),
     ('stacks', 'routes_stacks', 'stacks'),
     ('neo_ops', 'routes_neo_ops', 'neo-ops'),
+    ('automations', 'routes_automations', 'automations'),
 ]
 
 # ── Support & Legal ───────────────────────────────────────────────────────────
