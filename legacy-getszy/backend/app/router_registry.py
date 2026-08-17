@@ -26,6 +26,7 @@ AI_ROUTERS = [
     ('ai_workforce', 'routes_ai_workforce', 'ai-workforce'),
     ('chat_builder', 'routes_chat_builder', 'chat-builder'),
     ('copilot', 'routes_copilot', 'copilot'),
+    ('neo_content', 'routes_neo_content', 'neo-content'),
 ]
 
 # ── Commerce & Payments ───────────────────────────────────────────────────────
@@ -85,6 +86,7 @@ PLATFORM_ROUTERS = [
     ('neo_ops', 'routes_neo_ops', 'neo-ops'),
     ('automations', 'routes_automations', 'automations'),
     ('bulk', 'routes_bulk', 'bulk'),
+    ('observability', 'routes_observability', 'observability'),
 ]
 
 # ── Support & Legal ───────────────────────────────────────────────────────────

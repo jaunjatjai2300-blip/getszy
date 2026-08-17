@@ -176,6 +176,8 @@ const NAV = [
       { to: "/admin/scheduler", label: "Scheduler",   icon: CalendarClock },
       { to: "/admin/webhooks",  label: "Webhooks",    icon: Webhook },
       { to: "/admin/automations", label: "Automations", icon: Zap },
+      { to: "/admin/neo-studio", label: "Neo Studio", icon: Sparkles },
+      { to: "/admin/observability", label: "Observability", icon: Activity },
     ],
   },
   {
