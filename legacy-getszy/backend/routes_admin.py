@@ -467,11 +467,17 @@ async def save_settings(body: SettingsIn):
 # ── Audit Log ────────────────────────────────────────────────────────────────
 
 @router.get('/audit-logs', dependencies=[Depends(get_current_admin)])
-async def get_audit_logs(limit: int = 50, action: str = ''):
-    q = {}
+async def get_audit_logs(limit: int = 50, action: str = '', q: str = ''):
+    query = {}
     if action:
-        q['action'] = {'$regex': action, '$options': 'i'}
-    logs = await db.audit_logs.find(q, {'_id': 0}).sort('created_at', -1).to_list(limit)
+        query['action'] = {'$regex': action, '$options': 'i'}
+    if q:
+        query['$or'] = [
+            {'detail': {'$regex': q, '$options': 'i'}},
+            {'action': {'$regex': q, '$options': 'i'}},
+            {'admin_id': {'$regex': q, '$options': 'i'}},
+        ]
+    logs = await db.audit_logs.find(query, {'_id': 0}).sort('created_at', -1).to_list(limit)
     return {'items': logs, 'total': len(logs)}
 
 

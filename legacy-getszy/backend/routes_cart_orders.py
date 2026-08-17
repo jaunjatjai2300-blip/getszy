@@ -205,7 +205,7 @@ class RefundIn(BaseModel):
 
 
 @router.post('/admin/orders/refund')
-async def process_refund(body: RefundIn, _=Depends(get_current_admin)):
+async def process_refund(body: RefundIn, admin=Depends(get_current_admin)):
     """Issue a refund for an order. Records the refund and updates the order status."""
     order = await db.orders.find_one({'id': body.order_id}, {'_id': 0})
     if not order:
@@ -239,4 +239,15 @@ async def process_refund(body: RefundIn, _=Depends(get_current_admin)):
         'refunded_at': now,
     }
     await db.orders.update_one({'id': order.get('id')}, {'$set': upd})
+    try:
+        await db.audit_logs.insert_one({
+            'id': str(uuid.uuid4()),
+            'admin_id': admin.get('id') or admin.get('email'),
+            'action': 'refund_issued',
+            'detail': f"Refunded ₹{body.amount} for order {order.get('order_number') or order.get('id')}",
+            'level': 'info',
+            'created_at': datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        pass
     return {'ok': True, 'refund': {k: v for k, v in refund.items() if k != '_id'}}
