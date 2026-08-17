@@ -75,6 +75,8 @@ const AdminRefunds = lazy(() => import("@/pages/admin/Refunds"));
 const AdminGST = lazy(() => import("@/pages/admin/GST"));
 const FounderCommand = lazy(() => import("@/pages/admin/FounderCommand"));
 const AdminAutomations = lazy(() => import("@/pages/admin/Automations"));
+const NeoStudio = lazy(() => import("@/pages/admin/NeoStudio"));
+const Observability = lazy(() => import("@/pages/admin/Observability"));
 const EnterpriseSecurity = lazy(() => import("@/pages/admin/EnterpriseSecurity"));
 const DeployPlatform = lazy(() => import("@/pages/admin/DeployPlatform"));
 const SaaSBuilder = lazy(() => import("@/pages/admin/SaaSBuilder"));
@@ -218,6 +220,8 @@ export default function App() {
 
             <Route path="founder" element={<Suspense fallback={<AdminFallback />}><FounderCommand /></Suspense>} />
             <Route path="automations" element={<Suspense fallback={<AdminFallback />}><AdminAutomations /></Suspense>} />
+            <Route path="neo-studio" element={<Suspense fallback={<AdminFallback />}><NeoStudio /></Suspense>} />
+            <Route path="observability" element={<Suspense fallback={<AdminFallback />}><Observability /></Suspense>} />
             <Route path="enterprise-security" element={<Suspense fallback={<AdminFallback />}><EnterpriseSecurity /></Suspense>} />
             <Route path="deploy-platform" element={<Suspense fallback={<AdminFallback />}><DeployPlatform /></Suspense>} />
             <Route path="saas-builder" element={<Suspense fallback={<AdminFallback />}><SaaSBuilder /></Suspense>} />

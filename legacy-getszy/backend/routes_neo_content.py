@@ -1,0 +1,109 @@
+"""Universal AI content engine — Neo Studio (Tier 3, "universal").
+
+Generate and translate any commerce content (product copy, ads, emails,
+SMS, social, SEO) in any language. LLM-backed with graceful template
+fallbacks so it always returns usable output.
+"""
+from typing import Optional
+
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+
+from auth import get_current_admin
+from llm_provider import chat_completion
+
+router = APIRouter(prefix='/admin/neo-content', tags=['neo-content'])
+
+CONTENT_TYPES = [
+    'product_description', 'ad_copy', 'email', 'sms',
+    'social_post', 'blog_idea', 'seo_meta',
+]
+LANGUAGES = ['en', 'hi', 'hinglish', 'ta', 'te', 'bn', 'gu', 'mr', 'es', 'fr', 'ar', 'zh']
+
+
+class GenerateIn(BaseModel):
+    type: str = 'product_description'
+    context: dict = {}
+    language: str = 'en'
+    tone: str = 'professional'
+    max_words: int = 120
+
+
+class TranslateIn(BaseModel):
+    text: str
+    to: str = 'hi'
+    source: str = 'auto'
+
+
+SYSTEM = (
+    "You are Neo, Getszy's universal commerce AI assistant. "
+    "Produce clean, high-converting copy. Respect the requested language, "
+    "tone and word limit. Return only the final content — no preamble."
+)
+
+
+def _fallback_generate(body: GenerateIn) -> str:
+    c = body.context or {}
+    name = c.get('name') or 'your product'
+    category = c.get('category') or 'this category'
+    features = c.get('features') or []
+    feat_line = (' Features: ' + ', '.join(features) + '.') if features else ''
+    aud = c.get('audience') or 'your customers'
+    base = (
+        f"Introducing {name} — a standout in {category}. "
+        f"Built for {aud}.{feat_line} "
+        f"Quality you can trust, priced for Bharat."
+    )
+    if body.type == 'ad_copy':
+        return f"{name}: {base} Shop now on Getszy! #MadeInIndia"
+    if body.type == 'sms':
+        return f"{name} is here! {base} Order today."
+    if body.type == 'email':
+        return f"Subject: {name} is here\n\nHi,\n\n{base}\n\n– Team Getszy"
+    if body.type == 'social_post':
+        return f"🚀 {base} #Getszy #MadeInIndia #NewLaunch"
+    if body.type == 'seo_meta':
+        return f"{name} | {category} | Getszy — {base}"
+    return base
+
+
+def _fallback_translate(text: str, to: str) -> str:
+    return f"[{to.upper()} translation]\n{text}"
+
+
+@router.post('/generate')
+async def generate(body: GenerateIn, _=Depends(get_current_admin)):
+    if body.type not in CONTENT_TYPES:
+        body.type = 'product_description'
+    if body.language not in LANGUAGES:
+        body.language = 'en'
+    user = (
+        f"Type: {body.type}\nLanguage: {body.language}\nTone: {body.tone}\n"
+        f"Max words: {body.max_words}\nContext (JSON):\n{str(body.context)}"
+    )
+    try:
+        out = chat_completion(SYSTEM, user, session_id='neo-content', temperature=0.7)
+        if out and out.strip():
+            return {'ok': True, 'type': body.type, 'language': body.language, 'content': out.strip(), 'source': 'ai'}
+    except Exception:
+        pass
+    return {'ok': True, 'type': body.type, 'language': body.language, 'content': _fallback_generate(body), 'source': 'template'}
+
+
+@router.post('/translate')
+async def translate(body: TranslateIn, _=Depends(get_current_admin)):
+    if body.to not in LANGUAGES:
+        body.to = 'hi'
+    user = f"Translate the following text into {body.to} (source: {body.source}). Return only the translation:\n\n{body.text}"
+    try:
+        out = chat_completion(SYSTEM, user, session_id='neo-translate', temperature=0.3)
+        if out and out.strip():
+            return {'ok': True, 'to': body.to, 'translated': out.strip(), 'source': 'ai'}
+    except Exception:
+        pass
+    return {'ok': True, 'to': body.to, 'translated': _fallback_translate(body.text, body.to), 'source': 'template'}
+
+
+@router.get('/types')
+async def types(_=Depends(get_current_admin)):
+    return {'content_types': CONTENT_TYPES, 'languages': LANGUAGES}
