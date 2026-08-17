@@ -5,7 +5,9 @@ getszy.com, www.getszy.com, dash.getszy.com {
         reverse_proxy backend:8001
     }
 
-    handle /docs /docs/* /redoc /redoc/* /openapi.json {
+    @docs path /docs /docs/* /redoc /redoc/* /openapi.json
+
+    handle @docs {
         reverse_proxy backend:8001
     }
 
