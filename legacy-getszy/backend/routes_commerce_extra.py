@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from auth import get_current_admin, get_current_user
 from db import db
+from gst_invoice import compute_gst
 
 router = APIRouter(tags=['commerce-extra'])
 
@@ -82,19 +83,27 @@ async def list_invoices(page: int = 1, limit: int = 20):
 async def generate_invoice(body: dict):
     order_id = body.get('order_id')
     order = await db.orders.find_one({'id': order_id}, {'_id': 0}) if order_id else None
-    inv_number = f"GST-{datetime.now().strftime('%Y%m')}-{_id().upper()}"
+    inv_number = f"GST-{datetime.now().strftime('%Y%m')}-{_id()[:6].upper()}"
     subtotal = body.get('subtotal', order.get('total', 0) if order else 0)
     gst_rate = body.get('gst_rate', 18)
-    gst_amount = round(subtotal * gst_rate / 100, 2)
+    cfg = await db.gs_gst_config.find_one({}, {'_id': 0}) or {}
+    seller_gstin = body.get('seller_gstin') or cfg.get('company_gstin', '')
+    customer_gstin = body.get('customer_gstin', order.get('customer_gstin', '') if order else '')
+    split = compute_gst(subtotal, gst_rate, seller_gstin, customer_gstin)
+    gst_amount = round(split['cgst_amount'] + split['sgst_amount'] + split['igst_amount'], 2)
     total = subtotal + gst_amount
     doc = {
         'id': _id(), 'invoice_number': inv_number, 'order_id': order_id,
         'customer_name': body.get('customer_name', order.get('customer_name', '') if order else ''),
         'customer_email': body.get('customer_email', ''),
-        'customer_gstin': body.get('customer_gstin', ''),
+        'customer_gstin': customer_gstin,
+        'seller_name': cfg.get('company_name', ''),
+        'seller_gstin': seller_gstin,
+        'seller_address': cfg.get('company_address', ''),
         'items': body.get('items', order.get('items', []) if order else []),
-        'subtotal': subtotal, 'gst_rate': gst_rate, 'gst_amount': gst_amount,
-        'total': total, 'status': 'issued', 'created_at': _iso(),
+        'subtotal': subtotal, 'gst_rate': gst_rate,
+        'cgst_amount': split['cgst_amount'], 'sgst_amount': split['sgst_amount'], 'igst_amount': split['igst_amount'],
+        'gst_amount': gst_amount, 'total': total, 'status': 'issued', 'created_at': _iso(),
         'due_date': body.get('due_date', ''), 'notes': body.get('notes', ''),
     }
     await db.gs_invoices.insert_one(doc)
