@@ -14,6 +14,7 @@ except ImportError:
 
 from auth import get_current_admin
 from db import db, client
+from llm_provider import chat_completion
 
 router = APIRouter(prefix='/admin/founder', tags=['founder'])
 
@@ -461,3 +462,34 @@ async def growth_metrics(_=Depends(get_current_admin)):
         'subscriber_trend': _trend(subscriber_growth, 'count'),
         'timestamp': _now()
     }
+
+
+class AskIn(BaseModel):
+    question: str
+
+
+@router.post('/ask')
+async def ask(body: AskIn, _=Depends(get_current_admin)):
+    """Natural-language founder query answered by Neo using live metrics."""
+    m = await kpi()
+    system = (
+        "You are Neo, the founder's AI command assistant for Getszy — a commerce + "
+        "AI platform for Indian SMBs. You are given the platform's live metrics as "
+        "JSON. Answer the founder's question clearly and concisely in plain language. "
+        "If a number is zero or unknown, say so honestly. Suggest one actionable next "
+        "step when relevant. Never invent metrics not present in the data."
+    )
+    user = (
+        f"Live metrics:\n{m}\n\n"
+        f"Founder's question: {body.question}\n\n"
+        "Answer:"
+    )
+    answer = ''
+    try:
+        answer = await chat_completion(system, user, temperature=0.3)
+    except Exception:
+        answer = (
+            "I couldn't reach the LLM right now, but here are your current metrics: "
+            f"{m}"
+        )
+    return {'answer': answer, 'metrics': m}
