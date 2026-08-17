@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from db import db
 from models import CartItem, Order, OrderItem, CheckoutIn, OrderStatusUpdate
 from auth import get_current_user, get_current_admin
+from live_events import broadcast_admin_event
 from datetime import datetime, timezone
 import uuid
 
@@ -139,6 +140,14 @@ async def checkout(body: CheckoutIn, user=Depends(get_current_user)):
     )
     await db.orders.insert_one(order.model_dump())
     await db.carts.update_one({'user_id': user['id']}, {'$set': {'items': []}})
+    try:
+        broadcast_admin_event('order_created', {
+            'order_number': order.order_number,
+            'total': total,
+            'customer': (body.address or {}).get('name'),
+        })
+    except Exception:
+        pass
     return order.model_dump()
 
 
@@ -247,6 +256,14 @@ async def process_refund(body: RefundIn, admin=Depends(get_current_admin)):
             'detail': f"Refunded ₹{body.amount} for order {order.get('order_number') or order.get('id')}",
             'level': 'info',
             'created_at': datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        pass
+    try:
+        broadcast_admin_event('refund_issued', {
+            'order_number': order.get('order_number'),
+            'amount': body.amount,
+            'admin': admin.get('email'),
         })
     except Exception:
         pass

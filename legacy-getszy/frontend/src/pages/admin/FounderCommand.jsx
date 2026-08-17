@@ -24,6 +24,7 @@ import ProdStatCard from "@/components/admin/ProdStatCard";
 import HealthScore from "@/components/admin/HealthScore";
 import SectionHeader from "@/components/admin/SectionHeader";
 import { StatusBadge, InlineStat } from "@/components/admin/StatusBadge";
+import LiveFeed from "@/components/admin/LiveFeed";
 
 const PIE_COLORS = ['#2F7E7A', '#A86B5B', '#6366f1', '#f59e0b', '#ec4899', '#10b981'];
 
@@ -414,6 +415,9 @@ export default function FounderCommand() {
           </div>
         )}
       </Card>
+
+      {/* Live Ops Feed — real-time events over WebSocket (Tier 2 #10) */}
+      <LiveFeed />
     </div>
   );
 }

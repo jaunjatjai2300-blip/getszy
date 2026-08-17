@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from db import db
 from models import SignupIn, LoginIn, User, UserOut
 from auth import hash_password, verify_password, create_token, get_current_user
+from live_events import broadcast_admin_event
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 
@@ -35,6 +36,10 @@ async def signup(body: SignupIn):
     )
     await db.users.insert_one(user.model_dump())
     token = create_token(user.id, user.role)
+    try:
+        broadcast_admin_event('user_signup', {'email': body.email, 'name': body.name})
+    except Exception:
+        pass
     return {'token': token, 'user': UserOut(**user.model_dump()).model_dump()}
 
 
@@ -53,6 +58,7 @@ async def login(body: LoginIn, request: Request = None):
                 'detail': 'Invalid email or password',
                 'ts': datetime.now(timezone.utc).isoformat(),
             })
+            broadcast_admin_event('failed_login', {'email': body.email, 'ip': ip})
         except Exception:
             pass
         raise HTTPException(401, 'Invalid email or password')

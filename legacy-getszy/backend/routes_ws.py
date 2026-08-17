@@ -3,6 +3,8 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 import jwt
 import os
 
+from websocket_manager import manager
+
 router = APIRouter(tags=['websocket'])
 
 JWT_SECRET = os.environ.get('JWT_SECRET', '')
@@ -47,3 +49,18 @@ async def notifications_ws(websocket: WebSocket, user_id: str, token: str = Quer
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, f'notifications:{user_id}', user_id)
+
+
+@router.websocket('/ws/admin-live')
+async def admin_live_ws(websocket: WebSocket, token: str = Query(default='')):
+    """Live ops feed for admins: orders, refunds, signups, threats in real time."""
+    user_id = _verify_ws_token(token)
+    if not user_id:
+        await websocket.close(code=4001, reason='Invalid or missing token')
+        return
+    await manager.connect(websocket, 'admin-live', user_id)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, 'admin-live', user_id)
