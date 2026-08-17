@@ -24,6 +24,7 @@ import routes_commerce_extra  # noqa: E402
 import routes_avatar  # noqa: E402
 import routes_neo_ops  # noqa: E402
 import routes_automations  # noqa: E402
+import routes_i18n  # noqa: E402
 
 
 def _routes(router):
@@ -57,6 +58,8 @@ CHECKS = [
     (routes_neo_ops.router, 'POST', '/admin/neo/draft'),
     (routes_automations.router, 'GET', '/admin/automations/triggers'),
     (routes_automations.router, 'POST', '/admin/automations/'),
+    (routes_i18n.router, 'GET', '/admin/i18n/languages'),
+    (routes_i18n.router, 'GET', '/admin/i18n/keys'),
 ]
 
 

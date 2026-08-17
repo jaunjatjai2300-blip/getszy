@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth";
 import CopilotSidebar from "@/components/CopilotSidebar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import LanguageSwitcher from "@/components/admin/LanguageSwitcher";
 
 const NAV = [
   {
@@ -225,6 +226,8 @@ export default function AdminLayout() {
           <span>Search… (⌘K)</span>
         </div>
       </div>
+
+      <LanguageSwitcher />
 
       <nav className="flex-1 p-2 overflow-y-auto space-y-0.5">
         {NAV.map((n) => {
