@@ -193,6 +193,41 @@ async def _openrouter(system: str, user: str, temperature: float) -> str:
         return r.json()['choices'][0]['message']['content']
 
 
+# ── Provider ordering ─────────────────────────────────────────────────────────
+# LLM_PROVIDER lets ops pin a primary provider (e.g. groq). Local providers are
+# still attempted first when available because they are 100% free & unlimited.
+LLM_PROVIDER = os.environ.get('LLM_PROVIDER', '').strip().lower()
+
+def _build_chain() -> list:
+    """Return an ordered list of (name, coroutine-factory) to try."""
+    chain = []
+
+    # Always offer local free providers first when configured
+    if OLLAMA_MODELS:
+        chain.append(('ollama', lambda: _ollama_chain(system, user, temperature)))
+    chain.append(('lmstudio', lambda: _lmstudio(system, user, temperature)))
+
+    # Cloud free providers
+    if GROQ_API_KEY and _under_limit('groq'):
+        chain.append(('groq', lambda: _groq(system, user, temperature)))
+    if GEMINI_API_KEY and _under_limit('gemini'):
+        chain.append(('gemini', lambda: _gemini(system, user, temperature)))
+
+    # Paid providers (only when not in FREE_ONLY mode)
+    if OPENROUTER_API_KEY and not FREE_ONLY:
+        chain.append(('openrouter', lambda: _openrouter(system, user, temperature)))
+    if EMERGENT_LLM_KEY and not FREE_ONLY:
+        chain.append(('emergent', lambda: _emergent(system, user, session_id)))
+
+    # Honor explicit LLM_PROVIDER pin: move it to the front of the chain
+    if LLM_PROVIDER:
+        pinned = [c for c in chain if c[0] == LLM_PROVIDER]
+        rest = [c for c in chain if c[0] != LLM_PROVIDER]
+        chain = pinned + rest
+
+    return chain
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 async def chat_completion(
@@ -203,62 +238,28 @@ async def chat_completion(
 ) -> str:
     session_id = session_id or str(uuid.uuid4())
 
-    # 1. Ollama — local, free, unlimited (PRIMARY)
-    if OLLAMA_MODELS:
+    chain = _build_chain()
+    last_error = None
+    for name, fn in chain:
         try:
-            return await _ollama_chain(system, user, temperature)
-        except Exception as e:
-            logger.warning(f'LLM ollama chain failed: {e}')
-
-    # 2. LM Studio — local, free, OpenAI-compatible (longcat2.0, etc.)
-    try:
-        result = await _lmstudio(system, user, temperature)
-        logger.info(f'LLM: lmstudio ({LMSTUDIO_MODEL})')
-        return result
-    except Exception as e:
-        logger.warning(f'LLM lmstudio failed: {e}')
-
-    # 3. Groq — free, fast
-    if GROQ_API_KEY and _under_limit('groq'):
-        try:
-            result = await _groq(system, user, temperature)
-            _increment('groq')
-            logger.info(f'LLM: groq ({_count("groq")}/{GROQ_DAILY_LIMIT} today)')
+            result = await fn()
+            if name == 'groq':
+                _increment('groq')
+                logger.info(f'LLM: groq ({_count("groq")}/{GROQ_DAILY_LIMIT} today)')
+            elif name == 'gemini':
+                _increment('gemini')
+                logger.info(f'LLM: gemini ({_count("gemini")}/{GEMINI_DAILY_LIMIT} today)')
+            else:
+                logger.info(f'LLM: {name}')
             return result
         except Exception as e:
-            logger.warning(f'LLM groq failed: {e}')
-
-    # 3. Gemini — free, Google
-    if GEMINI_API_KEY and _under_limit('gemini'):
-        try:
-            result = await _gemini(system, user, temperature)
-            _increment('gemini')
-            logger.info(f'LLM: gemini ({_count("gemini")}/{GEMINI_DAILY_LIMIT} today)')
-            return result
-        except Exception as e:
-            logger.warning(f'LLM gemini failed: {e}')
-
-    # 4. OpenRouter — paid (your credits, many models)
-    if OPENROUTER_API_KEY and not FREE_ONLY:
-        try:
-            result = await _openrouter(system, user, temperature)
-            logger.info('LLM: openrouter')
-            return result
-        except Exception as e:
-            logger.warning(f'LLM openrouter failed: {e}')
-
-    # 5. Emergent (paid) — last resort
-    if EMERGENT_LLM_KEY and not FREE_ONLY:
-        try:
-            result = await _emergent(system, user, session_id)
-            logger.info('LLM: emergent (paid)')
-            return result
-        except Exception as e:
-            logger.warning(f'LLM emergent failed: {e}')
+            logger.warning(f'LLM {name} failed: {e}')
+            last_error = e
 
     raise RuntimeError(
         'All LLM providers failed. '
-        'Check Ollama is running, or add GROQ_API_KEY/GEMINI_API_KEY/OPENROUTER_API_KEY.'
+        'Set LLM_PROVIDER appropriately and ensure at least one of '
+        'GROQ_API_KEY/GEMINI_API_KEY/OPENROUTER_API_KEY is configured.'
     )
 
 

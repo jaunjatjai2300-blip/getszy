@@ -1,0 +1,69 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main, remove-modern-getszy, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+    env:
+      MONGO_URL: mongodb://localhost:27017
+      JWT_SECRET: test-secret-for-ci
+      LLM_PROVIDER: groq
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      FREE_ONLY: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install backend dependencies
+        run: |
+          cd legacy-getszy/backend
+          pip install -r requirements.txt
+
+      - name: Run backend tests
+        run: |
+          cd legacy-getszy/backend
+          python -m pytest tests/ -v -p no:cacheprovider
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Security scan (bandit + safety)
+        run: |
+          pip install bandit safety
+          cd legacy-getszy/backend
+          bandit -r . -x ./tests,./venv -ll || true
+          safety check || true
+
+  deploy:
+    needs: [backend-tests, security]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger VPS Deploy
+        run: |
+          curl -s -X POST https://getszy.com/hooks/deploy \
+            -H "X-Token: ${{ secrets.DEPLOY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            --max-time 300

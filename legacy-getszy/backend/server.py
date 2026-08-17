@@ -32,6 +32,24 @@ async def health():
         return {'status': 'error', 'detail': str(e)}
 
 
+@api_router.get('/health/llm')
+async def llm_health():
+    """Lightweight LLM connectivity probe (no credits spent on heavy calls)."""
+    try:
+        from llm_provider import chat_completion
+        provider = os.environ.get('LLM_PROVIDER', 'groq')
+        result = await chat_completion('You are a health check. Reply with the single word: pong', 'ping', temperature=0)
+        ok = bool(result) and len(result) > 0
+        return {
+            'status': 'ok' if ok else 'degraded',
+            'provider': provider,
+            'response': (result or '')[:50],
+            'free_only': os.environ.get('FREE_ONLY', 'false'),
+        }
+    except Exception as e:
+        return {'status': 'error', 'provider': os.environ.get('LLM_PROVIDER', 'groq'), 'error': str(e)}
+
+
 # ===== Load all routers via registry =====
 registered_router = load_all_routers()
 api_router.include_router(registered_router)
@@ -59,7 +77,8 @@ app.add_middleware(RateLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 
-logging.basicConfig(level=logging.INFO)
+from logging_config import configure_logging
+configure_logging(os.environ.get('LOG_LEVEL', 'INFO'))
 logger = logging.getLogger('getszy')
 
 
