@@ -6,6 +6,7 @@ from auth import get_current_user, get_current_admin
 from live_events import broadcast_admin_event
 from datetime import datetime, timezone
 import uuid
+import asyncio
 
 router = APIRouter(tags=['cart-orders'])
 
@@ -138,7 +139,8 @@ async def checkout(body: CheckoutIn, user=Depends(get_current_user)):
         address=body.address,
         notes=body.notes,
     )
-    await db.orders.insert_one(order.model_dump())
+    order_doc = order.model_dump()
+    await db.orders.insert_one(order_doc)
     await db.carts.update_one({'user_id': user['id']}, {'$set': {'items': []}})
     try:
         broadcast_admin_event('order_created', {
@@ -148,7 +150,13 @@ async def checkout(body: CheckoutIn, user=Depends(get_current_user)):
         })
     except Exception:
         pass
-    return order.model_dump()
+    # Auto-generate a GST invoice for the order (Tier 3).
+    try:
+        from gst_invoice import create_invoice_from_order
+        asyncio.create_task(create_invoice_from_order(order_doc))
+    except Exception:
+        pass
+    return order_doc
 
 
 @router.get('/orders/mine')
