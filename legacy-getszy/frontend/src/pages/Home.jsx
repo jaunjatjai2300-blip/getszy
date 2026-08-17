@@ -1026,7 +1026,7 @@ export default function Home() {
                   heroProducts[1] || { images: ["https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=600"], name: "Jewellery" },
                   heroProducts[2] || { images: ["https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600"], name: "Beauty" },
                 ].map((p, i) => (
-                  <div key={i} className={`${i === 0 ? "row-span-2" : ""} rounded-3xl overflow-hidden shadow-xl glow-on-hover relative group">
+                  <div key={i} className={`${i === 0 ? "row-span-2" : ""} rounded-3xl overflow-hidden shadow-xl glow-on-hover relative group`}>
                     <img src={p.images?.[0] || "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600"} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy"/>
                     {p.price && <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 text-[10px] font-semibold shadow-sm">₹{p.price?.toLocaleString("en-IN")}</div>}
                   </div>
