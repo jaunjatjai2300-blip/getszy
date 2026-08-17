@@ -111,7 +111,7 @@ async def execute_intent(parsed: dict) -> dict:
             q = p.get('product_query', ''); updates = p.get('updates', {}) or {}
             if not q:
                 return {'ok': False, 'error': 'product_query required'}
-            prod = await db.products.find_one({'name': {'$regex': q, '$options': 'i'}}, {'_id': 0})
+            prod = await db.products.find_one({'name': {'$regex': re.escape(q), '$options': 'i'}}, {'_id': 0})
             if not prod:
                 return {'ok': False, 'error': f"No product matches '{q}'"}
             await db.products.update_one({'id': prod['id']}, {'$set': updates})
@@ -120,7 +120,7 @@ async def execute_intent(parsed: dict) -> dict:
 
         if intent == 'delete_product':
             q = p.get('product_query', '')
-            prod = await db.products.find_one({'name': {'$regex': q, '$options': 'i'}}, {'_id': 0})
+            prod = await db.products.find_one({'name': {'$regex': re.escape(q), '$options': 'i'}}, {'_id': 0})
             if not prod:
                 return {'ok': False, 'error': f"No product matches '{q}'"}
             await db.products.delete_one({'id': prod['id']})
@@ -131,7 +131,7 @@ async def execute_intent(parsed: dict) -> dict:
             if p.get('category'):
                 q['category'] = _slug(p['category'])
             if p.get('search'):
-                q['name'] = {'$regex': p['search'], '$options': 'i'}
+                q['name'] = {'$regex': re.escape(p['search']), '$options': 'i'}
             limit = int(p.get('limit', 20) or 20)
             prods = await db.products.find(q, {'_id': 0}).limit(limit).to_list(limit)
             return {'ok': True, 'type': 'product_list', 'data': prods, 'count': len(prods)}
