@@ -41,6 +41,7 @@ services:
       SEED_CUSTOMER_EMAIL: "${SEED_CUSTOMER_EMAIL:-customer@getszy.com}"
       SEED_CUSTOMER_PASSWORD: "${SEED_CUSTOMER_PASSWORD:-ChangeMeNow!}"
       GROQ_API_KEY: "${GROQ_API_KEY:-}"
+      GROQ_MODEL: "${GROQ_MODEL:-llama-3.1-8b-instant}"
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
       OPENROUTER_MODEL: "${OPENROUTER_MODEL:-qwen/qwen-2.5-72b-instruct}"

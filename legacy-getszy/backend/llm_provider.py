@@ -18,6 +18,7 @@ logger = logging.getLogger('getszy.llm')
 # ── Config ────────────────────────────────────────────────────────────────────
 FREE_ONLY        = os.environ.get('FREE_ONLY', 'true').lower() != 'false'
 GROQ_API_KEY     = os.environ.get('GROQ_API_KEY', '').strip()
+GROQ_MODEL       = os.environ.get('GROQ_MODEL', 'llama-3.1-8b-instant').strip()
 GEMINI_API_KEY   = os.environ.get('GEMINI_API_KEY', '').strip()
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '').strip()
 OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'qwen/qwen-2.5-72b-instruct').strip()
@@ -90,7 +91,7 @@ async def _groq(system: str, user: str, temperature: float) -> str:
             'https://api.groq.com/openai/v1/chat/completions',
             headers={'Authorization': f'Bearer {GROQ_API_KEY}'},
             json={
-                'model': 'llama-3.3-70b-versatile',
+                'model': GROQ_MODEL,
                 'messages': [
                     {'role': 'system', 'content': system},
                     {'role': 'user', 'content': user},
