@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { RefreshCw, Search, IndianRupee, CheckCircle2, XCircle, Clock, AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import NeoPanel from "@/components/admin/NeoPanel";
 
 const REFUND_REASONS = [
   "Product not received","Wrong product delivered","Product damaged","Duplicate order","Customer changed mind","Payment failed but charged","Quality not as expected","Other"
@@ -134,6 +135,8 @@ export default function Refunds() {
         </div>
         <Button variant="outline" size="sm" onClick={load}><RefreshCw className={`h-3.5 w-3.5 mr-1 ${loading?"animate-spin":""}`}/>Refresh</Button>
       </div>
+
+      <NeoPanel context="refunds" title="Neo Refund Insight" />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[

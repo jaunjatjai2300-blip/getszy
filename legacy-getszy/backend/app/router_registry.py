@@ -82,6 +82,7 @@ PLATFORM_ROUTERS = [
     ('settings', 'routes_settings', 'settings'),
     ('skills', 'routes_skills', 'skills'),
     ('stacks', 'routes_stacks', 'stacks'),
+    ('neo_ops', 'routes_neo_ops', 'neo-ops'),
 ]
 
 # ── Support & Legal ───────────────────────────────────────────────────────────
