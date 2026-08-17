@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from auth import get_current_user, get_current_admin
 from db import db
 from llm_provider import chat_completion
+from workforce.agents import AGENTS as WORKFORCE_AGENTS
 
 router = APIRouter(tags=['agents'])
 
@@ -147,6 +148,52 @@ async def get_agent(agent_id: str, user=Depends(get_current_user)):
     if not agent:
         raise HTTPException(status_code=404, detail='Agent not found')
     return agent
+
+
+@router.get('/agents/all')
+async def all_agents(user=Depends(get_current_user)):
+    """All agents in one call: expert + AI workforce + the user's custom agents."""
+    workforce = [
+        {
+            'id': a['id'],
+            'name': a['name'],
+            'role': a.get('role'),
+            'icon': a.get('icon'),
+            'color': a.get('color'),
+            'type': 'workforce',
+        }
+        for a in WORKFORCE_AGENTS
+    ]
+    custom = []
+    try:
+        cur = db.custom_agents.find({'user_id': user['id']}, {'_id': 0}).sort('created_at', -1)
+        async for c in cur:
+            custom.append({
+                'id': c['id'],
+                'name': c.get('name'),
+                'role': c.get('role'),
+                'color': c.get('color'),
+                'icon': c.get('icon'),
+                'type': 'custom',
+            })
+    except Exception:
+        pass
+    return {
+        'expert': [
+            {
+                'id': a['id'],
+                'name': a['name'],
+                'tagline': a.get('tagline'),
+                'color': a.get('color'),
+                'avatar': a.get('avatar'),
+                'type': 'expert',
+            }
+            for a in AGENT_LIST
+        ],
+        'workforce': workforce,
+        'custom': custom,
+        'total': len(AGENT_LIST) + len(workforce) + len(custom),
+    }
 
 
 class AgentChatIn(BaseModel):

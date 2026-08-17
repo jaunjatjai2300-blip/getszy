@@ -61,6 +61,7 @@ export function Header() {
             <Link key={c.slug} to={`/category/${c.slug}`} className="hover:text-[var(--gs-primary-2)]">{c.name}</Link>
           ))}
           <Link to="/pricing" className="hover:text-[var(--gs-ink)]" data-testid="header-pricing-link">Pricing</Link>
+          <Link to="/ai-agents" className="hover:text-[var(--gs-primary-2)] font-medium text-[var(--gs-teal)]" data-testid="header-ai-agents-link">AI Agents</Link>
         </nav>
 
         <form onSubmit={submitSearch} className="flex-1 hidden md:flex justify-center max-w-md ml-4">
