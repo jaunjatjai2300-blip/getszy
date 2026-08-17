@@ -6,6 +6,7 @@ from db import db
 from models import SignupIn, LoginIn, User, UserOut
 from auth import hash_password, verify_password, create_token, get_current_user
 from live_events import broadcast_admin_event
+from anomaly import record_login_failure
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 
@@ -59,6 +60,7 @@ async def login(body: LoginIn, request: Request = None):
                 'ts': datetime.now(timezone.utc).isoformat(),
             })
             broadcast_admin_event('failed_login', {'email': body.email, 'ip': ip})
+            await record_login_failure(ip, body.email)
         except Exception:
             pass
         raise HTTPException(401, 'Invalid email or password')
