@@ -7,12 +7,36 @@ from pydantic import BaseModel
 
 from auth import get_current_user
 from db import db
+from llm_provider import chat_completion
 
 router = APIRouter(prefix='/ai-workforce', tags=['ai-workforce'])
 
 
 def _now():
     return datetime.now(timezone.utc).isoformat()
+
+
+async def _execute_payload(payload):
+    """Actually run a task/workflow payload using the LLM provider or a workforce
+    agent. No simulation — returns the real model/agent output."""
+    if not isinstance(payload, dict):
+        return {'note': 'no executable payload'}
+    agent = payload.get('agent') or payload.get('agent_id')
+    if agent:
+        try:
+            from workforce.agents import run_agent
+            return await run_agent(agent, payload.get('params') or {})
+        except Exception as e:
+            return {'error': f'agent "{agent}" failed: {str(e)[:200]}'}
+    prompt = payload.get('prompt')
+    if prompt:
+        try:
+            system = payload.get('system') or 'You are a helpful assistant.'
+            out = await chat_completion(system, prompt, temperature=0.5)
+            return {'output': out}
+        except Exception as e:
+            return {'error': f'llm call failed: {str(e)[:200]}'}
+    return {'note': 'no executable action defined in payload'}
 
 
 # ===== Task Queue =====
@@ -51,9 +75,12 @@ async def run_task(task_id: str, user=Depends(get_current_user)):
     task = await db.ai_tasks.find_one({'id': task_id, 'user_id': user['id']})
     if not task:
         raise HTTPException(status_code=404, detail='Task not found')
-    await db.ai_tasks.update_one({'id': task_id}, {'$set': {'status': 'running', 'updated_at': _now()}})
-    await db.ai_tasks.update_one({'id': task_id}, {'$set': {'status': 'completed', 'completed_at': _now(), 'updated_at': _now()}})
-    return {'status': 'completed', 'task_id': task_id}
+    result = await _execute_payload(task.get('payload'))
+    await db.ai_tasks.update_one(
+        {'id': task_id},
+        {'$set': {'status': 'completed', 'result': result, 'completed_at': _now(), 'updated_at': _now()}},
+    )
+    return {'status': 'completed', 'task_id': task_id, 'result': result}
 
 
 @router.delete('/tasks/{task_id}')
@@ -95,8 +122,13 @@ async def execute_workflow(wf_id: str, user=Depends(get_current_user)):
     wf = await db.ai_workflows.find_one({'id': wf_id, 'user_id': user['id']})
     if not wf:
         raise HTTPException(status_code=404, detail='Workflow not found')
-    results = [{'step': i, 'status': 'completed'} for i in range(len(wf.get('steps', [])))]
-    await db.ai_workflows.update_one({'id': wf_id}, {'$set': {'run_count': wf.get('run_count', 0) + 1, 'last_run': _now(), 'updated_at': _now()}})
+    results = []
+    for i, step in enumerate(wf.get('steps', [])):
+        results.append({'step': i, 'status': 'completed', 'result': await _execute_payload(step)})
+    await db.ai_workflows.update_one(
+        {'id': wf_id},
+        {'$set': {'run_count': wf.get('run_count', 0) + 1, 'last_run': _now(), 'last_results': results, 'updated_at': _now()}},
+    )
     return {'status': 'executed', 'results': results}
 
 
