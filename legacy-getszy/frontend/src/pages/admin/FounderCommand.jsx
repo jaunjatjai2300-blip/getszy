@@ -18,6 +18,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ProdStatCard from "@/components/admin/ProdStatCard";
 import HealthScore from "@/components/admin/HealthScore";
@@ -37,6 +38,9 @@ export default function FounderCommand() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [askQ, setAskQ] = useState("");
+  const [askA, setAskA] = useState("");
+  const [askLoading, setAskLoading] = useState(false);
 
   const load = useCallback(async () => {
     setError(false);
@@ -64,6 +68,20 @@ export default function FounderCommand() {
   }, [chartRange]);
 
   useEffect(() => { setLoading(true); load(); }, [load]);
+
+  const askNeo = useCallback(async () => {
+    const q = askQ.trim();
+    if (!q) return;
+    setAskLoading(true);
+    try {
+      const { data } = await api.post("/admin/founder/ask", { question: q }).catch(() => ({ data: { answer: "Neo is unavailable right now." } }));
+      setAskA(data?.answer || "No response.");
+    } catch (e) {
+      setAskA("Neo is unavailable right now.");
+    } finally {
+      setAskLoading(false);
+    }
+  }, [askQ]);
   useEffect(() => {
     const t = setInterval(load, 60000);
     return () => clearInterval(t);
@@ -373,6 +391,28 @@ export default function FounderCommand() {
             </Link>
           ))}
         </div>
+      </Card>
+
+      {/* Ask Neo — natural-language founder query (Tier 1 #6) */}
+      <Card className="p-5">
+        <SectionHeader title="Ask Neo" subtitle="Puchho apne business ke baare mein — live metrics ke saath." />
+        <div className="flex gap-2 mt-3">
+          <Input
+            value={askQ}
+            onChange={(e) => setAskQ(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') askNeo(); }}
+            placeholder="e.g. Aaj refund kitne hue? / Why is conversion down?"
+            className="flex-1"
+          />
+          <Button onClick={askNeo} disabled={askLoading}>
+            {askLoading ? "Soch raha hoon..." : "Ask Neo"}
+          </Button>
+        </div>
+        {askA && (
+          <div className="mt-3 p-3 rounded-lg bg-[var(--gs-surface)] text-sm whitespace-pre-wrap">
+            {askA}
+          </div>
+        )}
       </Card>
     </div>
   );
