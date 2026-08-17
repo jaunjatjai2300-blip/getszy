@@ -16,7 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { GetszyLogo } from "@/components/GetszyLogo";
-import { ProductGridSkeleton } from "@/components/ui/ProductSkeleton";
 import { api, fmtINR } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/cart";
@@ -825,7 +824,6 @@ export default function Home() {
   const [bestsellers, setBestsellers] = useState([]);
   const [digitalProducts, setDigitalProducts] = useState([]);
   const [heroProducts, setHeroProducts] = useState([]);
-  const [homeLoading, setHomeLoading] = useState(true);
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterLoading, setNewsletterLoading] = useState(false);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
@@ -838,7 +836,7 @@ export default function Home() {
   const nlSearch = useNLSearch();
 
   useEffect(() => {
-    const pCats = api.get("/categories").then(({ data }) => {
+    api.get("/categories").then(({ data }) => {
       const merged = (Array.isArray(data) ? data : []).map((c) => ({
         ...c,
         title: c.name,
@@ -849,11 +847,10 @@ export default function Home() {
       }));
       setCats(merged);
     }).catch(() => setCats([]));
-    const pTrending = api.get("/products?featured=true&limit=8").then(({ data }) => setTrending(data)).catch(() => setTrending([]));
-    const pNew = api.get("/products?limit=8").then(({ data }) => { setNewArrivals(data); setHeroProducts(data); }).catch(() => { setNewArrivals([]); setHeroProducts([]); });
-    const pBest = api.get("/products?featured=true&limit=4").then(({ data }) => setBestsellers(data)).catch(() => setBestsellers([]));
-    const pDigital = api.get("/products?category=digital-products&limit=6").then(({ data }) => setDigitalProducts(data)).catch(() => setDigitalProducts([]));
-    Promise.allSettled([pCats, pTrending, pNew, pBest, pDigital]).finally(() => setHomeLoading(false));
+    api.get("/products?featured=true&limit=8").then(({ data }) => setTrending(data)).catch(() => setTrending([]));
+    api.get("/products?limit=8").then(({ data }) => { setNewArrivals(data); setHeroProducts(data); }).catch(() => { setNewArrivals([]); setHeroProducts([]); });
+    api.get("/products?featured=true&limit=4").then(({ data }) => setBestsellers(data)).catch(() => setBestsellers([]));
+    api.get("/products?category=digital-products&limit=6").then(({ data }) => setDigitalProducts(data)).catch(() => setDigitalProducts([]));
   }, []);
 
   const handleQuickAdd = async (product) => {
@@ -1123,38 +1120,27 @@ export default function Home() {
             </div>
             <Link to="/shop" className="text-sm gs-link flex items-center gap-1">Shop all <ArrowRight className="h-3 w-3"/></Link>
           </motion.div>
-          {homeLoading ? (
-            <ProductGridSkeleton count={8} />
-          ) : (
-            <motion.div variants={fadeUp} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
-              {trending.map((p) => (
-                <EnhancedProductCard key={p.id} product={p} onQuickAdd={handleQuickAdd} onWishlist={toggleWishlist} onQuickView={setQuickViewProduct} wishlisted={(prod) => wishlist.has(prod.id)}/>
-              ))}
-            </motion.div>
-          )}
+          <motion.div variants={fadeUp} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+            {trending.map((p) => (
+              <EnhancedProductCard key={p.id} product={p} onQuickAdd={handleQuickAdd} onWishlist={toggleWishlist} onQuickView={setQuickViewProduct} wishlisted={(prod) => wishlist.has(prod.id)}/>
+            ))}
+          </motion.div>
         </div>
       </Section>
 
       {/* Discovery Rail: Because you viewed Fashion */}
-      {(homeLoading || bestsellers.length > 0) && (
+      {bestsellers.length > 0 && (
         <Section className="gs-section">
           <div className="gs-container">
-            {homeLoading ? (
-              <>
-                <div className="text-xs uppercase tracking-[0.2em] text-[var(--gs-primary-2)] mb-1 font-semibold">Bestsellers</div>
-                <ProductGridSkeleton count={4} className="mt-4" />
-              </>
-            ) : (
-              <DiscoveryRail
-                title="Bestsellers"
-                subtitle="Because you'll love these"
-                products={bestsellers}
-                onQuickAdd={handleQuickAdd}
-                onWishlist={toggleWishlist}
-                onQuickView={setQuickViewProduct}
-                wishlisted={(p) => wishlist.has(p.id)}
-              />
-            )}
+            <DiscoveryRail
+              title="Bestsellers"
+              subtitle="Because you'll love these"
+              products={bestsellers}
+              onQuickAdd={handleQuickAdd}
+              onWishlist={toggleWishlist}
+              onQuickView={setQuickViewProduct}
+              wishlisted={(p) => wishlist.has(p.id)}
+            />
           </div>
         </Section>
       )}
@@ -1200,27 +1186,23 @@ export default function Home() {
             ))}
           </motion.div>
 
-          {(homeLoading || digitalProducts.length > 0) && (
-            homeLoading ? (
-              <ProductGridSkeleton count={6} className="mt-8" />
-            ) : (
-              <motion.div variants={fadeUp} className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {digitalProducts.map((p) => (
-                  <Link key={p.id} to={"/product/" + p.id} className="group rounded-2xl overflow-hidden border border-white/10 bg-white/5 hover:bg-white/10 transition-colors">
-                    <div className="aspect-[3/2] overflow-hidden">
-                      <img src={p.images?.[0] || "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400"} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy"/>
+          {digitalProducts.length > 0 && (
+            <motion.div variants={fadeUp} className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {digitalProducts.map((p) => (
+                <Link key={p.id} to={"/product/" + p.id} className="group rounded-2xl overflow-hidden border border-white/10 bg-white/5 hover:bg-white/10 transition-colors">
+                  <div className="aspect-[3/2] overflow-hidden">
+                    <img src={p.images?.[0] || "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400"} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy"/>
+                  </div>
+                  <div className="p-4">
+                    <h4 className="text-sm font-semibold text-white line-clamp-1">{p.name}</h4>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-sm font-bold text-[var(--gs-teal)]">{fmtINR(p.price)}</span>
+                      <Badge className="bg-[var(--gs-teal)]/20 text-[var(--gs-teal)] text-[10px]">Digital</Badge>
                     </div>
-                    <div className="p-4">
-                      <h4 className="text-sm font-semibold text-white line-clamp-1">{p.name}</h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-sm font-bold text-[var(--gs-teal)]">{fmtINR(p.price)}</span>
-                        <Badge className="bg-[var(--gs-teal)]/20 text-[var(--gs-teal)] text-[10px]">Digital</Badge>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </motion.div>
-            )
+                  </div>
+                </Link>
+              ))}
+            </motion.div>
           )}
         </div>
       </Section>
