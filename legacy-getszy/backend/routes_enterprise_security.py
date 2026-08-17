@@ -8,12 +8,19 @@ from pydantic import BaseModel
 
 from auth import get_current_admin, get_current_user
 from db import db
+from anomaly import get_anomalies
 
 router = APIRouter(prefix='/admin/enterprise-security', tags=['enterprise-security'])
 
 
 def _now():
     return datetime.now(timezone.utc).isoformat()
+
+
+@router.get('/anomalies')
+async def list_anomalies(hours: int = 24, _=Depends(get_current_admin)):
+    """Aggregated brute-force / error anomalies for the security dashboard."""
+    return await get_anomalies(hours)
 
 
 class DeviceRegister(BaseModel):
