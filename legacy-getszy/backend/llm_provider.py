@@ -216,7 +216,7 @@ async def _openrouter(system: str, user: str, temperature: float) -> str:
 # still attempted first when available because they are 100% free & unlimited.
 LLM_PROVIDER = os.environ.get('LLM_PROVIDER', '').strip().lower()
 
-def _build_chain() -> list:
+def _build_chain(system, user, temperature, session_id) -> list:
     """Return an ordered list of (name, coroutine-factory) to try."""
     chain = []
 
@@ -256,7 +256,7 @@ async def chat_completion(
 ) -> str:
     session_id = session_id or str(uuid.uuid4())
 
-    chain = _build_chain()
+    chain = _build_chain(system, user, temperature, session_id)
     last_error = None
     for name, fn in chain:
         try:

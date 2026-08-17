@@ -33,13 +33,13 @@ class TestLLMProviderChainOrdering:
         import importlib
         import llm_provider
         importlib.reload(llm_provider)
-        chain = llm_provider._build_chain()
+        chain = llm_provider._build_chain("sys","usr",0.4,"sid")
         names = [c[0] for c in chain]
         assert names[0] == 'groq'
 
     def test_chain_contains_expected_providers(self):
         import llm_provider
-        chain = llm_provider._build_chain()
+        chain = llm_provider._build_chain("sys","usr",0.4,"sid")
         names = [c[0] for c in chain]
         # Local free providers should always be present
         assert 'ollama' in names or 'lmstudio' in names
@@ -50,7 +50,7 @@ class TestLLMProviderChainOrdering:
         import importlib
         import llm_provider
         importlib.reload(llm_provider)
-        chain = llm_provider._build_chain()
+        chain = llm_provider._build_chain("sys","usr",0.4,"sid")
         names = [c[0] for c in chain]
         assert 'openrouter' not in names
         assert 'emergent' not in names
@@ -78,3 +78,26 @@ class TestLLMProviderChatCompletion:
         result = await chat_completion('Reply with the single word: pong', 'ping', temperature=0)
         assert isinstance(result, str)
         assert len(result) > 0
+
+    @pytest.mark.asyncio
+    async def test_chat_completion_chain_invokes_provider(self, monkeypatch):
+        """Regression: the chain must actually call the provider (no NameError).
+
+        Mocks the groq helper so no network/key is required, proving the
+        lambda closures receive system/user/temperature correctly.
+        """
+        import llm_provider
+        monkeypatch.setattr(llm_provider, 'GROQ_API_KEY', 'dummy')
+        monkeypatch.setattr(llm_provider, 'LLM_PROVIDER', 'groq')
+        monkeypatch.setattr(llm_provider, 'FREE_ONLY', False)
+        monkeypatch.setattr(
+            llm_provider, '_groq',
+            lambda system, user, temperature: __import__('asyncio').sleep(0, result='pong'),
+        )
+
+        async def fake_ollama(*a, **k):
+            raise RuntimeError('local provider unavailable')
+        monkeypatch.setattr(llm_provider, '_ollama_chain', fake_ollama)
+
+        result = await llm_provider.chat_completion('sys', 'usr', temperature=0)
+        assert result == 'pong'
