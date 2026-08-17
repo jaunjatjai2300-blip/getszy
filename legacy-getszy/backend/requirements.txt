@@ -18,7 +18,10 @@ httpx==0.28.1
 openai==1.99.9
 aiohttp==3.14.1
 requests==2.34.2
-emergentintegrations==0.2.0
+# emergentintegrations is ONLY on a private index (optional paid LLM provider).
+# It is lazily imported in llm_provider.py and blocked by FREE_ONLY, so the
+# build must not hard-fail when it is unavailable. Install separately if needed.
+# emergentintegrations==0.2.0
 
 # Google AI
 google-generativeai==0.8.6
