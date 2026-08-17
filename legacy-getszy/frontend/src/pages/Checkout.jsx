@@ -9,6 +9,48 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { CheckCircle2 } from "lucide-react";
 
+function loadRazorpayScript() {
+  return new Promise((resolve) => {
+    if (window.Razorpay) return resolve(true);
+    const s = document.createElement("script");
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+}
+
+async function openRazorpay({ key, orderId, amount, orderNumber, name, email, phone }) {
+  const ok = await loadRazorpayScript();
+  if (!ok || !window.Razorpay) return false;
+  return new Promise((resolve) => {
+    const rzp = new window.Razorpay({
+      key,
+      amount: Math.round(amount * 100),
+      currency: "INR",
+      name: "Getszy",
+      description: `Order ${orderNumber}`,
+      order_id: orderId,
+      prefill: { name: name || "", email: email || "", contact: phone || "" },
+      handler: async (resp) => {
+        try {
+          await api.post("/billing/order-verify", {
+            razorpay_payment_id: resp.razorpay_payment_id,
+            razorpay_order_id: resp.razorpay_order_id,
+            razorpay_signature: resp.razorpay_signature,
+            order_number: orderNumber,
+          });
+          resolve(true);
+        } catch {
+          resolve(false);
+        }
+      },
+      modal: { ondismiss: () => resolve(false) },
+    });
+    rzp.open();
+  });
+}
+
 export default function Checkout() {
   const { user } = useAuth();
   const { cart, refresh } = useCart();
@@ -24,7 +66,11 @@ export default function Checkout() {
       <CheckCircle2 className="h-14 w-14 mx-auto text-[var(--gs-teal)] mb-4"/>
       <h1 className="font-display text-3xl mb-2">Order placed!</h1>
       <p className="text-[var(--gs-muted)] mb-4">Order number: <span className="font-semibold text-[var(--gs-ink)]">{placed.order_number}</span></p>
-      <p className="text-sm text-[var(--gs-muted)] mb-6">Payment integration coming soon. Currently using Cash on Delivery for testing.</p>
+      {placed.payment_status === "paid" ? (
+        <p className="text-sm text-[var(--gs-muted)] mb-6">Payment received via Razorpay. We'll start processing your order right away.</p>
+      ) : (
+        <p className="text-sm text-[var(--gs-muted)] mb-6">Order placed. Pay via Cash on Delivery when your order arrives.</p>
+      )}
       <Button onClick={() => navigate("/account")} className="bg-[var(--gs-primary)] hover:bg-[var(--gs-primary-2)]">View my orders</Button>
     </div>
   );
@@ -34,9 +80,29 @@ export default function Checkout() {
     setBusy(true);
     try {
       const { data } = await api.post("/orders/checkout", { address, notes });
-      setPlaced(data);
+      const amount = (data.total || 0) + (data.shipping_fee || 0);
       await refresh();
-      toast.success("Order placed successfully!");
+
+      let paid = false;
+      try {
+        const pay = await api.post("/billing/order-create", { order_number: data.order_number, amount });
+        if (pay.data?.configured) {
+          paid = await openRazorpay({
+            key: pay.data.key_id,
+            orderId: pay.data.razorpay_order_id,
+            amount: pay.data.amount,
+            orderNumber: data.order_number,
+            name: user?.name,
+            email: user?.email,
+            phone: address.phone,
+          });
+        }
+      } catch (payErr) {
+        console.warn("Razorpay init failed, falling back to COD", payErr);
+      }
+
+      setPlaced({ ...data, payment_status: paid ? "paid" : "pending" });
+      toast.success(paid ? "Payment successful — order placed!" : "Order placed (Cash on Delivery).");
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed to place order");
     } finally { setBusy(false); }
@@ -65,7 +131,7 @@ export default function Checkout() {
         </div>
         <div className="gs-card p-6 mt-4">
           <h2 className="font-semibold mb-2">Payment</h2>
-          <div className="text-sm text-[var(--gs-muted)]">Cash on Delivery (Razorpay integration coming soon)</div>
+          <div className="text-sm text-[var(--gs-muted)]">Secure payment via Razorpay. Cash on Delivery available as fallback.</div>
         </div>
       </div>
       <aside>

@@ -290,3 +290,80 @@ async def admin_create_plans(admin=Depends(get_current_admin)):
         'plan_ids': created,
         'next_step': 'Set ' + ', '.join(PLAN_ENV_KEYS[p] for p in created) + ' in backend .env, then restart backend.',
     }
+
+
+# ---------- One-time product-order payment (per-checkout charge) ----------
+class OrderPayIn(BaseModel):
+    order_number: str
+    amount: float  # INR
+
+
+@router.post('/order-create')
+async def order_create(body: OrderPayIn, user=Depends(get_current_user)):
+    if not _is_configured():
+        return {
+            'configured': False,
+            'message': 'Razorpay not configured. Payments activate once RAZORPAY_KEY_ID / SECRET are set.',
+        }
+    order = await db.orders.find_one({'order_number': body.order_number, 'user_id': user['id']}, {'_id': 0})
+    if not order:
+        raise HTTPException(404, 'Order not found')
+    client = _client()
+    try:
+        rz_order = client.order.create({
+            'amount': int(round(body.amount * 100)),
+            'currency': 'INR',
+            'receipt': body.order_number,
+            'notes': {'order_number': body.order_number, 'user_id': user['id']},
+        })
+    except Exception as e:
+        logger.exception('razorpay order.create failed')
+        raise HTTPException(500, f'Razorpay error: {str(e)[:180]}')
+    return {
+        'configured': True,
+        'key_id': KEY_ID,
+        'razorpay_order_id': rz_order['id'],
+        'amount': body.amount,
+        'currency': 'INR',
+    }
+
+
+class OrderVerifyIn(BaseModel):
+    razorpay_payment_id: str
+    razorpay_order_id: str
+    razorpay_signature: str
+    order_number: str
+
+
+@router.post('/order-verify')
+async def order_verify(body: OrderVerifyIn, user=Depends(get_current_user)):
+    if not _is_configured():
+        raise HTTPException(400, 'Razorpay not configured')
+    msg = f'{body.razorpay_order_id}|{body.razorpay_payment_id}'.encode()
+    expected = hmac.new(KEY_SECRET.encode(), msg, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, body.razorpay_signature):
+        raise HTTPException(400, 'Invalid signature')
+    order = await db.orders.find_one({'order_number': body.order_number, 'user_id': user['id']}, {'_id': 0})
+    if not order:
+        raise HTTPException(404, 'Order not found')
+    await db.orders.update_one(
+        {'order_number': body.order_number},
+        {'$set': {'payment_status': 'paid', 'razorpay_payment_id': body.razorpay_payment_id, 'paid_at': _iso()}},
+    )
+    # Mark the auto-generated GST invoice as paid.
+    try:
+        await db.gs_invoices.update_one(
+            {'order_number': body.order_number},
+            {'$set': {'payment_status': 'paid', 'razorpay_payment_id': body.razorpay_payment_id}},
+        )
+    except Exception:
+        pass
+    try:
+        from live_events import broadcast_admin_event
+        broadcast_admin_event('payment_received', {
+            'order_number': body.order_number,
+            'payment_id': body.razorpay_payment_id,
+        })
+    except Exception:
+        pass
+    return {'ok': True, 'order_number': body.order_number, 'payment_status': 'paid'}
