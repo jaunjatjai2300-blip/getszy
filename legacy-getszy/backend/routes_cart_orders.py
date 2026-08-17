@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 from db import db
 from models import CartItem, Order, OrderItem, CheckoutIn, OrderStatusUpdate
 from auth import get_current_user, get_current_admin
@@ -194,3 +195,48 @@ async def list_refunds(_=Depends(get_current_admin)):
                 'refunded_at': o.get('refunded_at'),
             })
     return {'refunds': items}
+
+
+class RefundIn(BaseModel):
+    order_id: str
+    amount: float
+    reason: str = ''
+    notes: str = ''
+
+
+@router.post('/admin/orders/refund')
+async def process_refund(body: RefundIn, _=Depends(get_current_admin)):
+    """Issue a refund for an order. Records the refund and updates the order status."""
+    order = await db.orders.find_one({'id': body.order_id}, {'_id': 0})
+    if not order:
+        order = await db.orders.find_one({'order_number': body.order_id}, {'_id': 0})
+    if not order:
+        raise HTTPException(status_code=404, detail='Order not found')
+
+    now = datetime.now(timezone.utc).isoformat()
+    ship = order.get('shipping') or {}
+    customer_name = ship.get('name') if isinstance(ship, dict) else None
+    refund_id = uuid.uuid4().hex
+    refund = {
+        'id': refund_id,
+        'order_id': order.get('id'),
+        'order_number': order.get('order_number'),
+        'customer_name': customer_name,
+        'reason': body.reason,
+        'refund_amount': body.amount,
+        'refund_status': 'refunded',
+        'notes': body.notes,
+        'refunded_at': now,
+    }
+    try:
+        await db.refunds.insert_one(refund.copy())
+    except Exception:
+        pass
+    upd = {
+        'refund_status': 'refunded',
+        'refund_amount': body.amount,
+        'refund_reason': body.reason,
+        'refunded_at': now,
+    }
+    await db.orders.update_one({'id': order.get('id')}, {'$set': upd})
+    return {'ok': True, 'refund': {k: v for k, v in refund.items() if k != '_id'}}
