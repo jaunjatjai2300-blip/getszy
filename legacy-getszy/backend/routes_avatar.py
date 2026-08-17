@@ -207,3 +207,21 @@ async def job_status(job_id: str, user=Depends(get_current_user)):
     if not job:
         raise HTTPException(status_code=404, detail='Job not found')
     return job
+
+
+@router.post('/generate-image')
+async def generate_image_alias(payload: ImageIn, user=Depends(get_current_user)):
+    """Frontend calls /avatar/generate-image."""
+    return await ai_image(payload, user)
+
+
+@router.post('/clone-voice')
+async def clone_voice_alias(bg: BackgroundTasks, text: str = Form(...), language: str = Form('hi'), reference_audio: UploadFile = File(...), user=Depends(get_current_user)):
+    """Frontend calls /avatar/clone-voice (multipart form-data)."""
+    return await voice_clone(bg, text, language, reference_audio, user)
+
+
+@router.post('/talking-head')
+async def talking_head_alias(bg: BackgroundTasks, portrait: UploadFile = File(...), audio: UploadFile = File(...), user=Depends(get_current_user)):
+    """Frontend calls /avatar/talking-head (multipart) → SadTalker talking avatar."""
+    return await generate_avatar(bg, portrait, audio, user)

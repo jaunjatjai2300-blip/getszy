@@ -133,3 +133,17 @@ async def assignment_submit(assignment_id: str, payload: AssignmentSubmitIn, use
 @router.post('/assignments/{assignment_id}/grade/{submission_id}')
 async def assignment_grade(assignment_id: str, submission_id: str, payload: AssignmentGradeIn, _=Depends(get_current_admin)):
     return await grade_assignment(assignment_id, submission_id, payload.grade, payload.feedback)
+
+
+@router.get('/quiz/list')
+async def list_quizzes(_=Depends(get_current_admin)):
+    """List all quizzes (admin)."""
+    cur = db.quizzes.find({}, {'_id': 0}).sort('created_at', -1)
+    return {'items': [q async for q in cur]}
+
+
+@router.get('/certificates/list')
+async def list_certificates(_=Depends(get_current_admin)):
+    """List all issued certificates (admin)."""
+    cur = db.certificates.find({}, {'_id': 0}).sort('issued_at', -1)
+    return {'items': [c async for c in cur]}

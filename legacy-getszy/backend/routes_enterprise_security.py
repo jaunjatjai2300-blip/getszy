@@ -320,3 +320,48 @@ async def session_analytics(_=Depends(get_current_admin)):
         'avg_duration_minutes': avg_duration,
         'timestamp': _now()
     }
+
+
+@router.get('/threats')
+async def list_threats(_=Depends(get_current_admin)):
+    """Security threat feed derived from real signals (failed logins + blocked IPs)."""
+    threats = []
+    try:
+        async for ev in db.audit_logs.find(
+            {'$or': [
+                {'action': 'failed_login'},
+                {'action': 'suspicious_login'},
+                {'action': 'login_failed'},
+                {'action': 'brute_force'},
+            ]},
+            {'_id': 0},
+        ).sort('ts', -1).limit(50):
+            threats.append({
+                'id': ev.get('id') or str(uuid.uuid4()),
+                'title': 'Repeated failed login',
+                'description': f"Account {ev.get('email', 'unknown')} — {ev.get('detail', 'multiple failures detected')}",
+                'severity': 'high',
+                'time': ev.get('ts') or ev.get('created_at') or _now(),
+                'value': ev.get('ip') or ev.get('source', 'unknown'),
+            })
+    except Exception:
+        pass
+    try:
+        async for bip in db.blocked_ips.find({}, {'_id': 0}).sort('created_at', -1).limit(50):
+            threats.append({
+                'id': bip.get('id') or str(uuid.uuid4()),
+                'title': 'Blocked IP',
+                'description': f"IP {bip.get('ip')} blocked: {bip.get('reason', 'security policy')}",
+                'severity': bip.get('severity', 'medium'),
+                'time': bip.get('created_at') or _now(),
+                'value': bip.get('ip'),
+            })
+    except Exception:
+        pass
+    seen, out = set(), []
+    for t in threats:
+        if t['id'] in seen:
+            continue
+        seen.add(t['id'])
+        out.append(t)
+    return {'items': out[:100]}
