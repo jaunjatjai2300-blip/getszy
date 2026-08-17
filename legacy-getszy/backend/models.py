@@ -21,6 +21,9 @@ class User(BaseModel):
     role: str = 'customer'
     phone: Optional[str] = None
     credits: int = 0
+    referral_code: Optional[str] = None
+    referred_by: Optional[str] = None
+    referral_rewards: int = 0
     created_at: str = Field(default_factory=_now)
 
 
@@ -29,6 +32,7 @@ class SignupIn(BaseModel):
     email: EmailStr
     password: str
     phone: Optional[str] = None
+    ref: Optional[str] = None
 
 
 class LoginIn(BaseModel):
@@ -43,6 +47,8 @@ class UserOut(BaseModel):
     role: str
     phone: Optional[str] = None
     credits: int = 0
+    referral_code: Optional[str] = None
+    referral_rewards: int = 0
 
 
 class Category(BaseModel):
