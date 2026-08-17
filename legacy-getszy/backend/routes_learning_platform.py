@@ -612,3 +612,24 @@ async def module_quiz(module_id: str, _=Depends(get_current_admin)):
     """Get quiz for a module — frontend calls /modules/{id}/quiz."""
     quiz = await db.quizzes.find_one({'module_id': module_id}, {'_id': 0})
     return quiz or {'module_id': module_id, 'questions': []}
+
+
+@router.get('/modules')
+async def list_all_modules(_=Depends(get_current_admin)):
+    """All modules across courses (flattened) for the admin modules view."""
+    items = []
+    try:
+        async for course in db.courses.find({}, {'_id': 0, 'id': 1, 'title': 1, 'modules': 1}):
+            for m in (course.get('modules') or []):
+                items.append({
+                    'id': m.get('id'),
+                    'title': m.get('title'),
+                    'course_id': course.get('id'),
+                    'course_title': course.get('title'),
+                    'lesson_count': len(m.get('lessons') or []),
+                    'duration_minutes': m.get('duration_minutes', 0),
+                    'order': m.get('order', 0),
+                })
+    except Exception:
+        pass
+    return {'items': items}

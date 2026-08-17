@@ -792,3 +792,41 @@ async def executive_dashboard():
 
         'mongo_ok': mongo_ok,
     }
+
+
+@router.get('/env-health')
+async def get_env_health(_=Depends(get_current_admin)):
+    """Live environment health checks for the Servers tab."""
+    from datetime import datetime, timezone
+    import shutil, time
+    items = []
+    try:
+        from db import client
+        await client.admin.command('ping')
+        items.append({'id': 'mongodb', 'name': 'MongoDB', 'status': 'healthy', 'value': 'connected', 'detail': 'Primary reachable'})
+    except Exception as e:
+        items.append({'id': 'mongodb', 'name': 'MongoDB', 'status': 'unhealthy', 'value': 'down', 'detail': str(e)[:160]})
+    try:
+        import redis.asyncio as aioredis
+        r = aioredis.from_url('redis://localhost:6379', socket_connect_timeout=2)
+        await r.ping()
+        await r.close()
+        items.append({'id': 'redis', 'name': 'Redis', 'status': 'healthy', 'value': 'connected', 'detail': 'Cache OK'})
+    except Exception as e:
+        items.append({'id': 'redis', 'name': 'Redis', 'status': 'degraded', 'value': 'offline', 'detail': str(e)[:160]})
+    try:
+        d = shutil.disk_usage('/')
+        pct = round(d.used / d.total * 100, 1)
+        items.append({'id': 'disk', 'name': 'Disk', 'status': 'healthy' if pct < 85 else 'warning', 'value': f'{pct}% used', 'detail': f"{round(d.free / (1024 ** 3), 1)} GB free"})
+    except Exception as e:
+        items.append({'id': 'disk', 'name': 'Disk', 'status': 'unknown', 'value': '-', 'detail': str(e)[:160]})
+    try:
+        import psutil
+        mem = psutil.virtual_memory()
+        items.append({'id': 'memory', 'name': 'Memory', 'status': 'healthy' if mem.percent < 90 else 'warning', 'value': f'{mem.percent}% used', 'detail': f"{round(mem.available / (1024 ** 3), 1)} GB available"})
+        uptime = int(time.time() - psutil.boot_time())
+    except Exception:
+        items.append({'id': 'memory', 'name': 'Memory', 'status': 'unknown', 'value': '-', 'detail': 'psutil unavailable'})
+        uptime = None
+    overall = 'healthy' if all(i['status'] == 'healthy' for i in items) else 'degraded'
+    return {'status': overall, 'items': items, 'uptime_seconds': uptime, 'timestamp': datetime.now(timezone.utc).isoformat()}

@@ -271,3 +271,23 @@ async def list_cron_jobs(_=Depends(get_current_admin)):
     """List cron jobs."""
     cur = db.queue.find({'type': 'cron'}, {'_id': 0}).sort('created_at', -1).limit(50)
     return {'items': [j async for j in cur]}
+
+
+@router.get('/request-logs')
+async def list_request_logs(limit: int = 50, _=Depends(get_current_admin)):
+    """Recent HTTP request logs for the Operations Center."""
+    items = []
+    try:
+        cur = db.request_logs.find({}, {'_id': 0}).sort('time', -1).limit(limit)
+        async for log in cur:
+            items.append({
+                'id': log.get('id') or str(log.get('_id')),
+                'level': log.get('level', 'info'),
+                'message': log.get('message', ''),
+                'path': log.get('path', ''),
+                'status_code': log.get('status_code'),
+                'time': log.get('time') or log.get('created_at'),
+            })
+    except Exception:
+        pass
+    return {'items': items}

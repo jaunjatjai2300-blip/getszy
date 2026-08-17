@@ -304,3 +304,11 @@ async def delete_membership(mid: str):
 async def public_memberships():
     items = [m async for m in db.gs_memberships.find({'active': True}, {'_id': 0}).sort('price_monthly', 1)]
     return {'items': items}
+
+
+@router.post('/admin/settings/gst', dependencies=[Depends(get_current_admin)])
+async def update_gst_settings(body: dict):
+    """Update GST settings (GST tab posts here)."""
+    body['updated_at'] = _iso()
+    await db.gs_gst_config.replace_one({}, body, upsert=True)
+    return {'ok': True}

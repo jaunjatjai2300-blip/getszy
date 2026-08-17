@@ -771,3 +771,27 @@ async def referral_stats_alias(_=Depends(get_current_admin)):
 async def seo_analyze_alias(body: dict, _=Depends(get_current_admin)):
     """Alias for /seo/analyze — frontend calls /seo-analyze."""
     return await analyze_seo(body, _)
+
+
+@router.get('/referral-leaderboard')
+async def referral_leaderboard(_=Depends(get_current_admin)):
+    """Top referrers ranked by converted invites."""
+    pipeline = [
+        {'$match': {'status': 'converted'}},
+        {'$group': {'_id': '$referrer_email', 'converted': {'$sum': 1}, 'pending': {'$sum': {'$cond': [{'$eq': ['$status', 'pending']}, 1, 0]}}}},
+        {'$sort': {'converted': -1}},
+        {'$limit': 20},
+    ]
+    rows = await db.referral_invites.aggregate(pipeline).to_list(20)
+    items = []
+    for i, r in enumerate(rows, 1):
+        converted = r.get('converted', 0)
+        items.append({
+            'id': r.get('_id') or str(uuid.uuid4()),
+            'email': r.get('_id'),
+            'referral_count': converted + r.get('pending', 0),
+            'converted_count': converted,
+            'reward_credits': converted * 50,
+            'rank': i,
+        })
+    return {'items': items}

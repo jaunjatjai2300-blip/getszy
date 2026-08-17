@@ -47,3 +47,23 @@ async def admin_transactions(user_email: str, limit: int = 50, admin=Depends(get
         raise HTTPException(404, 'User not found')
     cur = db.credit_transactions.find({'user_id': target['id']}, {'_id': 0}).sort('created_at', -1).limit(limit)
     return {'items': [doc async for doc in cur]}
+
+
+@router.get('/admin/transactions')
+async def admin_transactions_all(limit: int = 100, admin=Depends(get_current_admin)):
+    """All credit transactions across users (newest first)."""
+    cur = db.credit_transactions.find({}, {'_id': 0}).sort('created_at', -1).limit(limit)
+    items = []
+    async for d in cur:
+        meta = d.get('meta') or {}
+        items.append({
+            'id': d.get('id') or str(d.get('_id')),
+            'user_id': d.get('user_id'),
+            'created_at': d.get('created_at'),
+            'delta': d.get('amount'),
+            'value': d.get('amount'),
+            'reason': meta.get('reason') if isinstance(meta, dict) else d.get('reason'),
+            'success': d.get('success', True),
+            'error': d.get('error'),
+        })
+    return {'items': items}

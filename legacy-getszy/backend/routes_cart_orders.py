@@ -160,3 +160,37 @@ async def update_status(order_id: str, body: OrderStatusUpdate):
     if res.matched_count == 0:
         raise HTTPException(404, 'Order not found')
     return await db.orders.find_one({'$or': [{'id': order_id}, {'order_number': order_id}]}, {'_id': 0})
+
+
+@router.get('/admin/orders/refunds')
+async def list_refunds(_=Depends(get_current_admin)):
+    """List refund records (from db.refunds, falling back to orders with refund info)."""
+    items = []
+    try:
+        cur = db.refunds.find({}, {'_id': 0}).sort('refunded_at', -1)
+        async for r in cur:
+            items.append({
+                'id': r.get('id') or str(r.get('_id')),
+                'order_id': r.get('order_id'),
+                'order_number': r.get('order_number'),
+                'customer_name': r.get('customer_name'),
+                'reason': r.get('reason'),
+                'refund_amount': r.get('refund_amount') or r.get('amount'),
+                'refund_status': r.get('refund_status') or r.get('status', 'pending'),
+                'refunded_at': r.get('refunded_at'),
+            })
+    except Exception:
+        cur = db.orders.find({'refund_status': {'$exists': True}}, {'_id': 0}).sort('updated_at', -1)
+        async for o in cur:
+            ship = o.get('shipping') or {}
+            items.append({
+                'id': o.get('id'),
+                'order_id': o.get('id'),
+                'order_number': o.get('order_number'),
+                'customer_name': ship.get('name') if isinstance(ship, dict) else None,
+                'reason': o.get('refund_reason'),
+                'refund_amount': o.get('refund_amount'),
+                'refund_status': o.get('refund_status'),
+                'refunded_at': o.get('refunded_at'),
+            })
+    return {'refunds': items}

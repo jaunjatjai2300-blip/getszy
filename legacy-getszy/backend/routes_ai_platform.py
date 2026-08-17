@@ -261,3 +261,9 @@ async def playground_run(body: PlaygroundIn):
 async def playground_history(limit: int = 20):
     docs = await db.gs_playground_history.find().sort("created_at", -1).limit(limit).to_list(limit)
     return [_id(d) for d in docs]
+
+
+@router.post("/playground", dependencies=[Depends(get_current_admin)])
+async def playground_alias(body: PlaygroundIn):
+    """Frontend (AutomationBuilder) calls /admin/ai-platform/playground."""
+    return await playground_run(body)

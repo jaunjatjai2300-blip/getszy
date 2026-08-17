@@ -758,3 +758,23 @@ async def list_history(_=Depends(get_current_admin)):
     """Alias for /generated — frontend calls /history."""
     cur = db.api_schemas.find({}, {'_id': 0, 'code': 0}).sort('created_at', -1).limit(50)
     return {'items': [s async for s in cur]}
+
+
+class GenerateIn(BaseModel):
+    collections: List[str] = []
+    type: str = 'rest'
+    auth: str = 'jwt'
+    features: List[str] = ['pagination', 'sorting', 'filtering']
+
+
+@router.post('/generate')
+async def generate_api(body: GenerateIn, _=Depends(get_current_admin)):
+    """Unified generate endpoint. Frontend sends {collections, type, auth, features}."""
+    t = (body.type or 'rest').lower()
+    if t == 'graphql':
+        return await generate_graphql(GraphQLGenIn(collection_names=body.collections))
+    if t == 'openapi':
+        return await generate_openapi(GraphQLGenIn(collection_names=body.collections))
+    if t == 'sdk':
+        return await generate_sdk(SDKGenIn(collection_names=body.collections, language='python'))
+    return await generate_rest(RESTGenIn(collection_names=body.collections, prefix='v1', auth=body.auth, features=body.features))
