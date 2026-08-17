@@ -1,5 +1,7 @@
 import re
-from fastapi import APIRouter, HTTPException, Depends
+import uuid
+from datetime import datetime, timezone
+from fastapi import APIRouter, HTTPException, Depends, Request
 from db import db
 from models import SignupIn, LoginIn, User, UserOut
 from auth import hash_password, verify_password, create_token, get_current_user
@@ -37,9 +39,22 @@ async def signup(body: SignupIn):
 
 
 @router.post('/login')
-async def login(body: LoginIn):
+async def login(body: LoginIn, request: Request = None):
     user = await db.users.find_one({'email': body.email.lower()}, {'_id': 0})
     if not user or not verify_password(body.password, user['password_hash']):
+        ip = request.client.host if request and request.client else 'unknown'
+        try:
+            await db.audit_logs.insert_one({
+                'id': uuid.uuid4().hex,
+                'action': 'failed_login',
+                'email': body.email,
+                'ip': ip,
+                'source': ip,
+                'detail': 'Invalid email or password',
+                'ts': datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception:
+            pass
         raise HTTPException(401, 'Invalid email or password')
     token = create_token(user['id'], user['role'])
     return {'token': token, 'user': UserOut(**user).model_dump()}

@@ -1,6 +1,8 @@
 """Security middleware — rate limiting, security headers, request logging."""
 import time
+import uuid
 from collections import defaultdict
+from datetime import datetime, timezone
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -26,6 +28,17 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         now = time.time()
         self._clean(client_ip, now)
         if len(self._hits.get(client_ip, [])) >= self.limit:
+            try:
+                from db import db
+                await db.blocked_ips.insert_one({
+                    'id': uuid.uuid4().hex,
+                    'ip': client_ip,
+                    'reason': 'Rate limit exceeded',
+                    'severity': 'medium',
+                    'created_at': datetime.now(timezone.utc).isoformat(),
+                })
+            except Exception:
+                pass
             return JSONResponse(
                 {'error': 'Rate limit exceeded. Try again in a minute.'},
                 status_code=429,
@@ -61,7 +74,10 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 'status_code': response.status_code,
                 'duration': duration,
                 'ip': request.client.host if request.client else 'unknown',
-                'timestamp': datetime.now(timezone.utc).isoformat()
+                'level': 'info',
+                'message': f"{request.method} {request.url.path} -> {response.status_code}",
+                'time': datetime.now(timezone.utc).isoformat(),
+                'timestamp': datetime.now(timezone.utc).isoformat(),
             })
         except Exception:
             pass
