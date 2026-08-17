@@ -31,7 +31,11 @@ jobs:
       - name: Install backend dependencies
         run: |
           cd legacy-getszy/backend
-          pip install -r requirements.txt
+          # emergentintegrations is only available on a private index (optional paid
+          # LLM provider, lazily imported and blocked by FREE_ONLY). GitHub-hosted
+          # runners can't reach it, so install everything else for CI/tests.
+          grep -v '^emergentintegrations' requirements.txt > /tmp/req-ci.txt
+          pip install -r /tmp/req-ci.txt
 
       - name: Run backend tests
         run: |
