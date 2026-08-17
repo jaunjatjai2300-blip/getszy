@@ -37,10 +37,13 @@ jobs:
           grep -v '^emergentintegrations' requirements.txt > /tmp/req-ci.txt
           pip install -r /tmp/req-ci.txt
 
-      - name: Run backend tests
+      - name: Run backend unit tests
         run: |
           cd legacy-getszy/backend
-          python -m pytest tests/ -v -p no:cacheprovider
+          # Unit tests run with only a MongoDB service (no live server needed).
+          # Integration tests (test_auth, test_critical_flows) hit a live API and
+          # are run separately against staging/production.
+          python -m pytest tests/test_llm_provider.py tests/test_catalog_preview.py -v -p no:cacheprovider
 
   security:
     runs-on: ubuntu-latest
