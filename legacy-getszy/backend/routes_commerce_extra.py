@@ -162,9 +162,20 @@ async def get_gst_config():
     return cfg
 
 @router.put('/admin/gst-config', dependencies=[Depends(get_current_admin)])
-async def update_gst_config(body: dict):
+async def update_gst_config(body: dict, admin=Depends(get_current_admin)):
     body['updated_at'] = _iso()
     await db.gs_gst_config.replace_one({}, body, upsert=True)
+    try:
+        await db.audit_logs.insert_one({
+            'id': _id(),
+            'admin_id': admin.get('id') or admin.get('email'),
+            'action': 'gst_config_updated',
+            'detail': 'GST configuration updated',
+            'level': 'info',
+            'created_at': _iso(),
+        })
+    except Exception:
+        pass
     return {'ok': True}
 
 # ══════════════════════════ AFFILIATES ══════════════════════════
