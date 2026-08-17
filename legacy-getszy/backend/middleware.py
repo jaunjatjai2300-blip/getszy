@@ -65,20 +65,29 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         start = time.time()
         response = await call_next(request)
         duration = round(time.time() - start, 4)
+        # Fire-and-forget: never block the response on a Mongo write.
         try:
+            import asyncio
             from db import db
             from datetime import datetime, timezone
-            await db.request_logs.insert_one({
-                'method': request.method,
-                'path': str(request.url.path),
-                'status_code': response.status_code,
-                'duration': duration,
-                'ip': request.client.host if request.client else 'unknown',
-                'level': 'info',
-                'message': f"{request.method} {request.url.path} -> {response.status_code}",
-                'time': datetime.now(timezone.utc).isoformat(),
-                'timestamp': datetime.now(timezone.utc).isoformat(),
-            })
+
+            async def _write():
+                try:
+                    await db.request_logs.insert_one({
+                        'method': request.method,
+                        'path': str(request.url.path),
+                        'status_code': response.status_code,
+                        'duration': duration,
+                        'ip': request.client.host if request.client else 'unknown',
+                        'level': 'info',
+                        'message': f"{request.method} {request.url.path} -> {response.status_code}",
+                        'time': datetime.now(timezone.utc).isoformat(),
+                        'timestamp': datetime.now(timezone.utc).isoformat(),
+                    })
+                except Exception:
+                    pass
+
+            asyncio.create_task(_write())
         except Exception:
             pass
         return response

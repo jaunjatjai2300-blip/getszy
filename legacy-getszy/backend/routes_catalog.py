@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 from db import db
 from models import Product, ProductIn, Category, Supplier
 from auth import get_current_admin
+from cache_utils import cache_get, cache_set, cache_key, cache_invalidate
+from fastapi.responses import JSONResponse
 import re
 
 router = APIRouter(tags=['catalog'])
@@ -37,11 +39,16 @@ class CategoryIn(BaseModel):
 # ===== Categories =====
 @router.get('/categories')
 async def list_categories():
+    key = cache_key('categories')
+    cached = cache_get(key)
+    if cached is not None:
+        return JSONResponse(cached, headers={'Cache-Control': 'public, max-age=300'})
     cats = await db.categories.find({}, {'_id': 0}).to_list(100)
     # add product counts
     for c in cats:
         c['product_count'] = await db.products.count_documents({'category': c['slug'], 'is_active': True})
-    return cats
+    cache_set(key, cats, 300)
+    return JSONResponse(cats, headers={'Cache-Control': 'public, max-age=300'})
 
 
 @router.post('/admin/categories', dependencies=[Depends(get_current_admin)])
@@ -51,12 +58,14 @@ async def create_category(body: CategoryIn):
         raise HTTPException(400, 'Category already exists')
     cat = Category(name=body.name, slug=slug, image=body.image, description=body.description)
     await db.categories.insert_one(cat.model_dump())
+    cache_invalidate('categories')
     return cat.model_dump()
 
 
 @router.delete('/admin/categories/{cat_id}', dependencies=[Depends(get_current_admin)])
 async def delete_category(cat_id: str):
     res = await db.categories.delete_one({'id': cat_id})
+    cache_invalidate('categories')
     return {'deleted': res.deleted_count}
 
 
@@ -76,8 +85,13 @@ async def list_products(
         q['name'] = {'$regex': safe_search, '$options': 'i'}
     if featured is not None:
         q['is_featured'] = featured
+    key = cache_key('products', category, search, featured, limit)
+    cached = cache_get(key)
+    if cached is not None:
+        return JSONResponse(cached, headers={'Cache-Control': 'public, max-age=60'})
     items = await db.products.find(q, {'_id': 0, 'cost_price': 0}).limit(limit).to_list(limit)
-    return items
+    cache_set(key, items, 60)
+    return JSONResponse(items, headers={'Cache-Control': 'public, max-age=60'})
 
 
 @router.get('/products/{pid}')
@@ -239,6 +253,7 @@ async def admin_list_products():
 async def admin_create_product(body: ProductIn):
     p = Product(**body.model_dump(), slug=_slug(body.name))
     await db.products.insert_one(p.model_dump())
+    cache_invalidate('products')
     return p.model_dump()
 
 
@@ -251,12 +266,14 @@ async def admin_update_product(pid: str, body: ProductIn):
     updates.pop('id', None)
     res = await db.products.update_one({'id': pid}, {'$set': updates})
     p = await db.products.find_one({'id': pid}, {'_id': 0})
+    cache_invalidate('products')
     return p
 
 
 @router.delete('/admin/products/{pid}', dependencies=[Depends(get_current_admin)])
 async def admin_delete_product(pid: str):
     res = await db.products.delete_one({'id': pid})
+    cache_invalidate('products')
     return {'deleted': res.deleted_count}
 
 
