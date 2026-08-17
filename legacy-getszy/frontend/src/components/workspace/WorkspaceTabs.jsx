@@ -384,6 +384,14 @@ function FilesTab({ projectId, assets, setActiveAsset, onChanged, loading }) {
     return null;
   };
 
+  const previewUrl = (a) => {
+    const d = a.data || {};
+    if (a.kind === "webapp" && d.project_id) return `${backend}/api/builder/projects/${d.project_id}/preview`;
+    if (a.kind?.startsWith("starter_") && d.preview_url) return `${backend}${d.preview_url}`;
+    if (a.kind === "video_job" && d.status_endpoint) return null;
+    return null;
+  };
+
   if (loading) return <ListSkeleton rows={4}/>;
   if (!assets || assets.length === 0) {
     return <EmptyState icon={FolderOpen} title="No files" subtitle="Assets (scripts, videos, webapps) yahan appear honge jaise Neo banayega."/>;
@@ -430,6 +438,17 @@ function FilesTab({ projectId, assets, setActiveAsset, onChanged, loading }) {
                     <Download className="h-3.5 w-3.5"/>
                   </a>
                 )}
+                {(() => {
+                  const pv = previewUrl(a);
+                  if (!pv) return null;
+                  return (
+                    <a href={pv} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+                      className="shrink-0 p-1 rounded text-[var(--gs-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--gs-teal)]"
+                      title="Preview" data-testid={`file-preview-${a.id}`}>
+                      <Eye className="h-3.5 w-3.5"/>
+                    </a>
+                  );
+                })()}
               </div>
             );
           })}
