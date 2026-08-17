@@ -6,7 +6,6 @@ import { api, fmtINR } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
 import { CheckCircle2 } from "lucide-react";
 
 function loadRazorpayScript() {
@@ -59,6 +58,7 @@ export default function Checkout() {
   const [notes, setNotes] = useState("");
   const [placed, setPlaced] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   if (!user) { navigate("/login"); return null; }
   if (placed) return (
@@ -102,9 +102,9 @@ export default function Checkout() {
       }
 
       setPlaced({ ...data, payment_status: paid ? "paid" : "pending" });
-      toast.success(paid ? "Payment successful — order placed!" : "Order placed (Cash on Delivery).");
+      setErrorMsg("");
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Failed to place order");
+      setErrorMsg(err?.response?.data?.detail || "Failed to place order");
     } finally { setBusy(false); }
   };
 
@@ -152,6 +152,7 @@ export default function Checkout() {
             <div className="flex justify-between font-semibold mt-2"><span>Total</span><span>{fmtINR(cart.total + shipping)}</span></div>
           </div>
           <Button type="submit" disabled={busy || !cart.items.length} className="w-full mt-4 h-12 bg-[var(--gs-primary)] hover:bg-[var(--gs-primary-2)]" data-testid="checkout-place-order-button">{busy ? "Placing…" : "Place Order"}</Button>
+          {errorMsg && <p className="text-sm text-red-500 mt-2 text-center" role="alert">{errorMsg}</p>}
         </div>
       </aside>
     </form>
