@@ -12,6 +12,7 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown, Eye, Filter, DollarSign,
   AlertTriangle, BarChart3, Calendar
 } from "lucide-react";
+import NeoPanel from "@/components/admin/NeoPanel";
 import { toast } from "sonner";
 import SectionHeader from "@/components/admin/SectionHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
@@ -96,6 +97,8 @@ export default function AdminOrders() {
       <SectionHeader title="Orders" subtitle={`${totalOrders} total · ${ordersToday} today`} icon={ShoppingCart} loading={loading} onRefresh={load}>
         <Button onClick={exportCSV} variant="outline" size="sm" className="h-8"><Download className="h-3.5 w-3.5 mr-1"/>Export</Button>
       </SectionHeader>
+
+      <NeoPanel context="orders" title="Neo Orders Insight" />
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">

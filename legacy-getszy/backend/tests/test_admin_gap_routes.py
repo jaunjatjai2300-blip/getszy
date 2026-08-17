@@ -22,6 +22,7 @@ import routes_ai_platform  # noqa: E402
 import routes_api_builder  # noqa: E402
 import routes_commerce_extra  # noqa: E402
 import routes_avatar  # noqa: E402
+import routes_neo_ops  # noqa: E402
 
 
 def _routes(router):
@@ -51,6 +52,8 @@ CHECKS = [
     (routes_avatar.router, 'POST', '/avatar/clone-voice'),
     (routes_avatar.router, 'POST', '/avatar/talking-head'),
     (routes_cart_orders.router, 'POST', '/admin/orders/refund'),
+    (routes_neo_ops.router, 'POST', '/admin/neo/insight'),
+    (routes_neo_ops.router, 'POST', '/admin/neo/draft'),
 ]
 
 
