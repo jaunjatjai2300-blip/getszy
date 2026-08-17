@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { ShoppingBag, Search, User, Menu, Sparkle, LogOut, LayoutDashboard, X } from "lucide-react";
+import { ShoppingBag, Search, User, Menu, Sparkle, LogOut, LayoutDashboard, X, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -93,6 +93,7 @@ export function Header() {
                 </div>
                 <DropdownMenuSeparator/>
                 <DropdownMenuItem onClick={() => navigate("/account")} data-testid="header-account-item"><User className="h-4 w-4 mr-2"/>My Account</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/referrals")} data-testid="header-referrals-item"><Gift className="h-4 w-4 mr-2"/>Refer & Earn</DropdownMenuItem>
                 {user.role === "admin" && (
                   <DropdownMenuItem onClick={() => navigate("/admin")} data-testid="header-admin-item"><LayoutDashboard className="h-4 w-4 mr-2"/>Admin Dashboard</DropdownMenuItem>
                 )}

@@ -1,4 +1,5 @@
 import re
+import os
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Request
@@ -9,6 +10,14 @@ from live_events import broadcast_admin_event
 from anomaly import record_login_failure
 
 router = APIRouter(prefix='/auth', tags=['auth'])
+
+REFERRAL_REWARD = int(os.getenv('REFERRAL_REWARD_CREDITS', '50'))
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://getszy.com')
+
+
+def _gen_referral_code(name: str) -> str:
+    base = re.sub(r'[^a-zA-Z0-9]', '', (name or 'user'))[:5].upper() or 'USER'
+    return f"GS{base}{uuid.uuid4().hex[:4].upper()}"
 
 
 def _validate_password(password: str):
@@ -34,7 +43,32 @@ async def signup(body: SignupIn):
         password_hash=hash_password(body.password),
         phone=body.phone,
         role='customer',
+        referral_code=_gen_referral_code(body.name),
     )
+    # Attribute referral (real reward credited to referrer)
+    referrer = None
+    if body.ref:
+        ref_code = body.ref.strip().upper()
+        if ref_code:
+            referrer = await db.users.find_one({'referral_code': ref_code}, {'_id': 0})
+            if referrer and referrer['id'] != user.id:
+                user.referred_by = referrer['id']
+                await db.users.update_one(
+                    {'id': referrer['id']},
+                    {'$inc': {'credits': REFERRAL_REWARD, 'referral_rewards': REFERRAL_REWARD}},
+                )
+                try:
+                    await db.referrals.insert_one({
+                        'id': uuid.uuid4().hex,
+                        'referrer_id': referrer['id'],
+                        'referred_user_id': user.id,
+                        'code': ref_code,
+                        'reward_credits': REFERRAL_REWARD,
+                        'status': 'credited',
+                        'created_at': datetime.now(timezone.utc).isoformat(),
+                    })
+                except Exception:
+                    pass
     await db.users.insert_one(user.model_dump())
     token = create_token(user.id, user.role)
     try:
@@ -42,6 +76,43 @@ async def signup(body: SignupIn):
     except Exception:
         pass
     return {'token': token, 'user': UserOut(**user.model_dump()).model_dump()}
+
+
+@router.get('/referrals')
+async def my_referrals(user=Depends(get_current_user)):
+    """Self-serve referral dashboard for the logged-in user."""
+    code = user.get('referral_code')
+    if not code:
+        code = _gen_referral_code(user.get('name', 'user'))
+        try:
+            await db.users.update_one({'id': user['id']}, {'$set': {'referral_code': code}})
+        except Exception:
+            pass
+    referred = []
+    total = 0
+    rewards = 0
+    try:
+        cur = db.referrals.find({'referrer_id': user['id']}, {'_id': 0}).sort('created_at', -1)
+        async for r in cur:
+            total += 1
+            rewards += int(r.get('reward_credits', 0) or 0)
+            referred_user = await db.users.find_one({'id': r.get('referred_user_id')}, {'_id': 0, 'name': 1, 'email': 1, 'created_at': 1})
+            referred.append({
+                'name': (referred_user or {}).get('name', 'New member'),
+                'email': (referred_user or {}).get('email', ''),
+                'reward_credits': r.get('reward_credits', 0),
+                'status': r.get('status', 'credited'),
+                'created_at': r.get('created_at'),
+            })
+    except Exception:
+        pass
+    return {
+        'referral_code': code,
+        'referral_link': f"{FRONTEND_URL}/signup?ref={code}",
+        'total_referred': total,
+        'rewards_earned': rewards or int(user.get('referral_rewards', 0) or 0),
+        'referred': referred,
+    }
 
 
 @router.post('/login')

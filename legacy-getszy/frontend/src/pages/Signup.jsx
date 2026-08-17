@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,8 @@ import { toast } from "sonner";
 export default function Signup() {
   const { signup } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", email: "", password: "", phone: "" });
+  const [params] = useSearchParams();
+  const [form, setForm] = useState({ name: "", email: "", password: "", phone: "", ref: params.get("ref") || "" });
   const [busy, setBusy] = useState(false);
 
   const submit = async (e) => {

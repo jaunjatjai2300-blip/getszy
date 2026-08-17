@@ -16,6 +16,7 @@ import Terms from "@/pages/Terms";
 import Privacy from "@/pages/Privacy";
 import Support from "@/pages/Support";
 import AIAgents from "@/pages/AIAgents";
+import Referrals from "@/pages/Referrals";
 import AdminLayout from "@/components/AdminLayout";
 import VideoStudio from "@/pages/dashboard/VideoStudio";
 import DashboardBuild from "@/pages/dashboard/BuildStudio";
@@ -138,6 +139,7 @@ export default function App() {
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/support" element={<Support />} />
             <Route path="/ai-agents" element={<AIAgents />} />
+            <Route path="/referrals" element={<Referrals />} />
           </Route>
 
           <Route path="/admin" element={<AdminLayout />}>
