@@ -11,9 +11,12 @@ Design (per founder decision, July 2026):
   filter) so concurrent requests can never push a balance negative, and every
   change (spend or grant) is written to `credit_transactions` for audit/support.
 """
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 from db import db
+
+logger = logging.getLogger('getszy.credits')
 
 # ===== Credit costs per action =====
 # Keep these centralized so pricing changes happen in exactly one place.
@@ -40,6 +43,16 @@ CREDIT_PACKS = {
     'lite':  {'name': 'Lite',  'price_inr': 799,  'credits': 40},
     'pro':   {'name': 'Pro',   'price_inr': 2499, 'credits': 125},
     'ultra': {'name': 'Ultra', 'price_inr': 5999, 'credits': 300},
+}
+
+# Subscription plan -> credits granted on activation (CTO decision, Aug 2026).
+# A subscription is a credit *bucket*: it is granted once when the user
+# subscribes, and the subscription ENDS the moment the balance hits 0 (the user
+# drops to free and must resubscribe). Sizes are kept in lock-step with
+# CREDIT_PACKS so pricing stays one coherent system.
+PLAN_CREDIT_GRANT = {
+    'pro': CREDIT_PACKS['pro']['credits'],    # 125
+    'elite': CREDIT_PACKS['ultra']['credits'],  # 300
 }
 
 
@@ -98,6 +111,17 @@ async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] =
         'meta': meta or {},
         'created_at': _now(),
     })
+    # Subscription is a credit bucket: when it hits 0, end it so the user must
+    # resubscribe to receive a fresh grant. User-only by construction — admins
+    # never reach this branch (they return early above).
+    if balance_after == 0:
+        try:
+            from subscription import end_subscription_if_no_credits
+            ended = await end_subscription_if_no_credits(user_id)
+            if ended:
+                logger.info('subscription ended at zero credits for user %s', user_id)
+        except Exception as e:  # never block the response on a side-effect
+            logger.warning('end_subscription_if_no_credits failed for %s: %s', user_id, e)
     return True, '', balance_after
 
 

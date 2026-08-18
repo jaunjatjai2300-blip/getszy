@@ -36,6 +36,11 @@ from pydantic import BaseModel
 from auth import get_current_user, get_current_admin
 from db import db
 from credits import CREDIT_PACKS, add_credits
+from subscription import set_subscription_plan_active
+
+# Razorpay "pack" ids map onto the app's subscription tiers. Packs already grant
+# their own credits on charge; we only flip the user's subscription plan here.
+PACK_TO_PLAN = {'lite': 'pro', 'pro': 'pro', 'ultra': 'elite'}
 
 logger = logging.getLogger('getszy.billing')
 router = APIRouter(prefix='/billing', tags=['billing'])
@@ -188,6 +193,7 @@ async def verify(body: VerifyIn, user=Depends(get_current_user)):
         raise HTTPException(404, 'Subscription record not found')
 
     balance = await _grant_pack_credits_once(user['id'], rec['plan'], body.razorpay_payment_id, source='verify')
+    await set_subscription_plan_active(user['id'], PACK_TO_PLAN.get(rec['plan'], 'pro'), days=30)
     await db.billing_subscriptions.update_one(
         {'razorpay_subscription_id': body.razorpay_subscription_id},
         {'$set': {'status': 'active', 'last_payment_id': body.razorpay_payment_id, 'updated_at': _iso()}}
@@ -235,6 +241,7 @@ async def webhook(request: Request):
         payment_id = payment_entity.get('id') or f'{sub_id}:{event}:{entity.get("current_end", "")}'
         if rec:
             await _grant_pack_credits_once(user_id, rec['plan'], payment_id, source='webhook')
+            await set_subscription_plan_active(user_id, PACK_TO_PLAN.get(rec['plan'], 'pro'), days=30)
         await db.billing_subscriptions.update_one({'razorpay_subscription_id': sub_id}, {'$set': {'status': 'active', 'updated_at': _iso()}})
     elif event in ('subscription.paused', 'subscription.cancelled', 'subscription.completed'):
         await db.billing_subscriptions.update_one({'razorpay_subscription_id': sub_id}, {'$set': {'status': event.split('.')[-1], 'updated_at': _iso()}})
