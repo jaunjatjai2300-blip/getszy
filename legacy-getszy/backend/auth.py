@@ -48,6 +48,18 @@ async def get_current_user(creds: HTTPAuthorizationCredentials = Depends(bearer)
     return user
 
 
+async def get_current_user_optional(creds: HTTPAuthorizationCredentials = Depends(bearer)):
+    """Like get_current_user but returns None instead of 401 when unauthenticated."""
+    if not creds:
+        return None
+    try:
+        payload = jwt.decode(creds.credentials, JWT_SECRET, algorithms=[JWT_ALG])
+    except Exception:
+        return None
+    user = await db.users.find_one({'id': payload['sub']}, {'_id': 0})
+    return user or None
+
+
 async def get_current_admin(user=Depends(get_current_user)):
     if user.get('role') != 'admin':
         raise HTTPException(status_code=403, detail='Admin only')
