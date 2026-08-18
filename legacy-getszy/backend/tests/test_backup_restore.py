@@ -69,3 +69,19 @@ async def test_restore_is_idempotent():
     await backup_mod.restore_backup(os.path.join(backup_dir, 'latest'))
     assert await coll.count_documents({}) == first
     await coll.delete_many({})
+
+
+def test_backup_tier_logic():
+    """GFS tier selection: 1st -> monthly, Monday -> weekly, else daily."""
+    assert backup_mod._backup_tier('20260101-000000') == 'monthly'
+    # 2026-06-15 is a Monday -> weekly
+    assert backup_mod._backup_tier('20260615-120000') == 'weekly'
+    # 2026-06-17 is a Wednesday -> daily
+    assert backup_mod._backup_tier('20260617-120000') == 'daily'
+
+
+def test_offsite_sync_is_noop_without_bucket():
+    """Without BACKUP_S3_BUCKET the off-site sync is a safe no-op."""
+    import os as _os
+    _os.environ.pop('BACKUP_S3_BUCKET', None)
+    assert backup_mod.sync_backup_offsite('/nonexistent/path') is False
