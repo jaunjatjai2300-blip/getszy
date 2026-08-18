@@ -46,7 +46,7 @@ async def deploy(x_token: str = Header(default=None, alias='X-Token')):
         raise HTTPException(status_code=401, detail='Invalid or missing X-Token header')
     log.info(f'Deploy triggered for {REPO_DIR}')
     started = datetime.now(timezone.utc).isoformat()
-    cmd = f'cd {REPO_DIR} && git pull --ff-only && docker compose up -d --build'
+    cmd = f'cd {REPO_DIR} && git pull --ff-only && docker compose up -d --build && docker compose restart caddy'
     try:
         out = subprocess.run(['bash', '-lc', cmd], capture_output=True, text=True, timeout=600)
         result = {
