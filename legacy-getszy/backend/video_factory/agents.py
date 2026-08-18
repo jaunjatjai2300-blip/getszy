@@ -14,6 +14,7 @@ Data model:
                    research, script_variants, selected_script, hooks, storyboard,
                    visual_plan, status, created_at, updated_at}
 """
+import asyncio
 import json as _json
 import re as _re
 import uuid
@@ -281,6 +282,15 @@ async def run_factory_chain(raw_prompt: str, language: str, session_id: str) -> 
     """
     result = {'stages': {}, 'errors': {}}
 
+    async def _stage(key, coro):
+        try:
+            val = await coro
+            result['stages'][key] = val
+            return val
+        except Exception as e:
+            result['errors'][key] = str(e)[:200]
+            return None
+
     try:
         enhanced = await enhance_prompt(raw_prompt, session_id)
         result['stages']['enhanced'] = enhanced
@@ -288,51 +298,39 @@ async def run_factory_chain(raw_prompt: str, language: str, session_id: str) -> 
         result['errors']['enhance'] = str(e)[:200]
         return result
 
-    try:
-        research = await research_topic(enhanced['enhanced_topic'], enhanced['angle'], session_id)
-        result['stages']['research'] = research
-    except Exception as e:
-        result['errors']['research'] = str(e)[:200]
+    # `research` needs `enhanced`; `hooks` only needs `enhanced` too, so run
+    # them concurrently to shave one full LLM round-trip off the chain.
+    research, hooks = await asyncio.gather(
+        _stage('research', research_topic(enhanced['enhanced_topic'], enhanced['angle'], session_id)),
+        _stage('hooks', generate_hooks(enhanced['enhanced_topic'], enhanced['angle'], 'viral', session_id)),
+    )
 
-    try:
-        variants = await generate_script_variants(
+    await _stage(
+        'script_variants',
+        generate_script_variants(
             enhanced['enhanced_topic'], enhanced['angle'],
             enhanced.get('estimated_duration_seconds', 300),
             result['stages'].get('research', {}),
-            language, session_id
-        )
-        result['stages']['script_variants'] = variants
-    except Exception as e:
-        result['errors']['scripts'] = str(e)[:200]
+            language, session_id,
+        ),
+    )
 
     # Auto-select viral variant for further processing
     variants = result['stages'].get('script_variants', [])
     viral = next((v for v in variants if v.get('style_id') == 'viral'), variants[0] if variants else None)
 
     if viral:
-        try:
-            hooks = await generate_hooks(enhanced['enhanced_topic'], enhanced['angle'], 'viral', session_id)
-            result['stages']['hooks'] = hooks
-        except Exception as e:
-            result['errors']['hooks'] = str(e)[:200]
-
-        try:
-            storyboard = await build_storyboard(
+        await _stage(
+            'storyboard',
+            build_storyboard(
                 viral.get('narration', ''),
                 enhanced.get('estimated_duration_seconds', 300),
-                session_id
-            )
-            result['stages']['storyboard'] = storyboard
-        except Exception as e:
-            result['errors']['storyboard'] = str(e)[:200]
-
+                session_id,
+            ),
+        )
         storyboard = result['stages'].get('storyboard', [])
         if storyboard:
-            try:
-                visual_plan = await plan_visuals(storyboard, 'viral', session_id)
-                result['stages']['visual_plan'] = visual_plan
-            except Exception as e:
-                result['errors']['visual_plan'] = str(e)[:200]
+            await _stage('visual_plan', plan_visuals(storyboard, 'viral', session_id))
 
     result['selected_script_id'] = viral.get('id') if viral else None
     return result
