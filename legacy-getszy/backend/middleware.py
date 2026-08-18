@@ -1,4 +1,5 @@
 """Security middleware — rate limiting, security headers, request logging."""
+import os
 import time
 import uuid
 from collections import defaultdict
@@ -74,6 +75,28 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Per-user AI-endpoint rate limiter (defense against LLM cost-exhaustion attacks)
+# In-memory sliding window keyed by user id. For multi-worker deployments, swap
+# this dict for a shared store (Redis) so the limit is enforced across workers.
+# ─────────────────────────────────────────────────────────────────────────────
+_AI_HITS: dict[str, list[float]] = defaultdict(list)
+AI_RATE_LIMIT = int(os.environ.get('AI_RATE_LIMIT_PER_USER', '30'))
+AI_RATE_WINDOW = int(os.environ.get('AI_RATE_WINDOW_SEC', '60'))
+
+
+def ai_rate_limit_allowed(identifier: str, limit: int = AI_RATE_LIMIT, window: int = AI_RATE_WINDOW) -> bool:
+    """Return True if `identifier` is still allowed; records the hit otherwise."""
+    now = time.time()
+    hits = _AI_HITS[identifier]
+    cutoff = now - window
+    _AI_HITS[identifier] = [t for t in hits if t > cutoff]
+    if len(_AI_HITS[identifier]) >= limit:
+        return False
+    _AI_HITS[identifier].append(now)
+    return True
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):

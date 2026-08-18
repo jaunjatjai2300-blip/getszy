@@ -2,8 +2,11 @@ import uuid
 import re
 import math
 import json
+import socket
+import ipaddress
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
+from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -12,6 +15,37 @@ from db import db
 from llm_provider import chat_completion
 
 router = APIRouter(prefix='/admin/growth', tags=['growth'])
+
+
+def _is_public_hostname(hostname: str) -> bool:
+    """Reject loopback, private, link-local and reserved IP ranges (SSRF guard)."""
+    try:
+        info = socket.getaddrinfo(hostname, None)
+    except Exception:
+        return False
+    for entry in info:
+        addr = entry[4][0]
+        try:
+            ip = ipaddress.ip_address(addr)
+        except ValueError:
+            continue
+        if (ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_reserved or ip.is_multicast or ip.is_unspecified):
+            return False
+    return True
+
+
+def is_safe_url(url: str) -> bool:
+    """Allow only http/https URLs whose resolved host is a public IP."""
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    if parsed.scheme not in ('http', 'https'):
+        return False
+    if not parsed.hostname:
+        return False
+    return _is_public_hostname(parsed.hostname)
 
 
 def _now():
@@ -91,6 +125,8 @@ class ReferralInviteIn(BaseModel):
 @router.post('/seo/analyze')
 async def analyze_seo(body: SEOAnalyzeIn, admin=Depends(get_current_admin)):
     import httpx
+    if not is_safe_url(body.url):
+        raise HTTPException(status_code=400, detail='Invalid or non-public URL (SSRF protection).')
     try:
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
             resp = await client.get(body.url, headers={

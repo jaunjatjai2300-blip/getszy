@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from auth import get_current_user, get_current_user_optional, get_current_admin
 from db import db
 from llm_provider import chat_completion, chat_completion_with_tools
+from middleware import ai_rate_limit_allowed
 from workforce.agents import AGENTS as WORKFORCE_AGENTS, VIBE_AGENTS as VIBE_CODERS
 
 router = APIRouter(tags=['agents'])
@@ -255,6 +256,10 @@ async def agent_chat(agent_id: str, payload: AgentChatIn, user=Depends(get_curre
         raise HTTPException(status_code=404, detail='Agent not found')
 
     session_id = payload.session_id or str(uuid.uuid4())
+
+    # Per-user AI rate limit (cost-exhaustion protection)
+    if not ai_rate_limit_allowed(f'agent:{user["id"]}'):
+        raise HTTPException(status_code=429, detail='Too many requests. Please slow down.')
 
     # Build conversation context
     system = agent['system']
