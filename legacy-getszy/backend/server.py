@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter, Response
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -30,6 +31,16 @@ async def _llm_unavailable_handler(request, exc):
         content={'error': 'ai_service_unavailable', 'message': 'The AI service is temporarily unavailable. Please try again shortly.'},
     )
 
+
+
+@app.exception_handler(Exception)
+async def _unhandled_handler(request, exc):
+    """Catch any unhandled error: log server-side, return a clean envelope."""
+    logger.error(f'Unhandled error {request.method} {request.url.path}: {exc}', exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={'error': 'internal_server_error', 'message': 'An unexpected error occurred.'},
+    )
 
 
 @api_router.get('/')
