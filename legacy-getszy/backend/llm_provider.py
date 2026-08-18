@@ -262,6 +262,12 @@ async def chat_completion(
 ) -> str:
     session_id = session_id or str(uuid.uuid4())
 
+    # Truncate once here so EVERY provider in the chain receives bounded input.
+    # Prevents 413 / token-limit errors from oversized or malicious prompts on
+    # any backend (previously only Groq was truncated inside _groq).
+    system = _truncate(system)
+    user = _truncate(user)
+
     chain = _build_chain(system, user, temperature, session_id, max_tokens)
     last_error = None
     for name, fn in chain:
@@ -373,6 +379,11 @@ async def chat_completion_with_tools(
     Falls back to a plain completion if no tool-capable provider is available.
     """
     session_id = session_id or str(uuid.uuid4())
+
+    # Bound input size for every tool-capable provider too (same guard as above).
+    system = _truncate(system)
+    user = _truncate(user)
+
     schemas = get_schemas(tool_names) if tool_names else []
     if not schemas:
         return await chat_completion(system, user, session_id, temperature)
