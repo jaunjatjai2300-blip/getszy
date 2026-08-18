@@ -21,8 +21,8 @@ are operational (not code) and block *full* sign-off until closed.
 - **RPO/RTO:** live `/api/admin/ops/backup/status` + `BackupStale` Prometheus alert;
   `scripts/dr_drill.py` measures RTO.
 - **CI gating:** `deploy.yml` runs only after `Production Hardening` succeeds.
-- ⚠ **Conditional:** off-site S3 / GFS weekly+monthly tiers **not yet implemented**
-  (only daily `Son` exists). Add `BACKUP_S3_BUCKET` sync in `run_backup()`.
+- **Off-site S3 sync implemented** (optional via `BACKUP_S3_BUCKET`, GFS-tiered);
+  enable in the deploy environment to close the last reliability gap.
 
 ## Gate 3 — Performance & Load ✅ PASS
 - **Harness:** `load-tests/` (Locust + asyncio) exercising health, browse, AI chat,
@@ -41,7 +41,7 @@ are operational (not code) and block *full* sign-off until closed.
 ## Residual items blocking FULL sign-off (operational)
 | Item | Owner | Blocking? |
 |------|-------|-----------|
-| S3 off-site + GFS weekly/monthly backups | Code (backlog) | Soft — daily on-host backup live |
+| S3 off-site + GFS weekly/monthly backups | ✅ Implemented (enable `BACKUP_S3_BUCKET` in deploy env) | Closed |
 | DNS failover configuration | Infra/you | Yes for HA claim |
 | Frontend CSP on served HTML (Caddy) | Infra | Soft |
 | Verify AI-builder endpoint path vs backend | Code (quick) | Soft |

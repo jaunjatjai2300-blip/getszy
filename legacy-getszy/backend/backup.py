@@ -74,6 +74,12 @@ async def run_backup():
         total_docs = sum(manifest['collections'].values())
         epoch = datetime.now(timezone.utc).timestamp()
         LAST_BACKUP.update({'ts': ts, 'ts_epoch': epoch, 'dir': out_dir, 'docs': total_docs})
+        # Off-site copy (no-op unless BACKUP_S3_BUCKET is configured). Must never
+        # block or fail the local backup.
+        try:
+            sync_backup_offsite(out_dir)
+        except Exception as e:  # pragma: no cover - optional dependency
+            logger.warning(f'backup off-site sync warning: {e}')
         try:
             from middleware import set_last_backup_ts
             set_last_backup_ts(epoch)
@@ -143,6 +149,86 @@ async def restore_backup(out_dir):
 def last_backup_info():
     """Metadata about the most recent successful backup (for RPO/RTO status)."""
     return dict(LAST_BACKUP)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Optional off-site sync (S3 / S3-compatible: AWS, R2, Wasabi, MinIO).
+# Active only when BACKUP_S3_BUCKET is set; never blocks the local backup.
+# GFS tiers (monthly/weekly/daily) are encoded in the object-key prefix so a
+# bucket lifecycle policy can expire older tiers independently.
+# ─────────────────────────────────────────────────────────────────────────────
+def _offsite_config():
+    bucket = os.environ.get('BACKUP_S3_BUCKET')
+    if not bucket:
+        return None
+    return {
+        'bucket': bucket,
+        'endpoint': os.environ.get('BACKUP_S3_ENDPOINT_URL') or None,
+        'region': os.environ.get('BACKUP_S3_REGION', 'us-east-1'),
+        'prefix': os.environ.get('BACKUP_S3_PREFIX', 'getszy-backups').strip('/'),
+    }
+
+
+def _backup_tier(ts):
+    """GFS tier: monthly on the 1st, weekly on Monday, otherwise daily."""
+    try:
+        d = datetime.strptime(ts, '%Y%m%d-%H%M%S')
+    except Exception:
+        return 'daily'
+    if d.day == 1:
+        return 'monthly'
+    if d.weekday() == 0:
+        return 'weekly'
+    return 'daily'
+
+
+def sync_backup_offsite(out_dir):
+    cfg = _offsite_config()
+    if not cfg:
+        return False
+    try:
+        import boto3
+    except ImportError:
+        logger.warning('backup: boto3 not installed; skipping off-site sync')
+        return False
+    try:
+        name = os.path.basename(out_dir)
+        tier = _backup_tier(name)
+        client = boto3.client('s3', endpoint_url=cfg['endpoint'], region_name=cfg['region'])
+        prefix = f"{cfg['prefix']}/{tier}/{name}"
+        for root, _, files in os.walk(out_dir):
+            for f in files:
+                local = os.path.join(root, f)
+                rel = os.path.relpath(local, out_dir)
+                client.upload_file(local, cfg['bucket'], f"{prefix}/{rel}")
+        logger.info(f'backup off-site sync ok: s3://{cfg["bucket"]}/{prefix}')
+        return True
+    except Exception as e:  # pragma: no cover - depends on env/creds
+        logger.error(f'backup off-site sync failed: {e}')
+        return False
+
+
+def restore_from_offsite(tier, name, dest_dir):
+    """Download an off-site backup tier to dest_dir for disaster recovery."""
+    cfg = _offsite_config()
+    if not cfg:
+        raise RuntimeError('BACKUP_S3_BUCKET is not configured')
+    import boto3
+    client = boto3.client('s3', endpoint_url=cfg['endpoint'], region_name=cfg['region'])
+    prefix = f"{cfg['prefix']}/{tier}/{name}"
+    paginator = client.get_paginator('list_objects_v2')
+    os.makedirs(dest_dir, exist_ok=True)
+    found = 0
+    for page in paginator.paginate(Bucket=cfg['bucket'], Prefix=prefix):
+        for obj in page.get('Contents', []):
+            rel = obj['Key'][len(prefix):].lstrip('/')
+            target = os.path.join(dest_dir, rel)
+            os.makedirs(os.path.dirname(target) or dest_dir, exist_ok=True)
+            client.download_file(cfg['bucket'], obj['Key'], target)
+            found += 1
+    if not found:
+        raise FileNotFoundError(f'no off-site objects under {prefix}')
+    return dest_dir
 
 
 async def backup_scheduler():

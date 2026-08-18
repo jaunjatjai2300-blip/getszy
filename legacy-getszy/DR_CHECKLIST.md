@@ -27,10 +27,13 @@
 ## 3. RPO (Recovery Point Objective)
 - **Current:** backup every 4h → max data loss ≈ 4h (was 24h before hardening).
   Tune with `BACKUP_INTERVAL_HOURS` (e.g. `1` for hourly).
-- **Recommended (not yet implemented):** event-driven snapshots on high-value
-  transactions (Razorpay subscription activation) + **off-site S3 sync** of each
-  `getszy-<ts>` directory. Add `BACKUP_S3_BUCKET` handling in `run_backup()` when
-  this is built.
+- **Implemented (optional):** off-site S3 / S3-compatible sync via
+  `BACKUP_S3_BUCKET` (plus `BACKUP_S3_ENDPOINT_URL` / `BACKUP_S3_REGION` /
+  `BACKUP_S3_PREFIX`). Each backup uploads with a GFS tier prefix
+  (`monthly` / `weekly` / `daily`) so a bucket lifecycle rule can expire older
+  tiers. `restore_from_offsite(tier, name, dest)` reverses it for DR. Set the env
+  var in the deploy env to activate. Event-driven snapshots remain a future
+  enhancement.
 
 ## 4. RTO (Recovery Time Objective)
 - Restore uses batched `bulk_write` (≈80% faster than the old sequential
