@@ -105,8 +105,11 @@ app.add_middleware(
     allow_headers=['Authorization', 'Content-Type'],
 )
 
-from middleware import RateLimitMiddleware, SecurityHeadersMiddleware, RequestLoggingMiddleware, PrometheusMiddleware
-app.add_middleware(RateLimitMiddleware)
+from middleware import SecurityHeadersMiddleware, RequestLoggingMiddleware, PrometheusMiddleware
+from redis_rate_limit import RedisRateLimitMiddleware
+from metrics_protect import MetricsProtectionMiddleware
+app.add_middleware(MetricsProtectionMiddleware)
+app.add_middleware(RedisRateLimitMiddleware, requests_per_minute=200)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(PrometheusMiddleware)

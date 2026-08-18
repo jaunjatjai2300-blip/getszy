@@ -149,7 +149,7 @@ legacy-getszy/
 - Injection: NoSQL/SQL/regex escaping tested (`test_security.py`, `test_ai_chat_regex.py`).
 - Headers: `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Strict-Transport-Security`, `Permissions-Policy` set by middleware; CSP/HSTS added to `deploy/Caddyfile`.
 - Errors: global handler returns clean envelope, no stack traces.
-- **Follow-ups:** (a) rate-limit + AI-limiter are **in-memory** (broken across workers/restart → move to Redis); (b) `/metrics` is **unauthenticated** (gate behind network ACL).
+- **Follow-ups:** (a) the **global** rate-limiter is now **Redis-backed** (see §10 P0 #2); the per-user AI limiter is still in-memory; (b) `/metrics` is now **IP-restricted** to internal networks (see §10 P0 #5).
 
 ### Reliability — ✅ PASS
 - Backups: logical (`backup.py`) + mongodump (`backup-mongo.sh`); 4h scheduler; idempotent bulk restore; `latest` symlink; **S3 off-site (opt-in)**; DR drill script.
@@ -181,7 +181,7 @@ legacy-getszy/
 | **SSO** | config-only (no IdP verification) | Enterprise SSO not real |
 | **Integrations OAuth** | stubs | Marketplace connect is catalog-only |
 | **Background AI jobs** | in-process `asyncio.create_task` (not durable queue) | Not crash-safe across restarts (mitigated by stuck-job recovery) |
-| **Rate limiting** | in-memory | Broken horizontally (noted §6) |
+| **Rate limiting** | Redis-backed (global) / in-memory (per-user AI) | Global limiter now distributed via Redis (`redis_rate_limit.py`); per-user AI limiter still in-process |
 | **Frontend tests** | **none** (no `*.test.*` files) | Frontend correctness unverified by automation |
 | **Subscription state** | user-doc vs `subscriptions` collection (two sources) | Minor inconsistency to reconcile |
 
