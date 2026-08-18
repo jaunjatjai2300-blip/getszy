@@ -978,9 +978,4 @@ async def generate_api_endpoints(project_id: str, body: GenerateAPIIn, admin=Dep
     }
 
 
-@router.get('/projects')
-async def list_saas_projects(_=Depends(get_current_admin)):
-    """List all generated SaaS projects."""
-    cur = db.saas_projects.find({}, {'_id': 0, 'files': 0, 'file_tree': 0}).sort('created_at', -1)
-    items = [p async for p in cur]
-    return {'items': items}
+

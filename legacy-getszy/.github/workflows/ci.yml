@@ -19,8 +19,13 @@ jobs:
     env:
       MONGO_URL: mongodb://localhost:27017
       DB_NAME: getszy_test
-      JWT_SECRET: test-secret-key
+      JWT_SECRET: test-secret-key-for-ci-use-only-32chars!!
       OLLAMA_BASE_URL: http://localhost:11434
+      # Seed a known admin so the server can start and the flow tests can log in.
+      SEED_ADMIN_EMAIL: admin@getszy.com
+      SEED_ADMIN_PASSWORD: testpassword123
+      ADMIN_EMAIL: admin@getszy.com
+      ADMIN_PASSWORD: testpassword123
 
     steps:
       - uses: actions/checkout@v4
