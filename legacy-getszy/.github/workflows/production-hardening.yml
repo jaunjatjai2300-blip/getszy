@@ -1,0 +1,90 @@
+name: Production Hardening
+
+# Automates the production-launch-hardening gate:
+#   1. Security audit (Bandit) + lint (Flake8)
+#   2. Real test suite against a MongoDB service container
+#   3. Docker image build verification (backend + frontend)
+# Deploy (deploy.yml) only runs AFTER this workflow succeeds on main.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: legacy-getszy/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install security tooling
+        run: pip install bandit flake8
+      - name: Bandit security audit
+        # Fail the build on medium+ severity findings (no `|| true`).
+        run: bandit -r . -ll -s B101,B601
+      - name: Flake8 lint
+        run: flake8 . --max-line-length=120 --extend-ignore=E402,F401,E501,W503,E203
+
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: legacy-getszy/backend
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+    env:
+      MONGO_URL: mongodb://localhost:27017
+      DB_NAME: getszy_test
+      JWT_SECRET: test-secret-key-for-ci-use-only-32chars!!
+      OLLAMA_BASE_URL: http://localhost:11434
+      SEED_ADMIN_EMAIL: admin@getszy.com
+      SEED_ADMIN_PASSWORD: testpassword123
+      ADMIN_EMAIL: admin@getszy.com
+      ADMIN_PASSWORD: testpassword123
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest httpx
+      - name: Run critical test matrix
+        run: |
+          python -m pytest tests/test_auth.py tests/test_llm_provider.py \
+            tests/test_critical_flows.py tests/test_video_factory.py \
+            tests/test_llm_fallback.py tests/test_gst_invoice.py \
+            tests/test_einvoice.py tests/test_backup_restore.py \
+            -v --tb=short
+
+  build:
+    needs: [security, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build backend image (verify only)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./legacy-getszy
+          file: ./legacy-getszy/Dockerfile.backend
+          push: false
+          tags: getszy-backend:ci
+      - name: Build frontend image (verify only)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./legacy-getszy
+          file: ./legacy-getszy/Dockerfile.frontend
+          push: false
+          tags: getszy-frontend:ci

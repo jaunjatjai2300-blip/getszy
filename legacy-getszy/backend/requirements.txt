@@ -45,6 +45,7 @@ tiktoken==0.13.0
 # Monitoring
 sentry-sdk[fastapi]>=2.0.0
 logtail-python>=0.1.0
+prometheus_client>=0.20.0
 
 # Cache / Queue
 redis>=5.0.0

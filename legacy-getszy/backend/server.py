@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -65,6 +65,13 @@ async def llm_health():
         return {'status': 'error', 'provider': os.environ.get('LLM_PROVIDER', 'groq'), 'error': str(e)}
 
 
+@app.get('/metrics')
+async def metrics():
+    """Prometheus scrape endpoint (unauthenticated by design)."""
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 # ===== Load all routers via registry =====
 registered_router = load_all_routers()
 api_router.include_router(registered_router)
@@ -87,10 +94,11 @@ app.add_middleware(
     allow_headers=['Authorization', 'Content-Type'],
 )
 
-from middleware import RateLimitMiddleware, SecurityHeadersMiddleware, RequestLoggingMiddleware
+from middleware import RateLimitMiddleware, SecurityHeadersMiddleware, RequestLoggingMiddleware, PrometheusMiddleware
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(PrometheusMiddleware)
 
 from logging_config import configure_logging
 configure_logging(os.environ.get('LOG_LEVEL', 'INFO'))

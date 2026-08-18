@@ -1,0 +1,65 @@
+groups:
+  - name: getszy_production_alerts
+    rules:
+      - alert: HighCPUSaturation
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected on instance {{ $labels.instance }}"
+          description: "CPU usage has been sustained above 85% for more than 5 minutes. Consider scaling VPS vCPU allocation."
+
+      - alert: LowMemoryAvailable
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 15
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical memory shortage on {{ $labels.instance }}"
+          description: "Available RAM is below 15%. Risk of OOM killer terminating Ollama LLM or MongoDB."
+
+      - alert: HighAPIErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) * 100 > 2
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High HTTP 5xx Error Rate"
+          description: "API error rate exceeds 2% of total traffic over the last 5 minutes."
+
+      - alert: VideoFactoryQueueStalled
+        expr: video_factory_jobs_pending > 10 and rate(video_factory_jobs_completed_total[10m]) == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Video Factory Rendering Stalled"
+          description: "Pending video jobs are accumulating while completion rate is zero. Check FFmpeg container."
+
+      - alert: OllamaInferenceFailureSpike
+        expr: rate(ollama_inference_failures_total[5m]) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Ollama LLM Inference Failure Spike"
+          description: "Local AI inference is failing or timing out frequently on port 11434."
+
+      - alert: MongoDBConnectionLoss
+        expr: mongodb_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MongoDB Database Down"
+          description: "Prometheus cannot scrape MongoDB exporter or database is unreachable."
+
+      - alert: BackupStale
+        expr: time() - getszy_last_backup_timestamp_seconds > 18000
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backups are stale"
+          description: "No successful backup in over 5 hours (RPO breach risk). Check the backup scheduler."

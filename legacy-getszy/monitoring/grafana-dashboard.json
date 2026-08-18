@@ -1,0 +1,82 @@
+{
+  "title": "Getszy - Production Resilience (RPO / RTO)",
+  "uid": "getszy-resilience",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "ds",
+        "label": "Prometheus",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "text": "Prometheus", "value": "Prometheus" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Current RPO (seconds since last backup)",
+      "type": "stat",
+      "datasource": "${ds}",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "time() - getszy_last_backup_timestamp_seconds", "refId": "A" }
+      ],
+      "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 14400 }, { "color": "red", "value": 18000 } ] }
+    },
+    {
+      "id": 2,
+      "title": "HTTP 5xx Error Rate (%)",
+      "type": "timeseries",
+      "datasource": "${ds}",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
+      "targets": [
+        { "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])) * 100", "refId": "A" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Video Factory Jobs Pending",
+      "type": "timeseries",
+      "datasource": "${ds}",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        { "expr": "video_factory_jobs_pending", "refId": "A" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Ollama Inference Failures (rate/5m)",
+      "type": "timeseries",
+      "datasource": "${ds}",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 6 },
+      "targets": [
+        { "expr": "rate(ollama_inference_failures_total[5m])", "refId": "A" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Last Backup Timestamp",
+      "type": "timeseries",
+      "datasource": "${ds}",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 6 },
+      "targets": [
+        { "expr": "getszy_last_backup_timestamp_seconds", "refId": "A" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "In-Progress Requests",
+      "type": "timeseries",
+      "datasource": "${ds}",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 6 },
+      "targets": [
+        { "expr": "http_requests_in_progress", "refId": "A" }
+      ]
+    }
+  ]
+}

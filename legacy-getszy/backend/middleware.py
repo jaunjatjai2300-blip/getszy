@@ -130,3 +130,110 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         except Exception:
             pass
         return response
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Prometheus metrics (optional — requires prometheus_client)
+# Exposes http_requests_total{method,status} + http_request_duration_seconds so
+# Prometheus can scrape /metrics and drive the production alert rules.
+# ─────────────────────────────────────────────────────────────────────────────
+_METRICS_SKIP_PATHS = {'/metrics', '/docs', '/openapi.json', '/health', '/healthz'}
+
+try:
+    from prometheus_client import (
+        Counter,
+        Histogram,
+        Gauge,
+        generate_latest,
+        CONTENT_TYPE_LATEST,
+    )
+    _PROM_AVAILABLE = True
+except Exception:  # pragma: no cover - dependency optional in some envs
+    _PROM_AVAILABLE = False
+    generate_latest = None
+    CONTENT_TYPE_LATEST = 'text/plain; version=0.0.4'
+    REQUEST_COUNT = REQUEST_LATENCY = REQUESTS_IN_PROGRESS = None
+
+
+if _PROM_AVAILABLE:
+    REQUEST_COUNT = Counter(
+        'http_requests_total',
+        'Total HTTP requests handled by the Getszy backend.',
+        ['method', 'status'],
+    )
+    REQUEST_LATENCY = Histogram(
+        'http_request_duration_seconds',
+        'HTTP request latency in seconds.',
+        ['method'],
+    )
+    REQUESTS_IN_PROGRESS = Gauge(
+        'http_requests_in_progress',
+        'Number of HTTP requests currently being processed.',
+    )
+    # Domain metrics consumed by the production alert rules (alerts.yml).
+    VIDEO_JOBS_PENDING = Gauge(
+        'video_factory_jobs_pending',
+        'Number of video-factory jobs awaiting/cloning/rendering.',
+    )
+    VIDEO_JOBS_COMPLETED = Counter(
+        'video_factory_jobs_completed_total',
+        'Total video-factory jobs completed successfully.',
+    )
+    OLLAMA_FAILURES = Counter(
+        'ollama_inference_failures_total',
+        'Total local/Ollama inference failures or timeouts.',
+    )
+    LAST_BACKUP_TS = Gauge(
+        'getszy_last_backup_timestamp_seconds',
+        'Unix timestamp (seconds) of the last successful automated backup.',
+    )
+
+
+def set_video_jobs_pending(n: int):
+    if _PROM_AVAILABLE:
+        try:
+            VIDEO_JOBS_PENDING.set(int(n))
+        except Exception:
+            pass
+
+
+def inc_video_jobs_completed():
+    if _PROM_AVAILABLE:
+        try:
+            VIDEO_JOBS_COMPLETED.inc()
+        except Exception:
+            pass
+
+
+def inc_ollama_failure():
+    if _PROM_AVAILABLE:
+        try:
+            OLLAMA_FAILURES.inc()
+        except Exception:
+            pass
+
+
+def set_last_backup_ts(ts: float):
+    if _PROM_AVAILABLE:
+        try:
+            LAST_BACKUP_TS.set(float(ts))
+        except Exception:
+            pass
+
+
+class PrometheusMiddleware(BaseHTTPMiddleware):
+    """Export request counters / latency for Prometheus scraping."""
+
+    async def dispatch(self, request: Request, call_next):
+        if not _PROM_AVAILABLE or request.url.path in _METRICS_SKIP_PATHS:
+            return await call_next(request)
+        method = request.method
+        REQUESTS_IN_PROGRESS.inc()
+        start = time.time()
+        try:
+            response = await call_next(request)
+        finally:
+            REQUESTS_IN_PROGRESS.dec()
+        REQUEST_LATENCY.labels(method=method).observe(time.time() - start)
+        REQUEST_COUNT.labels(method=method, status=response.status_code).inc()
+        return response

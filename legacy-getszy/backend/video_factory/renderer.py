@@ -246,4 +246,9 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
         'final_video_size': size_bytes,
         'scenes_rendered': len(compose_scenes),
     })
+    try:
+        from middleware import inc_video_jobs_completed
+        inc_video_jobs_completed()
+    except Exception:
+        pass
     return result
