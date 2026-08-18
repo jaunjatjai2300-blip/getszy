@@ -26,6 +26,15 @@ services:
     environment:
       MONGO_URL: "mongodb://mongo:27017"
       REDIS_URL: "redis://redis:6379/0"
+      BACKUP_DIR: "/app/backups"
+      BACKUP_INTERVAL_HOURS: "${BACKUP_INTERVAL_HOURS:-4}"
+      BACKUP_RETENTION_DAILY: "${BACKUP_RETENTION_DAILY:-7}"
+      BACKUP_RETENTION_WEEKLY: "${BACKUP_RETENTION_WEEKLY:-5}"
+      BACKUP_RETENTION_MONTHLY: "${BACKUP_RETENTION_MONTHLY:-12}"
+      BACKUP_S3_BUCKET: "${BACKUP_S3_BUCKET:-}"
+      BACKUP_S3_ENDPOINT_URL: "${BACKUP_S3_ENDPOINT_URL:-}"
+      BACKUP_S3_REGION: "${BACKUP_S3_REGION:-us-east-1}"
+      BACKUP_S3_PREFIX: "${BACKUP_S3_PREFIX:-getszy-backups}"
       DB_NAME: "getszy_db"
       CORS_ORIGINS: "${CORS_ORIGINS:-https://getszy.com,https://www.getszy.com}"
       JWT_SECRET: "${JWT_SECRET}"
@@ -63,6 +72,7 @@ services:
     networks: [getszy]
     volumes:
       - backend_media:/app/backend/media
+      - backend_backups:/app/backups
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -114,6 +124,7 @@ volumes:
   caddy_data:
   caddy_config:
   backend_media:
+  backend_backups:
   redis_data:
 
 networks:

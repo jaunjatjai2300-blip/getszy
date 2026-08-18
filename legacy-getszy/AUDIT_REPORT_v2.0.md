@@ -155,7 +155,7 @@ legacy-getszy/
 - Backups: logical (`backup.py`) + mongodump (`backup-mongo.sh`); 4h scheduler; idempotent bulk restore; `latest` symlink; **S3 off-site (opt-in)**; DR drill script.
 - Video Factory: cancellation, restart recovery, corruption/disk-full, double-refund guard (tested).
 - Deploy: CI → webhook → `git pull` + rebuild + Caddy restart; idempotent.
-- **Follow-ups:** monthly GFS tier never auto-produced; `/app/backups` not volume-mounted in compose; S3 off by default.
+- **Follow-ups (RESOLVED this audit):** GFS retention now implemented in `backup.py` (`_prune` keeps N daily/weekly/monthly by tier); `/app/backups` is now a named `backend_backups` volume mount in `docker-compose.yml`; S3 off-site remains opt-in (set `BACKUP_S3_BUCKET`).
 
 ### Performance — ✅ PASS
 - Load harness (Locust + asyncio) with real routes; CI gate fails if 5xx > 2%; `ollama_inference_failures_total` + `VideoFactoryQueueStalled` alerts.
@@ -182,7 +182,7 @@ legacy-getszy/
 | **Integrations OAuth** | stubs | Marketplace connect is catalog-only |
 | **Background AI jobs** | in-process `asyncio.create_task` (not durable queue) | Not crash-safe across restarts (mitigated by stuck-job recovery) |
 | **Rate limiting** | Redis-backed (global) / in-memory (per-user AI) | Global limiter now distributed via Redis (`redis_rate_limit.py`); per-user AI limiter still in-process |
-| **Frontend tests** | **none** (no `*.test.*` files) | Frontend correctness unverified by automation |
+| **Frontend tests** | **6 Jest tests** (`aiBuilder` endpoint/JSON regression, `fmtINR` INR formatting) in CI `frontend` job | Critical frontend logic now verified by automation |
 | **Subscription state** | user-doc vs `subscriptions` collection (two sources) | Minor inconsistency to reconcile |
 
 ---
@@ -191,7 +191,7 @@ legacy-getszy/
 
 - **Backend:** 33 pytest files; CI runs Mongo-7 service + hardening gate (`test_auth, test_llm_provider, test_critical_flows, test_video_factory, test_llm_fallback, test_gst_invoice, test_einvoice, test_backup_restore`). Covers auth, security (JWT forge/NoSQL/path-traversal), billing/credits, Razorpay, GST/e-invoice, LLM fallback, backup/restore, catalog, agents, admin audit.
 - **Integration:** `test_critical_flows.py` exercises login→product→order→enroll→video-job against a live server (brittle; needs running LLM).
-- **Frontend:** **zero automated tests** — only manual/`craco test` config + `testIds` placeholders.
+- **Frontend:** **6 Jest tests** (`src/__tests__/aiBuilder.test.js` guards the `/api/ai-tools/chat/completions` + JSON-parse fix; `src/__tests__/fmtINR.test.js` validates INR formatting) run in the CI `frontend` job via `CI=true npm test`.
 - **Extra (not in default `pytest tests/`):** `backend_test.py` (79 KB) and several phase scripts — ad-hoc harnesses, not in CI.
 
 ---
@@ -210,8 +210,8 @@ legacy-getszy/
 **P0 (before scaling / HA claim):**
 1. ~~Fix monitoring scrape~~ **RESOLVED** — monitoring stack joins `getszy` network; Prometheus scrapes `backend:8001`; Alertmanager uses `ALERT_WEBHOOK_URL` (set it in env for live paging).
 2. ~~Promote rate-limit/AI-limiter to Redis; gate `/metrics`~~ **RESOLVED** — global rate-limiter is now Redis-backed (`redis_rate_limit.py`); `/metrics` IP-restricted (`metrics_protect.py`). (Per-user AI limiter still in-memory.)
-3. Wire S3 off-site (`BACKUP_S3_BUCKET` + `boto3`) and a monthly GFS job; volume-mount backend backups.
-4. Add frontend tests (at least smoke for critical flows: login, checkout, Neo chat).
+3. ~~Wire S3 off-site + monthly GFS + volume-mount~~ **RESOLVED** — `backup.py` has GFS retention (daily/weekly/monthly); `backend_backups` volume mounted in `docker-compose.yml`; S3 off-site opt-in via `BACKUP_S3_BUCKET`.
+4. ~~Add frontend tests~~ **RESOLVED** — 6 Jest tests in CI `frontend` job (`aiBuilder` regression + `fmtINR`).
 
 **P1 (feature honesty):**
 5. Either wire or hide social publishing, media voice/video, i18n, SSO, integrations OAuth — don't ship as "available" if stubbed.
