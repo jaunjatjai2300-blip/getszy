@@ -8,6 +8,8 @@ import hashlib
 import re
 from datetime import datetime, timezone
 
+from gst_invoice import normalize_gstin
+
 
 def _parse_date(d):
     if not d:
@@ -43,7 +45,7 @@ def build_einvoice(invoice: dict, seller: dict, buyer: dict = None):
     doc_no = invoice.get('invoice_number') or invoice.get('order_number') or ''
     doc_date = _parse_date(invoice.get('created_at') or invoice.get('doc_date'))
     doc_type = 'INV'
-    seller_gstin = (seller or {}).get('company_gstin', '')
+    seller_gstin = normalize_gstin((seller or {}).get('company_gstin', ''))
     irn = compute_irn(seller_gstin, doc_type, doc_no, doc_date)
 
     total = float(invoice.get('total', 0) or 0)
@@ -54,7 +56,7 @@ def build_einvoice(invoice: dict, seller: dict, buyer: dict = None):
     igst = float(invoice.get('igst_amount', 0) or 0)
 
     buyer = buyer or {}
-    buyer_gstin = invoice.get('customer_gstin', '') or buyer.get('gstin', '')
+    buyer_gstin = normalize_gstin(invoice.get('customer_gstin', '') or buyer.get('gstin', ''))
 
     payload = {
         'Version': '1.03',
@@ -81,7 +83,9 @@ def build_einvoice(invoice: dict, seller: dict, buyer: dict = None):
             {
                 'SlNo': str(i + 1),
                 'PrdDesc': it.get('description', it.get('name', 'Item')),
+                'HsnCd': it.get('hsn') or it.get('hsn_code') or '999999',  # 999999 = other services
                 'Qty': float(it.get('qty', it.get('quantity', 1)) or 1),
+                'Unit': it.get('unit', 'NOS'),
                 'UnitPrice': round(float(it.get('rate', it.get('price', 0)) or 0), 2),
                 'TotAmt': round(float(it.get('amount', 0) or 0), 2),
                 'GstRt': float(invoice.get('gst_rate', 18) or 18),

@@ -60,12 +60,12 @@ class TestLLMProviderChatCompletion:
     @pytest.mark.asyncio
     async def test_chat_completion_returns_string(self):
         """chat_completion should return a string when a provider is reachable."""
-        from llm_provider import chat_completion
+        from llm_provider import chat_completion, LLMServiceUnavailable
         try:
             result = await chat_completion('Say hello in one word.', 'You are helpful.')
             assert isinstance(result, str)
             assert len(result) > 0
-        except RuntimeError as e:
+        except (RuntimeError, LLMServiceUnavailable) as e:
             pytest.skip(f'No LLM provider reachable in CI: {e}')
 
     @pytest.mark.asyncio
