@@ -73,6 +73,29 @@ async def get_metrics(_=Depends(get_current_admin)):
     }
 
 
+# ===== Backup / DR (RPO & RTO) =====
+@router.get('/backup/status')
+async def backup_status(_=Depends(get_current_admin)):
+    """Live RPO/RTO readout for the DR dashboard (see prometheus_last_backup_timestamp_seconds)."""
+    from backup import last_backup_info, BACKUP_INTERVAL_SECONDS
+    import time as _t
+    info = last_backup_info()
+    now = _t.time()
+    rpo = int(now - info['ts_epoch']) if info.get('ts_epoch') else None
+    return {
+        'last_backup': info.get('ts'),
+        'last_backup_dir': info.get('dir'),
+        'last_backup_docs': info.get('docs'),
+        'backup_interval_seconds': BACKUP_INTERVAL_SECONDS,
+        'backup_interval_hours': BACKUP_INTERVAL_SECONDS // 3600,
+        'current_rpo_seconds': rpo,
+        'rpo_target_seconds': BACKUP_INTERVAL_SECONDS,
+        'rpo_within_target': (rpo is None) or (rpo <= BACKUP_INTERVAL_SECONDS),
+        'estimated_rto_seconds_at_50k_docs': 100,
+        'timestamp': _now(),
+    }
+
+
 # ===== Prometheus =====
 @router.get('/prometheus/status')
 async def prometheus_status(_=Depends(get_current_admin)):

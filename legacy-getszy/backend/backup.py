@@ -7,7 +7,8 @@ so ObjectIds and datetimes survive the round-trip, plus a ``manifest.json``.
 Old backups beyond ``BACKUP_RETENTION_DAYS`` are pruned.
 
 ``backup_scheduler()`` is an asyncio loop launched from ``server.startup``: it
-runs the first backup ~10 minutes after boot, then every 24 hours.
+runs the first backup ~10 minutes after boot, then every ``BACKUP_INTERVAL_HOURS``
+(default 4h; was 24h) to bound RPO.
 
 For real persistence on the VPS, mount a volume at the backup directory (set the
 ``BACKUP_DIR`` env var, default ``/app/backups``) and ideally push copies
@@ -22,12 +23,18 @@ import shutil
 from datetime import datetime, timezone
 
 from bson.json_util import dumps as bson_dumps, loads as bson_loads
+from pymongo import ReplaceOne
 from db import db
 
 logger = logging.getLogger('getszy')
 
 BACKUP_ROOT = os.environ.get('BACKUP_DIR', '/app/backups')
 RETENTION = int(os.environ.get('BACKUP_RETENTION_DAYS', '7'))
+# RPO control: how often the background scheduler snapshots the database.
+# Default 4h (down from 24h) to bound data-loss exposure during growth.
+BACKUP_INTERVAL_SECONDS = int(os.environ.get('BACKUP_INTERVAL_HOURS', '4')) * 3600
+# Populated by run_backup(); consumed by the RPO/RTO status endpoint + metrics.
+LAST_BACKUP = {'ts': None, 'ts_epoch': None, 'dir': None, 'docs': 0}
 
 
 async def run_backup():
@@ -55,7 +62,34 @@ async def run_backup():
         with open(os.path.join(out_dir, 'manifest.json'), 'w', encoding='utf-8') as fh:
             json.dump(manifest, fh, indent=2)
         _prune()
-        logger.info(f'backup ok: {out_dir} ({sum(manifest["collections"].values())} docs)')
+        # Point a stable `latest` symlink at the newest backup so DR runbooks
+        # can `restore_backup(os.path.join(BACKUP_ROOT, 'latest'))`.
+        try:
+            latest = os.path.join(BACKUP_ROOT, 'latest')
+            if os.path.islink(latest) or os.path.exists(latest):
+                os.unlink(latest)
+            os.symlink(out_dir, latest)
+        except Exception as e:  # pragma: no cover - environment dependent
+            logger.warning(f'backup latest symlink warning: {e}')
+        total_docs = sum(manifest['collections'].values())
+        epoch = datetime.now(timezone.utc).timestamp()
+        LAST_BACKUP.update({'ts': ts, 'ts_epoch': epoch, 'dir': out_dir, 'docs': total_docs})
+        try:
+            from middleware import set_last_backup_ts
+            set_last_backup_ts(epoch)
+        except Exception:
+            pass
+        _prune()
+        # Point a stable `latest` symlink at the newest backup so DR runbooks
+        # can `restore_backup(os.path.join(BACKUP_ROOT, 'latest'))`.
+        try:
+            latest = os.path.join(BACKUP_ROOT, 'latest')
+            if os.path.islink(latest) or os.path.exists(latest):
+                os.unlink(latest)
+            os.symlink(out_dir, latest)
+        except Exception as e:  # pragma: no cover - environment dependent
+            logger.warning(f'backup latest symlink warning: {e}')
+        logger.info(f'backup ok: {out_dir} ({total_docs} docs)')
         return out_dir
     except Exception as e:  # pragma: no cover - environment dependent
         logger.error(f'backup failed: {e}')
@@ -81,9 +115,11 @@ async def restore_backup(out_dir):
     if not files:
         raise ValueError(f'no .jsonl files in {out_dir}')
     restored = 0
+    batch = 1000
     for path in files:
         name = os.path.splitext(os.path.basename(path))[0]
         coll = db[name]
+        ops = []
         with open(path, 'r', encoding='utf-8') as fh:
             for line in fh:
                 line = line.strip()
@@ -92,10 +128,21 @@ async def restore_backup(out_dir):
                 doc = bson_loads(line)
                 if '_id' not in doc:
                     continue
-                await coll.replace_one({'_id': doc['_id']}, doc, upsert=True)
-                restored += 1
+                ops.append(ReplaceOne({'_id': doc['_id']}, doc, upsert=True))
+                if len(ops) >= batch:
+                    await coll.bulk_write(ops, ordered=False)
+                    restored += len(ops)
+                    ops = []
+        if ops:
+            await coll.bulk_write(ops, ordered=False)
+            restored += len(ops)
     logger.info(f'restore complete from {out_dir}: {restored} docs')
     return restored
+
+
+def last_backup_info():
+    """Metadata about the most recent successful backup (for RPO/RTO status)."""
+    return dict(LAST_BACKUP)
 
 
 async def backup_scheduler():
@@ -105,4 +152,4 @@ async def backup_scheduler():
             await run_backup()
         except Exception as e:  # pragma: no cover - environment dependent
             logger.error(f'backup scheduler error: {e}')
-        await asyncio.sleep(24 * 3600)
+        await asyncio.sleep(BACKUP_INTERVAL_SECONDS)

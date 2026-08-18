@@ -301,6 +301,12 @@ async def chat_completion(
     except Exception:
         pass
 
+    try:
+        from middleware import inc_ollama_failure
+        inc_ollama_failure()
+    except Exception:
+        pass
+
     raise LLMServiceUnavailable(
         'All LLM providers failed. '
         'Set LLM_PROVIDER appropriately and ensure at least one of '
