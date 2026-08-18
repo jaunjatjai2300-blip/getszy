@@ -5,7 +5,7 @@ from auth import get_current_admin
 from models import AdminChatIn, AdminChatMessage
 from ai_chat import parse_intent, execute_intent
 from datetime import datetime, timezone, timedelta
-import uuid, os, secrets
+import uuid, os, secrets, re
 
 router = APIRouter(prefix='/admin', tags=['admin'])
 
@@ -470,12 +470,12 @@ async def save_settings(body: SettingsIn):
 async def get_audit_logs(limit: int = 50, action: str = '', q: str = ''):
     query = {}
     if action:
-        query['action'] = {'$regex': action, '$options': 'i'}
+        query['action'] = {'$regex': re.escape(action), '$options': 'i'}
     if q:
         query['$or'] = [
-            {'detail': {'$regex': q, '$options': 'i'}},
-            {'action': {'$regex': q, '$options': 'i'}},
-            {'admin_id': {'$regex': q, '$options': 'i'}},
+            {'detail': {'$regex': re.escape(q), '$options': 'i'}},
+            {'action': {'$regex': re.escape(q), '$options': 'i'}},
+            {'admin_id': {'$regex': re.escape(q), '$options': 'i'}},
         ]
     logs = await db.audit_logs.find(query, {'_id': 0}).sort('created_at', -1).to_list(limit)
     return {'items': logs, 'total': len(logs)}

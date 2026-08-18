@@ -1,4 +1,5 @@
 import uuid
+import re
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -70,9 +71,9 @@ async def list_listings(
         q['price'] = {'$gt': 0}
     if search:
         q['$or'] = [
-            {'title': {'$regex': search, '$options': 'i'}},
-            {'description': {'$regex': search, '$options': 'i'}},
-            {'tags': {'$regex': search, '$options': 'i'}},
+            {'title': {'$regex': re.escape(search), '$options': 'i'}},
+            {'description': {'$regex': re.escape(search), '$options': 'i'}},
+            {'tags': {'$regex': re.escape(search), '$options': 'i'}},
         ]
     sort_field = 'created_at'
     sort_dir = -1

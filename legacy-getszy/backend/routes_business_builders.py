@@ -1,4 +1,5 @@
 import uuid
+import re
 from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
@@ -254,9 +255,9 @@ async def crm_list_contacts(
     query = {}
     if search:
         query['$or'] = [
-            {'name': {'$regex': search, '$options': 'i'}},
-            {'email': {'$regex': search, '$options': 'i'}},
-            {'company': {'$regex': search, '$options': 'i'}},
+            {'name': {'$regex': re.escape(search), '$options': 'i'}},
+            {'email': {'$regex': re.escape(search), '$options': 'i'}},
+            {'company': {'$regex': re.escape(search), '$options': 'i'}},
         ]
     if status:
         query['status'] = status
@@ -904,9 +905,9 @@ async def hrms_list_employees(
         query['status'] = status
     if search:
         query['$or'] = [
-            {'name': {'$regex': search, '$options': 'i'}},
-            {'email': {'$regex': search, '$options': 'i'}},
-            {'position': {'$regex': search, '$options': 'i'}},
+            {'name': {'$regex': re.escape(search), '$options': 'i'}},
+            {'email': {'$regex': re.escape(search), '$options': 'i'}},
+            {'position': {'$regex': re.escape(search), '$options': 'i'}},
         ]
 
     total = await db.hrms_employees.count_documents(query)

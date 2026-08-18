@@ -115,6 +115,7 @@ def _generate_rest_router(collections: list, prefix: str, auth: str, features: l
         'from pydantic import BaseModel, Field',
         'from db import db',
         'import uuid',
+        'import re',
         'from datetime import datetime, timezone',
         '',
         auth_import,
@@ -186,7 +187,7 @@ def _generate_rest_router(collections: list, prefix: str, auth: str, features: l
         lines.append(f'    q: Dict[str, Any] = {{}}')
         if has_filtering:
             lines.append(f'    if search:')
-            lines.append(f'        q["$or"] = [{{k: {{\"$regex\": search, \"$options\": \"i\"}}}} for k in {json.dumps([f for f in fields.keys() if fields[f].get("python_type") == "str"])}]')
+            lines.append(f'        q["$or"] = [{{k: {{\"$regex\": re.escape(search), \"$options\": \"i\"}}}} for k in {json.dumps([f for f in fields.keys() if fields[f].get("python_type") == "str"])}]')
         if has_sorting:
             lines.append(f'    sort_dir = sort_by if sort_by else "created_at"')
             lines.append(f'    cursor = db.{name}.find(q, {{"_id": 0}}).sort(sort_dir, sort_order)')
