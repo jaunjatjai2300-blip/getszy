@@ -10,6 +10,9 @@ RUN yarn install --frozen-lockfile || yarn install
 # Copy source and build
 COPY frontend/ ./
 
+# Do not fail production build on lint warnings (e.g. exhaustive-deps)
+ENV CI=false
+
 # REACT_APP_BACKEND_URL injected at build time from .env on host
 ARG REACT_APP_BACKEND_URL
 ENV REACT_APP_BACKEND_URL=${REACT_APP_BACKEND_URL}
