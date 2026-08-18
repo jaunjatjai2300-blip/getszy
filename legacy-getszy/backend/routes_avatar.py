@@ -95,6 +95,8 @@ async def voice_clone(
         raise HTTPException(status_code=503, detail='Voice clone needs HF_TOKEN. Get free token at huggingface.co/settings/tokens')
 
     audio_data = await reference_audio.read()
+    if len(audio_data) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail='Reference audio too large (max 25 MB)')
     if len(audio_data) < 10_000:
         raise HTTPException(status_code=400, detail='Reference audio too short. Upload at least 10 seconds of clear speech.')
 
@@ -137,6 +139,8 @@ async def generate_avatar(
 
     portrait_data = await portrait.read()
     audio_data = await audio.read()
+    if len(portrait_data) > 15 * 1024 * 1024 or len(audio_data) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail='Upload too large (max 15 MB image / 25 MB audio)')
 
     portrait_path = _save_upload(portrait_data, 'jpg')
     audio_path = _save_upload(audio_data, 'wav')

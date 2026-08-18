@@ -93,6 +93,8 @@ async def remove_background(file: UploadFile = File(...), user=Depends(get_curre
         img_bytes = await file.read()
         if len(img_bytes) < 100:
             raise HTTPException(status_code=400, detail='Image too small')
+        if len(img_bytes) > 15 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail='Image too large (max 15 MB)')
 
         # Use Pollinations to process: send as base64 data URL
         b64 = base64.b64encode(img_bytes).decode()
@@ -160,6 +162,8 @@ async def generate_heatmap(file: UploadFile = File(...), user=Depends(get_curren
         img_bytes = await file.read()
         if len(img_bytes) < 100:
             raise HTTPException(status_code=400, detail='Image too small')
+        if len(img_bytes) > 15 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail='Image too large (max 15 MB)')
 
         asset_id = str(uuid.uuid4())
 
@@ -245,6 +249,8 @@ async def upscale_image(file: UploadFile = File(...), user=Depends(get_current_u
         img_bytes = await file.read()
         if len(img_bytes) < 100:
             raise HTTPException(status_code=400, detail='Image too small')
+        if len(img_bytes) > 15 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail='Image too large (max 15 MB)')
 
         asset_id = str(uuid.uuid4())
 
