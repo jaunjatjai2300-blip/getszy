@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Request
 from db import db
-from models import SignupIn, LoginIn, User, UserOut
+from models import SignupIn, LoginIn, User, UserOut, ProfileUpdate, PasswordChange
 from auth import hash_password, verify_password, create_token, get_current_user
 from live_events import broadcast_admin_event
 from anomaly import record_login_failure
@@ -147,3 +147,29 @@ async def me(user=Depends(get_current_user)):
     out['subscription'] = {**sub, 'quota': plan_features(sub['plan'])}
     out['credits'] = int(user.get('credits', 0) or 0)
     return out
+
+
+@router.put('/me')
+async def update_me(body: ProfileUpdate, user=Depends(get_current_user)):
+    update = {}
+    if body.name is not None and body.name.strip():
+        update['name'] = body.name.strip()
+    if body.phone is not None:
+        update['phone'] = body.phone
+    if not update:
+        raise HTTPException(status_code=400, detail='Nothing to update')
+    await db.users.update_one({'id': user['id']}, {'$set': update})
+    updated = await db.users.find_one({'id': user['id']})
+    return await me(updated)
+
+
+@router.post('/me/password')
+async def change_password(body: PasswordChange, user=Depends(get_current_user)):
+    if not verify_password(body.current_password, user['password_hash']):
+        raise HTTPException(status_code=400, detail='Current password is incorrect')
+    _validate_password(body.new_password)
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'password_hash': hash_password(body.new_password)}},
+    )
+    return {'ok': True}

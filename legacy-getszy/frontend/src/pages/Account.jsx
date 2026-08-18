@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Package, GraduationCap, Coins, Gift, ArrowRight, Crown,
   Sparkles, ShoppingBag, BookOpen, Copy, Check, ExternalLink,
+  Award, MessageSquare, Pencil, Save, Lock, Loader2,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -19,32 +20,71 @@ const STATUS_COLORS = {
 };
 
 export default function Account() {
-  const { user, loading } = useAuth();
+  const { user, loading, refresh } = useAuth();
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [sub, setSub] = useState(null);
   const [refs, setRefs] = useState(null);
+  const [sessions, setSessions] = useState([]);
   const [busy, setBusy] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [pwBusy, setPwBusy] = useState(false);
+  const [nameField, setNameField] = useState("");
+  const [phoneField, setPhoneField] = useState("");
+  const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
 
   useEffect(() => {
     if (!loading && !user) navigate("/login");
     if (user) {
+      setNameField(user.name || "");
+      setPhoneField(user.phone || "");
       Promise.allSettled([
         api.get("/orders/mine"),
         api.get("/me/enrollments"),
         api.get("/me/subscription"),
         api.get("/auth/referrals"),
-      ]).then(([o, e, s, r]) => {
+        api.get("/agents/sessions"),
+      ]).then(([o, e, s, r, a]) => {
         if (o.status === "fulfilled") setOrders(o.value.data || []);
         if (e.status === "fulfilled") setEnrollments(e.value.data || []);
         if (s.status === "fulfilled") setSub(s.value.data);
         if (r.status === "fulfilled") setRefs(r.value.data);
+        if (a.status === "fulfilled") setSessions(a.value.data?.sessions || []);
         setBusy(false);
       });
     }
   }, [user, loading, navigate]);
+
+  const certificates = enrollments.filter((e) => (e.progress || 0) >= 1);
+
+  const saveProfile = async () => {
+    setSaving(true);
+    try {
+      await api.put("/auth/me", { name: nameField, phone: phoneField });
+      await refresh();
+      toast.success("Profile updated");
+    } catch {
+      toast.error("Could not update profile");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const changePassword = async () => {
+    if (pw.next !== pw.confirm) { toast.error("New passwords don't match"); return; }
+    setPwBusy(true);
+    try {
+      await api.post("/auth/me/password", { current_password: pw.current, new_password: pw.next });
+      toast.success("Password changed");
+      setPw({ current: "", next: "", confirm: "" });
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Could not change password");
+    } finally {
+      setPwBusy(false);
+    }
+  };
 
   const cancelSub = async () => {
     if (!window.confirm("Cancel subscription? You'll keep access until period end.")) return;
@@ -158,6 +198,52 @@ export default function Account() {
                   </div>
                 )}
               </section>
+
+              <section className="gs-card p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="font-display text-lg flex items-center gap-2"><Award className="h-4 w-4 text-[var(--gs-teal)]" /> Certificates</h2>
+                  <Link to="/academy" className="text-xs text-[var(--gs-teal)] flex items-center gap-1 hover:underline">Academy <ArrowRight className="h-3 w-3" /></Link>
+                </div>
+                {certificates.length === 0 ? (
+                  <div className="text-center py-8 text-[var(--gs-muted)] text-sm">Complete a course to earn your first certificate.</div>
+                ) : (
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {certificates.slice(0, 4).map((e) => (
+                      <a key={e.id} href={`/api/me/courses/${e.course_slug}/certificate`} target="_blank" rel="noreferrer" className="gs-card gs-card-hover p-3 flex items-center gap-3">
+                        <span className="h-9 w-9 rounded-lg bg-emerald-100 text-emerald-700 grid place-items-center"><Award className="h-4 w-4" /></span>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-sm truncate">{e.course?.title || e.course_slug}</div>
+                          <div className="text-xs text-[var(--gs-muted)]">100% complete · View certificate</div>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="gs-card p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="font-display text-lg flex items-center gap-2"><MessageSquare className="h-4 w-4 text-[var(--gs-teal)]" /> Recent AI Chats</h2>
+                  <Link to="/ai-agents" className="text-xs text-[var(--gs-teal)] flex items-center gap-1 hover:underline">All agents <ArrowRight className="h-3 w-3" /></Link>
+                </div>
+                {sessions.length === 0 ? (
+                  <div className="text-center py-8 text-[var(--gs-muted)] text-sm">No AI chats yet — try Neo or an AI agent.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {sessions.slice(0, 5).map((s) => (
+                      <Link key={s.session_id} to="/ai-agents" className="flex items-center gap-3 p-3 rounded-xl hover:bg-[var(--gs-bg,#f8fafc)]" style={{ border: "1px solid var(--gs-border)" }}>
+                        <span className="h-9 w-9 rounded-lg bg-[var(--gs-teal-bg,#e6fffb)] grid place-items-center text-lg shrink-0">{s.agent_avatar || "🤖"}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium truncate">{s.agent_name || "AI Agent"}</div>
+                          <div className="text-xs text-[var(--gs-muted)] truncate">{s.last_message || "Continue conversation"}</div>
+                        </div>
+                        <span className="text-xs text-[var(--gs-muted)] shrink-0">{s.created_at ? new Date(s.created_at).toLocaleDateString() : ""}</span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </section>
+
             </div>
 
             {/* Right: referral + plan + quick links */}
@@ -209,10 +295,33 @@ export default function Account() {
               <TabsTrigger value="profile">Profile</TabsTrigger>
             </TabsList>
             <TabsContent value="profile" className="mt-4">
-              <div className="gs-card p-6 max-w-md">
-                <div className="text-sm text-[var(--gs-muted)]">Name</div><div className="font-semibold mb-3">{user.name}</div>
-                <div className="text-sm text-[var(--gs-muted)]">Email</div><div className="font-semibold mb-3">{user.email}</div>
-                <div className="text-sm text-[var(--gs-muted)]">Credits</div><div className="font-semibold">{credits}</div>
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="gs-card p-6">
+                  <div className="flex items-center gap-2 mb-4"><Pencil className="h-4 w-4 text-[var(--gs-teal)]" /><h3 className="font-display text-lg">Profile details</h3></div>
+                  <label className="block text-sm text-[var(--gs-muted)] mb-1">Name</label>
+                  <input value={nameField} onChange={(e) => setNameField(e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm mb-4" style={{ borderColor: "var(--gs-border)" }} />
+                  <label className="block text-sm text-[var(--gs-muted)] mb-1">Phone</label>
+                  <input value={phoneField} onChange={(e) => setPhoneField(e.target.value)} placeholder="Optional" className="w-full px-3 py-2 rounded-lg border text-sm mb-4" style={{ borderColor: "var(--gs-border)" }} />
+                  <div className="text-sm text-[var(--gs-muted)] mb-1">Email</div>
+                  <div className="font-semibold mb-4">{user.email}</div>
+                  <Button onClick={saveProfile} disabled={saving} className="bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]/90">
+                    {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />} Save changes
+                  </Button>
+                </div>
+
+                <div className="gs-card p-6">
+                  <div className="flex items-center gap-2 mb-4"><Lock className="h-4 w-4 text-[var(--gs-teal)]" /><h3 className="font-display text-lg">Change password</h3></div>
+                  <label className="block text-sm text-[var(--gs-muted)] mb-1">Current password</label>
+                  <input type="password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} className="w-full px-3 py-2 rounded-lg border text-sm mb-3" style={{ borderColor: "var(--gs-border)" }} />
+                  <label className="block text-sm text-[var(--gs-muted)] mb-1">New password</label>
+                  <input type="password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} className="w-full px-3 py-2 rounded-lg border text-sm mb-3" style={{ borderColor: "var(--gs-border)" }} />
+                  <label className="block text-sm text-[var(--gs-muted)] mb-1">Confirm new password</label>
+                  <input type="password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} className="w-full px-3 py-2 rounded-lg border text-sm mb-4" style={{ borderColor: "var(--gs-border)" }} />
+                  <Button onClick={changePassword} disabled={pwBusy} variant="outline" className="text-[var(--gs-teal)]">
+                    {pwBusy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Lock className="h-4 w-4 mr-1" />} Update password
+                  </Button>
+                  <p className="text-xs text-[var(--gs-muted)] mt-3">Password must be 8+ chars with uppercase, lowercase & a number.</p>
+                </div>
               </div>
             </TabsContent>
           </Tabs>
