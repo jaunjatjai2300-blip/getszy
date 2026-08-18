@@ -1,0 +1,29 @@
+groups:
+  - name: production_platform_alerts
+    rules:
+      - alert: HighCPUSaturation
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected on instance {{ $labels.instance }}"
+          description: "CPU usage has been sustained above 85% for more than 5 minutes."
+
+      - alert: LowMemoryAvailable
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 15
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical memory shortage on {{ $labels.instance }}"
+          description: "Available RAM is below 15%. Risk of OOM killer termination."
+
+      - alert: HighAPIErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) * 100 > 2
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High HTTP 5xx Error Rate"
+          description: "API error rate exceeds 2% of total traffic over the last 5 minutes."
