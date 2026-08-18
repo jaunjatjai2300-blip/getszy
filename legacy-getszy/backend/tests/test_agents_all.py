@@ -35,14 +35,16 @@ def patch_db(monkeypatch):
 async def test_all_agents_aggregates(patch_db):
     from routes_agents import all_agents
     res = await all_agents(user={'id': 'u1'})
-    assert set(res.keys()) >= {'expert', 'workforce', 'custom', 'total'}
-    # 7 expert + 10 workforce (no custom for this user)
+    assert set(res.keys()) >= {'expert', 'workforce', 'vibecoders', 'custom', 'total'}
+    # 7 expert + 10 workforce + 8 vibecoders (no custom for this user)
     assert len(res['expert']) == 7
     assert len(res['workforce']) == 10
+    assert len(res['vibecoders']) == 8
     assert len(res['custom']) == 0
-    assert res['total'] == 17
+    assert res['total'] == 25
     assert all(a.get('type') == 'expert' for a in res['expert'])
     assert all(a.get('type') == 'workforce' for a in res['workforce'])
+    assert all(a.get('type') == 'vibecoders' for a in res['vibecoders'])
 
 @pytest.mark.asyncio
 async def test_all_agents_includes_custom(patch_db):
@@ -54,4 +56,4 @@ async def test_all_agents_includes_custom(patch_db):
     assert len(res['custom']) == 1
     assert res['custom'][0]['id'] == 'c1'
     assert res['custom'][0]['type'] == 'custom'
-    assert res['total'] == 18
+    assert res['total'] == 26

@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from auth import get_current_user, get_current_user_optional, get_current_admin
 from db import db
 from llm_provider import chat_completion
-from workforce.agents import AGENTS as WORKFORCE_AGENTS
+from workforce.agents import AGENTS as WORKFORCE_AGENTS, VIBE_AGENTS as VIBE_CODERS
 
 router = APIRouter(tags=['agents'])
 
@@ -141,15 +141,6 @@ async def list_agents(user=Depends(get_current_user)):
     return {'agents': AGENT_LIST}
 
 
-@router.get('/agents/{agent_id}')
-async def get_agent(agent_id: str, user=Depends(get_current_user)):
-    """Get details for a specific agent."""
-    agent = AGENTS.get(agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail='Agent not found')
-    return agent
-
-
 @router.get('/agents/all')
 async def all_agents(user=Depends(get_current_user_optional)):
     """All agents in one call: expert + AI workforce (public) + the user's custom agents (when logged in)."""
@@ -163,6 +154,17 @@ async def all_agents(user=Depends(get_current_user_optional)):
             'type': 'workforce',
         }
         for a in WORKFORCE_AGENTS
+    ]
+    vibecoders = [
+        {
+            'id': a['id'],
+            'name': a['name'],
+            'role': a.get('role'),
+            'icon': a.get('icon'),
+            'color': a.get('color'),
+            'type': 'vibecoders',
+        }
+        for a in VIBE_CODERS
     ]
     custom = []
     if user:
@@ -192,9 +194,53 @@ async def all_agents(user=Depends(get_current_user_optional)):
             for a in AGENT_LIST
         ],
         'workforce': workforce,
+        'vibecoders': vibecoders,
         'custom': custom,
-        'total': len(AGENT_LIST) + len(workforce) + len(custom),
+        'total': len(AGENT_LIST) + len(workforce) + len(vibecoders) + len(custom),
     }
+
+
+@router.get('/agents/{agent_id}')
+async def get_agent(agent_id: str, user=Depends(get_current_user)):
+    """Get details for a specific agent."""
+    agent = AGENTS.get(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail='Agent not found')
+    return agent
+
+
+@router.get('/agents/sessions')
+async def agent_sessions(user=Depends(get_current_user)):
+    """List all agent chat sessions for the user."""
+    pipeline = [
+        {'$match': {'user_id': user['id']}},
+        {'$sort': {'created_at': -1}},
+        {'$group': {
+            '_id': {'agent_id': '$agent_id', 'session_id': '$session_id'},
+            'last_message': {'$first': '$user_message'},
+            'last_response': {'$first': '$agent_response'},
+            'created_at': {'$first': '$created_at'},
+            'count': {'$sum': 1},
+        }},
+        {'$sort': {'created_at': -1}},
+        {'$limit': 50},
+    ]
+    results = await db.agent_chats.aggregate(pipeline).to_list(50)
+    sessions = []
+    for r in results:
+        gid = r['_id']
+        agent = AGENTS.get(gid['agent_id'], {})
+        sessions.append({
+            'agent_id': gid['agent_id'],
+            'session_id': gid['session_id'],
+            'agent_name': agent.get('name', gid['agent_id']),
+            'agent_avatar': agent.get('avatar', '🤖'),
+            'last_message': r.get('last_message', ''),
+            'last_response': r.get('last_response', ''),
+            'message_count': r.get('count', 0),
+            'created_at': r.get('created_at', ''),
+        })
+    return {'sessions': sessions}
 
 
 class AgentChatIn(BaseModel):
@@ -259,40 +305,6 @@ async def agent_history(agent_id: str, session_id: str = '', limit: int = 30, us
     items = [doc async for doc in cur]
     items.reverse()
     return {'items': items, 'session_id': session_id}
-
-
-@router.get('/agents/sessions')
-async def agent_sessions(user=Depends(get_current_user)):
-    """List all agent chat sessions for the user."""
-    pipeline = [
-        {'$match': {'user_id': user['id']}},
-        {'$sort': {'created_at': -1}},
-        {'$group': {
-            '_id': {'agent_id': '$agent_id', 'session_id': '$session_id'},
-            'last_message': {'$first': '$user_message'},
-            'last_response': {'$first': '$agent_response'},
-            'created_at': {'$first': '$created_at'},
-            'count': {'$sum': 1},
-        }},
-        {'$sort': {'created_at': -1}},
-        {'$limit': 50},
-    ]
-    results = await db.agent_chats.aggregate(pipeline).to_list(50)
-    sessions = []
-    for r in results:
-        gid = r['_id']
-        agent = AGENTS.get(gid['agent_id'], {})
-        sessions.append({
-            'agent_id': gid['agent_id'],
-            'session_id': gid['session_id'],
-            'agent_name': agent.get('name', gid['agent_id']),
-            'agent_avatar': agent.get('avatar', '🤖'),
-            'last_message': r.get('last_message', ''),
-            'last_response': r.get('last_response', ''),
-            'message_count': r.get('count', 0),
-            'created_at': r.get('created_at', ''),
-        })
-    return {'sessions': sessions}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

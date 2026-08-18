@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
-import { Sparkles, Bot, Wrench, UserPlus, Send } from "lucide-react";
+import { Sparkles, Bot, Wrench, UserPlus, Send, Wand2 } from "lucide-react";
 
 const TYPE_META = {
   expert: { label: "Expert Agents", icon: Bot, color: "#0ea5e9" },
   workforce: { label: "AI Workforce", icon: Wrench, color: "#7c3aed" },
+  vibecoders: { label: "Vibe Coding & Creators", icon: Wand2, color: "#16a34a" },
   custom: { label: "Your Custom Agents", icon: UserPlus, color: "#16a34a" },
 };
 
@@ -53,7 +54,7 @@ export default function AIAgents() {
       if (selected.type === "expert") {
         const res = await api.post(`/agents/${selected.id}/chat`, { message: text });
         out = res.data.response || "(no response)";
-      } else if (selected.type === "workforce") {
+      } else if (selected.type === "workforce" || selected.type === "vibecoders") {
         const res = await api.post(`/workforce/${selected.id}/task`, { params: { prompt: text } });
         out = fmtResult(res.data.output || res.data);
       } else {
@@ -90,7 +91,7 @@ export default function AIAgents() {
     );
   }
 
-  const sections = data ? ["expert", "workforce", "custom"].filter((k) => (data[k] || []).length) : [];
+  const sections = data ? ["expert", "workforce", "vibecoders", "custom"].filter((k) => (data[k] || []).length) : [];
 
   return (
     <div className="min-h-screen" style={{ background: "var(--gs-bg, #f8fafc)" }}>
