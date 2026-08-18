@@ -8,6 +8,22 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 
+def real_client_ip(request: Request) -> str:
+    """Resolve the true client IP even behind a proxy / Cloudflare.
+
+    Cloudflare populates `CF-Connecting-IP`; generic proxies use
+    `X-Forwarded-For` (comma-separated, client first). Falls back to the
+    direct peer (e.g. localhost / direct VPS traffic).
+    """
+    cf = request.headers.get('cf-connecting-ip')
+    if cf:
+        return cf.strip()
+    fwd = request.headers.get('x-forwarded-for')
+    if fwd:
+        return fwd.split(',')[0].strip()
+    return request.client.host if request.client else 'unknown'
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """In-memory sliding-window rate limiter (no Redis required)."""
 
@@ -24,7 +40,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             del self._hits[ip]
 
     async def dispatch(self, request: Request, call_next):
-        client_ip = request.client.host if request.client else 'unknown'
+        client_ip = real_client_ip(request)
         now = time.time()
         self._clean(client_ip, now)
         if len(self._hits.get(client_ip, [])) >= self.limit:
@@ -78,7 +94,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                         'path': str(request.url.path),
                         'status_code': response.status_code,
                         'duration': duration,
-                        'ip': request.client.host if request.client else 'unknown',
+                        'ip': real_client_ip(request),
                         'level': 'info',
                         'message': f"{request.method} {request.url.path} -> {response.status_code}",
                         'time': datetime.now(timezone.utc).isoformat(),
