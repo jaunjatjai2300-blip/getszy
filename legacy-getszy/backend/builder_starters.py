@@ -7,10 +7,13 @@ Generates real, ready-to-run starter zips:
 """
 import io
 import json
+import logging
 import re
 import zipfile
 from typing import Dict, Any, List
 from llm_provider import chat_completion
+
+logger = logging.getLogger(__name__)
 
 
 async def gen_mobileapp_zip(prompt: str, app_name: str) -> bytes:
@@ -121,7 +124,9 @@ def _parse_json(raw: str) -> Dict[str, Any] | None:
     s = raw.find('{'); e = raw.rfind('}')
     if s == -1: return None
     try: return json.loads(raw[s:e+1])
-    except Exception: return None
+    except Exception as e:
+        logger.warning('builder_starters: failed to build starter: %s', e, exc_info=True)
+        return None
 
 
 def _slug(s: str) -> str:

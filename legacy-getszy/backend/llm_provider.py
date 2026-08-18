@@ -34,7 +34,7 @@ EMERGENT_MODEL   = os.environ.get('EMERGENT_MODEL', 'gpt-4o-mini')
 # Ollama model chain — try primary, then fallbacks
 OLLAMA_MODELS = []
 _primary = os.environ.get('OLLAMA_MODEL', 'qwen2.5:7b').strip()
-_second  = os.environ.get('OLLAMA_MODEL_2', 'qwen2.5-coder:14b').strip()
+_second  = os.environ.get('OLLAMA_MODEL_2', 'qwen2.5-coder:7b').strip()
 _third   = os.environ.get('OLLAMA_MODEL_3', 'llama3.2:3b').strip()
 if _primary:
     OLLAMA_MODELS.append(_primary)
@@ -85,7 +85,7 @@ def _truncate(text: str, limit: int = _MAX_CHARS_PER_MSG) -> str:
     tail = limit - head - 40
     return text[:head] + "\n\n...[truncated for token limit]...\n\n" + text[-tail:]
 
-async def _groq(system: str, user: str, temperature: float) -> str:
+async def _groq(system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
     system = _truncate(system)
     user = _truncate(user)
     async with httpx.AsyncClient(timeout=60.0) as client:
@@ -99,31 +99,34 @@ async def _groq(system: str, user: str, temperature: float) -> str:
                     {'role': 'user', 'content': user},
                 ],
                 'temperature': temperature,
-                'max_tokens': 4096,
+                'max_tokens': max_tokens or 4096,
             },
         )
         r.raise_for_status()
         return r.json()['choices'][0]['message']['content']
 
 
-async def _gemini(system: str, user: str, temperature: float) -> str:
+async def _gemini(system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
     async with httpx.AsyncClient(timeout=60.0) as client:
         r = await client.post(
             f'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}',
             json={
                 'system_instruction': {'parts': [{'text': system}]},
                 'contents': [{'parts': [{'text': user}]}],
-                'generationConfig': {'temperature': temperature, 'maxOutputTokens': 2048},
+                'generationConfig': {'temperature': temperature, 'maxOutputTokens': max_tokens or 2048},
             },
         )
         r.raise_for_status()
         return r.json()['candidates'][0]['content']['parts'][0]['text']
 
 
-async def _ollama_single(model: str, system: str, user: str, temperature: float) -> str:
+async def _ollama_single(model: str, system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
     headers = {}
     if OLLAMA_SECRET:
         headers['Authorization'] = f'Bearer {OLLAMA_SECRET}'
+    options = {'temperature': temperature}
+    if max_tokens:
+        options['num_predict'] = max_tokens
     async with httpx.AsyncClient(timeout=90.0) as client:
         r = await client.post(
             f'{OLLAMA_BASE_URL}/api/chat',
@@ -135,14 +138,14 @@ async def _ollama_single(model: str, system: str, user: str, temperature: float)
                     {'role': 'user', 'content': user},
                 ],
                 'stream': False,
-                'options': {'temperature': temperature},
+                'options': options,
             },
         )
         r.raise_for_status()
         return r.json().get('message', {}).get('content', '')
 
 
-async def _lmstudio(system: str, user: str, temperature: float) -> str:
+async def _lmstudio(system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
     async with httpx.AsyncClient(timeout=120.0) as client:
         r = await client.post(
             f'{LMSTUDIO_BASE_URL}/chat/completions',
@@ -153,7 +156,7 @@ async def _lmstudio(system: str, user: str, temperature: float) -> str:
                     {'role': 'user', 'content': user},
                 ],
                 'temperature': temperature,
-                'max_tokens': 4096,
+                'max_tokens': max_tokens or 4096,
                 'stream': False,
             },
         )
@@ -161,12 +164,12 @@ async def _lmstudio(system: str, user: str, temperature: float) -> str:
         return r.json()['choices'][0]['message']['content']
 
 
-async def _ollama_chain(system: str, user: str, temperature: float) -> str:
+async def _ollama_chain(system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
     """Try each Ollama model in order until one works."""
     last_error = None
     for model in OLLAMA_MODELS:
         try:
-            result = await _ollama_single(model, system, user, temperature)
+            result = await _ollama_single(model, system, user, temperature, max_tokens)
             logger.info(f'LLM: ollama ({model})')
             return result
         except Exception as e:
@@ -190,7 +193,7 @@ async def _emergent(system: str, user: str, session_id: str) -> str:
     return await chat.send_message(UserMessage(text=user))
 
 
-async def _openrouter(system: str, user: str, temperature: float) -> str:
+async def _openrouter(system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
     async with httpx.AsyncClient(timeout=60.0) as client:
         r = await client.post(
             'https://openrouter.ai/api/v1/chat/completions',
@@ -206,7 +209,7 @@ async def _openrouter(system: str, user: str, temperature: float) -> str:
                     {'role': 'user', 'content': user},
                 ],
                 'temperature': temperature,
-                'max_tokens': 4096,
+                'max_tokens': max_tokens or 4096,
             },
         )
         r.raise_for_status()
@@ -218,24 +221,24 @@ async def _openrouter(system: str, user: str, temperature: float) -> str:
 # still attempted first when available because they are 100% free & unlimited.
 LLM_PROVIDER = os.environ.get('LLM_PROVIDER', '').strip().lower()
 
-def _build_chain(system, user, temperature, session_id) -> list:
+def _build_chain(system, user, temperature, session_id, max_tokens: int | None = None) -> list:
     """Return an ordered list of (name, coroutine-factory) to try."""
     chain = []
 
     # Always offer local free providers first when configured
     if OLLAMA_MODELS:
-        chain.append(('ollama', lambda: _ollama_chain(system, user, temperature)))
-    chain.append(('lmstudio', lambda: _lmstudio(system, user, temperature)))
+        chain.append(('ollama', lambda: _ollama_chain(system, user, temperature, max_tokens)))
+    chain.append(('lmstudio', lambda: _lmstudio(system, user, temperature, max_tokens)))
 
     # Cloud free providers
     if GROQ_API_KEY and _under_limit('groq'):
-        chain.append(('groq', lambda: _groq(system, user, temperature)))
+        chain.append(('groq', lambda: _groq(system, user, temperature, max_tokens)))
     if GEMINI_API_KEY and _under_limit('gemini'):
-        chain.append(('gemini', lambda: _gemini(system, user, temperature)))
+        chain.append(('gemini', lambda: _gemini(system, user, temperature, max_tokens)))
 
     # Paid providers (only when not in FREE_ONLY mode)
     if OPENROUTER_API_KEY and not FREE_ONLY:
-        chain.append(('openrouter', lambda: _openrouter(system, user, temperature)))
+        chain.append(('openrouter', lambda: _openrouter(system, user, temperature, max_tokens)))
     if EMERGENT_LLM_KEY and not FREE_ONLY:
         chain.append(('emergent', lambda: _emergent(system, user, session_id)))
 
@@ -255,10 +258,11 @@ async def chat_completion(
     user: str,
     session_id: str | None = None,
     temperature: float = 0.4,
+    max_tokens: int | None = None,
 ) -> str:
     session_id = session_id or str(uuid.uuid4())
 
-    chain = _build_chain(system, user, temperature, session_id)
+    chain = _build_chain(system, user, temperature, session_id, max_tokens)
     last_error = None
     for name, fn in chain:
         try:
