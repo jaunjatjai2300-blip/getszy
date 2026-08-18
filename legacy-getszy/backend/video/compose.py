@@ -7,7 +7,10 @@ import json
 import os
 import shlex
 from typing import List, Dict, Any
+import logging
 from video.ffmpeg_bin import FFMPEG
+
+logger = logging.getLogger(__name__)
 
 VIDEO_DIR = os.path.join(os.path.dirname(__file__), '..', 'media_cache', 'videos')
 os.makedirs(VIDEO_DIR, exist_ok=True)
@@ -94,7 +97,7 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
             _, err = await asyncio.wait_for(proc.communicate(), timeout=45)
         except asyncio.TimeoutError:
             try: proc.kill()
-            except Exception: pass
+            except Exception as e: logger.warning('video compose step failed: %s', e, exc_info=True)
             err = b'timeout'
         if proc.returncode != 0:
             # Simpler fallback: static scale only (no zoompan), still keep captions if requested
@@ -108,7 +111,7 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
                 _, err2 = await asyncio.wait_for(proc.communicate(), timeout=30)
             except asyncio.TimeoutError:
                 try: proc.kill()
-                except Exception: pass
+                except Exception as e: logger.warning('video compose step failed: %s', e, exc_info=True)
                 err2 = b'timeout'
             if proc.returncode != 0:
                 print(f'[compose] clip {i} FAILED (both zoompan+fallback). err1={(err or b"")[:300]!r} err2={(err2 or b"")[:300]!r} img={img}')
@@ -131,7 +134,7 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
         _, err = await asyncio.wait_for(proc.communicate(), timeout=45)
     except asyncio.TimeoutError:
         try: proc.kill()
-        except Exception: pass
+        except Exception as e: logger.warning('video compose step failed: %s', e, exc_info=True)
         err = b'concat timeout'
     if proc.returncode != 0:
         return {'error': f'concat failed: {(err or b"")[:200].decode("utf-8", "ignore")}'}
@@ -145,7 +148,7 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
         _, err = await asyncio.wait_for(proc.communicate(), timeout=45)
     except asyncio.TimeoutError:
         try: proc.kill()
-        except Exception: pass
+        except Exception as e: logger.warning('video compose step failed: %s', e, exc_info=True)
         err = b'mux timeout'
     if proc.returncode != 0:
         # If mux failed, at least save the silent version so user gets SOMETHING (but flag it)
@@ -158,13 +161,13 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
     # Cleanup tmp
     for cp in clip_paths:
         try: os.remove(cp)
-        except Exception: pass
+        except Exception as e: logger.warning('video compose step failed: %s', e, exc_info=True)
     try: os.remove(concat_list)
-    except Exception: pass
+    except Exception as e: logger.warning('video compose step failed: %s', e, exc_info=True)
     try: os.remove(silent_concat)
-    except Exception: pass
+    except Exception as e: logger.warning('video compose step failed: %s', e, exc_info=True)
     try: os.rmdir(tmp_dir)
-    except Exception: pass
+    except Exception as e: logger.warning('video compose step failed: %s', e, exc_info=True)
     return {'path': out_path, 'scenes': len(clip_paths)}
 
 

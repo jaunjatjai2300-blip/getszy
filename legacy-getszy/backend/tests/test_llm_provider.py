@@ -92,7 +92,7 @@ class TestLLMProviderChatCompletion:
         monkeypatch.setattr(llm_provider, 'FREE_ONLY', False)
         monkeypatch.setattr(
             llm_provider, '_groq',
-            lambda system, user, temperature: __import__('asyncio').sleep(0, result='pong'),
+            lambda system, user, temperature, max_tokens=None: __import__('asyncio').sleep(0, result='pong'),
         )
 
         async def fake_ollama(*a, **k):
