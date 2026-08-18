@@ -69,7 +69,7 @@ class FakeManager:
         self.sent.append((uid, msg))
 
 
-def test_record_login_failure_auto_blocks_after_threshold():
+def test_record_login_failure_auto_blocks_after_threshold(monkeypatch):
     recent = [{'ip': '1.2.3.4', 'email': 'a@b.com', 'ts': '2024-01-01T00:00:00+00:00'} for _ in range(5)]
     db = FakeDB(audit_items=recent, users=[{'id': 'admin1'}])
     anomaly.db = db
@@ -77,7 +77,7 @@ def test_record_login_failure_auto_blocks_after_threshold():
     mgr = FakeManager()
     websocket_manager.manager = mgr
     import live_events
-    live_events.broadcast_admin_event = lambda *a, **k: None
+    monkeypatch.setattr(live_events, 'broadcast_admin_event', lambda *a, **k: None)
 
     blocked = asyncio.run(anomaly.record_login_failure('1.2.3.4', 'a@b.com'))
 
@@ -89,14 +89,14 @@ def test_record_login_failure_auto_blocks_after_threshold():
     assert len(mgr.sent) == 1
 
 
-def test_record_login_failure_no_block_below_threshold():
+def test_record_login_failure_no_block_below_threshold(monkeypatch):
     recent = [{'ip': '1.2.3.4', 'email': 'a@b.com', 'ts': '2024-01-01T00:00:00+00:00'} for _ in range(2)]
     db = FakeDB(audit_items=recent)
     anomaly.db = db
     import websocket_manager
     websocket_manager.manager = FakeManager()
     import live_events
-    live_events.broadcast_admin_event = lambda *a, **k: None
+    monkeypatch.setattr(live_events, 'broadcast_admin_event', lambda *a, **k: None)
 
     blocked = asyncio.run(anomaly.record_login_failure('1.2.3.4', 'a@b.com'))
     assert blocked is False
