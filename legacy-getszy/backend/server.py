@@ -164,6 +164,21 @@ async def startup():
     await db.builder_projects.create_index('user_id')
     await db.custom_agents.create_index('user_id')
     await db.deploy_jobs.create_index('created_at')
+    # ── DB-audit additions: perf + de-duplication ────────────────────────────
+    await db.subscriptions.create_index([('user_id', 1), ('status', 1)])
+    await db.agent_chats.create_index([('user_id', 1), ('agent_id', 1), ('created_at', -1)])
+    await db.referrals.create_index('referrer_id')
+    await db.enrollments.create_index('course_slug')
+    # Unique slugs/refs — non-fatal if legacy duplicates exist (logged, not crashed)
+    try:
+        await db.courses.create_index('slug', unique=True)
+    except Exception as e:
+        logger.warning(f'courses.slug unique index skipped (duplicate slugs?): {e}')
+    try:
+        await db.users.create_index('referral_code', unique=True,
+                                    partialFilterExpression={'referral_code': {'$exists': True, '$ne': None}})
+    except Exception as e:
+        logger.warning(f'users.referral_code unique index skipped: {e}')
     logger.info('indexes ensured')
 
 
