@@ -4,6 +4,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 import os
 import logging
+import asyncio
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent
@@ -82,10 +83,14 @@ configure_logging(os.environ.get('LOG_LEVEL', 'INFO'))
 logger = logging.getLogger('getszy')
 
 
+from retention import _install_createdAt_stamp
+
+
 @app.on_event('startup')
 async def startup():
     logger.info('getszy backend starting')
     init_monitoring()
+    _install_createdAt_stamp()
     from seed import seed_if_empty, seed_courses_if_empty
     await seed_if_empty()
     await seed_courses_if_empty()
@@ -152,7 +157,15 @@ async def startup():
     await db.carts.create_index('user_id', unique=True)
     await db.notifications.create_index([('user_id', 1), ('created_at', -1)])
     await db.video_jobs.create_index('user_id')
-    await db.request_logs.create_index('timestamp', expireAfterSeconds=604800)
+    # TTL retention indexes. MongoDB TTL only expires docs whose indexed field is a
+    # real BSON Date. _install_createdAt_stamp() (below) guarantees every insert to
+    # these collections carries a 'createdAt' datetime, so expiry actually runs.
+    # (The old request_logs index lived on a *string* 'timestamp' field and never fired.)
+    await db.request_logs.create_index('createdAt', expireAfterSeconds=7 * 86400)
+    await db.audit_logs.create_index('createdAt', expireAfterSeconds=90 * 86400)
+    await db.video_jobs.create_index('createdAt', expireAfterSeconds=30 * 86400)
+    await db.deploy_jobs.create_index('createdAt', expireAfterSeconds=30 * 86400)
+    await db.credit_transactions.create_index('createdAt', expireAfterSeconds=365 * 86400)
     # New indexes from audit
     await db.credit_transactions.create_index('user_id')
     await db.credit_transactions.create_index('created_at')
@@ -180,6 +193,12 @@ async def startup():
     except Exception as e:
         logger.warning(f'users.referral_code unique index skipped: {e}')
     logger.info('indexes ensured')
+    # Launch automated nightly backup (first run ~10 min after start)
+    try:
+        from backup import backup_scheduler
+        asyncio.create_task(backup_scheduler())
+    except Exception as e:
+        logger.error(f'could not start backup scheduler: {e}')
 
 
 @app.on_event('shutdown')
