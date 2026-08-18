@@ -43,7 +43,7 @@ are operational (not code) and block *full* sign-off until closed.
 |------|-------|-----------|
 | S3 off-site + GFS weekly/monthly backups | ✅ Implemented (enable `BACKUP_S3_BUCKET` in deploy env) | Closed |
 | DNS failover configuration | Infra/you | Yes for HA claim |
-| Frontend CSP on served HTML (Caddy) | ✅ Reference Caddyfile at `deploy/caddy/Caddyfile`; apply on server | Soft |
+| Frontend CSP on served HTML (Caddy) | ✅ Headers (CSP/HSTS/nosniff) added to canonical `deploy/Caddyfile` | Closed |
 | Verify AI-builder endpoint path vs backend | ✅ Resolved (`aiBuilder.js` → `/api/ai-tools/chat/completions`, JSON parsing) | Closed |
 
 ## Certification statement

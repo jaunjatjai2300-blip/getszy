@@ -147,3 +147,26 @@ docker compose restart backend
 ```
 
 Revert by setting `OLLAMA_MODEL` back to `qwen2.5:7b`.
+
+---
+
+## DNS Failover (optional, for the HA claim)
+
+The stack is single-region by default. To claim HA / satisfy the failover gate,
+add a standby VPS and a health-check-based DNS failover:
+
+1. Stand up a **second VPS** (different provider/region is ideal). Install the same
+   stack there: `docker compose up -d`, the webhook listener (systemd or the
+   `Dockerfile.webhook` container), and Caddy. Point it at the same Mongo
+   (replica set) and the same object storage so state survives a failover.
+2. Use a DNS provider with health checks:
+   - **Cloudflare:** create a Load Balancer (or "Health Check" monitor) on
+     `https://getszy.com/api/health` and fail the pool over to the standby origin.
+   - **Route53:** create a health check on `/api/health`, attach it to the primary
+     A record, and set a **failover (secondary)** record to the standby IP.
+3. Keep **TTL low** (60s) on the A/AAAA records so failover converges quickly.
+4. Verify: `curl https://getszy.com/api/health` returns `200` on both origins
+   while healthy; stop the primary and confirm traffic shifts to the standby.
+
+> Note: off-site backups (see `backup.py` + `BACKUP_S3_BUCKET`) already cover data
+> durability; DNS failover covers availability.
