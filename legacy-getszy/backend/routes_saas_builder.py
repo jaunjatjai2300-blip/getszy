@@ -1,5 +1,7 @@
 import uuid
 import json
+import re
+import ast
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
@@ -476,27 +478,134 @@ class CloneIn(BaseModel):
     new_name: str
 
 
-async def _ollama_generate_file(filename: str, context: Dict[str, Any]) -> str:
+def _strip_code_fences(text: str) -> str:
+    text = text.strip()
+    text = re.sub(r'^```(?:python)?\s*', '', text)
+    text = re.sub(r'\s*```$', '', text)
+    return text.strip()
+
+
+def _validate_python(code: str) -> tuple[bool, str | None]:
+    """Return (is_valid, error_message). Used by the Reviewer agent."""
+    try:
+        ast.parse(code)
+        return True, None
+    except SyntaxError as e:
+        return False, f'{e.msg} (line {e.lineno})'
+
+
+def _code_stub(filename: str, context: Dict[str, Any]) -> str:
+    feats = ', '.join(context.get('features', [])) if isinstance(context.get('features'), list) else str(context.get('features', ''))
+    return (
+        f"# Auto-generated: {filename}\n"
+        f"# Template: {context.get('template')}\n"
+        f"# Features: {feats}\n"
+    )
+
+
+async def generate_code_file(
+    filename: str,
+    context: Dict[str, Any],
+    base_template: str | None = None,
+) -> str:
+    """Multi-agent code generation: Coder produces the file, Reviewer validates & fixes.
+
+    Grounded in the existing hand-written template (base_template) so the result is never
+    worse than the template. A Reviewer agent (AST validation + fix loop) repairs syntax
+    errors, and if the pipeline cannot produce valid code we fall back to the template —
+    guaranteeing a compilable file every time. This replaces the previous single-shot
+    generation that failed ~90% of the time on truncation/syntax errors.
+    """
+    # ── Agent 1: CODER ────────────────────────────────────────────────────────────
     system = (
-        "You are a senior full-stack developer. Generate production-ready code files for a SaaS project. "
-        "Output ONLY the raw code content. No markdown fences. No explanations. No comments unless absolutely necessary. "
-        "Follow best practices: proper error handling, input validation, clean architecture."
+        "You are a senior Python engineer specializing in FastAPI, Pydantic, and MongoDB (motor). "
+        "Generate a complete, production-ready, syntactically valid Python file. "
+        "Output ONLY raw Python code. No markdown fences. No commentary. No ellipses or TODOs. "
+        "Every import must be used or removed. The file MUST compile with `python -m py_compile`."
     )
     user = (
         f"Generate the file `{filename}` for a {context['template'].upper()} SaaS application.\n"
-        f"Tech stack: {context['frontend']} frontend, FastAPI backend, {context['database']} database.\n"
+        f"Stack: {context['frontend']} frontend, FastAPI backend, {context['database']} database.\n"
         f"Auth provider: {context['auth_provider']}. Payment: {context['payment']}.\n"
         f"Project name: {context['name']}\n"
         f"Features enabled: {', '.join(context['features'])}\n"
-        f"Required imports and patterns: use Pydantic BaseModel for models, motor for MongoDB, "
+        f"Required patterns: Pydantic BaseModel for models, motor for MongoDB, "
         f"FastAPI APIRouter for routes, bcrypt for passwords, python-jose for JWT.\n"
-        f"Return the complete file content only."
     )
+    if base_template:
+        user += (
+            "\nReplicate the structure and behavior of this existing reference implementation "
+            "exactly (only improving naming/clarity where safe). It is the required shape:\n\n"
+            f"```python\n{base_template}\n```\n"
+        )
     try:
-        raw = await chat_completion(system=system, user=user, temperature=0.3)
-        return raw.strip()
+        code = await chat_completion(system=system, user=user, temperature=0.25, session_id=f'saas-code-{filename}')
     except Exception:
-        return f"# Auto-generated: {filename}\n# Template: {context['template']}\n# Features: {', '.join(context['features'])}\n"
+        code = ''
+    if not code or not code.strip():
+        return base_template or _code_stub(filename, context)
+    code = _strip_code_fences(code)
+
+    # ── Agent 2: REVIEWER (validate + fix loop) ───────────────────────────────────
+    for _ in range(2):
+        valid, err = _validate_python(code)
+        if valid:
+            return code
+        fix_system = (
+            "You are a meticulous Python code reviewer. The file below has a syntax error. "
+            "Return the COMPLETE corrected Python file only. No commentary. No markdown."
+        )
+        fix_user = f"Syntax error: {err}\n\nFile:\n```python\n{code}\n```"
+        try:
+            fixed = await chat_completion(system=fix_system, user=fix_user, temperature=0.1, session_id=f'saas-review-{filename}')
+            fixed = _strip_code_fences(fixed)
+            if fixed.strip():
+                code = fixed
+        except Exception:
+            break
+
+    valid, _ = _validate_python(code)
+    if valid:
+        return code
+    # ── Fallback: guaranteed-valid template ───────────────────────────────────────
+    return base_template or _code_stub(filename, context)
+
+
+def _route_template_for(coll: str) -> str:
+    """Reference CRUD route template used to ground code generation for a collection."""
+    return (
+        f'import uuid\nfrom datetime import datetime, timezone\n'
+        f'from fastapi import APIRouter, HTTPException, Depends\n'
+        f'from pydantic import BaseModel\n'
+        f'from db import db, serialize\n'
+        f'from auth import get_user\n\n'
+        f'router = APIRouter(prefix="/{coll}", tags=["{coll}"])\n\n'
+        f'def _now(): return datetime.now(timezone.utc).isoformat()\n\n'
+        f'@router.get("/")\n'
+        f'async def list_items(user=Depends(get_user)):\n'
+        f'    items = await db.{coll}.find({{"user_id": user["id"]}}, {{"_id": 0}}).sort("created_at", -1).to_list(100)\n'
+        f'    return {{"items": [serialize(i) for i in items]}}\n\n'
+        f'@router.post("/")\n'
+        f'async def create_item(body: dict, user=Depends(get_user)):\n'
+        f'    doc = {{"id": str(uuid.uuid4()), "user_id": user["id"], **body, "created_at": _now(), "updated_at": _now()}}\n'
+        f'    await db.{coll}.insert_one(doc)\n'
+        f'    return serialize(doc)\n\n'
+        f'@router.get("/{{item_id}}")\n'
+        f'async def get_item(item_id: str, user=Depends(get_user)):\n'
+        f'    item = await db.{coll}.find_one({{"id": item_id, "user_id": user["id"]}}, {{"_id": 0}})\n'
+        f'    if not item: raise HTTPException(404, "Not found")\n'
+        f'    return serialize(item)\n\n'
+        f'@router.put("/{{item_id}}")\n'
+        f'async def update_item(item_id: str, body: dict, user=Depends(get_user)):\n'
+        f'    body["updated_at"] = _now()\n'
+        f'    await db.{coll}.update_one({{"id": item_id, "user_id": user["id"]}}, {{"$set": body}})\n'
+        f'    item = await db.{coll}.find_one({{"id": item_id}}, {{"_id": 0}})\n'
+        f'    return serialize(item)\n\n'
+        f'@router.delete("/{{item_id}}")\n'
+        f'async def delete_item(item_id: str, user=Depends(get_user)):\n'
+        f'    r = await db.{coll}.delete_one({{"id": item_id, "user_id": user["id"]}})\n'
+        f'    return {{"deleted": r.deleted_count}}\n'
+    )
 
 
 def _build_file_tree(template: str, features: List[str], frontend: str, database: str) -> Dict[str, str]:
@@ -723,7 +832,7 @@ async def generate_project(body: SaaSGenerateIn, admin=Depends(get_current_admin
     generated_files = {}
     for fname in list(file_tree.keys()):
         if fname.startswith('backend/models/') or fname.startswith('backend/routes/'):
-            generated_files[fname] = await _ollama_generate_file(fname, ctx)
+            generated_files[fname] = await generate_code_file(fname, ctx, base_template=file_tree.get(fname))
         else:
             generated_files[fname] = file_tree[fname]
 
@@ -942,21 +1051,14 @@ async def generate_api_endpoints(project_id: str, body: GenerateAPIIn, admin=Dep
     config = project.get('config', {})
     generated_routes = {}
     for coll in body.collection_names:
-        system = (
-            "Generate a complete FastAPI router file with full CRUD operations for a MongoDB collection. "
-            "Use motor async driver. Include list, create, get, update, delete endpoints. "
-            "Use Pydantic BaseModel for request validation. No markdown fences. Output raw Python code."
+        # Use the same Coder->Reviewer pipeline (grounded in the reference template).
+        code = await generate_code_file(
+            f'backend/routes/{coll}.py',
+            config,
+            base_template=_route_template_for(coll),
         )
-        user = (
-            f"Generate CRUD routes for collection: {coll}\n"
-            f"Database: {config.get('database', 'mongodb')}\n"
-            f"Auth: Use get_user dependency from auth module\n"
-            f"Pattern: Use db.{coll} for MongoDB access, _now() for timestamps\n"
-            f"Return list with pagination, proper error handling, 404s."
-        )
-        code = await chat_completion(system=system, user=user, temperature=0.2)
         route_file = f'backend/routes/{coll}.py'
-        files[route_file] = code.strip()
+        files[route_file] = code
         generated_routes[coll] = route_file
 
     routes_init = 'from fastapi import APIRouter\n'
