@@ -118,4 +118,5 @@ volumes:
 
 networks:
   getszy:
+    name: getszy
     driver: bridge

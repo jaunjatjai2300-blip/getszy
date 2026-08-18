@@ -14,10 +14,10 @@ scrape_configs:
   - job_name: 'getszy-backend'
     metrics_path: /metrics
     static_configs:
-      # App runs on the host network (Caddy -> backend:8000). Use host.docker.internal
-      # from inside the monitoring stack, or change to the backend service name if
-      # both stacks share a Docker network.
-      - targets: ['host.docker.internal:8000']
+      # Backend listens on :8001 inside the shared `getszy` Docker network.
+      # The monitoring stack joins that network (docker-compose.monitoring.yml),
+      # so the service name resolves directly — no host port / Caddy involved.
+      - targets: ['backend:8001']
 
   - job_name: 'node'
     static_configs:

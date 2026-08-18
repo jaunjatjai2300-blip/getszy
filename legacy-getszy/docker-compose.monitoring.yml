@@ -2,14 +2,16 @@ version: '3.8'
 
 # Observability stack for Getszy. Run alongside the main app stack:
 #   docker compose -f docker-compose.monitoring.yml up -d
-# App must expose :8000 on the host (Caddy -> backend). Prometheus scrapes
-# host.docker.internal:8000/metrics (see prometheus.yml).
+# Both stacks share the fixed Docker network `getszy` (see docker-compose.yml),
+# so Prometheus scrapes `backend:8001/metrics` directly and the exporters reach
+# `mongo`. The main stack must be running first so the `getszy` network exists.
 
 services:
   prometheus:
     image: prom/prometheus:v2.45.0
     container_name: getszy-prometheus
     restart: unless-stopped
+    networks: [getszy]
     ports:
       - "9090:9090"
     volumes:
@@ -27,6 +29,7 @@ services:
     image: prom/alertmanager:v0.26.0
     container_name: getszy-alertmanager
     restart: unless-stopped
+    networks: [getszy]
     ports:
       - "9093:9093"
     volumes:
@@ -38,11 +41,12 @@ services:
     image: grafana/grafana:10.0.0
     container_name: getszy-grafana
     restart: unless-stopped
+    networks: [getszy]
     ports:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-getszy_secure_grafana_2026}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-getszy-change-on-deploy}
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:
@@ -52,6 +56,7 @@ services:
     image: prom/node-exporter:v1.6.0
     container_name: getszy-node-exporter
     restart: unless-stopped
+    networks: [getszy]
     ports:
       - "9100:9100"
     pid: host
@@ -64,6 +69,7 @@ services:
     image: percona/mongodb_exporter:0.40.0
     container_name: getszy-mongodb-exporter
     restart: unless-stopped
+    networks: [getszy]
     ports:
       - "9216:9216"
     environment:
@@ -73,3 +79,9 @@ services:
 volumes:
   prometheus_data:
   grafana_data:
+
+# Join the main app stack's fixed network `getszy` so Prometheus can scrape
+# `backend:8001` and the exporters can reach `mongo`. The main stack must be up first.
+networks:
+  getszy:
+    external: true

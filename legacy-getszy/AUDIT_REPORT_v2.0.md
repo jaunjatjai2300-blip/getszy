@@ -36,7 +36,7 @@
 | **Security** | ✅ Solid (with 2 fixes) | Security-header middleware, 503-on-LLM, SQL/NoSQL/regex escaping tested, MFA endpoints, DPDP data-export/erase. In-memory rate-limit + unauth `/metrics` noted as follow-ups. |
 | **Reliability** | ✅ Solid | Dual backups, 4h scheduler, DR drill, video-factory recovery, webhook deploy with `git pull`+rebuild. Off-site S3 off-by-default. |
 | **Performance** | ✅ Validated | Locust + asyncio load harness, 5xx>2% CI gate, `ollama_inference_failures_total` alert. |
-| **Observability** | ⚠️ Wired but mis-scoped | Prometheus/Grafana/Alertmanager defined; scrape target port/network mismatch + placeholder alert receiver must be fixed to be live. |
+| **Observability** | ✅ Wired & reachable | Prometheus scrapes `backend:8001` via shared `getszy` network; Alertmanager env-driven; set `ALERT_WEBHOOK_URL` for live paging. |
 | **Frontend quality** | ⚠️ Good UI, weak tests | Polished, accessible-leaning UI; **zero automated frontend tests**; some orphaned/broken links; i18n is non-functional. |
 | **Honesty of claims** | ✅ Restored | Manus's fabricated claims (backup test, `deploy-vps.sh`, works-on-first-try) corrected in repo docs. |
 
@@ -161,9 +161,9 @@ legacy-getszy/
 - Load harness (Locust + asyncio) with real routes; CI gate fails if 5xx > 2%; `ollama_inference_failures_total` + `VideoFactoryQueueStalled` alerts.
 - Note: heavy media AI relies on **free 3rd-party HF Spaces / Pollinations** (flaky, no SLA) — acceptable for free tier, risk for scale.
 
-### Observability — ⚠️ WIRED, NOT YET LIVE
+### Observability — ✅ WIRED & REACHABLE
 - Stack defined: Prometheus, Alertmanager, Grafana, node-exporter, mongodb-exporter; 7 alerts incl. `BackupStale`, `HighAPIErrorRate`, `OllamaInferenceFailureSpike`; app emits required metrics; RPO admin endpoint + RPO/RTO dashboard.
-- **Must-fix to be live:** (a) `prometheus.yml` targets `host.docker.internal:8000` but backend is `:8001` inside the `getszy` network with **no host port** → scrape fails; (b) `mongodb-exporter` can't resolve `mongo` across stacks; (c) Alertmanager receiver is a **placeholder localhost** (no real sink); (d) Grafana default password hard-coded.
+- **Resolved (this audit):** monitoring stack now joins the fixed `getszy` network, so Prometheus scrapes `backend:8001/metrics` directly and `mongodb-exporter` reaches `mongo`; Alertmanager uses `ALERT_WEBHOOK_URL` (operator sets a real Slack/Discord/PagerDuty sink); Grafana password default changed. **To go fully live:** set `ALERT_WEBHOOK_URL` + `GRAFANA_PASSWORD` in the deploy env.
 
 ---
 
@@ -208,8 +208,8 @@ legacy-getszy/
 ## 10. Recommendations / Roadmap
 
 **P0 (before scaling / HA claim):**
-1. Fix monitoring scrape (publish backend metrics port or join networks) + real Alertmanager receiver.
-2. Promote rate-limit/AI-limiter to Redis; gate `/metrics`.
+1. ~~Fix monitoring scrape~~ **RESOLVED** — monitoring stack joins `getszy` network; Prometheus scrapes `backend:8001`; Alertmanager uses `ALERT_WEBHOOK_URL` (set it in env for live paging).
+2. ~~Promote rate-limit/AI-limiter to Redis; gate `/metrics`~~ **RESOLVED** — global rate-limiter is now Redis-backed (`redis_rate_limit.py`); `/metrics` IP-restricted (`metrics_protect.py`). (Per-user AI limiter still in-memory.)
 3. Wire S3 off-site (`BACKUP_S3_BUCKET` + `boto3`) and a monthly GFS job; volume-mount backend backups.
 4. Add frontend tests (at least smoke for critical flows: login, checkout, Neo chat).
 
