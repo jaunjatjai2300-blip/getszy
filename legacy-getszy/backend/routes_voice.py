@@ -51,6 +51,8 @@ async def voices():
 @router.post('/stt')
 async def speech_to_text(file: UploadFile = File(...), user=Depends(get_current_user)):
     audio_bytes = await file.read()
+    if len(audio_bytes) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail='Audio too large (max 25 MB)')
     result = await transcribe(audio_bytes, file.filename or 'audio.wav')
     if 'error' in result:
         raise HTTPException(status_code=502, detail=result['error'])

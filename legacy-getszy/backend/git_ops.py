@@ -37,15 +37,15 @@ def git_branch_list():
 
 
 def git_branch_create(name: str):
-    return _run(['git', 'checkout', '-b', name])
+    return _run(['git', 'checkout', '-b', '--', name])
 
 
 def git_checkout(branch: str):
-    return _run(['git', 'checkout', branch])
+    return _run(['git', 'checkout', '--', branch])
 
 
 def git_rollback(commit_hash: str):
-    return _run(['git', 'reset', '--hard', commit_hash])
+    return _run(['git', 'reset', '--hard', '--', commit_hash])
 
 
 def git_pull(remote: str = 'origin', branch: str = 'main'):
