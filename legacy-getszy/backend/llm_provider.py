@@ -8,10 +8,12 @@ Priority chain (local free providers first):
   5. OpenRouter — paid (your credits, many models available)
 """
 import os
+import json
 import httpx
 import uuid
 import logging
 from datetime import datetime, timezone
+from tools import get_schemas, execute_tool
 
 logger = logging.getLogger('getszy.llm')
 
@@ -289,6 +291,142 @@ async def chat_completion(
         'Set LLM_PROVIDER appropriately and ensure at least one of '
         'GROQ_API_KEY/GEMINI_API_KEY/OPENROUTER_API_KEY is configured.'
     )
+
+
+# ── Tool-calling (agentic) providers ────────────────────────────────────────────
+# OpenAI-compatible providers support `tools`/`tool_calls`. Ollama supports a
+# native tool format. These let agents actually *execute* actions (search the
+# store, query courses, compute) instead of only generating text.
+
+async def _openai_style_with_tools(url, headers, model, messages, tools, temperature):
+    async with httpx.AsyncClient(timeout=90.0) as client:
+        r = await client.post(
+            url, headers=headers,
+            json={'model': model, 'messages': messages, 'tools': tools,
+                  'temperature': temperature, 'max_tokens': 4096},
+        )
+        r.raise_for_status()
+        return r.json()['choices'][0]['message']
+
+
+async def _groq_with_tools(messages, tools, temperature):
+    return await _openai_style_with_tools(
+        'https://api.groq.com/openai/v1/chat/completions',
+        {'Authorization': f'Bearer {GROQ_API_KEY}'}, GROQ_MODEL, messages, tools, temperature)
+
+
+async def _openrouter_with_tools(messages, tools, temperature):
+    return await _openai_style_with_tools(
+        'https://openrouter.ai/api/v1/chat/completions',
+        {'Authorization': f'Bearer {OPENROUTER_API_KEY}', 'HTTP-Referer': 'https://getszy.com', 'X-Title': 'Getszy'},
+        OPENROUTER_MODEL, messages, tools, temperature)
+
+
+async def _lmstudio_with_tools(messages, tools, temperature):
+    return await _openai_style_with_tools(
+        f'{LMSTUDIO_BASE_URL}/chat/completions',
+        {}, LMSTUDIO_MODEL, messages, tools, temperature)
+
+
+async def _ollama_with_tools(messages, tools, temperature):
+    model = OLLAMA_MODELS[0] if OLLAMA_MODELS else 'qwen2.5:7b'
+    headers = {}
+    if OLLAMA_SECRET:
+        headers['Authorization'] = f'Bearer {OLLAMA_SECRET}'
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        r = await client.post(
+            f'{OLLAMA_BASE_URL}/api/chat',
+            headers=headers,
+            json={'model': model, 'messages': messages, 'tools': tools,
+                  'stream': False, 'options': {'temperature': temperature}},
+        )
+        r.raise_for_status()
+        return r.json().get('message', {})
+
+
+def _tool_args(tc: dict) -> dict:
+    raw = tc.get('function', {}).get('arguments', {})
+    if isinstance(raw, dict):
+        return raw
+    try:
+        return json.loads(raw or '{}')
+    except Exception:
+        return {}
+
+
+async def chat_completion_with_tools(
+    system: str,
+    user: str,
+    tool_names: list,
+    history: list = None,
+    session_id: str | None = None,
+    temperature: float = 0.4,
+    max_tool_rounds: int = 5,
+) -> str:
+    """Run an agentic chat: the model may call real tools, results are fed back,
+    and the loop continues until a final answer is produced.
+
+    Falls back to a plain completion if no tool-capable provider is available.
+    """
+    session_id = session_id or str(uuid.uuid4())
+    schemas = get_schemas(tool_names) if tool_names else []
+    if not schemas:
+        return await chat_completion(system, user, session_id, temperature)
+
+    messages = [{'role': 'system', 'content': system}]
+    for h in (history or []):
+        role = 'user' if h.get('role') == 'user' else 'assistant'
+        if h.get('content'):
+            messages.append({'role': role, 'content': h['content']})
+    messages.append({'role': 'user', 'content': user})
+
+    provider_fns = []
+    if GROQ_API_KEY and _under_limit('groq'):
+        provider_fns.append(('groq', lambda m: _groq_with_tools(m, schemas, temperature)))
+    if OPENROUTER_API_KEY and not FREE_ONLY:
+        provider_fns.append(('openrouter', lambda m: _openrouter_with_tools(m, schemas, temperature)))
+    provider_fns.append(('lmstudio', lambda m: _lmstudio_with_tools(m, schemas, temperature)))
+    if OLLAMA_MODELS:
+        provider_fns.append(('ollama', lambda m: _ollama_with_tools(m, schemas, temperature)))
+
+    last_error = None
+    for _ in range(max_tool_rounds):
+        msg = None
+        for name, fn in provider_fns:
+            try:
+                msg = await fn(messages)
+                logger.info(f'tool-LLM: {name}')
+                break
+            except Exception as e:
+                logger.warning(f'tool-LLM {name} failed: {e}')
+                last_error = e
+        if msg is None:
+            break
+        # No tool calls -> final answer
+        if not msg.get('tool_calls'):
+            return msg.get('content', '') or ''
+        # Execute tool calls and feed results back
+        messages.append({
+            'role': 'assistant',
+            'content': msg.get('content') or '',
+            'tool_calls': msg['tool_calls'],
+        })
+        for tc in msg['tool_calls']:
+            fn_name = tc.get('function', {}).get('name')
+            result = await execute_tool(fn_name, _tool_args(tc))
+            messages.append({
+                'role': 'tool',
+                'tool_call_id': tc.get('id'),
+                'content': result,
+            })
+
+    # Fallback to a plain (no-tool) completion if the tool loop produced nothing
+    try:
+        return await chat_completion(system, user, session_id, temperature)
+    except Exception:
+        if last_error:
+            raise last_error
+        raise RuntimeError('Tool agent failed to produce a response.')
 
 
 def provider_info() -> dict:

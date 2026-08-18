@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from auth import get_current_user, get_current_user_optional, get_current_admin
 from db import db
-from llm_provider import chat_completion
+from llm_provider import chat_completion, chat_completion_with_tools
 from workforce.agents import AGENTS as WORKFORCE_AGENTS, VIBE_AGENTS as VIBE_CODERS
 
 router = APIRouter(tags=['agents'])
@@ -35,7 +35,6 @@ AGENTS = {
             "Use Indian context (₹, GST, Indian consumer behavior, WhatsApp/Instagram commerce). "
             "Be concise. Lead with the answer, then explain. If the user's idea has a flaw, say so directly."
         ),
-        'tools': ['pricing_calc', 'competitor_lookup', 'market_size'],
     },
     'creative-writer': {
         'id': 'creative-writer',
@@ -50,7 +49,6 @@ AGENTS = {
             "Match the user's brand tone (playful, premium, Desi, professional). "
             "Use Hinglish when appropriate. Always include a CTA. Format as clean markdown."
         ),
-        'tools': ['brand_tone_analyzer', 'caption_generator'],
     },
     'seo-consultant': {
         'id': 'seo-consultant',
@@ -65,7 +63,6 @@ AGENTS = {
             "and explain technical SEO in simple terms. Focus on Google India, YouTube SEO, and Instagram discoverability. "
             "Always give specific, actionable steps with estimated impact."
         ),
-        'tools': ['seo_audit', 'keyword_research', 'content_calendar'],
     },
     'marketing-planner': {
         'id': 'marketing-planner',
@@ -80,7 +77,6 @@ AGENTS = {
             "and build product launch playbooks. Always include budget estimates in ₹, target audience specs, and KPIs. "
             "Be specific: CPM ranges, audience sizes, creative formats."
         ),
-        'tools': ['campaign_builder', 'audience_planner', 'budget_calculator'],
     },
     'legal-advisor': {
         'id': 'legal-advisor',
@@ -95,7 +91,6 @@ AGENTS = {
             "suggest when to consult a real lawyer, and help with document templates. "
             "Always include relevant Indian law sections. Disclaimer: you provide guidance, not legal representation."
         ),
-        'tools': ['gst_helper', 'trademark_checker'],
     },
     'customer-comms': {
         'id': 'customer-comms',
@@ -109,7 +104,6 @@ AGENTS = {
             "FAQ responses, refund/return policies, and escalation scripts. You understand Indian customer expectations — "
             "WhatsApp-first, quick resolution, empathy-driven. Write in the brand's tone. Include Hindi/Hinglish versions when useful."
         ),
-        'tools': ['email_template', 'whatsapp_reply', 'faq_generator'],
     },
     'sales-outreach': {
         'id': 'sales-outreach',
@@ -124,11 +118,15 @@ AGENTS = {
             "how to approach small businesses, negotiate with influencers, and close partnership deals. "
             "Always include subject lines, follow-up sequences, and response handling scripts."
         ),
-        'tools': ['cold_email_generator', 'dm_script_writer', 'partnership_template'],
     },
 }
 
 AGENT_LIST = list(AGENTS.values())
+
+# Tools every expert agent can use. Individual agents may override via `tools`.
+DEFAULT_EXPERT_TOOLS = [
+    'search_products', 'list_courses', 'get_pricing_plans', 'calculate', 'web_search',
+]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -267,8 +265,14 @@ async def agent_chat(agent_id: str, payload: AgentChatIn, user=Depends(get_curre
     history_lines.append(f'U: {payload.message}')
     user_prompt = '\n'.join(history_lines)
 
+    # Agentic mode: expert agents can call real, store-backed tools.
+    tool_names = agent.get('tools') or DEFAULT_EXPERT_TOOLS
+
     try:
-        content = await chat_completion(system, user_prompt, temperature=0.5)
+        content = await chat_completion_with_tools(
+            system, user_prompt, tool_names,
+            history=payload.history, session_id=session_id, temperature=0.5,
+        )
         response_text = (content or '').strip()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f'Agent unavailable: {e}')
