@@ -2,6 +2,7 @@
 import logging
 from datetime import datetime, timezone, timedelta
 from db import db
+from credits import PLAN_CREDIT_GRANT
 
 logger = logging.getLogger('getszy.subscription')
 
@@ -180,7 +181,57 @@ async def start_trial(user: dict) -> dict:
         'current_period_end': _iso(ends),
     })
     await db.users.update_one({'id': user['id']}, {'$set': {'subscription': sub}})
+    # Trial is the Pro tier — grant its credit bucket too.
+    await grant_credits_for_plan(user['id'], PLAN_PRO)
     return sub
+
+
+async def grant_credits_for_plan(user_id: str, plan: str) -> int:
+    """Grant the credit bucket tied to a subscription plan. Returns the new
+    balance (0 if the plan has no credit grant)."""
+    amount = PLAN_CREDIT_GRANT.get(plan)
+    if not amount:
+        return 0
+    from credits import add_credits
+    return await add_credits(user_id, amount, reason=f'subscription_grant:{plan}')
+
+
+async def end_subscription_if_no_credits(user_id: str) -> bool:
+    """End the user's subscription if they have no credits left. Returns True if
+    it was ended. Called from credits.deduct() the moment a balance hits 0."""
+    from credits import get_balance
+    try:
+        bal = await get_balance(user_id)
+    except Exception:
+        return False
+    if bal > 0:
+        return False
+    await db.users.update_one(
+        {'id': user_id},
+        {'$set': {
+            'subscription.plan': PLAN_FREE,
+            'subscription.status': STATUS_EXPIRED,
+            'subscription.current_period_end': None,
+        }},
+    )
+    return True
+
+
+async def set_subscription_plan_active(user_id: str, plan: str, days: int = 30) -> dict:
+    """Activate a subscription plan on the user WITHOUT granting credits. Used by
+    the Razorpay path, which grants pack credits separately (so we never
+    double-credit)."""
+    if plan not in (PLAN_PRO, PLAN_ELITE):
+        plan = PLAN_PRO
+    now = _now()
+    ends = now + timedelta(days=days)
+    await db.users.update_one({'id': user_id}, {'$set': {
+        'subscription.plan': plan,
+        'subscription.status': STATUS_ACTIVE,
+        'subscription.current_period_end': _iso(ends),
+    }})
+    user = await db.users.find_one({'id': user_id}, {'_id': 0})
+    return user.get('subscription', {})
 
 
 async def grant_plan(user_id: str, plan: str, days: int = 30) -> dict:
@@ -194,6 +245,7 @@ async def grant_plan(user_id: str, plan: str, days: int = 30) -> dict:
         'subscription.current_period_end': _iso(ends),
     }
     await db.users.update_one({'id': user_id}, {'$set': update})
+    await grant_credits_for_plan(user_id, plan)
     user = await db.users.find_one({'id': user_id}, {'_id': 0})
     return user.get('subscription', {})
 

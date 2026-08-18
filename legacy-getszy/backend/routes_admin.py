@@ -4,7 +4,6 @@ from db import db
 from auth import get_current_admin
 from models import AdminChatIn, AdminChatMessage
 from ai_chat import parse_intent, execute_intent
-from middleware import ai_rate_limit_allowed
 from datetime import datetime, timezone, timedelta
 import uuid, os, secrets, re
 
@@ -101,9 +100,6 @@ async def customers():
 @router.post('/chat')
 async def chat(body: AdminChatIn, user=Depends(get_current_admin)):
     session_id = body.session_id or str(uuid.uuid4())
-    # Per-admin AI rate limit (cost-exhaustion protection)
-    if not ai_rate_limit_allowed(f'adminchat:{user["id"]}'):
-        raise HTTPException(status_code=429, detail='Too many requests. Please slow down.')
     parsed = await parse_intent(body.message, session_id)
     result = await execute_intent(parsed)
 
