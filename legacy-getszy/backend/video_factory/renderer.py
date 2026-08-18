@@ -39,10 +39,31 @@ async def _update(project_id: str, patch: dict):
 
 
 async def _refund_assets(project_id: str, user_id: Optional[str], reason: str):
-    if not user_id:
+    """Refund the asset credit — exactly once per project (guarded by `refunded` flag)."""
+    p = await db.video_projects.find_one(
+        {'id': project_id}, {'_id': 0, 'refunded': 1, 'user_id': 1}
+    )
+    if not p or p.get('refunded'):
+        return
+    uid = user_id or p.get('user_id')
+    if not uid:
         return
     from credits import refund
-    await refund(user_id, 'video_factory_assets', reason=reason)
+    await refund(uid, 'video_factory_assets', reason=reason)
+    await db.video_projects.update_one({'id': project_id}, {'$set': {'refunded': True}})
+
+
+async def _is_cancelled(project_id: str) -> bool:
+    p = await db.video_projects.find_one({'id': project_id}, {'_id': 0, 'cancel_requested': 1})
+    return bool(p and p.get('cancel_requested'))
+
+
+def _cleanup_project_files(project_id: str):
+    """Remove all on-disk artifacts for a project (partial renders, voice, images)."""
+    import shutil
+    project_dir = MEDIA_DIR / project_id
+    if project_dir.exists():
+        shutil.rmtree(project_dir, ignore_errors=True)
 
 
 async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dict[str, Any]:
@@ -101,6 +122,11 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
         pct = int(((i + 1) / total) * 40)
         await _update(project_id, {'render_progress': pct})
 
+    if await _is_cancelled(project_id):
+        await _update(project_id, {'render_status': 'cancelled', 'render_error': 'cancelled by user'})
+        _cleanup_project_files(project_id)
+        return {'error': 'cancelled by user'}
+
     # Persist image paths back to storyboard
     for scene in scenes:
         match = next((si for si in scene_images if si['index'] == scene['index']), None)
@@ -125,6 +151,11 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
 
     await _update(project_id, {'render_status': 'assembling', 'render_progress': 70,
                                 'voice_path': str(voice_path), 'voice_used': voice})
+
+    if await _is_cancelled(project_id):
+        await _update(project_id, {'render_status': 'cancelled', 'render_error': 'cancelled by user'})
+        _cleanup_project_files(project_id)
+        return {'error': 'cancelled by user'}
 
     # ============ 3. Assemble final video ============
     final_path = project_dir / 'final.mp4'
@@ -157,13 +188,22 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
         await _refund_assets(project_id, owner_id, 'no_scene_images')
         return {'error': 'no scene images generated successfully — check server network / Pollinations access'}
 
+    if await _is_cancelled(project_id):
+        await _update(project_id, {'render_status': 'cancelled', 'render_error': 'cancelled by user'})
+        _cleanup_project_files(project_id)
+        return {'error': 'cancelled by user'}
+
     try:
         compose_result = await build_video(compose_scenes, str(voice_path), str(final_path), orientation=orientation)
     except Exception as e:
         logger.exception('assembly fail')
-        await _update(project_id, {'render_status': 'error', 'render_error': f'assembly exception: {str(e)[:300]}'})
+        import errno
+        msg = f'assembly failed: {e}'
+        if isinstance(e, OSError) and e.errno == errno.ENOSPC:
+            msg = 'disk full — could not write output video'
+        await _update(project_id, {'render_status': 'error', 'render_error': msg[:300]})
         await _refund_assets(project_id, owner_id, 'assembly_exception')
-        return {'error': f'assembly failed: {e}'}
+        return {'error': msg}
 
     # CRITICAL FIX: build_video returns dict — MUST check for 'error' key (it does NOT raise)
     if isinstance(compose_result, dict) and compose_result.get('error'):

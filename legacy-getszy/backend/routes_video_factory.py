@@ -29,7 +29,7 @@ from video_factory.agents import (
     enhance_prompt, research_topic, generate_script_variants, generate_hooks,
     build_storyboard, plan_visuals, run_factory_chain,
 )
-from video_factory.renderer import generate_all_assets
+from video_factory.renderer import generate_all_assets, _cleanup_project_files
 from credits import deduct, refund
 
 logger = logging.getLogger('getszy.video_factory')
@@ -315,7 +315,8 @@ async def generate_assets(project_id: str, body: GenerateAssetsIn, background: B
     ok, msg, _ = await deduct(user['id'], 'video_factory_assets')
     if not ok:
         raise HTTPException(status_code=402, detail=msg)
-    await _update(project_id, {'render_status': 'queued', 'render_progress': 0, 'render_error': None})
+    await _update(project_id, {'render_status': 'queued', 'render_progress': 0, 'render_error': None,
+                               'cancel_requested': False, 'refunded': False})
     background.add_task(generate_all_assets, project_id, body.orientation)
     return {'ok': True, 'status': 'queued', 'poll_url': f'/api/video-factory/project/{project_id}'}
 
@@ -334,7 +335,63 @@ async def download_final(project_id: str, user=Depends(get_current_user)):
         size = 0
     if size < 30_000:  # <30KB = corrupt/incomplete
         raise HTTPException(422, f'Rendered video is corrupt or incomplete ({size} bytes). Please re-generate.')
+    # Reject files that aren't real MP4 containers (corrupt-but-large).
+    try:
+        with open(path, 'rb') as fh:
+            head = fh.read(32)
+        if b'ftyp' not in head:
+            raise HTTPException(422, 'Rendered video is corrupt (missing MP4 header). Please re-generate.')
+    except HTTPException:
+        raise
+    except Exception:
+        pass
     return FileResponse(path, media_type='video/mp4', filename=f'{p.get("title","video")[:40]}.mp4')
+
+
+@router.post('/project/{project_id}/cancel')
+async def cancel_generation(project_id: str, user=Depends(get_current_user)):
+    """Cancel a running generation: stops the pipeline, refunds the asset credit,
+    and removes partial on-disk artifacts."""
+    p = await _project_or_404(project_id, user)
+    status = p.get('render_status')
+    if status in ('queued', 'generating_images', 'generating_voice', 'assembling'):
+        uid = p.get('user_id')
+        if uid and not p.get('refunded'):
+            await refund(uid, 'video_factory_assets', reason='user_cancelled')
+        await _update(project_id, {'render_status': 'cancelled', 'render_error': 'cancelled by user',
+                                   'cancel_requested': True, 'refunded': True})
+        _cleanup_project_files(project_id)
+        return {'ok': True, 'status': 'cancelled'}
+    if status == 'cancelled':
+        return {'ok': True, 'already_cancelled': True}
+    return {'ok': True, 'already_done': True, 'render_status': status}
+
+
+async def recover_stuck_video_jobs():
+    """On server (re)start, any job left mid-render by a crash/restart is reset to
+    'error', refunded once, and its partial files cleaned — so it never sticks at
+    'generating_*' forever (no orphaned jobs, no leaked credits)."""
+    cursor = db.video_projects.find(
+        {'render_status': {'$in': ['queued', 'generating_images', 'generating_voice', 'assembling']}},
+        {'_id': 0, 'id': 1, 'user_id': 1, 'refunded': 1},
+    )
+    count = 0
+    async for p in cursor:
+        count += 1
+        if p.get('user_id') and not p.get('refunded'):
+            try:
+                await refund(p['user_id'], 'video_factory_assets', reason='server_restart_recovery')
+            except Exception as e:
+                logger.warning('recover_stuck_video_jobs refund failed: %s', e)
+        await db.video_projects.update_one(
+            {'id': p['id']},
+            {'$set': {'render_status': 'error', 'render_error': 'interrupted by server restart',
+                      'refunded': True, 'updated_at': _iso()}},
+        )
+        _cleanup_project_files(p['id'])
+    if count:
+        logger.warning('recover_stuck_video_jobs: reset %s interrupted video job(s)', count)
+    return count
 
 
 @router.get('/project/{project_id}/scene-image/{scene_index}')

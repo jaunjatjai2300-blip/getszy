@@ -199,6 +199,13 @@ async def startup():
         asyncio.create_task(backup_scheduler())
     except Exception as e:
         logger.error(f'could not start backup scheduler: {e}')
+    # Recover video jobs interrupted by a previous crash/restart (prevents orphaned
+    # 'generating_*' jobs and leaked credits).
+    try:
+        from routes_video_factory import recover_stuck_video_jobs
+        await recover_stuck_video_jobs()
+    except Exception as e:
+        logger.error(f'could not run video job recovery: {e}')
 
 
 @app.on_event('shutdown')
