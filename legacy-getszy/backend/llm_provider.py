@@ -253,6 +253,11 @@ def _build_chain(system, user, temperature, session_id, max_tokens: int | None =
 
 # ── Main entry point ──────────────────────────────────────────────────────────
 
+class LLMServiceUnavailable(Exception):
+    """Raised when every configured LLM provider in the fallback chain fails.
+    FastAPI converts this to a clean 503 (see server.py) so users never see a raw 500."""
+
+
 async def chat_completion(
     system: str,
     user: str,
@@ -296,7 +301,7 @@ async def chat_completion(
     except Exception:
         pass
 
-    raise RuntimeError(
+    raise LLMServiceUnavailable(
         'All LLM providers failed. '
         'Set LLM_PROVIDER appropriately and ensure at least one of '
         'GROQ_API_KEY/GEMINI_API_KEY/OPENROUTER_API_KEY is configured.'
@@ -441,7 +446,7 @@ async def chat_completion_with_tools(
     except Exception:
         if last_error:
             raise last_error
-        raise RuntimeError('Tool agent failed to produce a response.')
+        raise LLMServiceUnavailable('Tool agent failed to produce a response.')
 
 
 def provider_info() -> dict:

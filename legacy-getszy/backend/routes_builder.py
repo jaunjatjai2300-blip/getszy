@@ -139,7 +139,7 @@ async def create_project(body: BuilderProjectIn, user=Depends(get_current_user))
     except Exception as e:
         logger.exception('generate failed')
         await refund(user['id'], 'builder_website', reason='generation_failed')
-        raise HTTPException(500, f'Generation failed: {e}')
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
     name = (body.name or _derive_name(body.prompt))[:80]
     history = [
         BuilderHistoryItem(timestamp=_now(), prompt=body.prompt, role='user'),
@@ -178,7 +178,7 @@ async def refine_project(pid: str, body: BuilderRefineIn, user=Depends(get_curre
     except Exception as e:
         logger.exception('refine failed')
         await refund(user['id'], 'builder_refine', reason='generation_failed')
-        raise HTTPException(500, f'Refinement failed: {e}')
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
     new_history = p.get('history', []) + [
         {'timestamp': _now(), 'prompt': body.prompt, 'role': 'user', 'snapshot': None},
         {'timestamp': _now(), 'prompt': 'Refinement applied', 'role': 'assistant', 'snapshot': new_html},
@@ -295,7 +295,7 @@ async def refine_project_element(pid: str, body: dict, user=Depends(get_current_
     except Exception as e:
         logger.exception('element refine failed')
         await refund(user['id'], 'builder_refine', reason='generation_failed')
-        raise HTTPException(500, f'Refinement failed: {e}')
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
 
     new_history = p.get('history', []) + [
         {'timestamp': _now(), 'prompt': f'[{selector}] {instruction}', 'role': 'user', 'snapshot': None},
@@ -513,7 +513,7 @@ async def make_starter(body: StarterIn, user=Depends(get_current_user)):
             data = await gen_blog_zip(body.prompt, name)
     except Exception as e:
         logger.exception('starter gen failed')
-        raise HTTPException(500, f'Generation failed: {e}')
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
     starter_id = str(_uuid.uuid4())
     starters_dir = _os.path.join(_os.path.dirname(__file__), 'media_cache', 'starters')
     _os.makedirs(starters_dir, exist_ok=True)

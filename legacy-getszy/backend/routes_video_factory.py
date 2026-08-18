@@ -137,7 +137,7 @@ async def re_enhance(project_id: str, user=Depends(get_current_user)):
     try:
         enhanced = await enhance_prompt(p['prompt_raw'], f'vf-{project_id}')
     except Exception as e:
-        raise HTTPException(500, f'LLM error: {str(e)[:150]}')
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
     await _update(project_id, {f'stages.enhanced': enhanced})
     return enhanced
 
@@ -151,7 +151,7 @@ async def re_research(project_id: str, user=Depends(get_current_user)):
     try:
         r = await research_topic(enhanced['enhanced_topic'], enhanced['angle'], f'vf-{project_id}')
     except Exception as e:
-        raise HTTPException(500, f'LLM error: {str(e)[:150]}')
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
     await _update(project_id, {'stages.research': r})
     return r
 
@@ -172,7 +172,7 @@ async def re_scripts(project_id: str, user=Depends(get_current_user)):
             f'vf-{project_id}'
         )
     except Exception as e:
-        raise HTTPException(500, f'LLM error: {str(e)[:150]}')
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
     await _update(project_id, {'stages.script_variants': variants})
     return {'items': variants}
 
@@ -202,7 +202,7 @@ async def re_hooks(project_id: str, user=Depends(get_current_user)):
     try:
         hooks = await generate_hooks(enhanced['enhanced_topic'], enhanced['angle'], style, f'vf-{project_id}')
     except Exception as e:
-        raise HTTPException(500, f'LLM error: {str(e)[:150]}')
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
     await _update(project_id, {'stages.hooks': hooks})
     return {'items': hooks}
 
@@ -220,7 +220,7 @@ async def re_storyboard(project_id: str, user=Depends(get_current_user)):
     try:
         scenes = await build_storyboard(script.get('narration', ''), duration, f'vf-{project_id}')
     except Exception as e:
-        raise HTTPException(500, f'LLM error: {str(e)[:150]}')
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
     await _update(project_id, {'stages.storyboard': scenes})
     return {'items': scenes}
 
@@ -236,7 +236,7 @@ async def re_visuals(project_id: str, user=Depends(get_current_user)):
     try:
         plan = await plan_visuals(scenes, style, f'vf-{project_id}')
     except Exception as e:
-        raise HTTPException(500, f'LLM error: {str(e)[:150]}')
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
     await _update(project_id, {'stages.visual_plan': plan})
     return {'items': plan}
 
@@ -279,7 +279,7 @@ async def regenerate_scene(project_id: str, scene_id: str, user=Depends(get_curr
     try:
         new_plan = await plan_visuals([scene], style, f'vf-{project_id}')
     except Exception as e:
-        raise HTTPException(500, f'LLM error: {str(e)[:150]}')
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
     # merge into existing visual_plan
     plan = (p.get('stages') or {}).get('visual_plan') or []
     new_entry = new_plan[0] if new_plan else None

@@ -140,7 +140,7 @@ async def remove_background(file: UploadFile = File(...), user=Depends(get_curre
         raise
     except Exception as e:
         await refund(user['id'], 'image', reason='bg_remove_failed')
-        raise HTTPException(status_code=500, detail=str(e)[:200])
+        raise HTTPException(status_code=503, detail='AI service temporarily unavailable. Please try again shortly.')
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -228,7 +228,7 @@ async def generate_heatmap(file: UploadFile = File(...), user=Depends(get_curren
         raise
     except Exception as e:
         await refund(user['id'], 'image', reason='heatmap_failed')
-        raise HTTPException(status_code=500, detail=str(e)[:200])
+        raise HTTPException(status_code=503, detail='AI service temporarily unavailable. Please try again shortly.')
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -289,7 +289,7 @@ async def upscale_image(file: UploadFile = File(...), user=Depends(get_current_u
         raise
     except Exception as e:
         await refund(user['id'], 'image', reason='upscale_failed')
-        raise HTTPException(status_code=500, detail=str(e)[:200])
+        raise HTTPException(status_code=503, detail='AI service temporarily unavailable. Please try again shortly.')
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
