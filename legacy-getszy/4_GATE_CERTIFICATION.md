@@ -44,7 +44,7 @@ are operational (not code) and block *full* sign-off until closed.
 | S3 off-site + GFS weekly/monthly backups | ✅ Implemented (enable `BACKUP_S3_BUCKET` in deploy env) | Closed |
 | DNS failover configuration | Infra/you | Yes for HA claim |
 | Frontend CSP on served HTML (Caddy) | Infra | Soft |
-| Verify AI-builder endpoint path vs backend | Code (quick) | Soft |
+| Verify AI-builder endpoint path vs backend | ✅ Resolved (`aiBuilder.js` → `/api/ai-tools/chat/completions`, JSON parsing) | Closed |
 
 ## Certification statement
 Getszy's backend, CI/CD, DR, load, and observability controls are implemented and
