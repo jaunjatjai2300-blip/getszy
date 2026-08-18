@@ -35,7 +35,7 @@ uploads `build/` as an artifact. The frontend now fails CI if it does not compil
 
 ## Recommendations (not blocking)
 1. ~~Verify the AI-builder endpoint.~~ **Resolved** (see Fix #2 above).
-2. **Add CSP to served HTML.** ✅ Reference config added at `deploy/caddy/Caddyfile`
+2. **Add CSP to served HTML.** ✅ Reference config added at `deploy/Caddyfile`
    (CSP + HSTS + nosniff). Backend security headers cover `/api`, but the
    static `index.html` is served by Caddy — add a `Content-Security-Policy` there.
 3. **Add type-check/lint CI** (e.g. `tsc --noEmit` / ESLint) to catch regressions
