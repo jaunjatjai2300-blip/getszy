@@ -69,8 +69,13 @@ jobs:
     steps:
       - name: Trigger VPS Deploy
         run: |
+          # Fire-and-forget: the VPS performs the deploy asynchronously, so we must
+          # not block on it. A short timeout + `|| true` keeps CI green even if the
+          # webhook is slow/unreachable. (See server-side change to return 202.)
           curl -s -X POST https://getszy.com/hooks/deploy \
             -H "X-Token: ${{ secrets.DEPLOY_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d '{}' \
-            --max-time 300
+            --max-time 30 \
+            --retry 3 --retry-delay 5 \
+            --retry-all-errors || true
