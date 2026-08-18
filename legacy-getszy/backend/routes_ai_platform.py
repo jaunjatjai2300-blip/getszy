@@ -5,7 +5,7 @@ from datetime import datetime
 from bson import ObjectId
 from db import db
 from auth import get_current_admin
-import httpx, os, json
+import httpx, os, json, re
 
 router = APIRouter(prefix="/admin/ai-platform", tags=["ai-platform"])
 
@@ -32,8 +32,8 @@ async def list_prompts(category: str = "", search: str = "", limit: int = 50):
         q["category"] = category
     if search:
         q["$or"] = [
-            {"title": {"$regex": search, "$options": "i"}},
-            {"prompt": {"$regex": search, "$options": "i"}},
+            {"title": {"$regex": re.escape(search), "$options": "i"}},
+            {"prompt": {"$regex": re.escape(search), "$options": "i"}},
             {"tags": {"$in": [search]}},
         ]
     docs = await db.gs_prompts.find(q).sort("created_at", -1).limit(limit).to_list(limit)
@@ -80,8 +80,8 @@ async def list_kb(category: str = "", search: str = ""):
         q["category"] = category
     if search:
         q["$or"] = [
-            {"title": {"$regex": search, "$options": "i"}},
-            {"content": {"$regex": search, "$options": "i"}},
+            {"title": {"$regex": re.escape(search), "$options": "i"}},
+            {"content": {"$regex": re.escape(search), "$options": "i"}},
         ]
     docs = await db.gs_kb_docs.find(q).sort("created_at", -1).limit(100).to_list(100)
     return [_id(d) for d in docs]
@@ -114,8 +114,8 @@ async def delete_kb_doc(doc_id: str):
 @router.post("/kb/search", dependencies=[Depends(get_current_admin)])
 async def search_kb(body: KBSearchIn):
     q = {"$or": [
-        {"title": {"$regex": body.query, "$options": "i"}},
-        {"content": {"$regex": body.query, "$options": "i"}},
+        {"title": {"$regex": re.escape(body.query), "$options": "i"}},
+        {"content": {"$regex": re.escape(body.query), "$options": "i"}},
         {"tags": {"$in": [body.query]}},
     ]}
     docs = await db.gs_kb_docs.find(q).limit(body.limit).to_list(body.limit)

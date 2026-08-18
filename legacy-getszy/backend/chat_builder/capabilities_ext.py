@@ -5,6 +5,7 @@ module-load time by `capabilities.py` so the registry stays a single source of t
 """
 from datetime import datetime, timezone
 from typing import Dict, Any
+import re
 
 from db import db
 
@@ -53,8 +54,8 @@ async def _cap_admin_list_users(user, params, emit) -> Dict[str, Any]:
     q = (params.get('query') or '').strip()
     filt: Dict[str, Any] = {}
     if q:
-        filt = {'$or': [{'email': {'$regex': q, '$options': 'i'}},
-                        {'name': {'$regex': q, '$options': 'i'}}]}
+        filt = {'$or': [{'email': {'$regex': re.escape(q), '$options': 'i'}},
+                        {'name': {'$regex': re.escape(q), '$options': 'i'}}]}
     if params.get('role'):
         filt['role'] = params['role']
     limit = max(1, min(int(params.get('limit', 20)), 100))
