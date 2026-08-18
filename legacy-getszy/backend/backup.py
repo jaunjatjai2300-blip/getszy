@@ -33,6 +33,13 @@ RETENTION = int(os.environ.get('BACKUP_RETENTION_DAYS', '7'))
 # RPO control: how often the background scheduler snapshots the database.
 # Default 4h (down from 24h) to bound data-loss exposure during growth.
 BACKUP_INTERVAL_SECONDS = int(os.environ.get('BACKUP_INTERVAL_HOURS', '4')) * 3600
+# GFS (Grandfather-Father-Son) retention: how many of each tier to keep locally.
+# Daily snapshots are kept for RETENTION_DAILY days; weekly (Mondays) for
+# RETENTION_WEEKLY weeks; monthly (1st of month) for RETENTION_MONTHLY months.
+# The off-site S3 sync mirrors these tiers via its object-key prefix.
+RETENTION_DAILY = int(os.environ.get('BACKUP_RETENTION_DAILY', os.environ.get('BACKUP_RETENTION_DAYS', '7')))
+RETENTION_WEEKLY = int(os.environ.get('BACKUP_RETENTION_WEEKLY', '5'))
+RETENTION_MONTHLY = int(os.environ.get('BACKUP_RETENTION_MONTHLY', '12'))
 # Populated by run_backup(); consumed by the RPO/RTO status endpoint + metrics.
 LAST_BACKUP = {'ts': None, 'ts_epoch': None, 'dir': None, 'docs': 0}
 
@@ -85,16 +92,6 @@ async def run_backup():
             set_last_backup_ts(epoch)
         except Exception:
             pass
-        _prune()
-        # Point a stable `latest` symlink at the newest backup so DR runbooks
-        # can `restore_backup(os.path.join(BACKUP_ROOT, 'latest'))`.
-        try:
-            latest = os.path.join(BACKUP_ROOT, 'latest')
-            if os.path.islink(latest) or os.path.exists(latest):
-                os.unlink(latest)
-            os.symlink(out_dir, latest)
-        except Exception as e:  # pragma: no cover - environment dependent
-            logger.warning(f'backup latest symlink warning: {e}')
         logger.info(f'backup ok: {out_dir} ({total_docs} docs)')
         return out_dir
     except Exception as e:  # pragma: no cover - environment dependent
@@ -103,11 +100,25 @@ async def run_backup():
 
 
 def _prune():
+    """GFS retention: keep the newest N daily / weekly / monthly snapshots.
+
+    Tier is derived from each backup's timestamp (1st of month -> monthly,
+    Monday -> weekly, otherwise daily) so the scheduler's regular 4h runs
+    naturally produce the full GFS set. Older snapshots are removed.
+    """
     try:
         dirs = sorted(glob.glob(os.path.join(BACKUP_ROOT, 'getszy-*')))
-        while len(dirs) > RETENTION:
-            old = dirs.pop(0)
-            shutil.rmtree(old, ignore_errors=True)
+        buckets = {'daily': [], 'weekly': [], 'monthly': []}
+        for d in dirs:
+            ts = os.path.basename(d).replace('getszy-', '')
+            buckets.setdefault(_backup_tier(ts), []).append(d)
+        limits = {'daily': RETENTION_DAILY, 'weekly': RETENTION_WEEKLY, 'monthly': RETENTION_MONTHLY}
+        keep = set()
+        for tier, paths in buckets.items():
+            keep.update(paths[-limits[tier]:])  # newest `limit` per tier
+        for d in dirs:
+            if d not in keep:
+                shutil.rmtree(d, ignore_errors=True)
     except Exception as e:  # pragma: no cover - environment dependent
         logger.warning(f'backup prune warning: {e}')
 

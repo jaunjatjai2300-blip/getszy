@@ -61,3 +61,26 @@ jobs:
           python -m uvicorn server:app --host 0.0.0.0 --port 8000 &
           sleep 5
           python -m pytest tests/test_critical_flows.py -v --tb=short
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run frontend tests
+        env:
+          CI: "true"
+          REACT_APP_BACKEND_URL: http://localhost:8001
+        run: |
+          cd frontend
+          npm test -- --watchAll=false --silent
