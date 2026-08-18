@@ -7,7 +7,13 @@ route:
 
 receivers:
   - name: 'default'
-    # Replace with your real alert sink (Slack/Discord/email/PagerDuty) via env.
+    # Real alert sink. Set ALERT_WEBHOOK_URL to a Slack/Discord/Mattermost/PagerDuty
+    # incoming webhook (or your own alert collector). Without it alerts are dropped.
     webhook_configs:
       - url: '${ALERT_WEBHOOK_URL:-http://localhost:5001/alerts}'
         send_resolved: true
+    # Example Slack receiver — uncomment and set SLACK_WEBHOOK_URL to activate:
+    # slack_configs:
+    #   - api_url: '${SLACK_WEBHOOK_URL}'
+    #     channel: '#getszy-alerts'
+    #     send_resolved: true
