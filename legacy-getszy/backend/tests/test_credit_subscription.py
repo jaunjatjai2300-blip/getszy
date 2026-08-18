@@ -159,3 +159,18 @@ async def test_admin_bypass_does_not_end_subscription(fake_db):
     # admin early-returns; subscription untouched
     final = await fake_db.users.find_one({'id': 'u1'})
     assert final['subscription']['plan'] == 'pro'
+
+
+@pytest.mark.asyncio
+async def test_paid_plan_not_expired_by_time_when_credits_remain(fake_db):
+    """Credit-exhaustion is the SOLE terminator — a paid plan must NOT downgrade
+    just because its calendar period_end has passed (no time cap)."""
+    await sub_mod.grant_plan('u1', 'pro', days=30)
+    await fake_db.users.update_one(
+        {'id': 'u1'},
+        {'$set': {'subscription.current_period_end': '2000-01-01T00:00:00+00:00'}},
+    )
+    user = await fake_db.users.find_one({'id': 'u1'})
+    sub = await sub_mod.effective_subscription(user)
+    assert sub['plan'] == 'pro'        # NOT downgraded by time
+    assert sub['status'] == 'active'

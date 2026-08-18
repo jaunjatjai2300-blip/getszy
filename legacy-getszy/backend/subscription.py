@@ -93,34 +93,20 @@ async def ensure_subscription(user: dict) -> dict:
 
 
 async def effective_subscription(user: dict) -> dict:
-    """Resolve plan considering trial expiry + monthly quota reset."""
+    """Resolve the user's effective subscription.
+
+    A subscription is terminated ONLY by credit exhaustion — credits.deduct()
+    calls end_subscription_if_no_credits() the moment the balance hits 0 —
+    or by explicit cancellation. There is intentionally NO time-based cap: a
+    paid plan (or trial) stays active until its credit bucket is spent, so the
+    user keeps what they paid for regardless of calendar date.
+    """
     sub = await ensure_subscription(user)
     now = _now()
     changed = False
 
-    # Trial expiry
-    if sub.get('status') == STATUS_TRIAL and sub.get('trial_ends_at'):
-        try:
-            ends = datetime.fromisoformat(sub['trial_ends_at'].replace('Z', '+00:00'))
-            if now > ends:
-                sub['status'] = STATUS_EXPIRED
-                sub['plan'] = PLAN_FREE
-                changed = True
-        except Exception:
-            logger.warning('Failed to parse trial_ends_at=%r for user %s', sub.get('trial_ends_at'), user.get('id'))
-
-    # Paid expiry
-    if sub.get('status') == STATUS_ACTIVE and sub.get('plan') in (PLAN_PRO, PLAN_ELITE) and sub.get('current_period_end'):
-        try:
-            ends = datetime.fromisoformat(sub['current_period_end'].replace('Z', '+00:00'))
-            if now > ends:
-                sub['status'] = STATUS_EXPIRED
-                sub['plan'] = PLAN_FREE
-                changed = True
-        except Exception:
-            logger.warning('Failed to parse current_period_end=%r for user %s', sub.get('current_period_end'), user.get('id'))
-
-    # Monthly quota reset
+    # Monthly studio-build quota reset (a per-month counter, NOT a subscription
+    # terminator — the plan itself only ends when credits run out).
     if sub.get('studio_builds_reset_at'):
         try:
             reset_at = datetime.fromisoformat(sub['studio_builds_reset_at'].replace('Z', '+00:00'))
