@@ -13,9 +13,23 @@ load_dotenv(ROOT_DIR / '.env')
 from db import db, client
 from app.router_registry import load_all_routers
 from monitoring import init_monitoring
+from llm_provider import LLMServiceUnavailable
 
 app = FastAPI(title='getszy API')
 api_router = APIRouter(prefix='/api')
+
+
+@app.exception_handler(LLMServiceUnavailable)
+async def _llm_unavailable_handler(request, exc):
+    """When every LLM provider in the fallback chain is down, surface a clean 503
+    (not a raw 500). Lets clients/users degrade gracefully and lets monitoring
+    alert on AI outages without scraping stack traces."""
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=503,
+        content={'error': 'ai_service_unavailable', 'message': 'The AI service is temporarily unavailable. Please try again shortly.'},
+    )
+
 
 
 @api_router.get('/')

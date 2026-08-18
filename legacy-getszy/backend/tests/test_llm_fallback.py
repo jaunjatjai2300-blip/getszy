@@ -107,7 +107,7 @@ async def test_all_providers_down_raises_and_logs(monkeypatch, caplog):
         monkeypatch.setattr(lp, name, down)
 
     with caplog.at_level(logging.WARNING):
-        with pytest.raises(RuntimeError, match='All LLM providers failed'):
+        with pytest.raises(lp.LLMServiceUnavailable, match='All LLM providers failed'):
             await lp.chat_completion('s', 'u')
     assert any('failed' in r.message for r in caplog.records), caplog.text
 
@@ -189,3 +189,45 @@ async def test_daily_limit_counter_increments_once(monkeypatch):
 
     await lp.chat_completion('s', 'u')
     assert lp._count('groq') == 1
+
+
+async def test_endpoint_returns_503_when_all_providers_down(monkeypatch):
+    """End-to-end: an HTTP endpoint that hits the chain returns a clean 503 (not a 500
+    stack trace) when every LLM provider is unavailable. This closes the AI-Infra
+    audit's 'graceful PARTIAL' gap — previously such endpoints surfaced raw 500s."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from server import _llm_unavailable_handler
+    from llm_provider import LLMServiceUnavailable
+
+    _configure(monkeypatch)
+    async def down(*a, **k):
+        raise RuntimeError('forced down')
+    for name in ('_ollama_chain', '_lmstudio', '_groq', '_gemini', '_openrouter', '_emergent'):
+        monkeypatch.setattr(lp, name, down)
+
+    app = FastAPI()
+    app.add_exception_handler(LLMServiceUnavailable, _llm_unavailable_handler)
+
+    @app.get('/chat')
+    async def chat():
+        return await lp.chat_completion('sys', 'usr', temperature=0)
+
+    client = TestClient(app)
+    r = client.get('/chat')
+    assert r.status_code == 503
+    body = r.json()
+    assert body['error'] == 'ai_service_unavailable'
+    assert 'temporarily unavailable' in body['message']
+
+
+async def test_llm_unavailable_handler_shape():
+    """The global handler returns a structured 503 without needing a live server."""
+    from starlette.requests import Request
+    from server import _llm_unavailable_handler
+    from llm_provider import LLMServiceUnavailable
+
+    resp = await _llm_unavailable_handler(Request({'type': 'http'}), LLMServiceUnavailable('boom'))
+    assert resp.status_code == 503
+    assert resp.body  # JSON body present
+

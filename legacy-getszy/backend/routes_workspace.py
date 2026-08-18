@@ -78,7 +78,7 @@ async def generate_plan(project_id: str, user=Depends(get_current_user)):
     try:
         from llm_provider import chat_completion
     except Exception:
-        raise HTTPException(500, 'LLM provider unavailable')
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
 
     convo = '\n'.join([f"{'User' if m.get('role') == 'user' else 'Neo'}: {(m.get('content') or '')[:400]}" for m in msgs])
     system = ("You are Neo, an AI Builder. Read the conversation and produce a project PLAN as strict JSON with keys "
@@ -89,7 +89,7 @@ async def generate_plan(project_id: str, user=Depends(get_current_user)):
     try:
         raw = await chat_completion(system=system, user=prompt, temperature=0.4, session_id=f'plan-{project_id}')
     except Exception as e:
-        raise HTTPException(500, f'LLM error: {str(e)[:120]}')
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
 
     import json as _json
     import re as _re
