@@ -274,6 +274,16 @@ async def chat_completion(
             logger.warning(f'LLM {name} failed: {e}')
             last_error = e
 
+    # Surface total AI outages to Sentry (observability of the fallback chain)
+    try:
+        import sentry_sdk
+        sentry_sdk.capture_exception(
+            last_error or RuntimeError('All LLM providers failed'),
+            extras={'llm_chain': [c[0] for c in chain], 'session_id': session_id},
+        )
+    except Exception:
+        pass
+
     raise RuntimeError(
         'All LLM providers failed. '
         'Set LLM_PROVIDER appropriately and ensure at least one of '
