@@ -1,0 +1,41 @@
+name: Load Test (on-demand)
+
+# Phase 3 of the hardening skill, automated into CI/CD. Manual trigger so we don't
+# burn LLM credits on every push — run it against staging/pre-prod via:
+#   Actions -> Load Test (on-demand) -> Run workflow
+# It fails the run if the 5xx error rate exceeds 2% (production error budget).
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Base URL of the Getszy instance to load test'
+        required: true
+        default: 'https://api.getszy.com'
+      users:
+        description: 'Concurrent users'
+        required: false
+        default: '25'
+      duration:
+        description: 'Duration in seconds'
+        required: false
+        default: '60'
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install httpx
+        run: pip install httpx
+      - name: Run load test
+        working-directory: legacy-getszy/load-tests
+        run: |
+          python load_test.py \
+            --url "${{ github.event.inputs.target_url }}" \
+            --users "${{ github.event.inputs.users }}" \
+            --duration "${{ github.event.inputs.duration }}" \
+            --token "${{ secrets.LOAD_TEST_TOKEN }}"

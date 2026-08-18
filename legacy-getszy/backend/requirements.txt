@@ -71,4 +71,5 @@ certifi>=2025.0.0
 # Testing
 pytest==8.3.4
 pytest-asyncio==0.25.2
+locust==2.31.0
 
