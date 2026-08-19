@@ -111,7 +111,7 @@ async def _fetch_pexels(prompt: str, orientation: str, path: str) -> bool:
 async def fetch_scene_image(prompt: str, orientation: str = '9:16', seed: int = 0,
                             provider: str = 'pollinations') -> str:
     w, h = DIMS.get(orientation, (1080, 1920))
-    cache_key = hashlib.sha1(f'{provider}|{prompt}|{orientation}|{seed}'.encode()).hexdigest()[:16]
+    cache_key = hashlib.sha1(f'{provider}|{prompt}|{orientation}|{seed}'.encode(), usedforsecurity=False).hexdigest()[:16]
     path = os.path.join(MEDIA_DIR, f'{cache_key}.jpg')
     if os.path.exists(path) and os.path.getsize(path) > 2000:
         return path

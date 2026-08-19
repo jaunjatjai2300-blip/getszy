@@ -62,9 +62,12 @@ jobs:
           cd legacy-getszy/backend
           # High-severity only for bandit to avoid medium false positives blocking CI.
           bandit -r . -x ./tests,./venv -lll
-          # Dependency CVE scan — fails loudly (no || true). If it flags an
-          # acceptable transitive issue, pin it or `safety check --ignore <id>`.
-          safety check
+          # Dependency CVE scan — fails loudly. The only currently-flagged
+          # package is `ecdsa` (a transitive dep via web3/eth libs). 0.19.2 is
+          # its latest release and it is NOT used for security-critical signing
+          # in this app, so the over-broad Minerva advisory (IDs below) is
+          # ignored with rationale. Genuinely new CVEs will still fail CI.
+          safety check --ignore 64396 --ignore 64459
 
   deploy:
     needs: [backend-tests, security]

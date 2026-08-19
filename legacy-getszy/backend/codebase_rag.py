@@ -76,7 +76,7 @@ def index_codebase(collection_name: str = 'getszy_code') -> Dict:
             chunks = _chunk_code(code)
 
             for idx, chunk in enumerate(chunks):
-                chunk_id = hashlib.md5(f'{rel_path}:{idx}'.encode()).hexdigest()
+                chunk_id = hashlib.md5(f'{rel_path}:{idx}'.encode(), usedforsecurity=False).hexdigest()
                 # Extract function names from chunk
                 funcs = []
                 for line in chunk.split('\n'):

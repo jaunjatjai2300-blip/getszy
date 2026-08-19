@@ -109,6 +109,18 @@ class _FColl:
         self._store.append(doc)
         return doc
 
+    async def bulk_write(self, operations):
+        # Minimal stand-in so restore_backup() (which uses ReplaceOne via
+        # coll.bulk_write) can exercise the round-trip against the fake DB.
+        for op in operations:
+            if hasattr(op, 'replacement'):
+                await self.replace_one(
+                    getattr(op, 'filter', {}), op.replacement,
+                    upsert=getattr(op, 'upsert', False))
+            elif hasattr(op, 'document'):
+                await self.insert_one(op.document)
+        return types.SimpleNamespace(upserted_count=0, modified_count=0, inserted_count=0)
+
 
 class _FDB:
     def __init__(self):
