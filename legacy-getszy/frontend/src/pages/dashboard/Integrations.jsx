@@ -8,6 +8,7 @@ import {
   Filter, Grid3X3, List,
 } from "lucide-react";
 import { toast } from "sonner";
+import PageState from "@/components/dashboard/PageState";
 
 export default function Integrations() {
   const [integrations, setIntegrations] = useState([]);
@@ -16,12 +17,15 @@ export default function Integrations() {
   const [cat, setCat] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [view, setView] = useState("grid");
   const [connecting, setConnecting] = useState(null);
 
   useEffect(() => { load(); }, [cat]);
 
   const load = async () => {
+    setError(null);
+    setLoading(true);
     try {
       const [integRes, connRes] = await Promise.all([
         api.get("/integrations", { params: { category: cat, search } }),
@@ -31,6 +35,7 @@ export default function Integrations() {
       setCategories(integRes.data.categories || []);
       setConnected(connRes.data.connections || []);
     } catch (e) {
+      setError(e?.response?.data?.detail || "We couldn't load integrations. Check your connection and try again.");
       toast.error("Failed to load integrations");
     } finally {
       setLoading(false);
@@ -38,12 +43,14 @@ export default function Integrations() {
   };
 
   const doSearch = async () => {
+    setError(null);
     setLoading(true);
     try {
       const r = await api.get("/integrations", { params: { category: cat, search } });
       setIntegrations(r.data.integrations || []);
-    } catch (e) { /* ignore */ }
-    finally { setLoading(false); }
+    } catch (e) {
+      setError(e?.response?.data?.detail || "Search failed. Please try again.");
+    } finally { setLoading(false); }
   };
 
   const connect = async (id) => {
@@ -148,10 +155,12 @@ export default function Integrations() {
         <h2 className="text-xs uppercase tracking-wider text-[var(--gs-muted)] font-semibold">
           {cat ? categories.find((c) => c.id === cat)?.label || cat : "All Integrations"}
         </h2>
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-[var(--gs-teal)]" />
-          </div>
+        {error ? (
+          <PageState kind="error" title="Couldn't load integrations" message={error} onRetry={load} />
+        ) : loading ? (
+          <PageState kind="loading" title="Loading integrations…" />
+        ) : integrations.filter((i) => !connectedIds.has(i.id)).length === 0 ? (
+          <PageState kind="empty" title="No integrations found" message="Try a different category or search term." />
         ) : (
           <div className={view === "grid" ? "grid sm:grid-cols-2 lg:grid-cols-3 gap-3" : "space-y-2"}>
             {integrations.filter((i) => !connectedIds.has(i.id)).map((integ) => (
