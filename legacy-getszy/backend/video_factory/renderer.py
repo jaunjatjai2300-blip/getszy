@@ -106,7 +106,7 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
         cached = scene.get('image_path')
         if cached and os.path.exists(cached):
             _done += 1
-            await _update(project_id, {'render_progress': int((_done / total) * 40)})
+            await _update(project_id, {'render_progress': int((_done / total) * 40), 'render_heartbeat': _iso()})
             return {'index': scene['index'], 'path': cached, 'prompt': prompt}
         async with sem:
             try:
@@ -118,18 +118,18 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
                             img_path = project_dir / f'scene_{scene["index"]}.jpg'
                             img_path.write_bytes(r.content)
                             _done += 1
-                            await _update(project_id, {'render_progress': int((_done / total) * 40)})
+                            await _update(project_id, {'render_progress': int((_done / total) * 40), 'render_heartbeat': _iso()})
                             return {'index': scene['index'], 'path': str(img_path), 'prompt': prompt}
                         _done += 1
-                        await _update(project_id, {'render_progress': int((_done / total) * 40)})
+                        await _update(project_id, {'render_progress': int((_done / total) * 40), 'render_heartbeat': _iso()})
                         return {'index': scene['index'], 'path': None, 'error': f'download {r.status_code}'}
                 _done += 1
-                await _update(project_id, {'render_progress': int((_done / total) * 40)})
+                await _update(project_id, {'render_progress': int((_done / total) * 40), 'render_heartbeat': _iso()})
                 return {'index': scene['index'], 'path': img_url_or_path, 'prompt': prompt}
             except Exception as e:
                 logger.exception('image fail')
                 _done += 1
-                await _update(project_id, {'render_progress': int((_done / total) * 40)})
+                await _update(project_id, {'render_progress': int((_done / total) * 40), 'render_heartbeat': _iso()})
                 return {'index': scene['index'], 'path': None, 'error': str(e)[:200]}
 
     # Precompute narration up front; voice synth is independent of image gen.
@@ -157,7 +157,7 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
         match = next((si for si in scene_images if si['index'] == scene['index']), None)
         if match and match.get('path'):
             scene['image_path'] = match['path']
-    await _update(project_id, {'stages.storyboard': scenes, 'render_status': 'generating_voice', 'render_progress': 45})
+    await _update(project_id, {'stages.storyboard': scenes, 'render_status': 'generating_voice', 'render_progress': 45, 'render_heartbeat': _iso()})
 
     # ============ 2. Voice-over (already running in parallel with images) ============
     try:
@@ -169,7 +169,7 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
         return {'error': f'voice generation failed: {e}'}
 
     await _update(project_id, {'render_status': 'assembling', 'render_progress': 70,
-                                'voice_path': str(voice_path), 'voice_used': voice})
+                                'voice_path': str(voice_path), 'voice_used': voice, 'render_heartbeat': _iso()})
 
     if await _is_cancelled(project_id):
         await _update(project_id, {'render_status': 'cancelled', 'render_error': 'cancelled by user'})
