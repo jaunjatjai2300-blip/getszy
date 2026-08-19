@@ -428,3 +428,21 @@ async def status(user=Depends(get_current_user)):
         'free_tier_remaining': await free_tier_remaining(user['id']),
         'free_tier_monthly': 5,
     }
+
+
+# ─── Read / poll results ─────────────────────────────────────────────────────
+
+@router.get('/project/{project_id}')
+async def get_project(project_id: str, user=Depends(get_current_user)):
+    proj = await db.video_projects.find_one({'id': project_id, 'user_id': user['id']}, {'_id': 0})
+    if not proj:
+        raise HTTPException(status_code=404, detail='Project not found')
+    return proj
+
+
+@router.get('/job/{job_id}')
+async def get_job(job_id: str, user=Depends(get_current_user)):
+    job = await db.ai_jobs.find_one({'id': job_id, 'user_id': user['id']}, {'_id': 0})
+    if not job:
+        raise HTTPException(status_code=404, detail='Job not found')
+    return job
