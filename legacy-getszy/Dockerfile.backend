@@ -28,7 +28,11 @@ COPY --from=builder /install /usr/local
 # Runtime deps only
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
+
+# yt-dlp for YouTube transcript ingest (one-tap repurposing)
+RUN pip install --no-cache-dir yt-dlp
 
 # Non-root user
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
