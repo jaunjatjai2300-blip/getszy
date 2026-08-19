@@ -8,6 +8,7 @@ import {
   Briefcase, PenTool, Search, BarChart3, Scale, MessageCircle, Handshake,
 } from "lucide-react";
 import { toast } from "sonner";
+import PageState from "@/components/dashboard/PageState";
 
 const AGENT_ICONS = {
   'business-advisor': Briefcase,
@@ -24,12 +25,15 @@ export default function Agents() {
   const [activeAgent, setActiveAgent] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
+    setError(null);
+    setLoading(true);
     try {
       const [agentsRes, sessionsRes] = await Promise.all([
         api.get("/agents"),
@@ -38,6 +42,7 @@ export default function Agents() {
       setAgents(agentsRes.data.agents || []);
       setSessions(sessionsRes.data.sessions || []);
     } catch (e) {
+      setError(e?.response?.data?.detail || "We couldn't load your agents. Check your connection and try again.");
       toast.error("Failed to load agents");
     } finally {
       setLoading(false);
@@ -59,10 +64,12 @@ export default function Agents() {
         </p>
       </div>
 
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-[var(--gs-teal)]" />
-        </div>
+      {error ? (
+        <PageState kind="error" title="Couldn't load agents" message={error} onRetry={loadData} />
+      ) : loading ? (
+        <PageState kind="loading" title="Loading your agents…" />
+      ) : agents.length === 0 ? (
+        <PageState kind="empty" title="No agents available" message="Expert agents will appear here once they're enabled for your workspace." />
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {agents.map((agent) => {

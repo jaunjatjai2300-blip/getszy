@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import PageState from "@/components/dashboard/PageState";
 
 const STYLES = {
   viral:       { label: "Viral",       color: "bg-rose-500",   emoji: "🔥" },
@@ -38,13 +39,21 @@ export default function VideoStudio() {
   const [project, setProject] = useState(null);
   const [prompt, setPrompt] = useState("");
   const [creating, setCreating] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [tab, setTab] = useState("enhanced");
 
   const loadProjects = useCallback(async () => {
+    setError(null);
+    setLoading(true);
     try {
       const r = await api.get("/video-factory/projects");
       setProjects(r.data.items || []);
-    } catch (e) { /* silent */ }
+    } catch (e) {
+      setError(e?.response?.data?.detail || "Couldn't load your projects.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   const loadProject = useCallback(async (id) => {
@@ -148,7 +157,11 @@ export default function VideoStudio() {
         </div>
         <div className="flex-1 overflow-y-auto p-2">
           <div className="text-[10px] uppercase text-[var(--gs-muted)] px-2 mb-1 tracking-wider">Projects ({projects.length})</div>
-          {projects.length === 0 ? (
+          {error ? (
+            <PageState compact kind="error" title="Couldn't load projects" message={error} onRetry={loadProjects} />
+          ) : loading ? (
+            <PageState compact kind="loading" title="Loading projects…" />
+          ) : projects.length === 0 ? (
             <div className="text-xs text-[var(--gs-muted)] p-4 text-center">No projects yet</div>
           ) : (
             projects.map(p => (

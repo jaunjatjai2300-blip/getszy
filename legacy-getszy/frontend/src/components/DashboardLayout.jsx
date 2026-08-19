@@ -1,7 +1,8 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Sparkle, LogOut, Store, GraduationCap, Rocket, Settings, ShoppingBag, FlaskConical, LayoutGrid, ChevronDown, ChevronRight, Film, Wand2, Menu, Users, Plug } from "lucide-react";
+import { Sparkle, LogOut, Store, GraduationCap, Rocket, Settings, ShoppingBag, FlaskConical, LayoutGrid, ChevronDown, ChevronRight, Film, Wand2, Menu, Users, Plug, Coins } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { onActivity } from "@/lib/requestActivity";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
@@ -35,6 +36,24 @@ const GROUPS = [
   },
 ];
 
+function TopProgress() {
+  const [active, setActive] = useState(false);
+  useEffect(() => onActivity((n) => setActive(n > 0)), []);
+  return (
+    <div className="fixed top-0 left-0 right-0 z-50 h-0.5" aria-hidden={!active}>
+      <div
+        className={`h-full bg-[var(--gs-teal)] transition-opacity duration-300 ${active ? "opacity-100 animate-pulse" : "opacity-0"}`}
+        style={{ width: active ? "100%" : "0%" }}
+      />
+    </div>
+  );
+}
+
+function initials(name) {
+  if (!name) return "U";
+  return name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("") || "U";
+}
+
 export default function DashboardLayout() {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
@@ -45,13 +64,27 @@ export default function DashboardLayout() {
   if (loading || !user) return <div className="p-10 text-center">Loading…</div>;
 
   const isFounder = user.role === "founder" || user.role === "admin";
+  const credits = Number(user?.credits ?? 0);
   const toggle = (k) => setOpen(o => ({ ...o, [k]: !o[k] }));
 
   const NavContent = ({ onNavigate }) => (
     <>
       <div className="px-5 py-4 border-b" style={{ borderColor: "var(--gs-border)" }}>
-        <div className="font-display text-2xl">getszy</div>
-        <div className="text-xs text-[var(--gs-muted)] mt-0.5">Workspace · {user.role || "customer"}</div>
+        <div className="flex items-center justify-between">
+          <div className="font-display text-2xl">getszy</div>
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--gs-surface-2)] text-[11px] font-medium text-[var(--gs-teal)]" data-testid="dash-credits" title="Your available credits">
+            <Coins className="h-3 w-3" />{credits} credits
+          </span>
+        </div>
+        <div className="mt-3 flex items-center gap-2.5">
+          <div className="h-9 w-9 rounded-full bg-[var(--gs-teal)] text-white grid place-items-center text-sm font-semibold" data-testid="dash-avatar">
+            {initials(user.name)}
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm font-medium truncate" data-testid="dash-user-name">{user.name || user.email || "Member"}</div>
+            <div className="text-xs text-[var(--gs-muted)] truncate">{user.email || user.role || "customer"}</div>
+          </div>
+        </div>
       </div>
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {PRIMARY.map((n) => (
@@ -105,6 +138,7 @@ export default function DashboardLayout() {
 
   return (
     <div className="min-h-screen grid md:grid-cols-[240px_1fr]" style={{ background: "#F7F5F2" }}>
+      <TopProgress/>
       <aside className="hidden md:flex flex-col border-r" style={{ background: "var(--gs-surface)", borderColor: "var(--gs-border)" }}>
         <NavContent/>
       </aside>
