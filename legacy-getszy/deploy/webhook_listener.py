@@ -48,11 +48,13 @@ async def deploy(x_token: str = Header(default=None, alias='X-Token')):
     log.info(f'Deploy triggered for {REPO_DIR}')
     started = datetime.now(timezone.utc).isoformat()
     # REPO_DIR is the git root (/opt/getszy); docker-compose.yml lives in the
-    # legacy-getszy subdir, so build from there. `caddy` is the compose service
-    # name (container is getszy-caddy).
+    # legacy-getszy subdir, so build from there. NOTE: do NOT `docker compose
+    # restart caddy` here — Caddy proxies this webhook's response, so restarting
+    # it mid-request severs the connection and the caller sees HTTP 000. The
+    # backend rebuild above already recreates getszy-backend; Caddy reconnects
+    # automatically.
     cmd = (f'cd {REPO_DIR} && git pull --ff-only && '
-           f'cd legacy-getszy && docker compose up -d --build && '
-           f'docker compose restart caddy')
+           f'cd legacy-getszy && docker compose up -d --build')
     try:
         out = subprocess.run(['bash', '-lc', cmd], capture_output=True, text=True, timeout=600)
         result = {
