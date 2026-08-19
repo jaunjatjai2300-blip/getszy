@@ -34,6 +34,9 @@ CREDIT_COSTS = {
     'video_factory_assets': 15,  # Video Factory v2 — image+voice generation + final render
     'builder_website': 5,        # Talk-to-Build Studio — new site generation
     'builder_refine': 3,         # Talk-to-Build Studio — refine existing site
+    # ── Creator / entertainment economy (high-volume, low-cost) ──
+    'viral_hooks': 1,            # Creator OS — batch of viral hook openers
+    'meme_mode': 1,              # Creator OS — story/source -> storyboard
 }
 
 # ===== Paid credit packs (Razorpay monthly subscriptions) =====
@@ -53,6 +56,22 @@ CREDIT_PACKS = {
 PLAN_CREDIT_GRANT = {
     'pro': CREDIT_PACKS['pro']['credits'],    # 125
     'elite': CREDIT_PACKS['ultra']['credits'],  # 300
+}
+
+# ===== Creator / entertainment economy — high-volume, low-cost buckets =====
+# Ultra-cheap tiers to win India's mobile-first creator market (YouTubers, Reel
+# creators, influencers). Credits here are deliberately generous vs the
+# commerce packs so a ₹299 pass covers ~100 short-form generations.
+CREATOR_PACKS = {
+    'creator_pass': {'name': 'Creator Pass', 'price_inr': 299,  'credits': 100,
+                     'tagline': '100 HD short-form generations/mo'},
+    'creator_topup': {'name': 'Creator Top-up', 'price_inr': 99, 'credits': 50,
+                      'tagline': 'Pay-as-you-go for casual creators'},
+}
+
+# Plan alias used by the subscription layer for the creator bucket.
+CREATOR_PLAN_GRANT = {
+    'creator': CREATOR_PACKS['creator_pass']['credits'],  # 100
 }
 
 
