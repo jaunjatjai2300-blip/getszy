@@ -118,3 +118,15 @@ jobs:
             echo "::error::VPS deploy webhook returned HTTP $status — verify the deploy manually"
             exit 1
           fi
+          # Post-deploy health verification: the webhook only confirms the deploy
+          # command ran; now confirm the app actually serves traffic before we
+          # call the pipeline green.
+          for i in $(seq 1 30); do
+            if curl -sSf -o /dev/null https://getszy.com/api/health; then
+              echo "Deploy verified: /api/health OK"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Deploy webhook succeeded but /api/health never came up — verify manually"
+          exit 1
