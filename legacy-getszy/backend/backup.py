@@ -69,13 +69,16 @@ def _get_cipher():
 
 
 async def run_backup():
+    # Resolve at call time (not module import) so tests and runtime can override
+    # the backup location via the BACKUP_DIR env var / monkeypatch.
+    backup_root = os.environ.get('BACKUP_DIR', BACKUP_ROOT)
     try:
-        os.makedirs(BACKUP_ROOT, exist_ok=True)
+        os.makedirs(backup_root, exist_ok=True)
     except Exception as e:  # pragma: no cover - environment dependent
-        logger.error(f'backup: cannot create {BACKUP_ROOT}: {e}')
+        logger.error(f'backup: cannot create {backup_root}: {e}')
         return None
     ts = datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')
-    out_dir = os.path.join(BACKUP_ROOT, f'getszy-{ts}')
+    out_dir = os.path.join(backup_root, f'getszy-{ts}')
     os.makedirs(out_dir, exist_ok=True)
     try:
         names = await db.list_collection_names()
@@ -108,7 +111,7 @@ async def run_backup():
         # symlink + atomic os.replace to avoid the TOCTOU race where a reader
         # sees a half-written/removed symlink.
         try:
-            latest = os.path.join(BACKUP_ROOT, 'latest')
+            latest = os.path.join(backup_root, 'latest')
             tmp = latest + '.tmp'
             if os.path.islink(tmp) or os.path.exists(tmp):
                 os.unlink(tmp)
@@ -145,7 +148,7 @@ def _prune():
     naturally produce the full GFS set. Older snapshots are removed.
     """
     try:
-        dirs = sorted(glob.glob(os.path.join(BACKUP_ROOT, 'getszy-*')))
+        dirs = sorted(glob.glob(os.path.join(os.environ.get('BACKUP_DIR', BACKUP_ROOT), 'getszy-*')))
         buckets = {'daily': [], 'weekly': [], 'monthly': []}
         for d in dirs:
             ts = os.path.basename(d).replace('getszy-', '')

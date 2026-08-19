@@ -22,6 +22,7 @@ def _tmp_backup_dir():
     return d
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_backup_restore_roundtrip_preserves_types():
     """Backup -> drop -> restore must return ObjectId/datetime intact (RPO data integrity)."""
@@ -51,6 +52,7 @@ async def test_backup_restore_roundtrip_preserves_types():
     await coll.delete_many({})
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_restore_is_idempotent():
     """Re-running restore must not create duplicate documents."""

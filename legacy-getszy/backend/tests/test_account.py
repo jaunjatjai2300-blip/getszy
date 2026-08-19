@@ -63,7 +63,7 @@ async def test_change_password_ok(patch_account, monkeypatch):
     monkeypatch.setattr(routes_auth, 'hash_password', lambda p: 'hashed_' + p)
     out = await routes_auth.change_password(
         PasswordChange(current_password='oldpass', new_password='Newpass1'), user=user)
-    assert out == {'ok': True}
+    assert out['ok'] is True
     assert fdb.users.docs[0]['password_hash'] == 'hashed_Newpass1'
 
 

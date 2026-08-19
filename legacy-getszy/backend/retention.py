@@ -27,27 +27,30 @@ def _install_createdAt_stamp():
     async def _stamped_insert_one(self, doc, *args, **kwargs):
         return await _insert_one(self, _stamp_doc(doc, self.name), *args, **kwargs)
 
-    _insert_many = AsyncIOMotorCollection.insert_many
-
-    async def _stamped_insert_many(self, docs, *args, **kwargs):
-        stamped = [_stamp_doc(d, self.name) for d in docs]
-        return await _insert_many(self, stamped, *args, **kwargs)
-
-    _bulk_write = AsyncIOMotorCollection.bulk_write
-
-    async def _stamped_bulk_write(self, requests, *args, **kwargs):
-        # Stamp documents inside insert/replace bulk operations so TTL indexes
-        # also apply to bulk writes (previously only insert_one was patched).
-        for op in requests:
-            try:
-                if hasattr(op, 'document') and isinstance(op.document, dict):
-                    _stamp_doc(op.document, self.name)
-                elif hasattr(op, 'replacement') and isinstance(op.replacement, dict):
-                    _stamp_doc(op.replacement, self.name)
-            except Exception:
-                pass
-        return await _bulk_write(self, requests, *args, **kwargs)
-
     AsyncIOMotorCollection.insert_one = _stamped_insert_one
-    AsyncIOMotorCollection.insert_many = _stamped_insert_many
-    AsyncIOMotorCollection.bulk_write = _stamped_bulk_write
+
+    # Only patch insert_many / bulk_write if the collection class actually has
+    # them (e.g. test fakes may implement only insert_one). Guard with getattr
+    # so the patch never blows up on a minimal stub collection.
+    _insert_many = getattr(AsyncIOMotorCollection, 'insert_many', None)
+    if _insert_many is not None:
+        async def _stamped_insert_many(self, docs, *args, **kwargs):
+            stamped = [_stamp_doc(d, self.name) for d in docs]
+            return await _insert_many(self, stamped, *args, **kwargs)
+        AsyncIOMotorCollection.insert_many = _stamped_insert_many
+
+    _bulk_write = getattr(AsyncIOMotorCollection, 'bulk_write', None)
+    if _bulk_write is not None:
+        async def _stamped_bulk_write(self, requests, *args, **kwargs):
+            # Stamp documents inside insert/replace bulk operations so TTL indexes
+            # also apply to bulk writes (previously only insert_one was patched).
+            for op in requests:
+                try:
+                    if hasattr(op, 'document') and isinstance(op.document, dict):
+                        _stamp_doc(op.document, self.name)
+                    elif hasattr(op, 'replacement') and isinstance(op.replacement, dict):
+                        _stamp_doc(op.replacement, self.name)
+                except Exception:
+                    pass
+            return await _bulk_write(self, requests, *args, **kwargs)
+        AsyncIOMotorCollection.bulk_write = _stamped_bulk_write

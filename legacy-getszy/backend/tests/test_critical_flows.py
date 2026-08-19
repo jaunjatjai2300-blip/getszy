@@ -72,6 +72,7 @@ def auth_header(token):
 # ═══════════════════════════════════════════════════════════════════════════════
 #  TEST 1: LOGIN
 # ═══════════════════════════════════════════════════════════════════════════════
+@pytest.mark.integration
 class TestLoginFlow:
     """Flow 1: User Login → get token → verify /me endpoint."""
 
@@ -103,6 +104,7 @@ class TestLoginFlow:
 # ═══════════════════════════════════════════════════════════════════════════════
 #  TEST 2: PRODUCT ADD
 # ═══════════════════════════════════════════════════════════════════════════════
+@pytest.mark.integration
 class TestProductFlow:
     """Flow 2: Admin creates product → verify it appears in listing."""
 
@@ -133,6 +135,7 @@ class TestProductFlow:
 # ═══════════════════════════════════════════════════════════════════════════════
 #  TEST 3: ORDER CREATE
 # ═══════════════════════════════════════════════════════════════════════════════
+@pytest.mark.integration
 class TestOrderFlow:
     """Flow 3: User creates order → verify order exists."""
 
@@ -152,6 +155,7 @@ class TestOrderFlow:
 # ═══════════════════════════════════════════════════════════════════════════════
 #  TEST 4: COURSE ENROLL
 # ═══════════════════════════════════════════════════════════════════════════════
+@pytest.mark.integration
 class TestCourseFlow:
     """Flow 4: User browses courses → enrolls in a course."""
 
@@ -187,6 +191,7 @@ class TestCourseFlow:
 # ═══════════════════════════════════════════════════════════════════════════════
 #  TEST 5: VIDEO GENERATE
 # ═══════════════════════════════════════════════════════════════════════════════
+@pytest.mark.integration
 class TestVideoFlow:
     """Flow 5: Admin generates video → verify job created."""
 
@@ -207,6 +212,7 @@ class TestVideoFlow:
 # ═══════════════════════════════════════════════════════════════════════════════
 #  HEALTH CHECK
 # ═══════════════════════════════════════════════════════════════════════════════
+@pytest.mark.integration
 class TestHealthCheck:
     """Verify the API is reachable and healthy."""
 

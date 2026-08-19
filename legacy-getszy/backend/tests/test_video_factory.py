@@ -93,8 +93,8 @@ def media_tmp(monkeypatch, tmp_path):
 @pytest.fixture
 def refunds(monkeypatch):
     calls = []
-    async def fake_refund(user_id, action, qty=1, reason='generation_failed'):
-        calls.append({'user_id': user_id, 'action': action, 'reason': reason})
+    async def fake_refund(user_id, action, qty=1, reason='generation_failed', ref_id=None):
+        calls.append({'user_id': user_id, 'action': action, 'reason': reason, 'ref_id': ref_id})
         return 1
     # routes_* bind `refund` at import time, so patch both the module and the route reference.
     monkeypatch.setattr(credits_mod, 'refund', fake_refund)
