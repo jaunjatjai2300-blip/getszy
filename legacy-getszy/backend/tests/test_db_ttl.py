@@ -112,13 +112,17 @@ class _FColl:
     async def bulk_write(self, operations, **kwargs):
         # Minimal stand-in so restore_backup() (which uses ReplaceOne via
         # coll.bulk_write) can exercise the round-trip against the fake DB.
+        # pymongo stores op fields in private attrs: _filter, _doc, _upsert.
         for op in operations:
-            if hasattr(op, 'replacement'):
-                await self.replace_one(
-                    getattr(op, 'filter', {}), op.replacement,
-                    upsert=getattr(op, 'upsert', False))
-            elif hasattr(op, 'document'):
-                await self.insert_one(op.document)
+            flt = getattr(op, '_filter', None) or getattr(op, 'filter', {})
+            doc = getattr(op, '_doc', None)
+            if doc is not None:
+                upsert = getattr(op, '_upsert', False) or getattr(op, 'upsert', False)
+                await self.replace_one(flt, doc, upsert=upsert)
+            else:
+                ins = getattr(op, '_doc', None) or getattr(op, 'document', None)
+                if ins is not None:
+                    await self.insert_one(ins)
         return types.SimpleNamespace(upserted_count=0, modified_count=0, inserted_count=0)
 
 
