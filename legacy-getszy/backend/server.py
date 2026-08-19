@@ -207,11 +207,13 @@ async def startup():
     await db.credit_transactions.create_index('created_at')
     # Race-free refund idempotency: a refund with the same (user_id, ref_id) can
     # only ever be inserted once, so a retried job failure cannot double-refund.
-    # Partial filter so ref_id-less (legacy) refunds are not uniqueness-constrained.
+    # NOTE: MongoDB partial filters cannot use `$ne`; `$gt: None` is the supported
+    # idiom for "field exists and is not null". credits.refund() omits `ref_id`
+    # entirely when absent, so legacy ref_id-less refunds are not uniqueness-bound.
     await db.credit_transactions.create_index(
         [('user_id', 1), ('ref_id', 1), ('type', 1)],
         unique=True,
-        partialFilterExpression={'ref_id': {'$exists': True, '$ne': None}},
+        partialFilterExpression={'ref_id': {'$gt': None}},
     )
     await db.admin_chat.create_index('session_id')
     await db.chat_projects.create_index('user_id')
@@ -233,7 +235,7 @@ async def startup():
         logger.warning(f'courses.slug unique index skipped (duplicate slugs?): {e}')
     try:
         await db.users.create_index('referral_code', unique=True,
-                                    partialFilterExpression={'referral_code': {'$exists': True, '$ne': None}})
+                                    partialFilterExpression={'referral_code': {'$gt': None}})
     except Exception as e:
         logger.warning(f'users.referral_code unique index skipped: {e}')
     logger.info('indexes ensured')

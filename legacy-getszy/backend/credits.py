@@ -206,11 +206,12 @@ async def refund(user_id: str, action: str, qty: int = 1, reason: str = 'generat
         'action': action,
         'qty': qty,
         'amount': amount,
-        'ref_id': ref_id,
         'balance_after': None,
         'meta': {'reason': reason},
         'created_at': _now(),
     }
+    if ref_id:
+        txn['ref_id'] = ref_id
     try:
         res = await db.credit_transactions.insert_one(txn)
     except DuplicateKeyError:
