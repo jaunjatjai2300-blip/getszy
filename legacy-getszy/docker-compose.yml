@@ -26,10 +26,16 @@ services:
     command: >
       bash -c '
         for i in $(seq 1 30); do
-          if mongosh --quiet --host mongo:27017 --eval "rs.initiate({_id:\"rs0\",members:[{_id:0,host:\"mongo:27017\"}]})" && \
-             mongosh --quiet --host mongo:27017 --eval "while(!rs.isMaster().ismaster){sleep(1000)}"; then
+          # Idempotent: if the replica set is already initialized (data persisted
+          # from a previous run), rs.status() succeeds -> we are done.
+          if mongosh --quiet --host mongo:27017 --eval "rs.status().ok" 2>/dev/null | grep -q "^1$"; then
+            echo "replica set already initialized"; exit 0;
+          fi
+          # Otherwise attempt to initiate it (fails fast if already initialized).
+          if mongosh --quiet --host mongo:27017 --eval "rs.initiate({_id:\"rs0\",members:[{_id:0,host:\"mongo:27017\"}]})" 2>/dev/null; then
+            mongosh --quiet --host mongo:27017 --eval "while(!rs.isMaster().ismaster){sleep(1000)}" 2>/dev/null;
             echo "replica set initialized"; exit 0;
-          fi;
+          fi
           echo "waiting for mongo..."; sleep 3;
         done;
         exit 1;
