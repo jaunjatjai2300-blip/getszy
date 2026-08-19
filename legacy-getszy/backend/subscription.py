@@ -9,6 +9,7 @@ logger = logging.getLogger('getszy.subscription')
 PLAN_FREE = 'free'
 PLAN_PRO = 'pro'
 PLAN_ELITE = 'elite'
+PLAN_CREATOR = 'creator'
 
 STATUS_ACTIVE = 'active'
 STATUS_TRIAL = 'trial'
@@ -19,6 +20,7 @@ QUOTAS = {
     PLAN_FREE: {'studio_builds': 0, 'advanced_courses': False, 'ai_tutor': True},
     PLAN_PRO: {'studio_builds': 10, 'advanced_courses': True, 'ai_tutor': True},
     PLAN_ELITE: {'studio_builds': 50, 'advanced_courses': True, 'ai_tutor': True},
+    PLAN_CREATOR: {'studio_builds': 0, 'advanced_courses': True, 'ai_tutor': True},
 }
 
 PRICING = [
@@ -53,6 +55,18 @@ PRICING = [
             'Priority AI queue',
             'Early access to AI Image/Video Studio',
             'Direct support',
+        ],
+    },
+    {
+        'id': 'creator', 'name': 'Creator Pass', 'tagline': 'For YouTubers & Reel creators', 'highlight': True,
+        'price_monthly': 299, 'price_currency': 'INR', 'cta': 'Go Creator',
+        'features': [
+            '100 HD short-form generations / month',
+            'Viral Hook Generator',
+            'Meme & Story Mode (faceless channels)',
+            'Hormozi-style dynamic captions',
+            'Unlimited AI Voiceover & BGM',
+            'One-Tap Repurposing',
         ],
     },
 ]
@@ -207,7 +221,7 @@ async def set_subscription_plan_active(user_id: str, plan: str, days: int = 30) 
     """Activate a subscription plan on the user WITHOUT granting credits. Used by
     the Razorpay path, which grants pack credits separately (so we never
     double-credit)."""
-    if plan not in (PLAN_PRO, PLAN_ELITE):
+    if plan not in (PLAN_PRO, PLAN_ELITE, PLAN_CREATOR):
         plan = PLAN_PRO
     now = _now()
     ends = now + timedelta(days=days)
@@ -221,7 +235,7 @@ async def set_subscription_plan_active(user_id: str, plan: str, days: int = 30) 
 
 
 async def grant_plan(user_id: str, plan: str, days: int = 30) -> dict:
-    if plan not in (PLAN_PRO, PLAN_ELITE):
+    if plan not in (PLAN_PRO, PLAN_ELITE, PLAN_CREATOR):
         raise ValueError('Invalid plan')
     now = _now()
     ends = now + timedelta(days=days)

@@ -10,10 +10,12 @@ single gate for AI actions; see credits.py):
   (initial + every renewal) grants that pack's credit amount via
   `credits.add_credits()` — credits do NOT roll over automatically into a
   "plan"; they just top up the user's balance every billing cycle.
-- Packs are defined in `credits.CREDIT_PACKS` (lite/pro/ultra). Razorpay
-  plan_ids can be created either via the Razorpay dashboard and set via env
-  `RAZORPAY_PLAN_LITE` / `RAZORPAY_PLAN_PRO` / `RAZORPAY_PLAN_ULTRA`, OR
-  auto-created via `POST /billing/admin/create-plans` (admin-only).
+- Packs are defined in `credits.CREDIT_PACKS` (lite/pro/ultra) and
+  `credits.CREATOR_PACKS` (the low-cost `creator_pass`). Razorpay plan_ids can
+  be created either via the Razorpay dashboard and set via env
+  `RAZORPAY_PLAN_LITE` / `RAZORPAY_PLAN_PRO` / `RAZORPAY_PLAN_ULTRA` /
+  `RAZORPAY_PLAN_CREATOR`, OR auto-created via
+  `POST /billing/admin/create-plans` (admin-only).
 
 Env vars:
   RAZORPAY_KEY_ID
@@ -22,6 +24,7 @@ Env vars:
   RAZORPAY_PLAN_LITE        (optional, "plan_..." id from Razorpay)
   RAZORPAY_PLAN_PRO         (optional)
   RAZORPAY_PLAN_ULTRA       (optional)
+  RAZORPAY_PLAN_CREATOR     (optional, for the ₹299 Creator Pass)
 """
 import os
 import uuid
@@ -35,12 +38,15 @@ from pydantic import BaseModel
 
 from auth import get_current_user, get_current_admin
 from db import db
-from credits import CREDIT_PACKS, add_credits
+from credits import CREDIT_PACKS, CREATOR_PACKS, add_credits
 from subscription import set_subscription_plan_active
 
 # Razorpay "pack" ids map onto the app's subscription tiers. Packs already grant
 # their own credits on charge; we only flip the user's subscription plan here.
-PACK_TO_PLAN = {'lite': 'pro', 'pro': 'pro', 'ultra': 'elite'}
+PACK_TO_PLAN = {'lite': 'pro', 'pro': 'pro', 'ultra': 'elite', 'creator_pass': 'creator'}
+
+# Unified pack registry: commerce packs + low-cost creator packs.
+ALL_PACKS = {**CREDIT_PACKS, **CREATOR_PACKS}
 
 logger = logging.getLogger('getszy.billing')
 router = APIRouter(prefix='/billing', tags=['billing'])
@@ -48,7 +54,12 @@ router = APIRouter(prefix='/billing', tags=['billing'])
 KEY_ID = os.environ.get('RAZORPAY_KEY_ID', '').strip()
 KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', '').strip()
 WEBHOOK_SECRET = os.environ.get('RAZORPAY_WEBHOOK_SECRET', '').strip()
-PLAN_ENV_KEYS = {'lite': 'RAZORPAY_PLAN_LITE', 'pro': 'RAZORPAY_PLAN_PRO', 'ultra': 'RAZORPAY_PLAN_ULTRA'}
+PLAN_ENV_KEYS = {
+    'lite': 'RAZORPAY_PLAN_LITE',
+    'pro': 'RAZORPAY_PLAN_PRO',
+    'ultra': 'RAZORPAY_PLAN_ULTRA',
+    'creator_pass': 'RAZORPAY_PLAN_CREATOR',
+}
 PLAN_IDS = {pack: os.environ.get(env_key, '').strip() for pack, env_key in PLAN_ENV_KEYS.items()}
 
 
@@ -91,20 +102,22 @@ async def pricing_public():
             'name': info['name'],
             'price_monthly': info['price_inr'],
             'credits': info['credits'],
+            'tagline': info.get('tagline'),
         }
-        for pack, info in CREDIT_PACKS.items()
+        for pack, info in ALL_PACKS.items()
+        if pack in PLAN_ENV_KEYS  # only subscribable (recurring) packs
     ]
     return {'plans': plans, 'currency': 'INR', 'interval': 'monthly'}
 
 
 # ---------- Create Subscription ----------
 class SubscribeIn(BaseModel):
-    plan: str  # 'lite' | 'pro' | 'ultra'
+    plan: str  # 'lite' | 'pro' | 'ultra' | 'creator_pass'
 
 
 @router.post('/subscribe')
 async def subscribe(body: SubscribeIn, user=Depends(get_current_user)):
-    if body.plan not in CREDIT_PACKS:
+    if body.plan not in ALL_PACKS:
         raise HTTPException(400, 'Invalid plan')
     if not _is_configured():
         return {
@@ -159,7 +172,7 @@ async def _grant_pack_credits_once(user_id: str, pack: str, payment_id: str, sou
     """Grant a pack's credits for a given Razorpay payment_id, but only once.
     Guards against Razorpay webhook retries and double-firing (verify + webhook
     both reporting the same charge) double-crediting the user."""
-    if pack not in CREDIT_PACKS:
+    if pack not in ALL_PACKS:
         logger.warning('Unknown credit pack %s for payment %s', pack, payment_id)
         return None
     try:
@@ -173,7 +186,7 @@ async def _grant_pack_credits_once(user_id: str, pack: str, payment_id: str, sou
     except Exception:
         # Duplicate key (unique index on payment_id) => already processed, skip.
         return None
-    amount = CREDIT_PACKS[pack]['credits']
+    amount = ALL_PACKS[pack]['credits']
     return await add_credits(user_id, amount, reason='razorpay_subscription_charge', meta={'pack': pack, 'payment_id': payment_id, 'source': source})
 
 
@@ -198,7 +211,7 @@ async def verify(body: VerifyIn, user=Depends(get_current_user)):
         {'razorpay_subscription_id': body.razorpay_subscription_id},
         {'$set': {'status': 'active', 'last_payment_id': body.razorpay_payment_id, 'updated_at': _iso()}}
     )
-    return {'ok': True, 'plan': rec['plan'], 'credits_granted': CREDIT_PACKS[rec['plan']]['credits'] if balance is not None else 0, 'balance': balance}
+    return {'ok': True, 'plan': rec['plan'], 'credits_granted': ALL_PACKS[rec['plan']]['credits'] if balance is not None else 0, 'balance': balance}
 
 
 # ---------- Webhook (server-to-server truth) ----------
@@ -280,7 +293,8 @@ async def admin_create_plans(admin=Depends(get_current_admin)):
     client = _client()
     created = {}
     try:
-        for pack, info in CREDIT_PACKS.items():
+        for pack in PLAN_ENV_KEYS:  # only subscribable (recurring) packs
+            info = ALL_PACKS[pack]
             plan = client.plan.create({
                 'period': 'monthly', 'interval': 1,
                 'item': {
