@@ -14,6 +14,7 @@ import asyncio
 import logging
 import os
 import uuid
+import httpx
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
@@ -88,41 +89,65 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
 
     await _update(project_id, {'render_status': 'generating_images', 'render_progress': 0})
 
-    # ============ 1. Generate one image per scene ============
-    scene_images = []
+    # ============ 1. Generate one image per scene — CONCURRENTLY ============
+    # Images come from an external API (Pollinations) and are the dominant cost.
+    # Generate them in parallel with bounded concurrency so an N-scene video
+    # takes ~1 image-time instead of N x image-time. Voice-over synthesis is
+    # kicked off in parallel too, since it only needs the precomputed narration.
+    CONCURRENCY = int(os.environ.get('VF_IMAGE_CONCURRENCY', '5'))
+    sem = asyncio.Semaphore(CONCURRENCY)
     total = len(scenes)
-    for i, scene in enumerate(scenes):
+    _done = 0
+
+    async def _gen_one(scene):
+        nonlocal _done
         vp = next((v for v in visual_plan if v.get('scene_index') == scene.get('index')), None)
         prompt = (vp or {}).get('generation_prompt') or scene.get('visual_intent') or scene.get('narration_chunk', '')[:200]
-        # Skip if scene has cached image
         cached = scene.get('image_path')
         if cached and os.path.exists(cached):
-            scene_images.append({'index': scene['index'], 'path': cached, 'prompt': prompt})
-            continue
+            _done += 1
+            await _update(project_id, {'render_progress': int((_done / total) * 40)})
+            return {'index': scene['index'], 'path': cached, 'prompt': prompt}
+        async with sem:
+            try:
+                img_url_or_path = await fetch_scene_image(prompt, orientation=orientation, seed=hash(prompt) % 100000)
+                if isinstance(img_url_or_path, str) and img_url_or_path.startswith('http'):
+                    async with httpx.AsyncClient(timeout=90) as client:
+                        r = await client.get(img_url_or_path)
+                        if r.status_code == 200:
+                            img_path = project_dir / f'scene_{scene["index"]}.jpg'
+                            img_path.write_bytes(r.content)
+                            _done += 1
+                            await _update(project_id, {'render_progress': int((_done / total) * 40)})
+                            return {'index': scene['index'], 'path': str(img_path), 'prompt': prompt}
+                        _done += 1
+                        await _update(project_id, {'render_progress': int((_done / total) * 40)})
+                        return {'index': scene['index'], 'path': None, 'error': f'download {r.status_code}'}
+                _done += 1
+                await _update(project_id, {'render_progress': int((_done / total) * 40)})
+                return {'index': scene['index'], 'path': img_url_or_path, 'prompt': prompt}
+            except Exception as e:
+                logger.exception('image fail')
+                _done += 1
+                await _update(project_id, {'render_progress': int((_done / total) * 40)})
+                return {'index': scene['index'], 'path': None, 'error': str(e)[:200]}
 
-        try:
-            img_url_or_path = await fetch_scene_image(prompt, orientation=orientation, seed=hash(prompt) % 100000)
-            # fetch_scene_image returns URL or local path — normalize to local
-            if img_url_or_path.startswith('http'):
-                import httpx
-                async with httpx.AsyncClient(timeout=60) as client:
-                    r = await client.get(img_url_or_path)
-                    if r.status_code == 200:
-                        img_path = project_dir / f'scene_{scene["index"]}.jpg'
-                        img_path.write_bytes(r.content)
-                        scene_images.append({'index': scene['index'], 'path': str(img_path), 'prompt': prompt})
-                    else:
-                        scene_images.append({'index': scene['index'], 'path': None, 'error': f'download {r.status_code}'})
-            else:
-                scene_images.append({'index': scene['index'], 'path': img_url_or_path, 'prompt': prompt})
-        except Exception as e:
-            logger.exception('image fail')
-            scene_images.append({'index': scene['index'], 'path': None, 'error': str(e)[:200]})
+    # Precompute narration up front; voice synth is independent of image gen.
+    full_narration = ' '.join(s.get('narration_chunk', '') for s in scenes if s.get('narration_chunk'))
+    if not full_narration.strip():
+        full_narration = script.get('narration', '')[:3000]
+    voice_path = project_dir / 'voice.mp3'
+    voice = pick_voice(language=p.get('language', 'hinglish'), gender='female')
+    voice_task = asyncio.create_task(synth(full_narration[:4000], str(voice_path), voice=voice))
 
-        pct = int(((i + 1) / total) * 40)
-        await _update(project_id, {'render_progress': pct})
+    scene_images = list(await asyncio.gather(*[_gen_one(scene) for scene in scenes]))
 
     if await _is_cancelled(project_id):
+        voice_task.cancel()
+        try:
+            await voice_task
+        except Exception:
+            pass
         await _update(project_id, {'render_status': 'cancelled', 'render_error': 'cancelled by user'})
         _cleanup_project_files(project_id)
         return {'error': 'cancelled by user'}
@@ -134,15 +159,9 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
             scene['image_path'] = match['path']
     await _update(project_id, {'stages.storyboard': scenes, 'render_status': 'generating_voice', 'render_progress': 45})
 
-    # ============ 2. Generate voice-over ============
-    voice_path = project_dir / 'voice.mp3'
-    voice = pick_voice(language=p.get('language', 'hinglish'), gender='female')
+    # ============ 2. Voice-over (already running in parallel with images) ============
     try:
-        # Concatenate narration from each scene (respecting narration_chunk)
-        full_narration = ' '.join(s.get('narration_chunk', '') for s in scenes if s.get('narration_chunk'))
-        if not full_narration.strip():
-            full_narration = script.get('narration', '')[:3000]
-        await synth(full_narration[:4000], str(voice_path), voice=voice)
+        await voice_task
     except Exception as e:
         logger.exception('voice fail')
         await _update(project_id, {'render_status': 'error', 'render_error': f'voice: {str(e)[:200]}'})
