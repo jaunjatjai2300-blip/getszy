@@ -15,6 +15,7 @@ import logging
 import os
 from datetime import datetime, timezone
 from typing import Optional
+from pymongo.errors import DuplicateKeyError
 from db import db
 
 logger = logging.getLogger('getszy.credits')
@@ -193,17 +194,28 @@ async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] =
 async def refund(user_id: str, action: str, qty: int = 1, reason: str = 'generation_failed', ref_id: Optional[str] = None) -> int:
     """Refund credits when a background job fails after credits were already spent.
 
-    `ref_id` makes a refund idempotent: a retry of the same logical failure
-    (e.g. a recovered video job or a retried render) will not double-refund.
-    Callers that can supply a stable id (job/project id) should do so.
+    Race-free idempotency: when `ref_id` is supplied, a partial unique index on
+    ``(user_id, ref_id, type)`` makes a duplicate refund insert impossible, so a
+    retried failure can never double-refund even under concurrency. Callers that
+    can supply a stable id (job/project id) should do so.
     """
-    if ref_id:
-        dup = await db.credit_transactions.find_one(
-            {'user_id': user_id, 'type': 'refund', 'ref_id': ref_id}
-        )
-        if dup:
-            return await get_balance(user_id)
     amount = cost_of(action, qty)
+    txn = {
+        'user_id': user_id,
+        'type': 'refund',
+        'action': action,
+        'qty': qty,
+        'amount': amount,
+        'ref_id': ref_id,
+        'balance_after': None,
+        'meta': {'reason': reason},
+        'created_at': _now(),
+    }
+    try:
+        res = await db.credit_transactions.insert_one(txn)
+    except DuplicateKeyError:
+        # Already refunded for this ref_id — no double refund.
+        return await get_balance(user_id)
     updated = await db.users.find_one_and_update(
         {'id': user_id},
         {'$inc': {'credits': amount}},
@@ -211,17 +223,10 @@ async def refund(user_id: str, action: str, qty: int = 1, reason: str = 'generat
         projection={'_id': 0, 'credits': 1},
     )
     balance_after = int((updated or {}).get('credits', 0) or 0)
-    await db.credit_transactions.insert_one({
-        'user_id': user_id,
-        'type': 'refund',
-        'action': action,
-        'qty': qty,
-        'amount': amount,
-        'balance_after': balance_after,
-        'ref_id': ref_id,
-        'meta': {'reason': reason},
-        'created_at': _now(),
-    })
+    await db.credit_transactions.update_one(
+        {'_id': res.inserted_id},
+        {'$set': {'balance_after': balance_after}},
+    )
     return balance_after
 
 

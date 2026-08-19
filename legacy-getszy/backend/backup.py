@@ -104,12 +104,16 @@ async def run_backup():
             json.dump(manifest, fh, indent=2)
         _prune()
         # Point a stable `latest` symlink at the newest backup so DR runbooks
-        # can `restore_backup(os.path.join(BACKUP_ROOT, 'latest'))`.
+        # can `restore_backup(os.path.join(BACKUP_ROOT, 'latest'))`. Use a temp
+        # symlink + atomic os.replace to avoid the TOCTOU race where a reader
+        # sees a half-written/removed symlink.
         try:
             latest = os.path.join(BACKUP_ROOT, 'latest')
-            if os.path.islink(latest) or os.path.exists(latest):
-                os.unlink(latest)
-            os.symlink(out_dir, latest)
+            tmp = latest + '.tmp'
+            if os.path.islink(tmp) or os.path.exists(tmp):
+                os.unlink(tmp)
+            os.symlink(out_dir, tmp)
+            os.replace(tmp, latest)
         except Exception as e:  # pragma: no cover - environment dependent
             logger.warning(f'backup latest symlink warning: {e}')
         total_docs = sum(manifest['collections'].values())
