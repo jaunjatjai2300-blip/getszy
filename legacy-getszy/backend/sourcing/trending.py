@@ -137,7 +137,7 @@ async def scan_trending(limit: int = 12) -> List[Dict]:
     # repeated scans reuse the same on-disk image (no extra downloads).
     import hashlib
     def _niche_key(niche_slug: str, i: int) -> str:
-        return hashlib.md5(f'{niche_slug}_{i}'.encode()).hexdigest()[:16]
+        return hashlib.md5(f'{niche_slug}_{i}'.encode(), usedforsecurity=False).hexdigest()[:16]
     img_tasks = [
         _fetch_and_cache(_pollinations_url(n['niche'], i), _niche_key(n['niche'], i))
         for i, n in enumerate(sample)
