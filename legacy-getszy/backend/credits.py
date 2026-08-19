@@ -37,6 +37,15 @@ CREDIT_COSTS = {
     # ── Creator / entertainment economy (high-volume, low-cost) ──
     'viral_hooks': 1,            # Creator OS — batch of viral hook openers
     'meme_mode': 1,              # Creator OS — story/source -> storyboard
+    # ── Game-changing video features (Phase 1/2) ──
+    'avatar_talking': 2,         # Photo + voice -> talking avatar (SadTalker)
+    'voice_clone': 1,            # Clone a voice from reference audio (XTTS)
+    'text_to_video': 4,          # Topic -> script + scenes + voiceover + music
+    'video_translate': 5,        # Video -> translated lip-synced video
+    'image_to_video': 3,         # Photo -> animated video clip
+    'one_tap_repurposing': 6,    # Long video -> vertical shorts w/ captions
+    'social_publish': 1,         # One-click publish to YouTube/Insta/FB
+    'influencer_reply': 1,       # AI auto-reply to a social comment
 }
 
 # ===== Paid credit packs (Razorpay monthly subscriptions) =====
@@ -74,6 +83,17 @@ CREATOR_PLAN_GRANT = {
     'creator': CREATOR_PACKS['creator_pass']['credits'],  # 100
 }
 
+# ===== Free tier (viral growth engine) =====
+# Free users get a small monthly allowance of watermarked generations so the
+# product spreads organically ("Made with Getszy.com"). Paid users are exempt.
+FREE_TIER_MONTHLY = 5
+WATERMARK_TEXT = 'Made with Getszy.com'
+# Actions that count against the free tier (video outputs only).
+FREE_TIER_ACTIONS = {
+    'avatar_talking', 'text_to_video', 'video_translate',
+    'image_to_video', 'one_tap_repurposing',
+}
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -88,6 +108,27 @@ def cost_of(action: str, qty: int = 1) -> int:
 async def get_balance(user_id: str) -> int:
     user = await db.users.find_one({'id': user_id}, {'_id': 0, 'credits': 1})
     return int((user or {}).get('credits', 0) or 0)
+
+
+def _month_key() -> str:
+    return datetime.now(timezone.utc).strftime('%Y-%m')
+
+
+async def free_tier_used(user_id: str) -> int:
+    rec = await db.free_tier_usage.find_one({'user_id': user_id, 'month': _month_key()}, {'_id': 0, 'count': 1})
+    return int((rec or {}).get('count', 0) or 0)
+
+
+async def free_tier_remaining(user_id: str) -> int:
+    return max(0, FREE_TIER_MONTHLY - await free_tier_used(user_id))
+
+
+async def free_tier_record(user_id: str, n: int = 1) -> None:
+    await db.free_tier_usage.update_one(
+        {'user_id': user_id, 'month': _month_key()},
+        {'$inc': {'count': n}, '$setOnInsert': {'user_id': user_id, 'month': _month_key()}},
+        upsert=True,
+    )
 
 
 async def has_enough(user: dict, action: str, qty: int = 1) -> bool:
