@@ -111,11 +111,17 @@ jobs:
           resp=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST https://getszy.com/hooks/deploy \
             -H "X-Token: ${{ secrets.DEPLOY_TOKEN }}" \
             -H "Content-Type: application/json" -d '{}' \
-            --max-time 30 --retry 3 --retry-delay 5 --retry-all-errors) || true
+            --max-time 600 --retry 3 --retry-delay 5 --retry-all-errors) || true
           echo "$resp"
           status=$(echo "$resp" | tail -n1 | sed 's/HTTP_STATUS://')
           if [ "$status" != "200" ] && [ "$status" != "202" ]; then
             echo "::error::VPS deploy webhook returned HTTP $status — verify the deploy manually"
+            exit 1
+          fi
+          # The webhook returns 200 even when the underlying deploy command fails
+          # (ok:false). Fail loudly so a broken deploy is never invisible.
+          if echo "$resp" | grep -q '"ok": *false'; then
+            echo "::error::VPS deploy webhook reported ok:false (deploy command failed) — check VPS logs"
             exit 1
           fi
           # Post-deploy health verification: the webhook only confirms the deploy
