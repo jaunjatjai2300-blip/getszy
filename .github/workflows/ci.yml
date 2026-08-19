@@ -31,8 +31,8 @@ jobs:
       SEED_ADMIN_PASSWORD: test-admin-pass-123
       SEED_CUSTOMER_PASSWORD: test-customer-pass-123
       # Live-server tests (test_auth) hit a LOCAL FastAPI instance started
-      # below — never prod. The app is mounted with no `/api` prefix.
-      TEST_API_URL: http://localhost:8000
+      # below — never prod. API routes live under the `/api` prefix.
+      TEST_API_URL: http://localhost:8000/api
       TEST_BASE_URL: http://localhost:8000
     steps:
       - uses: actions/checkout@v4
@@ -56,7 +56,7 @@ jobs:
           cd legacy-getszy/backend
           uvicorn server:app --host 0.0.0.0 --port 8000 > /tmp/uvicorn.log 2>&1 &
           for i in $(seq 1 60); do
-            if curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health 2>/dev/null | grep -q 200; then
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/api/health 2>/dev/null | grep -q 200; then
               echo "Server is up!"
               break
             fi
@@ -64,7 +64,7 @@ jobs:
           done
           echo "=== uvicorn.log ==="
           cat /tmp/uvicorn.log
-          curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health | grep -q 200 || { echo "Server failed to start"; exit 1; }
+          curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/api/health | grep -q 200 || { echo "Server failed to start"; exit 1; }
 
       - name: Run backend test suite
         run: |
