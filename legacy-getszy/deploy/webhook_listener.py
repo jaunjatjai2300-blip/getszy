@@ -15,6 +15,7 @@ Usage:
 Or install the bundled systemd service (see deploy/README.md).
 """
 import os
+import hmac
 import subprocess
 import logging
 from datetime import datetime, timezone
@@ -42,7 +43,7 @@ async def health():
 
 @app.post('/deploy')
 async def deploy(x_token: str = Header(default=None, alias='X-Token')):
-    if not TOKEN or x_token != TOKEN:
+    if not TOKEN or not hmac.compare_digest(x_token or '', TOKEN):
         raise HTTPException(status_code=401, detail='Invalid or missing X-Token header')
     log.info(f'Deploy triggered for {REPO_DIR}')
     started = datetime.now(timezone.utc).isoformat()
