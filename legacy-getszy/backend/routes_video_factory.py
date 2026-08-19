@@ -306,41 +306,94 @@ class GenerateAssetsIn(BaseModel):
     orientation: str = '16:9'  # '16:9' | '9:16' | '1:1'
 
 
+async def _run_render_pipeline(project_id: str, orientation: str, user_id: str):
+    """Background job: ensure the storyboard exists (re-run the pipeline if it
+    was interrupted by a restart), then render the video. Runs entirely off the
+    request path so a slow LLM/Image step can never time out the user's click."""
+    try:
+        p = await db.video_projects.find_one({'id': project_id}, {'_id': 0})
+        if not p:
+            return
+        stages = p.get('stages') or {}
+        if not stages.get('storyboard') or not stages.get('visual_plan'):
+            if p.get('status') in ('processing', 'created', 'error', 'partial'):
+                try:
+                    result = await run_factory_chain(
+                        p.get('prompt_raw', ''), p.get('language', 'hinglish'), f'vf-{project_id}')
+                    await _update(project_id, {
+                        'stages': result.get('stages', {}),
+                        'selected_script_id': result.get('selected_script_id'),
+                        'status': 'ready' if not result.get('errors') else 'partial',
+                    })
+                    p = await db.video_projects.find_one({'id': project_id}, {'_id': 0})
+                    stages = (p or {}).get('stages') or {}
+                except Exception as e:
+                    logger.exception('render pipeline chain re-run failed')
+                    await _update(project_id, {'render_status': 'error',
+                                               'render_error': f'pipeline re-run failed: {str(e)[:200]}'})
+                    try:
+                        await refund(user_id, 'video_factory_assets', reason='chain_rerun_failed',
+                                     ref_id=f'vf-assets-{project_id}')
+                        await _update(project_id, {'refunded': True})
+                    except Exception:
+                        pass
+                    return
+        await generate_all_assets(project_id, orientation)
+    except Exception as e:
+        logger.exception('render pipeline crashed')
+        try:
+            await _update(project_id, {'render_status': 'error',
+                                       'render_error': f'pipeline crashed: {str(e)[:200]}'})
+        except Exception:
+            pass
+
+
 @router.post('/project/{project_id}/generate-assets')
 async def generate_assets(project_id: str, body: GenerateAssetsIn, background: BackgroundTasks, user=Depends(get_current_user)):
     """Kick off image+voice+assembly in background. Poll project for status."""
     p = await _project_or_404(project_id, user)
-    stages = p.get('stages') or {}
 
-    # Auto-heal: a server restart can orphan the pipeline (storyboard missing)
-    # mid-run, leaving the project stuck at 'processing' with no storyboard.
-    # Re-run the pipeline here so the user can always (re)generate from a
-    # stuck project instead of being forced to create a brand-new one.
-    if not stages.get('storyboard') or not stages.get('visual_plan'):
-        if p.get('status') in ('processing', 'created', 'error', 'partial'):
+    # A dead/orphaned job (server restart, hung image call) leaves render_status
+    # stuck in an "active" state, which would block ALL retries and leave the
+    # user stuck at "generating" with no credit ever deducted. Only treat it as
+    # live if it started recently; otherwise reset it and start a fresh render
+    # (refunding the prior dead run's asset credit once, so no double charge).
+    # A dead/orphaned job (server restart, hung image call) leaves render_status
+    # stuck in an "active" state, which would block ALL retries and leave the
+    # user stuck at "generating" with no credit ever deducted. We detect a live
+    # job via its heartbeat; if no heartbeat recently, the job is dead -> reset
+    # it and start a fresh render (refunding the prior dead run's asset credit
+    # once, so no double charge).
+    STALE_SECS = int(os.environ.get('VF_RENDER_STALE_SECS', '150'))
+    active = p.get('render_status') in ('generating_images', 'generating_voice', 'assembling')
+    if active:
+        hb = p.get('render_heartbeat') or p.get('render_started_at')
+        alive = False
+        if hb:
             try:
-                result = await run_factory_chain(
-                    p.get('prompt_raw', ''), p.get('language', 'hinglish'), f'vf-{project_id}')
-                await _update(project_id, {
-                    'stages': result.get('stages', {}),
-                    'selected_script_id': result.get('selected_script_id'),
-                    'status': 'ready' if not result.get('errors') else 'partial',
-                })
-                p = await _project_or_404(project_id, user)
-                stages = p.get('stages') or {}
+                dt = datetime.fromisoformat(hb)
+                now = datetime.now(timezone.utc)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                alive = (now - dt).total_seconds() <= STALE_SECS
+            except Exception:
+                alive = False
+        if alive:
+            return {'ok': True, 'already_running': True, 'render_status': p.get('render_status')}
+        if not p.get('refunded'):
+            try:
+                await refund(user['id'], 'video_factory_assets', reason='dead_render_rerun',
+                             ref_id=f'vf-assets-{project_id}')
             except Exception as e:
-                raise HTTPException(500, f'pipeline re-run failed: {str(e)[:200]}')
-        if not stages.get('storyboard') or not stages.get('visual_plan'):
-            raise HTTPException(400, 'storyboard + visual_plan required — run pipeline first')
+                logger.warning('dead_render_rerun refund failed: %s', e)
+            await _update(project_id, {'refunded': True})
 
-    if p.get('render_status') in ('generating_images', 'generating_voice', 'assembling'):
-        return {'ok': True, 'already_running': True, 'render_status': p.get('render_status')}
     ok, msg, _ = await deduct(user['id'], 'video_factory_assets')
     if not ok:
         raise HTTPException(status_code=402, detail=msg)
     await _update(project_id, {'render_status': 'queued', 'render_progress': 0, 'render_error': None,
-                               'cancel_requested': False, 'refunded': False})
-    background.add_task(generate_all_assets, project_id, body.orientation)
+                               'cancel_requested': False, 'refunded': False, 'render_started_at': _iso()})
+    background.add_task(_run_render_pipeline, project_id, body.orientation, user['id'])
     return {'ok': True, 'status': 'queued', 'poll_url': f'/api/video-factory/project/{project_id}'}
 
 
