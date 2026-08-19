@@ -205,6 +205,14 @@ async def startup():
     # New indexes from audit
     await db.credit_transactions.create_index('user_id')
     await db.credit_transactions.create_index('created_at')
+    # Race-free refund idempotency: a refund with the same (user_id, ref_id) can
+    # only ever be inserted once, so a retried job failure cannot double-refund.
+    # Partial filter so ref_id-less (legacy) refunds are not uniqueness-constrained.
+    await db.credit_transactions.create_index(
+        [('user_id', 1), ('ref_id', 1), ('type', 1)],
+        unique=True,
+        partialFilterExpression={'ref_id': {'$exists': True, '$ne': None}},
+    )
     await db.admin_chat.create_index('session_id')
     await db.chat_projects.create_index('user_id')
     await db.chat_messages.create_index('project_id')

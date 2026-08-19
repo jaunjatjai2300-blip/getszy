@@ -64,10 +64,6 @@ class CreateProjectIn(BaseModel):
 
 @router.post('/project')
 async def create_project(body: CreateProjectIn, background: BackgroundTasks, user=Depends(get_current_user)):
-    if body.auto_run:
-        ok, msg, _ = await deduct(user['id'], 'video_factory_chain')
-        if not ok:
-            raise HTTPException(status_code=402, detail=msg)
     pid = str(uuid.uuid4())
     doc = {
         'id': pid,
@@ -81,10 +77,17 @@ async def create_project(body: CreateProjectIn, background: BackgroundTasks, use
         'created_at': _iso(),
         'updated_at': _iso(),
     }
+    # Insert the project FIRST, then deduct. This prevents a lost-credit bug:
+    # if the deduction fails (insufficient balance) we roll back the orphan
+    # project; if the insert fails, nothing was deducted.
     await db.video_projects.insert_one(doc)
     doc.pop('_id', None)
 
     if body.auto_run:
+        ok, msg, _ = await deduct(user['id'], 'video_factory_chain')
+        if not ok:
+            await db.video_projects.delete_one({'id': pid})
+            raise HTTPException(status_code=402, detail=msg)
         background.add_task(_run_chain_bg, pid, body.prompt.strip(), body.language, user['id'])
         doc['status'] = 'processing'
         await _update(pid, {'status': 'processing'})
