@@ -311,8 +311,28 @@ async def generate_assets(project_id: str, body: GenerateAssetsIn, background: B
     """Kick off image+voice+assembly in background. Poll project for status."""
     p = await _project_or_404(project_id, user)
     stages = p.get('stages') or {}
+
+    # Auto-heal: a server restart can orphan the pipeline (storyboard missing)
+    # mid-run, leaving the project stuck at 'processing' with no storyboard.
+    # Re-run the pipeline here so the user can always (re)generate from a
+    # stuck project instead of being forced to create a brand-new one.
     if not stages.get('storyboard') or not stages.get('visual_plan'):
-        raise HTTPException(400, 'storyboard + visual_plan required — run pipeline first')
+        if p.get('status') in ('processing', 'created', 'error', 'partial'):
+            try:
+                result = await run_factory_chain(
+                    p.get('prompt_raw', ''), p.get('language', 'hinglish'), f'vf-{project_id}')
+                await _update(project_id, {
+                    'stages': result.get('stages', {}),
+                    'selected_script_id': result.get('selected_script_id'),
+                    'status': 'ready' if not result.get('errors') else 'partial',
+                })
+                p = await _project_or_404(project_id, user)
+                stages = p.get('stages') or {}
+            except Exception as e:
+                raise HTTPException(500, f'pipeline re-run failed: {str(e)[:200]}')
+        if not stages.get('storyboard') or not stages.get('visual_plan'):
+            raise HTTPException(400, 'storyboard + visual_plan required — run pipeline first')
+
     if p.get('render_status') in ('generating_images', 'generating_voice', 'assembling'):
         return {'ok': True, 'already_running': True, 'render_status': p.get('render_status')}
     ok, msg, _ = await deduct(user['id'], 'video_factory_assets')
