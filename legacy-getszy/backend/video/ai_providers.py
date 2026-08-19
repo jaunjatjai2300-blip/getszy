@@ -233,6 +233,47 @@ async def openrouter_chat(system: str, user_msg: str, temperature: float = 0.7) 
 
 # ─── Status / health check ────────────────────────────────────────────────────
 
+# ─── 6. Local media utilities (ffmpeg) ────────────────────────────────────────
+
+def _ffmpeg_available() -> bool:
+    import shutil
+    return bool(shutil.which('ffmpeg'))
+
+
+async def extract_audio(video_path: str, out_path: Optional[str] = None) -> Optional[str]:
+    """Extract mono 16kHz WAV from a video (for voice-clone / translation)."""
+    if not _ffmpeg_available():
+        return None
+    out = out_path or str(AUDIO_DIR / f'{uuid.uuid4().hex[:10]}.wav')
+    proc = await asyncio.create_subprocess_exec(
+        'ffmpeg', '-y', '-i', video_path, '-vn', '-ac', '1', '-ar', '16000', out,
+        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+    )
+    await proc.wait()
+    return out if proc.returncode == 0 and os.path.exists(out) else None
+
+
+async def watermark_video(video_path: str, text: str = 'Made with Getszy.com', out_path: Optional[str] = None) -> Optional[str]:
+    """Burn a watermark into a video (free-tier organic marketing)."""
+    if not _ffmpeg_available():
+        return None
+    out = out_path or str(AVATAR_DIR / f'{uuid.uuid4().hex[:10]}_wm.mp4')
+    draw = f"drawtext=text='{text}':fontcolor=white:fontsize=24:box=1:boxcolor=black@0.4:x=(w-tw)/2:y=h-th-10"
+    proc = await asyncio.create_subprocess_exec(
+        'ffmpeg', '-y', '-i', video_path, '-vf', draw, '-c:a', 'copy', out,
+        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+    )
+    await proc.wait()
+    return out if proc.returncode == 0 and os.path.exists(out) else None
+
+
+async def lip_sync_video(video_path: str, audio_path: str, out_path: Optional[str] = None) -> Optional[str]:
+    """Lip-sync a video to new audio. Placeholder for a Wav2Lip / SadTalker-Face
+    pipeline; returns None until a lip-sync model is wired (graceful no-op so
+    callers fall back to audio dubbing)."""
+    return None
+
+
 def providers_status() -> dict:
     """Return which providers are enabled (for /api/status endpoint)."""
     return {
@@ -242,4 +283,5 @@ def providers_status() -> dict:
         'cogvideox':      bool(HF_TOKEN),
         'openrouter':     bool(OPENROUTER_KEY),
         'pollinations':   True,   # always available
+        'ffmpeg':         _ffmpeg_available(),
     }

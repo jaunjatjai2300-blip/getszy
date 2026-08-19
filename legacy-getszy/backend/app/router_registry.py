@@ -54,6 +54,7 @@ CREATOR_ROUTERS = [
     ('creator', 'routes_creator', 'creator'),
     ('creator_platform', 'routes_creator_platform', 'creator-platform'),
     ('workforce', 'routes_workforce', 'workforce'),
+    ('video_tools', 'routes_video_tools', 'video-tools'),
 ]
 
 # ── Builders & Studio ─────────────────────────────────────────────────────────

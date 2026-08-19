@@ -23,7 +23,8 @@ from db import db
 from datetime import datetime, timezone
 from video.ai_providers import (
     fetch_image, xtts_clone_voice, sadtalker_avatar,
-    cogvideo_clip, providers_status, HF_TOKEN, AVATAR_DIR, AUDIO_DIR, CLIP_DIR
+    cogvideo_clip, extract_audio, watermark_video,
+    providers_status, HF_TOKEN, AVATAR_DIR, AUDIO_DIR, CLIP_DIR
 )
 
 logger = logging.getLogger('getszy.avatar')
@@ -201,6 +202,111 @@ async def ai_video_clip(payload: VideoClipIn, bg: BackgroundTasks, user=Depends(
 
     bg.add_task(_run)
     return {'job_id': job_id, 'status': 'queued', 'message': 'AI video clip generating — takes 3-5 minutes'}
+
+
+# ─── 5. Photo-to-Avatar (Text + Photo -> talking head) ────────────────────────
+
+@router.post('/photo-to-avatar')
+async def photo_to_avatar(
+    bg: BackgroundTasks,
+    portrait: UploadFile = File(...),
+    script: str = Form(...),
+    reference_audio: UploadFile = File(...),
+    expression: str = Form('neutral'),
+    user=Depends(get_current_user),
+):
+    """Text-to-Avatar: upload a photo + your script + a voice sample -> talking
+    avatar that says your script in your cloned voice (expressive metadata kept)."""
+    if not HF_TOKEN:
+        raise HTTPException(status_code=503, detail='Avatar needs HF_TOKEN. Get free at huggingface.co/settings/tokens')
+    portrait_data = await portrait.read()
+    ref_data = await reference_audio.read()
+    if len(portrait_data) > 15 * 1024 * 1024 or len(ref_data) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail='Upload too large (max 15 MB image / 25 MB audio)')
+    if len(ref_data) < 10_000:
+        raise HTTPException(status_code=400, detail='Voice sample too short. Upload at least 10 seconds of clear speech.')
+
+    portrait_path = _save_upload(portrait_data, 'jpg')
+    ref_path = _save_upload(ref_data, 'wav')
+    job_id = str(uuid.uuid4())
+    await db.ai_jobs.insert_one({
+        'id': job_id, 'user_id': user['id'], 'type': 'photo_to_avatar',
+        'status': 'queued', 'expression': expression,
+        'created_at': datetime.now(timezone.utc).isoformat(),
+    })
+
+    async def _run():
+        await _job_update(job_id, status='processing', percent=10)
+        try:
+            voice = await xtts_clone_voice(script, str(ref_path), language='hi')
+            if not voice:
+                await _job_update(job_id, status='failed', error='Voice clone returned no audio')
+                return
+            result = await sadtalker_avatar(str(portrait_path), voice)
+            if result:
+                await _job_update(job_id, status='done', percent=100,
+                                  output_path=result, url=f'/media/avatars/{Path(result).name}',
+                                  expression=expression)
+            else:
+                await _job_update(job_id, status='failed', error='SadTalker returned no video')
+        except Exception as e:
+            await _job_update(job_id, status='failed', error=str(e))
+
+    bg.add_task(_run)
+    return {'job_id': job_id, 'status': 'queued', 'expression': expression,
+            'message': 'Building your talking avatar — takes 2-4 minutes'}
+
+
+# ─── 6. Digital Twin (Video -> clone voice + face) ─────────────────────────────
+
+@router.post('/digital-twin')
+async def digital_twin(
+    bg: BackgroundTasks,
+    video: UploadFile = File(...),
+    portrait: UploadFile = File(...),
+    script: str = Form(...),
+    user=Depends(get_current_user),
+):
+    """Video-to-Avatar: upload a short clip of you speaking + a clear portrait ->
+    AI clones your voice and animates the portrait (your Digital Twin)."""
+    if not HF_TOKEN:
+        raise HTTPException(status_code=503, detail='Digital Twin needs HF_TOKEN. Get free at huggingface.co/settings/tokens')
+    video_data = await video.read()
+    portrait_data = await portrait.read()
+    if len(video_data) > 100 * 1024 * 1024 or len(portrait_data) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail='Upload too large (max 100 MB video / 15 MB image)')
+
+    vid_path = _save_upload(video_data, 'mp4')
+    portrait_path = _save_upload(portrait_data, 'jpg')
+    job_id = str(uuid.uuid4())
+    await db.ai_jobs.insert_one({
+        'id': job_id, 'user_id': user['id'], 'type': 'digital_twin',
+        'status': 'queued', 'created_at': datetime.now(timezone.utc).isoformat(),
+    })
+
+    async def _run():
+        await _job_update(job_id, status='processing', percent=10)
+        try:
+            ref = await extract_audio(str(vid_path))
+            if not ref:
+                await _job_update(job_id, status='failed', error='ffmpeg unavailable — cannot extract voice from video')
+                return
+            voice = await xtts_clone_voice(script, ref, language='hi')
+            if not voice:
+                await _job_update(job_id, status='failed', error='Voice clone returned no audio')
+                return
+            result = await sadtalker_avatar(str(portrait_path), voice)
+            if result:
+                await _job_update(job_id, status='done', percent=100,
+                                  output_path=result, url=f'/media/avatars/{Path(result).name}')
+            else:
+                await _job_update(job_id, status='failed', error='SadTalker returned no video')
+        except Exception as e:
+            await _job_update(job_id, status='failed', error=str(e))
+
+    bg.add_task(_run)
+    return {'job_id': job_id, 'status': 'queued',
+            'message': 'Creating your Digital Twin — takes 3-5 minutes'}
 
 
 # ─── Job status poll ──────────────────────────────────────────────────────────
