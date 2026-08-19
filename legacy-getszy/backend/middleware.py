@@ -1,12 +1,18 @@
-"""Security middleware — rate limiting, security headers, request logging."""
+"""Security middleware — security headers, per-user AI rate limit, request logging.
+
+NOTE: the global request rate limiter lives in `redis_rate_limit.py`
+(`RedisRateLimitMiddleware`) and is Redis-backed so the limit is enforced
+across all workers. The old in-memory `RateLimitMiddleware` was removed: it
+was never registered (dead code) and reset on restart, which gave a false
+impression that multi-worker rate limiting was broken. Do not reintroduce an
+in-memory global limiter here.
+"""
 import os
 import time
-import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse
 
 
 def real_client_ip(request: Request) -> str:
@@ -25,46 +31,6 @@ def real_client_ip(request: Request) -> str:
     return request.client.host if request.client else 'unknown'
 
 
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    """In-memory sliding-window rate limiter (no Redis required)."""
-
-    def __init__(self, app, limit: int = 200, window: int = 60):
-        super().__init__(app)
-        self.limit = limit
-        self.window = window
-        self._hits: dict[str, list[float]] = defaultdict(list)
-
-    def _clean(self, ip: str, now: float):
-        cutoff = now - self.window
-        self._hits[ip] = [t for t in self._hits[ip] if t > cutoff]
-        if not self._hits[ip]:
-            del self._hits[ip]
-
-    async def dispatch(self, request: Request, call_next):
-        client_ip = real_client_ip(request)
-        now = time.time()
-        self._clean(client_ip, now)
-        if len(self._hits.get(client_ip, [])) >= self.limit:
-            try:
-                from db import db
-                await db.blocked_ips.insert_one({
-                    'id': uuid.uuid4().hex,
-                    'ip': client_ip,
-                    'reason': 'Rate limit exceeded',
-                    'severity': 'medium',
-                    'created_at': datetime.now(timezone.utc).isoformat(),
-                })
-            except Exception:
-                pass
-            return JSONResponse(
-                {'error': 'Rate limit exceeded. Try again in a minute.'},
-                status_code=429,
-            )
-        self._hits[client_ip].append(now)
-        response = await call_next(request)
-        return response
-
-
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
@@ -78,17 +44,40 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Per-user AI-endpoint rate limiter (defense against LLM cost-exhaustion attacks)
-# In-memory sliding window keyed by user id. For multi-worker deployments, swap
-# this dict for a shared store (Redis) so the limit is enforced across workers.
+# Per-user AI-endpoint rate limiter (defense against LLM cost-exhaustion attacks).
+# Redis-backed so the limit is enforced across ALL workers (one user cannot
+# drain the shared Groq daily quota and 503 everyone else). Falls back to a
+# per-worker in-memory window ONLY when Redis is unavailable, so local/dev and
+# CI still get best-effort protection without a Redis dependency.
 # ─────────────────────────────────────────────────────────────────────────────
+from redis_client import redis as _ai_redis
+
 _AI_HITS: dict[str, list[float]] = defaultdict(list)
 AI_RATE_LIMIT = int(os.environ.get('AI_RATE_LIMIT_PER_USER', '30'))
 AI_RATE_WINDOW = int(os.environ.get('AI_RATE_WINDOW_SEC', '60'))
 
 
-def ai_rate_limit_allowed(identifier: str, limit: int = AI_RATE_LIMIT, window: int = AI_RATE_WINDOW) -> bool:
-    """Return True if `identifier` is still allowed; records the hit otherwise."""
+async def ai_rate_limit_allowed(identifier: str, limit: int = AI_RATE_LIMIT, window: int = AI_RATE_WINDOW) -> bool:
+    """Return True if `identifier` is still allowed; records the hit otherwise.
+
+    Uses a Redis sorted-set sliding window (atomic pipeline) when Redis is
+    reachable, otherwise a per-worker in-memory best-effort window.
+    """
+    if _ai_redis is not None:
+        try:
+            now = time.time()
+            key = f'ai_ratelimit:{identifier}'
+            pipe = _ai_redis.pipeline(transaction=True)
+            pipe.zremrangebyscore(key, 0, now - window)   # drop stale hits
+            pipe.zcard(key)                                # count in window
+            pipe.zadd(key, {str(now): now})               # record this hit
+            pipe.expire(key, window)                      # keep keys tidy
+            results = await pipe.execute()
+            return results[1] < limit
+        except Exception:
+            # Redis hiccup → fall through to in-memory best-effort (fail soft).
+            pass
+    # In-memory fallback (per-worker): used in dev/CI or when Redis is down.
     now = time.time()
     hits = _AI_HITS[identifier]
     cutoff = now - window
@@ -99,33 +88,61 @@ def ai_rate_limit_allowed(identifier: str, limit: int = AI_RATE_LIMIT, window: i
     return True
 
 
+# Bounded request-log writer: under DDoS we must not spawn one unbounded
+# asyncio task + Mongo insert per request (that self-amplifies into OOM).
+# Cap concurrent log writes; drop the log (never the response) when saturated.
+_LOG_MAX_CONCURRENT = int(os.environ.get('REQUEST_LOG_MAX_CONCURRENT', '50'))
+_log_semaphore = None
+_log_inflight = 0
+_log_lock = None
+
+
+def _get_log_gate():
+    global _log_semaphore, _log_lock
+    if _log_semaphore is None:
+        import asyncio
+        _log_semaphore = asyncio.Semaphore(_LOG_MAX_CONCURRENT)
+        _log_lock = asyncio.Lock()
+    return _log_semaphore, _log_lock
+
+
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start = time.time()
         response = await call_next(request)
         duration = round(time.time() - start, 4)
-        # Fire-and-forget: never block the response on a Mongo write.
+        # Fire-and-forget but BOUNDED: never block the response on a Mongo write,
+        # and never let logging tasks grow without limit under load.
         try:
-            import asyncio
-            from db import db
-            from datetime import datetime, timezone
+            sem, lock = _get_log_gate()
+            async with lock:
+                if _log_inflight >= _LOG_MAX_CONCURRENT:
+                    return response  # saturated — drop the log, keep the response
+                _log_inflight += 1
 
             async def _write():
                 try:
-                    await db.request_logs.insert_one({
-                        'method': request.method,
-                        'path': str(request.url.path),
-                        'status_code': response.status_code,
-                        'duration': duration,
-                        'ip': real_client_ip(request),
-                        'level': 'info',
-                        'message': f"{request.method} {request.url.path} -> {response.status_code}",
-                        'time': datetime.now(timezone.utc).isoformat(),
-                        'timestamp': datetime.now(timezone.utc).isoformat(),
-                    })
+                    async with sem:
+                        from db import db
+                        await db.request_logs.insert_one({
+                            'method': request.method,
+                            'path': str(request.url.path),
+                            'status_code': response.status_code,
+                            'duration': duration,
+                            'ip': real_client_ip(request),
+                            'level': 'info',
+                            'message': f"{request.method} {request.url.path} -> {response.status_code}",
+                            'time': datetime.now(timezone.utc).isoformat(),
+                            'timestamp': datetime.now(timezone.utc).isoformat(),
+                        })
                 except Exception:
                     pass
+                finally:
+                    async with lock:
+                        global _log_inflight
+                        _log_inflight = max(0, _log_inflight - 1)
 
+            import asyncio
             asyncio.create_task(_write())
         except Exception:
             pass

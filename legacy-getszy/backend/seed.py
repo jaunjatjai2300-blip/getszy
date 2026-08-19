@@ -140,9 +140,11 @@ async def seed_if_empty():
                  password_hash=hash_password(admin_pass), role='admin')
     await db.users.insert_one(admin.model_dump())
     cust_email = os.environ.get('SEED_CUSTOMER_EMAIL', 'customer@getszy.com')
-    cust_pass = os.environ.get('SEED_CUSTOMER_PASSWORD', 'ChangeMeNow!')
+    cust_pass = os.environ.get('SEED_CUSTOMER_PASSWORD')
+    if not cust_pass:
+        raise RuntimeError('SEED_CUSTOMER_PASSWORD env var is required for first run')
     cust = User(name='Demo Customer', email=cust_email,
-                password_hash=hash_password(cust_pass), role='customer')
+               password_hash=hash_password(cust_pass), role='customer')
     await db.users.insert_one(cust.model_dump())
     for c in CATEGORIES:
         if not await db.categories.find_one({'slug': c['slug']}):

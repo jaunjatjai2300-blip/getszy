@@ -22,9 +22,32 @@ def _stamp_doc(doc, coll_name):
 
 def _install_createdAt_stamp():
     from motor.motor_asyncio import AsyncIOMotorCollection
-    _orig = AsyncIOMotorCollection.insert_one
+    _insert_one = AsyncIOMotorCollection.insert_one
 
-    async def _stamped_insert(self, doc, *args, **kwargs):
-        return await _orig(self, _stamp_doc(doc, self.name), *args, **kwargs)
+    async def _stamped_insert_one(self, doc, *args, **kwargs):
+        return await _insert_one(self, _stamp_doc(doc, self.name), *args, **kwargs)
 
-    AsyncIOMotorCollection.insert_one = _stamped_insert
+    _insert_many = AsyncIOMotorCollection.insert_many
+
+    async def _stamped_insert_many(self, docs, *args, **kwargs):
+        stamped = [_stamp_doc(d, self.name) for d in docs]
+        return await _insert_many(self, stamped, *args, **kwargs)
+
+    _bulk_write = AsyncIOMotorCollection.bulk_write
+
+    async def _stamped_bulk_write(self, requests, *args, **kwargs):
+        # Stamp documents inside insert/replace bulk operations so TTL indexes
+        # also apply to bulk writes (previously only insert_one was patched).
+        for op in requests:
+            try:
+                if hasattr(op, 'document') and isinstance(op.document, dict):
+                    _stamp_doc(op.document, self.name)
+                elif hasattr(op, 'replacement') and isinstance(op.replacement, dict):
+                    _stamp_doc(op.replacement, self.name)
+            except Exception:
+                pass
+        return await _bulk_write(self, requests, *args, **kwargs)
+
+    AsyncIOMotorCollection.insert_one = _stamped_insert_one
+    AsyncIOMotorCollection.insert_many = _stamped_insert_many
+    AsyncIOMotorCollection.bulk_write = _stamped_bulk_write

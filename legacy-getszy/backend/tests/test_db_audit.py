@@ -75,8 +75,14 @@ def test_is_safe_url_blocks_private_and_loopback():
 
 
 def test_ai_rate_limiter_enforces_per_user_cap():
+    import asyncio
+    import time
     from middleware import ai_rate_limit_allowed
-    key = f'testuser_{__import__("time").time()}'
-    for _ in range(30):
-        assert ai_rate_limit_allowed(key, limit=30, window=60) is True
-    assert ai_rate_limit_allowed(key, limit=30, window=60) is False
+    key = f'testuser_{time.time()}'
+
+    async def _run():
+        for _ in range(30):
+            assert await ai_rate_limit_allowed(key, limit=30, window=60) is True
+        assert await ai_rate_limit_allowed(key, limit=30, window=60) is False
+
+    asyncio.run(_run())

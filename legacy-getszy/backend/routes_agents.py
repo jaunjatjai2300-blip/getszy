@@ -257,8 +257,8 @@ async def agent_chat(agent_id: str, payload: AgentChatIn, user=Depends(get_curre
 
     session_id = payload.session_id or str(uuid.uuid4())
 
-    # Per-user AI rate limit (cost-exhaustion protection)
-    if not ai_rate_limit_allowed(f'agent:{user["id"]}'):
+    # Per-user AI rate limit (cost-exhaustion protection, Redis-backed)
+    if not await ai_rate_limit_allowed(f'agent:{user["id"]}'):
         raise HTTPException(status_code=429, detail='Too many requests. Please slow down.')
 
     # Build conversation context
