@@ -166,7 +166,7 @@ function LogoTool({ color }) {
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
         {busy ? "Generating…" : "Generate 4 Logo Concepts"}
       </Button>
-      {logos.length > 0 && (
+      {logos.length > 0 ? (
         <div className="grid grid-cols-2 gap-3">
           {logos.map((url, i) => (
             <div key={i} className="rounded-xl overflow-hidden border bg-white">
@@ -177,6 +177,8 @@ function LogoTool({ color }) {
             </div>
           ))}
         </div>
+      ) : !busy && (
+        <p className="text-xs text-[var(--gs-muted)]">Your generated logo concepts will appear here.</p>
       )}
     </div>
   );
