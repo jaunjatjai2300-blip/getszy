@@ -106,7 +106,7 @@ async def _run_chain_bg(project_id: str, raw_prompt: str, language: str, user_id
         await _update(project_id, patch)
     except Exception as e:
         await _update(project_id, {'status': 'error', 'errors': {'chain': str(e)[:300]}})
-        await refund(user_id, 'video_factory_chain', reason='chain_failed')
+        await refund(user_id, 'video_factory_chain', reason='chain_failed', ref_id=f'vf-chain-{project_id}')
 
 
 @router.get('/project/{project_id}')
@@ -357,7 +357,7 @@ async def cancel_generation(project_id: str, user=Depends(get_current_user)):
     if status in ('queued', 'generating_images', 'generating_voice', 'assembling'):
         uid = p.get('user_id')
         if uid and not p.get('refunded'):
-            await refund(uid, 'video_factory_assets', reason='user_cancelled')
+            await refund(uid, 'video_factory_assets', reason='user_cancelled', ref_id=f'vf-assets-{project_id}')
         await _update(project_id, {'render_status': 'cancelled', 'render_error': 'cancelled by user',
                                    'cancel_requested': True, 'refunded': True})
         _cleanup_project_files(project_id)
@@ -380,7 +380,7 @@ async def recover_stuck_video_jobs():
         count += 1
         if p.get('user_id') and not p.get('refunded'):
             try:
-                await refund(p['user_id'], 'video_factory_assets', reason='server_restart_recovery')
+                await refund(p['user_id'], 'video_factory_assets', reason='server_restart_recovery', ref_id=f'vf-assets-{p["id"]}')
             except Exception as e:
                 logger.warning('recover_stuck_video_jobs refund failed: %s', e)
         await db.video_projects.update_one(

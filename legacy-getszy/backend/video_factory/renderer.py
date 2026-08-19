@@ -49,7 +49,7 @@ async def _refund_assets(project_id: str, user_id: Optional[str], reason: str):
     if not uid:
         return
     from credits import refund
-    await refund(uid, 'video_factory_assets', reason=reason)
+    await refund(uid, 'video_factory_assets', reason=reason, ref_id=f'vf-assets-{project_id}')
     await db.video_projects.update_one({'id': project_id}, {'$set': {'refunded': True}})
 
 

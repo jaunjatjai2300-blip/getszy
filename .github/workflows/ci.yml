@@ -37,13 +37,14 @@ jobs:
           grep -v '^emergentintegrations' requirements.txt > /tmp/req-ci.txt
           pip install -r /tmp/req-ci.txt
 
-      - name: Run backend unit tests
+      - name: Run backend test suite
         run: |
           cd legacy-getszy/backend
-          # Unit tests run with only a MongoDB service (no live server needed).
-          # Integration tests (test_auth, test_critical_flows) hit a live API and
-          # are run separately against staging/production.
-          python -m pytest tests/test_llm_provider.py tests/test_catalog_preview.py -v -p no:cacheprovider
+          # Run the FULL suite (not just 2 files). Tests that require a live
+          # external API (LLM/Razorpay/etc.) must be marked `@pytest.mark.integration`
+          # so they can be excluded from CI; uncovered live failures surface here
+          # on purpose — that is the point of the gate.
+          python -m pytest tests/ -v -p no:cacheprovider
 
   security:
     runs-on: ubuntu-latest
@@ -59,8 +60,11 @@ jobs:
         run: |
           pip install bandit safety
           cd legacy-getszy/backend
-          bandit -r . -x ./tests,./venv -ll || true
-          safety check || true
+          # High-severity only for bandit to avoid medium false positives blocking CI.
+          bandit -r . -x ./tests,./venv -lll
+          # Dependency CVE scan — fails loudly (no || true). If it flags an
+          # acceptable transitive issue, pin it or `safety check --ignore <id>`.
+          safety check
 
   deploy:
     needs: [backend-tests, security]
@@ -69,13 +73,15 @@ jobs:
     steps:
       - name: Trigger VPS Deploy
         run: |
-          # Fire-and-forget: the VPS performs the deploy asynchronously, so we must
-          # not block on it. A short timeout + `|| true` keeps CI green even if the
-          # webhook is slow/unreachable. (See server-side change to return 202.)
-          curl -s -X POST https://getszy.com/hooks/deploy \
+          # Surface the webhook result instead of failing silently. Non-2xx makes
+          # the job fail so a broken deploy is never invisible.
+          resp=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST https://getszy.com/hooks/deploy \
             -H "X-Token: ${{ secrets.DEPLOY_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d '{}' \
-            --max-time 30 \
-            --retry 3 --retry-delay 5 \
-            --retry-all-errors || true
+            -H "Content-Type: application/json" -d '{}' \
+            --max-time 30 --retry 3 --retry-delay 5 --retry-all-errors) || true
+          echo "$resp"
+          status=$(echo "$resp" | tail -n1 | sed 's/HTTP_STATUS://')
+          if [ "$status" != "200" ] && [ "$status" != "202" ]; then
+            echo "::error::VPS deploy webhook returned HTTP $status — verify the deploy manually"
+            exit 1
+          fi

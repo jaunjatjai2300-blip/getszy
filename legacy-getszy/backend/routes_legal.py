@@ -6,17 +6,36 @@ Provides:
 - /api/legal/data-export   — Download all user data (GDPR / DPDP Act 2023 compliant)
 - /api/legal/data-delete   — Request account + data deletion
 """
+import asyncio
 import json
 import io
+import logging
+import os
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
-from auth import get_current_user
+from auth import get_current_user, get_current_admin
 from db import db
 
+logger = logging.getLogger('getszy')
+
 router = APIRouter(prefix='/legal', tags=['legal'])
+
+# Grace period before a deletion request is actually executed (DPDP Act 2023
+# right to erasure — allows a cooling-off window + fraud/refund reconciliation).
+DELETION_GRACE_DAYS = int(os.environ.get('DELETION_GRACE_DAYS', '30'))
+
+# Collections that hold a user's personal data, all keyed by `user_id`.
+_DELETION_COLLECTIONS = [
+    'orders', 'enrollments', 'subscriptions', 'billing_subscriptions',
+    'chat_projects', 'chat_messages', 'chat_assets', 'workspace_plans',
+    'workspace_tasks', 'workspace_versions', 'workspace_deployments',
+    'hosted_sites', 'builder_projects', 'media_generations', 'support_tickets',
+    'credit_transactions', 'free_tier_usage', 'data_export_log',
+    'video_projects', 'video_jobs',
+]
 
 
 def _iso() -> str:
@@ -93,24 +112,109 @@ async def data_export(user=Depends(get_current_user)):
     )
 
 
-# ---------- Data Deletion (Right to Erasure) ----------
+# ---------- Data Deletion (Right to Erasure — DPDP Act 2023 §12) ----------
 @router.post('/data-delete')
 async def data_delete_request(user=Depends(get_current_user)):
-    """Request account & data deletion. Recorded for review — 30-day cooling period."""
+    """Request account & data deletion. A background worker
+    (:func:`process_due_deletions`, launched at startup) erases the data after a
+    configurable grace period (default 30 days) so this is NOT a no-op queue."""
     existing = await db.deletion_requests.find_one({'user_id': user['id'], 'status': 'pending'})
     if existing:
         return {'ok': True, 'status': 'already_pending', 'requested_at': existing.get('requested_at')}
+    process_after = (datetime.now(timezone.utc) + timedelta(days=DELETION_GRACE_DAYS)).isoformat()
     await db.deletion_requests.insert_one({
         'user_id': user['id'],
         'email': user.get('email'),
         'status': 'pending',
         'requested_at': _iso(),
-        'process_after': _iso(),  # in production: +30 days grace period
+        'process_after': process_after,
     })
-    return {'ok': True, 'status': 'pending', 'note': 'Aapka deletion request record ho gaya hai. Team 7 din mein confirm karegi.'}
+    return {
+        'ok': True,
+        'status': 'pending',
+        'process_after': process_after,
+        'note': f'Aapka deletion request record ho gaya hai. {DELETION_GRACE_DAYS} din ke grace period ke baad data permanently delete ho jayega.',
+    }
 
 
 @router.get('/data-delete/status')
 async def data_delete_status(user=Depends(get_current_user)):
     rec = await db.deletion_requests.find_one({'user_id': user['id']}, {'_id': 0})
     return {'pending': bool(rec), 'record': rec}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Deletion worker — actually erases user data (DPDP §12 right to erasure).
+# The /data-delete endpoint only QUEUES a request; this worker is what makes the
+# promise real. Launched once at server startup (see server.startup).
+# ─────────────────────────────────────────────────────────────────────────────
+async def _erase_user_data(user_id: str):
+    """Permanently delete a user's personal data across every collection and
+    anonymize the auth record (kept only as a tombstone so any residual foreign
+    references don't dangle). Best-effort per collection — one failure must not
+    block the others."""
+    for coll in _DELETION_COLLECTIONS:
+        try:
+            await db[coll].delete_many({'user_id': user_id})
+        except Exception as e:  # pragma: no cover - environment dependent
+            logger.warning('deletion: failed to purge %s for %s: %s', coll, user_id, e)
+    try:
+        await db.users.update_one(
+            {'id': user_id},
+            {'$set': {
+                'email': f'deleted_{user_id}@deleted.getszy.com',
+                'phone': None,
+                'name': 'Deleted User',
+                'password_hash': 'DELETED',
+                'credits': 0,
+                'deleted': True,
+            }, '$unset': {'profile_picture': '', 'address': '', 'stripe_customer_id': ''}},
+        )
+    except Exception as e:  # pragma: no cover - environment dependent
+        logger.warning('deletion: failed to anonymize user %s: %s', user_id, e)
+
+
+async def process_due_deletions():
+    """Erase data for every pending deletion request whose grace period has
+    elapsed. Admin/founder accounts are protected (marked 'skipped').
+
+    Returns the number of accounts actually erased.
+    """
+    now = _iso()
+    processed = 0
+    async for rec in db.deletion_requests.find({'status': 'pending', 'process_after': {'$lte': now}}):
+        uid = rec.get('user_id')
+        if not uid:
+            continue
+        u = await db.users.find_one({'id': uid}, {'_id': 0, 'role': 1})
+        if u and u.get('role') in ('admin', 'founder'):
+            await db.deletion_requests.update_one(
+                {'_id': rec['_id']},
+                {'$set': {'status': 'skipped', 'completed_at': now, 'note': 'admin/founder protected'}},
+            )
+            continue
+        await _erase_user_data(uid)
+        await db.deletion_requests.update_one(
+            {'_id': rec['_id']},
+            {'$set': {'status': 'completed', 'completed_at': now}},
+        )
+        processed += 1
+        logger.info('deletion: erased data for user %s', uid)
+    return processed
+
+
+async def deletion_worker():
+    """Hourly sweeper. Runs forever; never lets an exception kill the loop."""
+    while True:
+        try:
+            await process_due_deletions()
+        except Exception as e:  # pragma: no cover - environment dependent
+            logger.warning('deletion worker error: %s', e)
+        await asyncio.sleep(3600)
+
+
+@router.post('/admin/data-delete/process')
+async def admin_process_deletions(admin=Depends(get_current_admin)):
+    """Manually trigger processing of due deletion requests (compliance/audit use)."""
+    n = await process_due_deletions()
+    return {'ok': True, 'processed': n}

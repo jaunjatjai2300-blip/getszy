@@ -248,6 +248,12 @@ async def startup():
         asyncio.create_task(start_catalog_watcher())
     except Exception as e:
         logger.error(f'could not start catalog watcher: {e}')
+    # DPDP deletion worker — actually erases user data after the grace period.
+    try:
+        from routes_legal import deletion_worker
+        asyncio.create_task(deletion_worker())
+    except Exception as e:
+        logger.error(f'could not start deletion worker: {e}')
 
 
 @app.on_event('shutdown')

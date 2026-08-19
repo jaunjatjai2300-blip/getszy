@@ -93,7 +93,7 @@ async def run_job(job_id: str, params: Dict[str, Any], user_id: Optional[str] = 
             'completed_at': datetime.now(timezone.utc).isoformat(),
         }})
         if user_id:
-            await refund(user_id, 'faceless_video', qty=credit_qty, reason='generation_failed')
+            await refund(user_id, 'faceless_video', qty=credit_qty, reason='generation_failed', ref_id=f'faceless-{job_id}')
 
 
 def _flatten_script(script: Dict[str, Any]) -> str:

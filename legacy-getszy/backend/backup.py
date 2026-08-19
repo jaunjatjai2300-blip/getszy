@@ -23,6 +23,7 @@ import shutil
 from datetime import datetime, timezone
 
 from bson.json_util import dumps as bson_dumps, loads as bson_loads
+from cryptography.fernet import Fernet, InvalidToken
 from pymongo import ReplaceOne
 from db import db
 
@@ -42,6 +43,29 @@ RETENTION_WEEKLY = int(os.environ.get('BACKUP_RETENTION_WEEKLY', '5'))
 RETENTION_MONTHLY = int(os.environ.get('BACKUP_RETENTION_MONTHLY', '12'))
 # Populated by run_backup(); consumed by the RPO/RTO status endpoint + metrics.
 LAST_BACKUP = {'ts': None, 'ts_epoch': None, 'dir': None, 'docs': 0}
+
+# ── At-rest encryption ────────────────────────────────────────────────────────
+# Backups contain PII (emails, orders, chat logs). When BACKUP_ENCRYPTION_KEY is
+# set, every collection file is written as `<name>.jsonl.enc` (Fernet) so
+# plaintext PII never touches disk or the off-site bucket. Leave it empty to
+# keep the previous plaintext behaviour (only for local/dev).
+_cipher = None
+_cipher_ready = False
+
+
+def _get_cipher():
+    global _cipher, _cipher_ready
+    if _cipher_ready:
+        return _cipher
+    key = os.environ.get('BACKUP_ENCRYPTION_KEY')
+    if key:
+        try:
+            _cipher = Fernet(key.encode() if isinstance(key, str) else key)
+        except Exception as e:  # pragma: no cover - environment dependent
+            logger.error(f'backup: invalid BACKUP_ENCRYPTION_KEY: {e}')
+            _cipher = None
+    _cipher_ready = True
+    return _cipher
 
 
 async def run_backup():
@@ -65,7 +89,17 @@ async def run_backup():
                 async for doc in cursor:
                     fh.write(bson_dumps(doc) + '\n')
                     count += 1
-            manifest['collections'][name] = count
+            cipher = _get_cipher()
+            if cipher is not None:
+                # Encrypt at rest: plaintext PII never persists on disk or S3.
+                with open(path, 'rb') as fh:
+                    data = fh.read()
+                with open(path + '.enc', 'wb') as fh:
+                    fh.write(cipher.encrypt(data))
+                os.remove(path)
+                manifest['collections'][name] = {'docs': count, 'encrypted': True}
+            else:
+                manifest['collections'][name] = count
         with open(os.path.join(out_dir, 'manifest.json'), 'w', encoding='utf-8') as fh:
             json.dump(manifest, fh, indent=2)
         _prune()
@@ -128,28 +162,42 @@ async def restore_backup(out_dir):
     out_dir = os.path.abspath(out_dir)
     if not os.path.isdir(out_dir):
         raise ValueError(f'not a directory: {out_dir}')
-    files = sorted(glob.glob(os.path.join(out_dir, '*.jsonl')))
+    files = sorted(glob.glob(os.path.join(out_dir, '*.jsonl*')))
     if not files:
-        raise ValueError(f'no .jsonl files in {out_dir}')
+        raise ValueError(f'no backup files in {out_dir}')
+    cipher = _get_cipher()
     restored = 0
     batch = 1000
     for path in files:
-        name = os.path.splitext(os.path.basename(path))[0]
+        base = os.path.basename(path)
+        if base.endswith('.enc'):
+            name = os.path.splitext(base[:-4])[0]  # strip .enc then .jsonl
+        else:
+            name = os.path.splitext(base)[0]
         coll = db[name]
         ops = []
-        with open(path, 'r', encoding='utf-8') as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                doc = bson_loads(line)
-                if '_id' not in doc:
-                    continue
-                ops.append(ReplaceOne({'_id': doc['_id']}, doc, upsert=True))
-                if len(ops) >= batch:
-                    await coll.bulk_write(ops, ordered=False)
-                    restored += len(ops)
-                    ops = []
+        with open(path, 'rb') as fh:
+            raw = fh.read()
+        if base.endswith('.enc'):
+            if cipher is None:
+                raise RuntimeError('BACKUP_ENCRYPTION_KEY is required to restore an encrypted backup')
+            try:
+                raw = cipher.decrypt(raw)
+            except InvalidToken as e:
+                raise RuntimeError(f'backup decryption failed (wrong key?): {e}')
+        text = raw.decode('utf-8')
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            doc = bson_loads(line)
+            if '_id' not in doc:
+                continue
+            ops.append(ReplaceOne({'_id': doc['_id']}, doc, upsert=True))
+            if len(ops) >= batch:
+                await coll.bulk_write(ops, ordered=False)
+                restored += len(ops)
+                ops = []
         if ops:
             await coll.bulk_write(ops, ordered=False)
             restored += len(ops)

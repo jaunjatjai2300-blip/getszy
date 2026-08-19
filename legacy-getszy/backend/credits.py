@@ -12,6 +12,7 @@ Design (per founder decision, July 2026):
   change (spend or grant) is written to `credit_transactions` for audit/support.
 """
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Optional
 from db import db
@@ -93,6 +94,10 @@ FREE_TIER_ACTIONS = {
     'avatar_talking', 'text_to_video', 'video_translate',
     'image_to_video', 'one_tap_repurposing',
 }
+
+# Hard ceiling on a single credit grant (manual admin grant OR payment webhook).
+# Prevents an admin typo / bug from granting billions of credits. Tune via env.
+MAX_CREDIT_GRANT = int(os.environ.get('MAX_CREDIT_GRANT', '1000000'))
 
 
 def _now() -> str:
@@ -185,8 +190,19 @@ async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] =
     return True, '', balance_after
 
 
-async def refund(user_id: str, action: str, qty: int = 1, reason: str = 'generation_failed') -> int:
-    """Refund credits when a background job fails after credits were already spent."""
+async def refund(user_id: str, action: str, qty: int = 1, reason: str = 'generation_failed', ref_id: Optional[str] = None) -> int:
+    """Refund credits when a background job fails after credits were already spent.
+
+    `ref_id` makes a refund idempotent: a retry of the same logical failure
+    (e.g. a recovered video job or a retried render) will not double-refund.
+    Callers that can supply a stable id (job/project id) should do so.
+    """
+    if ref_id:
+        dup = await db.credit_transactions.find_one(
+            {'user_id': user_id, 'type': 'refund', 'ref_id': ref_id}
+        )
+        if dup:
+            return await get_balance(user_id)
     amount = cost_of(action, qty)
     updated = await db.users.find_one_and_update(
         {'id': user_id},
@@ -202,6 +218,7 @@ async def refund(user_id: str, action: str, qty: int = 1, reason: str = 'generat
         'qty': qty,
         'amount': amount,
         'balance_after': balance_after,
+        'ref_id': ref_id,
         'meta': {'reason': reason},
         'created_at': _now(),
     })
@@ -213,6 +230,11 @@ async def add_credits(user_id: str, amount: int, reason: str, meta: Optional[dic
     by the Razorpay/Stripe payment webhook after a successful purchase."""
     if amount <= 0:
         raise ValueError('amount must be positive')
+    if amount > MAX_CREDIT_GRANT:
+        raise ValueError(
+            f'amount {amount} exceeds MAX_CREDIT_GRANT ({MAX_CREDIT_GRANT}); '
+            'refusing to grant an implausibly large credit balance'
+        )
     updated = await db.users.find_one_and_update(
         {'id': user_id},
         {'$inc': {'credits': amount}},
