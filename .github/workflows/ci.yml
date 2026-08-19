@@ -55,21 +55,16 @@ jobs:
         run: |
           cd legacy-getszy/backend
           uvicorn server:app --host 0.0.0.0 --port 8000 > /tmp/uvicorn.log 2>&1 &
-          python3 -c "
-          import time, httpx
-          for i in range(60):
-              try:
-                  r = httpx.get('http://localhost:8000/health', timeout=2)
-                  if r.status_code == 200:
-                      print('Server is up!')
-                      break
-              except Exception:
-                  pass
-              time.sleep(1)
-          else:
-              print('Server failed to start')
-              raise SystemExit(1)
-          "
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health 2>/dev/null | grep -q 200; then
+              echo "Server is up!"
+              break
+            fi
+            sleep 1
+          done
+          echo "=== uvicorn.log ==="
+          cat /tmp/uvicorn.log
+          curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health | grep -q 200 || { echo "Server failed to start"; exit 1; }
 
       - name: Run backend test suite
         run: |
