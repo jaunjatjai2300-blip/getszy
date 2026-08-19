@@ -4,8 +4,12 @@ Replaces the previous in-memory limiter (which reset on restart and was not shar
 across workers). Uses a Redis sorted-set sliding window inside a transactional
 pipeline so increments are atomic across processes.
 
-Fails OPEN: if Redis is unavailable the request proceeds (we log, we don't 500).
+By default this middleware FAILS OPEN (request proceeds if Redis is unavailable) and
+trusts only the real peer IP. Set RATE_LIMIT_TRUST_PROXY=1 when Getszy sits behind a
+known proxy (e.g. Cloudflare/caddy) so X-Forwarded-For / CF-Connecting-IP are honored,
+and set RATE_LIMIT_FAIL_CLOSED=1 to return 503 instead of proceeding when Redis is down.
 """
+import os
 import time
 import logging
 from fastapi import Request, HTTPException
@@ -15,6 +19,11 @@ from redis_client import redis
 
 logger = logging.getLogger('getszy')
 
+# When True, honor CF-Connecting-IP / X-Forwarded-For (only safe behind a trusted proxy).
+TRUST_PROXY = os.environ.get('RATE_LIMIT_TRUST_PROXY', '').strip().lower() in ('1', 'true', 'yes', 'on')
+# When True, return 503 instead of allowing the request when Redis is unreachable.
+FAIL_CLOSED = os.environ.get('RATE_LIMIT_FAIL_CLOSED', '').strip().lower() in ('1', 'true', 'yes', 'on')
+
 # Paths that must never be throttled.
 EXEMPT_PATHS = {
     '/health', '/healthz', '/metrics', '/health/llm',
@@ -23,10 +32,14 @@ EXEMPT_PATHS = {
 
 
 def _client_ip(request: Request) -> str:
+    peer = request.client.host if request.client else 'unknown'
+    if not TRUST_PROXY:
+        # Never trust client-supplied headers unless explicitly behind a trusted proxy.
+        return peer
     return (
         request.headers.get('CF-Connecting-IP')
         or request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
-        or (request.client.host if request.client else 'unknown')
+        or peer
     )
 
 
@@ -63,5 +76,10 @@ class RedisRateLimitMiddleware(BaseHTTPMiddleware):
             raise
         except Exception as e:
             logger.error(f'redis_rate_limit_error: {e}')
+            if FAIL_CLOSED:
+                raise HTTPException(
+                    status_code=503,
+                    detail='Rate limiting unavailable. Please try again later.',
+                )
 
         return await call_next(request)

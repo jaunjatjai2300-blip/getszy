@@ -1,11 +1,17 @@
 import re
 import os
 import uuid
+import bcrypt
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from db import db
 from models import SignupIn, LoginIn, User, UserOut, ProfileUpdate, PasswordChange
-from auth import hash_password, verify_password, create_token, get_current_user
+from auth import (
+    hash_password, verify_password, create_token, get_current_user,
+    revoke_token, bearer, jwt, JWT_SECRET, JWT_ALG,
+)
+from redis_client import redis
 from live_events import broadcast_admin_event
 from anomaly import record_login_failure
 
@@ -13,6 +19,49 @@ router = APIRouter(prefix='/auth', tags=['auth'])
 
 REFERRAL_REWARD = int(os.getenv('REFERRAL_REWARD_CREDITS', '50'))
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://getszy.com')
+
+# Constant-time dummy hash so a missing user takes the same path/time as a real
+# one (prevents email-enumeration via login timing).
+_DUMMY_HASH = bcrypt.hashpw(b'dummy-password-for-timing', bcrypt.gensalt()).decode('utf-8')
+
+# ── Login brute-force throttling (Redis-backed) ──────────────────────────────
+# Caps failed attempts per email (10 / 15 min) and per source IP (30 / 15 min).
+_LOGIN_WINDOW = 15 * 60
+_EMAIL_LIMIT = 10
+_IP_LIMIT = 30
+
+
+async def _login_throttled(email: str, ip: str) -> bool:
+    if redis is None:
+        return False
+    try:
+        e = await redis.get(f'login_attempts:{email.lower()}')
+        i = await redis.get(f'login_attempts_ip:{ip}')
+        if (e and int(e) >= _EMAIL_LIMIT) or (i and int(i) >= _IP_LIMIT):
+            return True
+    except Exception:
+        return False
+    return False
+
+
+async def _register_login_failure(email: str, ip: str) -> None:
+    if redis is None:
+        return
+    try:
+        for key in (f'login_attempts:{email.lower()}', f'login_attempts_ip:{ip}'):
+            await redis.incr(key)
+            await redis.expire(key, _LOGIN_WINDOW)
+    except Exception:
+        pass
+
+
+async def _reset_login(email: str, ip: str) -> None:
+    if redis is None:
+        return
+    try:
+        await redis.delete(f'login_attempts:{email.lower()}', f'login_attempts_ip:{ip}')
+    except Exception:
+        pass
 
 
 def _gen_referral_code(name: str) -> str:
@@ -117,9 +166,19 @@ async def my_referrals(user=Depends(get_current_user)):
 
 @router.post('/login')
 async def login(body: LoginIn, request: Request = None):
+    ip = request.client.host if request and request.client else 'unknown'
+    # Throttle before doing any work to stop online password guessing.
+    if await _login_throttled(body.email.lower(), ip):
+        raise HTTPException(
+            status_code=429,
+            detail='Too many failed attempts. Please try again later or reset your password.',
+        )
     user = await db.users.find_one({'email': body.email.lower()}, {'_id': 0})
-    if not user or not verify_password(body.password, user['password_hash']):
-        ip = request.client.host if request and request.client else 'unknown'
+    # Always verify against a real-or-dummy hash to keep timing constant and avoid
+    # leaking whether the email exists.
+    candidate_hash = user['password_hash'] if (user and user.get('password_hash')) else _DUMMY_HASH
+    if not user or not verify_password(body.password, candidate_hash):
+        await _register_login_failure(body.email.lower(), ip)
         try:
             await db.audit_logs.insert_one({
                 'id': uuid.uuid4().hex,
@@ -135,8 +194,21 @@ async def login(body: LoginIn, request: Request = None):
         except Exception:
             pass
         raise HTTPException(401, 'Invalid email or password')
+    await _reset_login(body.email.lower(), ip)
     token = create_token(user['id'], user['role'])
     return {'token': token, 'user': UserOut(**user).model_dump()}
+
+
+@router.post('/logout')
+async def logout(creds: HTTPAuthorizationCredentials = Depends(bearer)):
+    """Revoke the current token (added to the Redis blocklist until its expiry)."""
+    if creds:
+        try:
+            payload = jwt.decode(creds.credentials, JWT_SECRET, algorithms=[JWT_ALG])
+            await revoke_token(payload.get('jti'), payload.get('exp', 0))
+        except Exception:
+            pass
+    return {'ok': True}
 
 
 @router.get('/me')
@@ -164,7 +236,8 @@ async def update_me(body: ProfileUpdate, user=Depends(get_current_user)):
 
 
 @router.post('/me/password')
-async def change_password(body: PasswordChange, user=Depends(get_current_user)):
+async def change_password(body: PasswordChange, user=Depends(get_current_user),
+                         creds: HTTPAuthorizationCredentials = Depends(bearer)):
     if not verify_password(body.current_password, user['password_hash']):
         raise HTTPException(status_code=400, detail='Current password is incorrect')
     _validate_password(body.new_password)
@@ -172,4 +245,12 @@ async def change_password(body: PasswordChange, user=Depends(get_current_user)):
         {'id': user['id']},
         {'$set': {'password_hash': hash_password(body.new_password)}},
     )
-    return {'ok': True}
+    # Invalidate the session that initiated the change (forces re-login everywhere
+    # with the new password).
+    if creds:
+        try:
+            payload = jwt.decode(creds.credentials, JWT_SECRET, algorithms=[JWT_ALG])
+            await revoke_token(payload.get('jti'), payload.get('exp', 0))
+        except Exception:
+            pass
+    return {'ok': True, 'revoked_sessions': True}

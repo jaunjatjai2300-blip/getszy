@@ -4,6 +4,7 @@ Each tool performs a real action against Getszy's own data (products, courses,
 pricing), a safe computation, or an optional web lookup. No simulated output.
 """
 import os
+import ast
 import re
 import json
 import logging
@@ -80,15 +81,66 @@ async def get_pricing_plans() -> List[dict]:
         ]
 
 
+# Guardrails against arithmetic-bomb DoS (e.g. 9**9**9).
+_MAX_OPERAND = 1e12
+_MAX_EXPONENT = 10000
+_MAX_RESULT_MAGNITUDE = 1e18
+_ALLOWED_BINOPS = (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod, ast.Pow, ast.FloorDiv)
+_ALLOWED_UNARYOPS = (ast.UAdd, ast.USub)
+
+
+def _safe_eval(node: ast.AST) -> float:
+    if isinstance(node, ast.Expression):
+        return _safe_eval(node.body)
+    if isinstance(node, ast.Constant):  # numbers only
+        if isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
+            return float(node.value)
+        raise ValueError('only numeric constants are allowed')
+    if isinstance(node, ast.BinOp) and isinstance(node.op, _ALLOWED_BINOPS):
+        left = _safe_eval(node.left)
+        right = _safe_eval(node.right)
+        if isinstance(node.op, ast.Pow):
+            if abs(left) > _MAX_OPERAND or abs(right) > _MAX_EXPONENT:
+                raise ValueError('exponent too large')
+        elif abs(left) > _MAX_OPERAND or abs(right) > _MAX_OPERAND:
+            raise ValueError('operand too large')
+        if isinstance(node.op, ast.Div) and right == 0:
+            raise ZeroDivisionError('division by zero')
+        result = {
+            ast.Add: left + right,
+            ast.Sub: left - right,
+            ast.Mult: left * right,
+            ast.Div: left / right,
+            ast.Mod: left % right,
+            ast.Pow: left ** right,
+            ast.FloorDiv: left // right,
+        }[type(node.op)]
+        if not __import__('math').isfinite(result) or abs(result) > _MAX_RESULT_MAGNITUDE:
+            raise ValueError('result out of range')
+        return result
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, _ALLOWED_UNARYOPS):
+        return _safe_eval(node.operand) if isinstance(node.op, ast.UAdd) else -_safe_eval(node.operand)
+    raise ValueError('unsupported expression')
+
+
 async def calculate(expression: str) -> str:
-    """Safely evaluate a basic arithmetic expression (numbers and + - * / ( ) % only)."""
+    """Safely evaluate a basic arithmetic expression (numbers and + - * / ( ) % only).
+
+    Uses an AST whitelist instead of eval(); rejects code execution and arithmetic
+    bombs (huge exponents / results) that would hang or OOM the server.
+    """
     if not expression:
         return 'empty expression'
     if not all(ch in set('0123456789.+-*/()% ') for ch in expression):
         return 'unsupported characters in expression'
+    if len(expression) > 200:
+        return 'expression too long'
     try:
-        result = eval(expression, {'__builtins__': {}}, {})
-        return str(result)
+        tree = ast.parse(expression, mode='eval')
+        result = _safe_eval(tree)
+        return str(int(result)) if result == int(result) else str(result)
+    except ZeroDivisionError:
+        return 'division by zero'
     except Exception as e:
         return f'could not compute: {e}'
 

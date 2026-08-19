@@ -11,11 +11,73 @@ Actions implemented:
   - log      : append to db.automation_logs (audit)
 """
 import asyncio
+import ipaddress
+import socket
+import urllib.parse
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 from db import db
+
+
+# Block webhook targets that point at internal/metadata/link-local resources
+# (SSRF defense). Only public http/https destinations are allowed.
+_BLOCKED_NETWORKS = (
+    ipaddress.ip_network('0.0.0.0/8'),
+    ipaddress.ip_network('10.0.0.0/8'),
+    ipaddress.ip_network('100.64.0.0/10'),
+    ipaddress.ip_network('127.0.0.0/8'),
+    ipaddress.ip_network('169.254.0.0/16'),        # cloud metadata
+    ipaddress.ip_network('172.16.0.0/12'),
+    ipaddress.ip_network('192.0.0.0/24'),
+    ipaddress.ip_network('192.168.0.0/16'),
+    ipaddress.ip_network('198.18.0.0/15'),
+    ipaddress.ip_network('198.51.100.0/24'),
+    ipaddress.ip_network('203.0.113.0/24'),
+    ipaddress.ip_network('224.0.0.0/4'),
+    ipaddress.ip_network('240.0.0.0/4'),
+    ipaddress.ip_network('255.255.255.255/32'),
+    ipaddress.ip_network('::/128'),
+    ipaddress.ip_network('::1/128'),
+    ipaddress.ip_network('fc00::/7'),
+    ipaddress.ip_network('fe80::/10'),
+    ipaddress.ip_network('ff00::/8'),
+)
+
+
+async def _is_safe_webhook_url(url: str) -> bool:
+    """Return True only for URLs that are safe to fetch server-side (no SSRF)."""
+    if not url or not isinstance(url, str):
+        return False
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ('http', 'https'):
+        return False
+    if not parsed.hostname:
+        return False
+    # Reject raw IP literals that are private/reserved. For hostnames, resolve and
+    # reject if ANY resolved address is blocked. Runs off-thread to avoid blocking the loop.
+    def _blocked() -> bool:
+        try:
+            infos = socket.getaddrinfo(parsed.hostname, None)
+        except socket.gaierror:
+            return True  # cannot resolve -> refuse
+        for info in infos:
+            addr = info[4][0]
+            # Strip IPv6 scope id if present
+            addr = addr.split('%')[0]
+            try:
+                ip = ipaddress.ip_address(addr)
+            except ValueError:
+                return True
+            if ip.version == 6 and ip.ipv4_mapped is not None:
+                ip = ip.ipv4_mapped
+            if any(ip in net for net in _BLOCKED_NETWORKS):
+                return True
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                return True
+        return False
+    return not await asyncio.to_thread(_blocked)
 
 
 def _get_path(obj: dict, path: str) -> Any:
@@ -123,10 +185,20 @@ async def _action_webhook(rule: dict, action: dict, payload: dict, event_type: s
     url = action.get('url')
     if not url:
         return {'action': 'webhook', 'ok': False, 'error': 'no url'}
+    if not await _is_safe_webhook_url(url):
+        return {'action': 'webhook', 'ok': False, 'error': 'url blocked: only public http(s) endpoints are allowed'}
+
+    # Build an opener that does NOT follow redirects, so a 3xx cannot bounce us to
+    # an internal/metadata address after the initial host passed validation.
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+
     data = json.dumps({'event_type': event_type, 'payload': payload, 'rule': rule.get('name')}).encode()
     req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'}, method='POST')
     try:
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        opener = urllib.request.build_opener(_NoRedirect)
+        with opener.open(req, timeout=5) as resp:
             return {'action': 'webhook', 'ok': True, 'status': resp.status}
     except Exception as e:
         return {'action': 'webhook', 'ok': False, 'error': str(e)[:200]}
