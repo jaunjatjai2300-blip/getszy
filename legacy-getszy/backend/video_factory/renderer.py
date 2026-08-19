@@ -94,7 +94,7 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
     # Generate them in parallel with bounded concurrency so an N-scene video
     # takes ~1 image-time instead of N x image-time. Voice-over synthesis is
     # kicked off in parallel too, since it only needs the precomputed narration.
-    CONCURRENCY = int(os.environ.get('VF_IMAGE_CONCURRENCY', '5'))
+    CONCURRENCY = int(os.environ.get('VF_IMAGE_CONCURRENCY', '3'))
     sem = asyncio.Semaphore(CONCURRENCY)
     total = len(scenes)
     _done = 0
@@ -108,29 +108,39 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
             _done += 1
             await _update(project_id, {'render_progress': int((_done / total) * 40), 'render_heartbeat': _iso()})
             return {'index': scene['index'], 'path': cached, 'prompt': prompt}
+
+        async def _fetch_once():
+            # fetch_scene_image silently falls back to a solid-colour image on
+            # failure, so retry a few times to give Pollinations a real chance
+            # (its free tier rate-limits bursts — which is why concurrency is low).
+            return await fetch_scene_image(prompt, orientation=orientation, seed=hash(prompt) % 100000)
+
         async with sem:
-            try:
-                img_url_or_path = await fetch_scene_image(prompt, orientation=orientation, seed=hash(prompt) % 100000)
-                if isinstance(img_url_or_path, str) and img_url_or_path.startswith('http'):
-                    async with httpx.AsyncClient(timeout=90) as client:
-                        r = await client.get(img_url_or_path)
-                        if r.status_code == 200:
-                            img_path = project_dir / f'scene_{scene["index"]}.jpg'
-                            img_path.write_bytes(r.content)
-                            _done += 1
-                            await _update(project_id, {'render_progress': int((_done / total) * 40), 'render_heartbeat': _iso()})
-                            return {'index': scene['index'], 'path': str(img_path), 'prompt': prompt}
+            img_url_or_path = None
+            last_err = None
+            for attempt in range(3):
+                try:
+                    img_url_or_path = await _fetch_once()
+                    if isinstance(img_url_or_path, str) and img_url_or_path.startswith('http'):
+                        async with httpx.AsyncClient(timeout=90) as client:
+                            r = await client.get(img_url_or_path)
+                            if r.status_code == 200:
+                                img_path = project_dir / f'scene_{scene["index"]}.jpg'
+                                img_path.write_bytes(r.content)
+                                _done += 1
+                                await _update(project_id, {'render_progress': int((_done / total) * 40), 'render_heartbeat': _iso()})
+                                return {'index': scene['index'], 'path': str(img_path), 'prompt': prompt}
+                            last_err = f'download {r.status_code}'
+                    else:
                         _done += 1
                         await _update(project_id, {'render_progress': int((_done / total) * 40), 'render_heartbeat': _iso()})
-                        return {'index': scene['index'], 'path': None, 'error': f'download {r.status_code}'}
-                _done += 1
-                await _update(project_id, {'render_progress': int((_done / total) * 40), 'render_heartbeat': _iso()})
-                return {'index': scene['index'], 'path': img_url_or_path, 'prompt': prompt}
-            except Exception as e:
-                logger.exception('image fail')
-                _done += 1
-                await _update(project_id, {'render_progress': int((_done / total) * 40), 'render_heartbeat': _iso()})
-                return {'index': scene['index'], 'path': None, 'error': str(e)[:200]}
+                        return {'index': scene['index'], 'path': img_url_or_path, 'prompt': prompt}
+                except Exception as e:
+                    last_err = str(e)
+                await asyncio.sleep(1.5 * (attempt + 1))
+            _done += 1
+            await _update(project_id, {'render_progress': int((_done / total) * 40), 'render_heartbeat': _iso()})
+            return {'index': scene['index'], 'path': None, 'error': f'fetch failed after retries: {last_err}'}
 
     # Precompute narration up front; voice synth is independent of image gen.
     full_narration = ' '.join(s.get('narration_chunk', '') for s in scenes if s.get('narration_chunk'))
@@ -198,6 +208,17 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
             'narration_chunk': scene.get('narration_chunk', '')[:120],
             'motion': scene.get('motion', 'static'),
         })
+
+    # Enforce a minimum total video length (default 60s) so customers always
+    # get at least a ~1 minute video regardless of how many scenes exist.
+    MIN_TOTAL = int(os.environ.get('VF_MIN_VIDEO_SECS', '60'))
+    if compose_scenes:
+        base = max(5, -(-MIN_TOTAL // len(compose_scenes)))  # ceil(MIN_TOTAL / n)
+        for sc in compose_scenes:
+            sc['seconds'] = max(int(sc.get('seconds', 5)), base)
+        total_secs = sum(sc['seconds'] for sc in compose_scenes)
+        if total_secs < MIN_TOTAL:
+            compose_scenes[-1]['seconds'] += (MIN_TOTAL - total_secs)
 
     logger.info(f'assembly: {len(compose_scenes)}/{len(scenes)} scenes have valid images')
 
