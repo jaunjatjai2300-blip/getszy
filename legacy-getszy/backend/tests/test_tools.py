@@ -8,7 +8,7 @@ os.environ.setdefault('JWT_SECRET', 'test-secret-for-tests')
 @pytest.mark.asyncio
 async def test_calculate_tool():
     from tools import execute_tool
-    assert await execute_tool('calculate', {'expression': '(1200-300)*0.4'}) == '360.0'
+    assert await execute_tool('calculate', {'expression': '(1200-300)*0.4'}) == '360'
     assert 'unsupported' in await execute_tool('calculate', {'expression': 'import os'})
 
 

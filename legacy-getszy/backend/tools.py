@@ -99,6 +99,9 @@ def _safe_eval(node: ast.AST) -> float:
     if isinstance(node, ast.BinOp) and isinstance(node.op, _ALLOWED_BINOPS):
         left = _safe_eval(node.left)
         right = _safe_eval(node.right)
+        # NOTE: do NOT build a dict of `left OP right` expressions — a dict literal
+        # evaluates every value eagerly, so `left ** right` would run even for a
+        # `+`/`*` op and overflow on large operands. Compute only the actual op.
         if isinstance(node.op, ast.Pow):
             if abs(left) > _MAX_OPERAND or abs(right) > _MAX_EXPONENT:
                 raise ValueError('exponent too large')
@@ -106,15 +109,22 @@ def _safe_eval(node: ast.AST) -> float:
             raise ValueError('operand too large')
         if isinstance(node.op, ast.Div) and right == 0:
             raise ZeroDivisionError('division by zero')
-        result = {
-            ast.Add: left + right,
-            ast.Sub: left - right,
-            ast.Mult: left * right,
-            ast.Div: left / right,
-            ast.Mod: left % right,
-            ast.Pow: left ** right,
-            ast.FloorDiv: left // right,
-        }[type(node.op)]
+        if isinstance(node.op, ast.Add):
+            result = left + right
+        elif isinstance(node.op, ast.Sub):
+            result = left - right
+        elif isinstance(node.op, ast.Mult):
+            result = left * right
+        elif isinstance(node.op, ast.Div):
+            result = left / right
+        elif isinstance(node.op, ast.Mod):
+            result = left % right
+        elif isinstance(node.op, ast.Pow):
+            result = left ** right
+        elif isinstance(node.op, ast.FloorDiv):
+            result = left // right
+        else:
+            raise ValueError('unsupported expression')
         if not __import__('math').isfinite(result) or abs(result) > _MAX_RESULT_MAGNITUDE:
             raise ValueError('result out of range')
         return result

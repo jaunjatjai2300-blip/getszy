@@ -40,11 +40,11 @@ jobs:
       - name: Run backend test suite
         run: |
           cd legacy-getszy/backend
-          # Run the FULL suite (not just 2 files). Tests that require a live
-          # external API (LLM/Razorpay/etc.) must be marked `@pytest.mark.integration`
-          # so they can be excluded from CI; uncovered live failures surface here
-          # on purpose — that is the point of the gate.
-          python -m pytest tests/ -v -p no:cacheprovider
+          # Run the full suite EXCEPT tests requiring a live external server
+          # (`@pytest.mark.integration`, e.g. test_critical_flows hits TEST_BASE_URL).
+          # Those are run separately against a real deploy with TEST_BASE_URL set,
+          # not in CI (default would hit prod getszy.com/api).
+          python -m pytest tests/ -v -p no:cacheprovider -m "not integration"
 
   security:
     runs-on: ubuntu-latest
