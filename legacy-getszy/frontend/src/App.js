@@ -104,6 +104,7 @@ const IntegrationsAdmin = lazy(() => import("@/pages/admin/IntegrationsAdmin"));
 const AITools = lazy(() => import("@/pages/dashboard/AITools"));
 const Agents = lazy(() => import("@/pages/dashboard/Agents"));
 const Integrations = lazy(() => import("@/pages/dashboard/Integrations"));
+const CreatorStudio = lazy(() => import("@/pages/dashboard/CreatorStudio"));
 
 function AdminFallback() {
   return (
@@ -263,6 +264,7 @@ export default function App() {
             <Route path="agents" element={<Suspense fallback={<AdminFallback />}><Agents /></Suspense>} />
             <Route path="agents/:agentId" element={<Suspense fallback={<AdminFallback />}><Agents /></Suspense>} />
             <Route path="integrations" element={<Suspense fallback={<AdminFallback />}><Integrations /></Suspense>} />
+            <Route path="creator" element={<Suspense fallback={<AdminFallback />}><CreatorStudio /></Suspense>} />
           </Route>
 
           <Route path="/labs" element={<DashboardLayout />}>
