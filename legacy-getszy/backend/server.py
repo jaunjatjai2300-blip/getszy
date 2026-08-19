@@ -242,6 +242,12 @@ async def startup():
         await recover_stuck_video_jobs()
     except Exception as e:
         logger.error(f'could not run video job recovery: {e}')
+    # Catalog-to-Video auto-sync watcher (graceful if standalone mongo)
+    try:
+        from routes_catalog_video import start_catalog_watcher
+        asyncio.create_task(start_catalog_watcher())
+    except Exception as e:
+        logger.error(f'could not start catalog watcher: {e}')
 
 
 @app.on_event('shutdown')

@@ -20,6 +20,7 @@ import logging
 import os
 import re
 import uuid
+import httpx
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -34,9 +35,11 @@ from credits import (
     FREE_TIER_ACTIONS, WATERMARK_TEXT,
 )
 from llm_provider import chat_completion, LLMServiceUnavailable
+from whisper_stt import transcribe
 from video.ai_providers import (
     fetch_image, cogvideo_clip, xtts_clone_voice, extract_audio,
-    watermark_video, lip_sync_video, providers_status,
+    watermark_video, lip_sync_video, concat_videos, burn_hormozi_captions,
+    providers_status, CLIP_DIR,
 )
 
 logger = logging.getLogger('getszy.video_tools')
@@ -151,9 +154,34 @@ async def _run_text_to_video(project_id, payload, user_id, watermarked):
             await free_tier_record(user_id, 1)
         else:
             await deduct(user_id, 'text_to_video', user={'id': user_id})
+
+        # Optional: compose a single captioned final video (FFmpeg + Hormozi ASS).
+        final_url = None
+        captions = []
+        clips = []
+        for i, s in enumerate(built):
+            if s.get('clip_url'):
+                name = s['clip_url'].split('/')[-1]
+                p = str(CLIP_DIR / name)
+                if os.path.exists(p):
+                    clips.append(p)
+                    captions.append({
+                        'start': i * 4, 'end': i * 4 + 4,
+                        'text': s.get('caption') or s.get('narration', ''),
+                        'highlight': [],
+                    })
+        if clips:
+            merged = await concat_videos(clips)
+            if merged:
+                brand = (await db.users.find_one({'id': user_id}, {'_id': 0, 'brand_kit': 1}) or {}).get('brand_kit')
+                capped = await burn_hormozi_captions(merged, captions, brand)
+                if capped:
+                    final_url = f'/media/avatars/{Path(capped).name}'
+
         await db.video_projects.update_one(
             {'id': project_id},
-            {'$set': {'status': 'done', 'storyboard': built,
+            {'$set': {'status': 'done', 'storyboard': built, 'captions': captions,
+                      'final_video_url': final_url,
                       'updated_at': datetime.now(timezone.utc).isoformat()}},
         )
     except LLMServiceUnavailable as e:
@@ -322,8 +350,43 @@ async def one_tap_repurposing(payload: RepurposeIn, bg: BackgroundTasks, user=De
             'message': 'Finding your best moments…'}
 
 
+async def _youtube_to_transcript(url: str) -> Optional[str]:
+    """Download a video's audio via yt-dlp, convert to 16k WAV, and transcribe
+    with Whisper. Returns transcript text or None if yt-dlp/ffmpeg missing."""
+    import shutil
+    import tempfile
+    if not shutil.which('yt-dlp') or not _ffmpeg_available():
+        return None
+    tmp = tempfile.mkdtemp()
+    out_tmpl = os.path.join(tmp, 'audio.%(ext)s')
+    proc = await asyncio.create_subprocess_exec(
+        'yt-dlp', '-x', '--audio-format', 'wav', '-o', out_tmpl, url,
+        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+    await proc.wait()
+    wav = next((os.path.join(tmp, f) for f in os.listdir(tmp) if f.endswith('.wav')), None)
+    if not wav:
+        return None
+    wav16 = await extract_audio(wav)
+    if not wav16:
+        return None
+    with open(wav16, 'rb') as fh:
+        data = fh.read()
+    res = await transcribe(data, 'audio.wav')
+    return res.get('text') if 'text' in res else None
+
+
 async def _run_repurpose(project_id, payload, user_id, watermarked):
     await db.video_projects.update_one({'id': project_id}, {'$set': {'status': 'analyzing'}})
+    transcript = payload.transcript
+    if not transcript.strip() and payload.source == 'youtube' and payload.url:
+        await db.video_projects.update_one({'id': project_id}, {'$set': {'status': 'fetching_transcript'}})
+        transcript = await _youtube_to_transcript(payload.url) or ''
+    if not transcript.strip():
+        await db.video_projects.update_one(
+            {'id': project_id},
+            {'$set': {'status': 'failed',
+                      'error': 'Could not get a transcript. Install yt-dlp+ffmpeg for YouTube auto-extract, or paste a transcript.'}})
+        return
     try:
         system = (
             'You are a YouTube Shorts editor. From a transcript, pick the most '
@@ -331,7 +394,7 @@ async def _run_repurpose(project_id, payload, user_id, watermarked):
             '[{"start": <sec>, "end": <sec>, "hook": "<scroll-stopping line>", '
             '"caption": "<2-4 word vertical caption>"}]. Moments must be 8-20s. No markdown.'
         )
-        raw = await chat_completion(system, payload.transcript, temperature=0.6)
+        raw = await chat_completion(system, transcript, temperature=0.6)
         shorts = _extract_json_array(raw) or []
         if watermarked:
             await free_tier_record(user_id, 1)
@@ -360,16 +423,93 @@ class SocialPublishIn(BaseModel):
     schedule_at: Optional[str] = None
 
 
+# ─── real social upload helpers ───────────────────────────────────────────────
+
+async def _download_to_file(url: str) -> Optional[str]:
+    try:
+        async with httpx.AsyncClient(timeout=120, follow_redirects=True) as client:
+            async with client.stream('GET', url) as r:
+                if r.status_code != 200:
+                    return None
+                dest = str(UPLOAD_DIR / f'pub_{uuid.uuid4().hex[:10]}.mp4')
+                with open(dest, 'wb') as f:
+                    async for chunk in r.aiter_bytes(1024 * 64):
+                        f.write(chunk)
+                return dest
+    except Exception as e:
+        logger.warning('download failed: %s', e)
+        return None
+
+
+async def _upload_youtube(token: str, path: str, title: str, desc: str, tags: list) -> dict:
+    meta = {
+        'snippet': {'title': title or 'Getszy video', 'description': desc,
+                    'tags': tags or [], 'categoryId': '22'},
+        'status': {'privacyStatus': 'public'},
+    }
+    async with httpx.AsyncClient(timeout=300) as client:
+        r = await client.post(
+            'https://www.googleapis.com/upload/youtube/v3/videos',
+            params={'uploadType': 'resumable', 'part': 'snippet,status,contentDetails'},
+            headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
+            json=meta)
+        loc = r.headers.get('location')
+        if not loc:
+            return {'error': f'YouTube init failed: {r.status_code}'}
+        with open(path, 'rb') as f:
+            data = f.read()
+        up = await client.put(loc, headers={'Content-Type': 'video/*'}, content=data)
+        if up.status_code in (200, 201):
+            return {'id': (up.json() or {}).get('id')}
+        return {'error': f'YouTube upload failed: {up.status_code}'}
+
+
+async def _upload_meta(token: str, ig_user_id: str, url: str, title: str, desc: str) -> dict:
+    # Instagram Reels / Facebook video via Graph API (needs a publicly hosted url).
+    async with httpx.AsyncClient(timeout=120) as client:
+        c = await client.post(
+            f'https://graph.facebook.com/v21.0/{ig_user_id}/media',
+            params={'access_token': token, 'media_type': 'REELS',
+                    'video_url': url, 'caption': f'{title}\n{desc}'})
+        cid = (c.json() or {}).get('id')
+        if not cid:
+            return {'error': f'Meta container failed: {c.text[:200]}'}
+        p = await client.post(
+            f'https://graph.facebook.com/v21.0/{ig_user_id}/media_publish',
+            params={'access_token': token, 'creation_id': cid})
+        if p.status_code == 200:
+            return {'id': (p.json() or {}).get('id')}
+        return {'error': f'Meta publish failed: {p.text[:200]}'}
+
+
+@router.post('/social-connect')
+async def social_connect(body: dict, user=Depends(get_current_user)):
+    """Store the user's OAuth tokens (from the client OAuth flow) so one-click
+    publish can actually upload. body: {platform, access_token, ig_user_id?}."""
+    platform = body.get('platform')
+    token = body.get('access_token')
+    if platform not in ('youtube', 'instagram', 'facebook') or not token:
+        raise HTTPException(status_code=400, detail='platform + access_token required')
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {f'social_tokens.{platform}': {
+            'access_token': token,
+            'ig_user_id': body.get('ig_user_id'),
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+        }}})
+    return {'ok': True, 'platform': platform}
+
+
 @router.post('/social-publish')
 async def social_publish(payload: SocialPublishIn, user=Depends(get_current_user)):
     if payload.platform not in ('youtube', 'instagram', 'facebook'):
         raise HTTPException(status_code=400, detail='Unsupported platform')
-    enabled = YT_ENABLED if payload.platform == 'youtube' else META_ENABLED
-    if not enabled:
+    tok = (await db.users.find_one({'id': user['id']}, {'_id': 0, f'social_tokens.{payload.platform}': 1}) or {})
+    tok = (tok.get('social_tokens') or {}).get(payload.platform)
+    if not tok or not tok.get('access_token'):
         return {
-            'configured': False,
-            'platform': payload.platform,
-            'message': f'{payload.platform.title()} publishing not connected. Add OAuth credentials in Settings to enable one-click publish.',
+            'configured': False, 'platform': payload.platform,
+            'message': f'{payload.platform.title()} not connected. Connect your account (Settings → Socials) first.',
         }
     ok, _, _ = await deduct(user['id'], 'social_publish', user=user)
     if not ok:
@@ -379,13 +519,20 @@ async def social_publish(payload: SocialPublishIn, user=Depends(get_current_user
         'id': post_id, 'user_id': user['id'], 'platform': payload.platform,
         'video_url': payload.video_url, 'title': payload.title,
         'description': payload.description, 'tags': payload.tags,
-        'schedule_at': payload.schedule_at, 'status': 'queued',
+        'schedule_at': payload.schedule_at, 'status': 'publishing',
         'created_at': datetime.now(timezone.utc).isoformat(),
     })
-    # Real Graph/YouTube Data API upload is dispatched here once tokens are stored
-    # on db.users.social_tokens. Returns a queued job for now.
-    return {'configured': True, 'post_id': post_id, 'status': 'queued',
-            'message': f'Queued for {payload.platform}.'}
+    # Real upload (synchronous, best-effort; YouTube downloads then resumable PUT).
+    result = {}
+    if payload.platform == 'youtube':
+        local = await _download_to_file(payload.video_url) or payload.video_url
+        if os.path.exists(local):
+            result = await _upload_youtube(tok['access_token'], local, payload.title, payload.description, payload.tags)
+    else:
+        result = await _upload_meta(tok['access_token'], tok.get('ig_user_id') or tok.get('page_id') or '', payload.video_url, payload.title, payload.description)
+    status = 'published' if result.get('id') else 'failed'
+    await db.social_posts.update_one({'id': post_id}, {'$set': {'status': status, 'result': result}})
+    return {'configured': True, 'post_id': post_id, 'status': status, 'result': result}
 
 
 # ─── 6. AI Influencer Agent (auto-reply) ───────────────────────────────────────

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   Sparkles, Clapperboard, Flame, ListOrdered, Film, Languages,
   Scissors, Upload, Send, Bot, Image as ImageIcon, Mic, User, Wand2, Loader2,
@@ -109,6 +109,43 @@ function ResultView({ data, kind }) {
     return <div className="mt-2 text-sm text-[var(--gs-muted)]">{data.message || "Queued."}</div>;
   }
   return <PageState compact kind="loading" title="Processing…" />;
+}
+
+function StoryboardTimeline({ scenes }) {
+  const [order, setOrder] = useState(() => scenes.map((_, i) => i));
+  const [locked, setLocked] = useState({});
+  useEffect(() => { setOrder(scenes.map((_, i) => i)); setLocked({}); }, [scenes]);
+  const move = (from, to) => {
+    if (locked[from] || locked[to] || to < 0 || to >= order.length) return;
+    setOrder((o) => { const n = [...o]; [n[from], n[to]] = [n[to], n[from]]; return n; });
+  };
+  const toggleLock = (i) => setLocked((l) => ({ ...l, [i]: !l[i] }));
+  return (
+    <div className="mt-3">
+      <div className="text-xs font-semibold text-[var(--gs-muted)] mb-1">Timeline (drag order · lock to protect)</div>
+      <div className="flex gap-2 overflow-x-auto pb-2">
+        {order.map((idx, pos) => {
+          const s = scenes[idx];
+          return (
+            <div key={idx} className={`relative shrink-0 w-36 rounded-lg border ${locked[idx] ? "border-amber-400" : "border-[var(--gs-border)]"} p-2`}>
+              <div className="text-[10px] text-[var(--gs-muted)]">#{pos + 1}</div>
+              {s.image_url ? <img src={s.image_url} alt="" className="h-16 w-full object-cover rounded" /> : <div className="h-16 bg-[var(--gs-surface-2)] rounded" />}
+              <div className="text-[11px] mt-1 line-clamp-2">{s.caption || s.visual}</div>
+              <div className="mt-1 flex items-center justify-between">
+                <div className="flex gap-1">
+                  <button onClick={() => move(pos, pos - 1)} className="text-xs px-1 rounded bg-[var(--gs-surface-2)]">◀</button>
+                  <button onClick={() => move(pos, pos + 1)} className="text-xs px-1 rounded bg-[var(--gs-surface-2)]">▶</button>
+                </div>
+                <button onClick={() => toggleLock(idx)} className={`text-[10px] px-1 rounded ${locked[idx] ? "bg-amber-400 text-black" : "bg-[var(--gs-surface-2)]"}`}>
+                  {locked[idx] ? "Locked" : "Lock"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 /* ─── Hooks & Memes (existing) ─────────────────────────────────────────────── */
@@ -349,6 +386,13 @@ function VideoTools() {
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />} Generate Video
           </Button>
           <ResultView data={ttv} kind="storyboard" />
+          {ttv?.storyboard ? <StoryboardTimeline scenes={ttv.storyboard} /> : null}
+          {ttv?.final_video_url ? (
+            <div className="mt-2">
+              <div className="text-xs font-semibold text-[var(--gs-teal)]">Captioned final video</div>
+              <video src={ttv.final_video_url} controls className="mt-1 w-full rounded-lg" />
+            </div>
+          ) : null}
         </div>
       </Section>
 

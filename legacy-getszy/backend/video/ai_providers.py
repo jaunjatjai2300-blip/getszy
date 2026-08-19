@@ -267,10 +267,142 @@ async def watermark_video(video_path: str, text: str = 'Made with Getszy.com', o
     return out if proc.returncode == 0 and os.path.exists(out) else None
 
 
+def _ass_time(seconds: float) -> str:
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    cs = int((seconds - int(seconds)) * 100)
+    return f'{h:d}:{m:02d}:{s:02d}.{cs:02d}'
+
+
+def build_hormozi_ass(segments: list, brand: Optional[dict] = None) -> str:
+    """Build an ASS subtitle script for Hormozi-style dynamic captions.
+
+    segments: [{'start': s, 'end': e, 'text': str, 'highlight': [words]}]
+    brand:    {'accent': '#00E5FF', 'font': 'Arial', 'logo': '/path'}
+    """
+    brand = brand or {}
+    accent = brand.get('accent', '#00E5FF')
+    # ASS colours are BGR hex: strip '#', reverse bytes.
+    hexc = accent.lstrip('#')
+    if len(hexc) == 6:
+        bgr = f'&H{hexc[4:6]}{hexc[2:4]}{hexc[0:2]}&'
+    else:
+        bgr = '&H00E5FF&'
+    font = brand.get('font', 'Arial')
+    lines = [
+        '[Script Info]', 'PlayResX: 1080', 'PlayResY: 1920', '',
+        '[V4+ Styles]',
+        'Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, Bold, '
+        'Italic, Alignment, MarginV, BorderStyle, Outline',
+        f'Style: Default,{font},72,{bgr},&H000000&,1,0,2,180,1,6',
+        '', '[Events]', 'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ]
+    for seg in segments:
+        start = _ass_time(float(seg.get('start', 0)))
+        end = _ass_time(float(seg.get('end', 0)))
+        text = (seg.get('text') or '').replace('\n', '\\N')
+        hl = seg.get('highlight') or []
+        for w in hl:
+            text = text.replace(w, f'{{\\c&HFFFFFF&}}{w}{{\\c{bgr}}}')
+        # pop-in animation per word chunk
+        text = '{\\fad(80,80)\\an2}' + text
+        lines.append(f'Dialogue: 0,{start},{end},Default,,0,0,0,,{text}')
+    return '\n'.join(lines)
+
+
+async def burn_hormozi_captions(video_path: str, segments: list, brand: Optional[dict] = None,
+                                out_path: Optional[str] = None) -> Optional[str]:
+    """Burn Hormozi-style dynamic captions into a video (FFmpeg + ASS)."""
+    if not _ffmpeg_available():
+        return None
+    out = out_path or str(AVATAR_DIR / f'{uuid.uuid4().hex[:10]}_caps.mp4')
+    ass_path = str(AVATAR_DIR / f'{uuid.uuid4().hex[:10]}.ass')
+    try:
+        with open(ass_path, 'w', encoding='utf-8') as f:
+            f.write(build_hormozi_ass(segments, brand))
+        cmd = ['ffmpeg', '-y', '-i', video_path, '-vf', f"ass={ass_path}", '-c:a', 'copy', out]
+        if brand and brand.get('logo'):
+            cmd = ['ffmpeg', '-y', '-i', video_path, '-i', brand['logo'],
+                   '-filter_complex', f"[0:v]ass={ass_path}[v];[v][1:v]overlay=W-w-20:H-h-20",
+                   '-c:a', 'copy', out]
+        proc = await asyncio.create_subprocess_exec(*cmd,
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+        await proc.wait()
+        return out if proc.returncode == 0 and os.path.exists(out) else None
+    except Exception as e:
+        logger.warning('burn_hormozi_captions failed: %s', e)
+        return None
+    finally:
+        if os.path.exists(ass_path):
+            os.remove(ass_path)
+
+
+async def concat_videos(paths: list, out_path: Optional[str] = None) -> Optional[str]:
+    """Concatenate mp4 clips into one video (FFmpeg concat demuxer)."""
+    if not _ffmpeg_available() or not paths:
+        return None
+    out = out_path or str(CLIP_DIR / f'{uuid.uuid4().hex[:10]}_final.mp4')
+    list_path = str(CLIP_DIR / f'{uuid.uuid4().hex[:10]}.txt')
+    try:
+        with open(list_path, 'w', encoding='utf-8') as f:
+            for p in paths:
+                f.write(f"file '{p}'\n")
+        proc = await asyncio.create_subprocess_exec(
+            'ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', list_path,
+            '-c', 'copy', out,
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+        await proc.wait()
+        return out if proc.returncode == 0 and os.path.exists(out) else None
+    except Exception as e:
+        logger.warning('concat_videos failed: %s', e)
+        return None
+    finally:
+        if os.path.exists(list_path):
+            os.remove(list_path)
+
+
 async def lip_sync_video(video_path: str, audio_path: str, out_path: Optional[str] = None) -> Optional[str]:
-    """Lip-sync a video to new audio. Placeholder for a Wav2Lip / SadTalker-Face
-    pipeline; returns None until a lip-sync model is wired (graceful no-op so
-    callers fall back to audio dubbing)."""
+    """Lip-sync a video to new audio via the configured GPU provider.
+
+    Resolution order (repo scaling path, see creator/providers.py):
+      1. Self-hosted GPU box (GPU_HOST) — POST multipart {video, audio} to
+         `{GPU_HOST}/lipsync`; expects JSON {"video_url": "..."} back. We
+         download the result locally.
+      2. fal.ai Wav2Lip/LivePortrait (FAL_KEY) — JSON {video_url, audio_url}.
+    Returns the local output path, or None if no GPU provider is configured
+    (graceful — caller falls back to plain audio dubbing).
+    """
+    import creator.providers as cp
+    if not (cp.GPU_HOST or cp.FAL_KEY):
+        return None
+    out = out_path or str(AVATAR_DIR / f'{uuid.uuid4().hex[:10]}_sync.mp4')
+    try:
+        if cp.GPU_HOST:
+            async with httpx.AsyncClient(timeout=600) as client:
+                resp = await client.post(
+                    f'{cp.GPU_HOST.rstrip("/")}/lipsync',
+                    files={'video': open(video_path, 'rb'), 'audio': open(audio_path, 'rb')},
+                )
+                if resp.status_code != 200:
+                    logger.warning('GPU lipsync returned %s', resp.status_code)
+                    return None
+                url = (resp.json() or {}).get('video_url') or (resp.json() or {}).get('output')
+                if not url:
+                    return None
+                dl = await client.get(url)
+                if dl.status_code == 200:
+                    out_path_w = out
+                    open(out_path_w, 'wb').write(dl.content)
+                    return out_path_w
+                return None
+        if cp.FAL_KEY:
+            # fal expects public URLs; callers should host the inputs first.
+            logger.warning('FAL lip-sync needs public input URLs; skipping')
+            return None
+    except Exception as e:
+        logger.warning('lip_sync_video failed: %s', e)
+        return None
     return None
 
 
