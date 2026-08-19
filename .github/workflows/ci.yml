@@ -20,6 +20,11 @@ jobs:
       LLM_PROVIDER: groq
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       FREE_ONLY: 'true'
+      # Live-server tests (test_auth, test_critical_flows) hit a LOCAL FastAPI
+      # instance started below — never prod. Override these to point the
+      # integration tests at a deployed environment if desired.
+      TEST_API_URL: http://localhost:8000/api
+      TEST_BASE_URL: http://localhost:8000/api
     steps:
       - uses: actions/checkout@v4
 
@@ -37,13 +42,34 @@ jobs:
           grep -v '^emergentintegrations' requirements.txt > /tmp/req-ci.txt
           pip install -r /tmp/req-ci.txt
 
+      - name: Start FastAPI server in background
+        run: |
+          cd legacy-getszy/backend
+          uvicorn server:app --host 0.0.0.0 --port 8000 > /tmp/uvicorn.log 2>&1 &
+          python3 -c "
+          import time, httpx
+          for i in range(60):
+              try:
+                  r = httpx.get('http://localhost:8000/api/health', timeout=2)
+                  if r.status_code == 200:
+                      print('Server is up!')
+                      break
+              except Exception:
+                  pass
+              time.sleep(1)
+          else:
+              print('Server failed to start')
+              raise SystemExit(1)
+          "
+
       - name: Run backend test suite
         run: |
           cd legacy-getszy/backend
-          # Run the full suite EXCEPT tests requiring a live external server
-          # (`@pytest.mark.integration`, e.g. test_critical_flows hits TEST_BASE_URL).
-          # Those are run separately against a real deploy with TEST_BASE_URL set,
-          # not in CI (default would hit prod getszy.com/api).
+          # Run the suite against the local server. Live-server tests that need a
+          # deployed app + admin credentials or external APIs (test_critical_flows)
+          # or a real Mongo bulk round-trip (marked @pytest.mark.integration) are
+          # excluded from the blocking gate; they run against a real deploy via
+          # TEST_BASE_URL/ADMIN_* env when desired.
           python -m pytest tests/ -v -p no:cacheprovider -m "not integration"
 
   security:
@@ -60,7 +86,7 @@ jobs:
         run: |
           pip install bandit safety
           cd legacy-getszy/backend
-          # High-severity only for bandit to avoid medium false positives blocking CI.
+          # High-severity only for bandit (low/medium are too noisy to gate on).
           bandit -r . -x ./tests,./venv -lll
           # Dependency CVE scan — fails loudly. The only currently-flagged
           # package is `ecdsa` (a transitive dep via web3/eth libs). 0.19.2 is
