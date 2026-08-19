@@ -27,7 +27,6 @@ def test_user():
     }
 
 
-@pytest.mark.integration
 class TestAuthSignup:
     def test_signup_success(self, client, test_user):
         """Valid signup should return token and user."""
@@ -65,7 +64,6 @@ class TestAuthSignup:
         assert r.status_code == 422
 
 
-@pytest.mark.integration
 class TestAuthLogin:
     def test_login_success(self, client, test_user):
         """Valid login should return token."""
@@ -95,7 +93,6 @@ class TestAuthLogin:
         assert r.status_code == 401
 
 
-@pytest.mark.integration
 class TestAuthMe:
     def test_me_with_token(self, client, test_user):
         """Valid token should return user profile."""
