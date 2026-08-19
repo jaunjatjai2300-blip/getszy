@@ -140,8 +140,8 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
         return {'error': f'concat failed: {(err or b"")[:200].decode("utf-8", "ignore")}'}
     # 3. Mux with audio (shortest)
     final_cmd = [
-        FFMPEG, '-y', '-i', silent_concat, '-i', audio_path,
-        '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', out_path,
+    FFMPEG, '-y', '-i', silent_concat, '-i', audio_path,
+    '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-longest', out_path,
     ]
     proc = await asyncio.create_subprocess_exec(*final_cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
     try:
