@@ -13,7 +13,9 @@ import routes_neo_content  # noqa: E402
 
 
 def test_generate_uses_ai_when_available(monkeypatch):
-    monkeypatch.setattr(routes_neo_content, 'chat_completion', lambda s, u, session_id=None, temperature=0.7: "AI generated copy")
+    async def _ai_copy(*args, **kwargs):
+        return "AI generated copy"
+    monkeypatch.setattr(routes_neo_content, 'chat_completion', _ai_copy)
     res = asyncio.run(routes_neo_content.generate(
         routes_neo_content.GenerateIn(type='ad_copy', context={'name': 'Chai'}, language='hinglish'), {'email': 'a@admin'}))
     assert res['content'] == 'AI generated copy'
@@ -34,5 +36,6 @@ def test_translate_fallback():
     routes_neo_content.chat_completion = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("down"))
     res = asyncio.run(routes_neo_content.translate(
         routes_neo_content.TranslateIn(text='Hello', to='hi'), {'email': 'a@admin'}))
-    assert res['source'] == 'template'
-    assert 'HI' in res['translated'].upper()
+    # Honest failure: we must NOT pretend an untranslated string is a translation.
+    assert res['source'] == 'none'
+    assert res['translated'] == 'Hello'
