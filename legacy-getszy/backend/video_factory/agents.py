@@ -239,11 +239,14 @@ async def build_storyboard(script_narration: str, duration_s: int, session_id: s
         '    "narration_chunk": "exact text from the narration for this scene",\n'
         '    "duration_s": integer,\n'
         '    "pacing_note": "fast | medium | slow — with reasoning",\n'
-        '    "visual_intent": "what should be visible during this scene"\n'
+        '    "visual_intent": "what should be visible during this scene",\n'
+        '    "motion": "ken-burns-in | ken-burns-out | pan-left | pan-right | tilt-up | tilt-down"\n'
         "  }\n"
         "]\n"
         "Rules: scene 1 must be 'hook' with duration 3-7s. Last scene must be 'cta'. "
-        "Middle scenes 5-15s each. Sum of duration_s should approximately equal total."
+        "Middle scenes 5-15s each. Sum of duration_s should approximately equal total. "
+        "Assign a varied 'motion' per scene (do NOT use 'static') to create cinematic "
+        "camera movement — e.g. hook = ken-burns-in, a reveal = pan-right, a climax = tilt-up."
     )
     raw = await chat_completion(system=system, user=prompt, temperature=0.5, session_id=session_id, max_tokens=_STORYBOARD_MAX)
     scenes = _parse_json_response(raw)

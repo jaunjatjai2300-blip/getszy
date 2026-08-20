@@ -11,6 +11,8 @@ import {
   Download, RefreshCw, CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const TOOLS = [
   { id: "logo", name: "Design a Logo", icon: Palette, color: "#7c3aed", category: "design",
@@ -562,7 +564,9 @@ function ResultCard({ text }) {
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <div className="text-sm whitespace-pre-wrap leading-relaxed">{text}</div>
+      <div className="text-sm leading-relaxed prose-dashboard">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+      </div>
     </div>
   );
 }

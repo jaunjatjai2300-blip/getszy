@@ -196,17 +196,23 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
         logger.warning(f'could not remove stale final.mp4: {_e}')
 
     # Build compose scenes with keys expected by video/compose.py: {image_path, seconds, narration_chunk, motion}
+    # Rotate a cinematic motion set so videos always have camera movement even if
+    # the storyboard LLM omits the `motion` field.
+    MOTION_CYCLE = ['ken-burns-in', 'pan-right', 'ken-burns-out', 'pan-left', 'tilt-up', 'tilt-down']
     compose_scenes = []
-    for scene in scenes:
+    for idx, scene in enumerate(scenes):
         img = scene.get('image_path')
         if not img or not os.path.exists(img):
             logger.warning(f"scene {scene.get('index')} skipped — image missing: {img}")
             continue
+        motion = scene.get('motion')
+        if motion not in MOTION_CYCLE:
+            motion = MOTION_CYCLE[idx % len(MOTION_CYCLE)]
         compose_scenes.append({
             'image_path': img,
             'seconds': max(3, int(scene.get('duration_s', 5))),
             'narration_chunk': scene.get('narration_chunk', '')[:120],
-            'motion': scene.get('motion', 'static'),
+            'motion': motion,
         })
 
     # Enforce a minimum total video length (default 60s) so customers always
