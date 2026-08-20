@@ -56,7 +56,7 @@ STRICT OUTPUT RULES:
 2. Begin with <!DOCTYPE html> and end with </html>.
 3. Use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
 4. Use Google Fonts via <link> for premium typography (e.g. Inter, Plus Jakarta Sans, Space Grotesk).
-5. Use real, free placeholder images from https://images.unsplash.com or https://picsum.photos.
+5. Images: use ONLY the real product images provided in the brief (embed them via <img src>). If no product image is available, use tasteful CSS gradients, brand colors, or inline SVG — NEVER use placeholder/random image services (no picsum, no lorem, no via.placeholder).
 6. Include semantic sections: sticky header/nav, hero (with a bold value proposition + primary CTA),
    trust bar (logos/stats), features/benefits (with icons), "how it works", social proof/testimonials,
    pricing or offer, FAQ, strong CTA section, and footer.
@@ -202,10 +202,16 @@ async def code_site(prompt: str, plan: dict, design: dict, session_id: str = 'bu
     )
     html = _extract_html(raw)
     if not html.lower().startswith('<!doctype html'):
+        # Graceful, valid fallback: a real (if minimal) HTML page — never a raw
+        # <pre> dump presented as a "website", and never a silent failure.
+        safe = (raw or 'Content could not be generated. Please retry.').replace('<', '&lt;').replace('>', '&gt;')
         html = (
-            "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Generated</title>"
-            "<script src='https://cdn.tailwindcss.com'></script></head><body class='p-8 font-sans'>"
-            f"<pre class='whitespace-pre-wrap'>{raw}</pre></body></html>"
+            "<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>"
+            "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+            "<title>Generated Preview</title>"
+            "<script src='https://cdn.tailwindcss.com'></script></head>"
+            "<body class='p-8 font-sans bg-white text-gray-900'>"
+            f"<div class='prose max-w-3xl mx-auto'>{safe}</div></body></html>"
         )
     logger.info(f'Builder coded: {len(html)} chars')
     return html

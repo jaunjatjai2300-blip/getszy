@@ -125,7 +125,11 @@ async def preview_product(pid: str):
     stock = p.get('stock', 0)
     slug = p.get('slug', p.get('id', ''))
     images = p.get('images', [])
-    main_img = images[0] if images else 'https://via.placeholder.com/600x400?text=No+Image'
+    NO_IMG = ("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='400'>"
+              "<rect width='100%' height='100%' fill='%23e5e7eb'/>"
+              "<text x='50%' y='50%' font-family='Arial' font-size='28' fill='%236b7280' "
+              "text-anchor='middle' dominant-baseline='middle'>No Image</text></svg>")
+    main_img = images[0] if images else NO_IMG
     in_stock = stock > 0
     stock_text = 'In Stock' if in_stock else 'Out of Stock'
     stock_class = 'in' if in_stock else 'out'

@@ -72,7 +72,8 @@ def _fallback_generate(body: GenerateIn) -> str:
 
 
 def _fallback_translate(text: str, to: str) -> str:
-    return f"[{to.upper()} translation]\n{text}"
+    # Honest: return the original; never label untranslated text as a translation.
+    return text
 
 
 @router.post('/generate')
@@ -107,7 +108,10 @@ async def translate(body: TranslateIn, _=Depends(get_current_admin)):
             return {'ok': True, 'to': body.to, 'translated': out.strip(), 'source': 'ai'}
     except Exception:
         pass
-    return {'ok': True, 'to': body.to, 'translated': _fallback_translate(body.text, body.to), 'source': 'template'}
+    # Honest failure: return original text with an explicit error — do NOT pretend
+    # the untranslated text is a translation.
+    return {'ok': False, 'to': body.to, 'translated': body.text, 'source': 'none',
+            'error': 'Translation service is unavailable right now. Showing the original text.'}
 
 
 @router.get('/types')

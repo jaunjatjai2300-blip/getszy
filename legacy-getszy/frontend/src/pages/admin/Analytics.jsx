@@ -364,9 +364,9 @@ export default function Analytics() {
             const active = f.active_users || 0;
             const churned = Math.max(0, total - active);
             const churnRate = total > 0 ? ((churned / total) * 100).toFixed(1) : "0.0";
-            const churnData = series.slice(-12).map((d, i) => ({
+            const churnData = series.slice(-12).map((d) => ({
               ...d,
-              churned: Math.max(0, Math.floor(Math.random() * 3)),
+              churned: d.churned ?? 0,
             }));
             return (
               <>

@@ -59,13 +59,12 @@ async def publish(platform: str, content: Dict[str, Any]) -> Dict[str, Any]:
             'scheduled_at': content.get('scheduled_at'),
             'posted_at': datetime.now(timezone.utc).isoformat(),
         }
-    # Live mode: stub - real API call would go here.
-    # We intentionally do NOT make real calls until user provides + validates keys.
+    # Live mode: real provider SDK integration is required to actually post.
+    # We NEVER fabricate a post or a URL. If the integration isn't wired, report
+    # it honestly so the UI doesn't show a fake green "posted" badge.
     return {
-        'status': 'live-stub',
+        'status': 'unavailable',
         'platform': platform,
-        'external_id': fake_id,
-        'url': f'https://{platform}.com/{fake_id}',
-        'message': 'Keys detected but live posting requires the provider SDK integration step.',
-        'posted_at': datetime.now(timezone.utc).isoformat(),
+        'error': 'Live posting is not enabled on this server. Configure the provider SDKs to enable real publishing.',
+        'requires': keys,
     }

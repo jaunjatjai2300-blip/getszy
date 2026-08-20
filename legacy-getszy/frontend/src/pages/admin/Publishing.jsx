@@ -17,8 +17,9 @@ const PLATFORM_META = {
 };
 
 function StatusBadge({ s }) {
-  if (s === "live" || s === "live-stub") return <Badge className="bg-emerald-100 text-emerald-800 text-[10px]"><CheckCircle2 className="h-3 w-3 mr-1"/>{s}</Badge>;
+  if (s === "live" || s === "posted") return <Badge className="bg-emerald-100 text-emerald-800 text-[10px]"><CheckCircle2 className="h-3 w-3 mr-1"/>{s}</Badge>;
   if (s === "dry-run") return <Badge className="bg-amber-100 text-amber-800 text-[10px]"><AlertCircle className="h-3 w-3 mr-1"/>dry-run</Badge>;
+  if (s === "live-stub" || s === "unavailable" || s === "failed") return <Badge className="bg-rose-100 text-rose-800 text-[10px]"><AlertCircle className="h-3 w-3 mr-1"/>{s}</Badge>;
   if (s === "scheduled") return <Badge className="bg-blue-100 text-blue-800 text-[10px]"><Clock className="h-3 w-3 mr-1"/>scheduled</Badge>;
   return <Badge variant="outline" className="text-[10px]">{s}</Badge>;
 }
@@ -165,7 +166,7 @@ export default function Publishing() {
                     <div className="text-[10px] text-[var(--gs-muted)] truncate">{(item.caption || "").slice(0, 80)}</div>
                   </div>
                   <StatusBadge s={item.status}/>
-                  {item.status !== "posted" && item.status !== "live" && item.status !== "live-stub" && (
+                  {item.status !== "posted" && item.status !== "live" && (
                     <Button size="sm" variant="outline" onClick={() => runNow(item.id)} data-testid={`runnow-${item.id}`}>Run now</Button>
                   )}
                   <button onClick={() => cancel(item.id)} className="text-rose-500" data-testid={`cancel-${item.id}`}><Trash2 className="h-4 w-4"/></button>

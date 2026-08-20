@@ -71,10 +71,16 @@ export default function MediaStudio() {
       } else if (active === "voice") {
         toast.loading("Synthesizing narration... (~5-10s)", { id: "gen", duration: 20000 });
         r = await api.post("/media/voice", voice);
-        if (r.data.status === "pending_provider") toast.info(r.data.message, { id: "gen" }); else toast.success("Voice ready!", { id: "gen" });
+        const vs = r.data?.status;
+        if (vs === "pending_provider") toast.info(r.data.message, { id: "gen" });
+        else if (["queued", "processing", "done", "pending"].includes(vs)) toast.success("Voice ready!", { id: "gen" });
+        else toast.error(r.data?.message || "Voice generation failed", { id: "gen" });
       } else if (active === "video") {
         r = await api.post("/media/video", video);
-        if (r.data.status === "pending_provider") toast.info(r.data.message); else toast.success("Video queued");
+        const vs = r.data?.status;
+        if (vs === "pending_provider") toast.info(r.data.message);
+        else if (["queued", "processing", "done", "pending"].includes(vs)) toast.success("Video queued");
+        else toast.error(r.data?.message || "Video generation failed");
       }
       await Promise.all([loadHistory(), loadTools()]);
     } catch (e) {
