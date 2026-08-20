@@ -139,7 +139,7 @@ async def _setup(db, tmp_path, monkeypatch, status='queued', **extra):
         p.write_bytes(b'\xff\xd8\xff\xe0' + b'\x00' * 200)
         return str(p)
 
-    async def fake_synth(text, path, voice=None):
+    async def fake_synth(text, path, voice=None, **kwargs):
         from pathlib import Path
         Path(path).write_bytes(b'\x00' * 1000)
 
@@ -205,7 +205,7 @@ async def test_all_images_fail_refunds(db, tmp_path, monkeypatch, refunds):
 async def test_tts_failure_refunds(db, tmp_path, monkeypatch, refunds):
     pid = await _setup(db, tmp_path, monkeypatch)
 
-    async def boom(text, path, voice=None):
+    async def boom(text, path, voice=None, **kwargs):
         raise RuntimeError('tts down')
     monkeypatch.setattr(renderer, 'synth', boom)
 
