@@ -182,3 +182,36 @@ async def stock_search(body: StockIn, user=Depends(get_current_user)):
     else:
         items = await search_stock_image_urls(body.query, body.n)
     return {'items': items}
+
+
+@router.get('/trends')
+async def trends(user=Depends(get_current_user)):
+    """Trend-jacking: suggest high-engagement angles. Uses a live source when
+    TRENDS_SOURCE env is configured, otherwise returns honest curated angles."""
+    import httpx
+    import os
+    src = os.getenv('TRENDS_SOURCE')
+    if src:
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                r = await c.get(src)
+                if r.status_code == 200:
+                    data = r.json()
+                    items = data.get('items') or data.get('trends') or []
+                    if items:
+                        return {'curated': False, 'items': items[:12]}
+        except Exception:
+            logger.warning('trends live source failed, using curated')
+    # Honest curated "suggested angles" (evergreen, high-engagement creator topics)
+    return {'curated': True, 'items': [
+        {'topic': 'AI Robots 2026', 'angle': 'funny hinglish short on robots taking over homes'},
+        {'topic': 'Budget Smartphone', 'angle': 'unboxing + honest review reel'},
+        {'topic': 'Desi Street Food', 'angle': 'mouth-watering documentary-style food short'},
+        {'topic': 'Side Hustle Ideas', 'angle': 'educational tutorial on making money online'},
+        {'topic': 'Stock Market for Beginners', 'angle': 'simple explainer in hinglish'},
+        {'topic': 'Weight Loss Without Gym', 'angle': 'motivational transformation short'},
+        {'topic': 'Cricket World Cup Moments', 'angle': 'top 5 epic moments recap'},
+        {'topic': 'Movie Review Hindi', 'angle': 'spicy funny review short'},
+        {'topic': 'Python in 10 Minutes', 'angle': 'beginner coding tutorial'},
+        {'topic': 'Parenting Hacks', 'angle': 'relatable funny parenting reel'},
+    ]}
