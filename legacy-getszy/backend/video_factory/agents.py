@@ -34,9 +34,11 @@ _SCRIPT_MAX     = int(os.environ.get('FACTORY_SCRIPT_MAX_TOKENS', '1800'))
 _HOOKS_MAX       = int(os.environ.get('FACTORY_HOOKS_MAX_TOKENS', '800'))
 _STORYBOARD_MAX  = int(os.environ.get('FACTORY_STORYBOARD_MAX_TOKENS', '1500'))
 _VISUALS_MAX     = int(os.environ.get('FACTORY_VISUALS_MAX_TOKENS', '1200'))
-# How many script variants to generate concurrently. CPU-bound Ollama is best
-# with a low value (it serializes inference anyway); GPU/Groq scales to 5.
-_SCRIPT_CONCURRENCY = int(os.environ.get('FACTORY_SCRIPT_CONCURRENCY', '3'))
+# How many script variants to generate concurrently. Keep LOW: Groq's free tier
+# is rate-limited (~30 req/min), so firing all 5 at once bursts past the limit,
+# 429s, and falls back to slow CPU Ollama. Serializing (1-2) stays on Groq and
+# finishes the whole chain in ~20s. Raise only on a paid/high-RPM plan.
+_SCRIPT_CONCURRENCY = int(os.environ.get('FACTORY_SCRIPT_CONCURRENCY', '2'))
 
 
 def _iso() -> str:

@@ -300,7 +300,7 @@ async def chat_completion(
         # provider. This keeps us on the fast provider (Groq) instead of dropping
         # to slow local Ollama the moment we hit a transient RPM limit during a
         # burst (e.g. the video-factory script fan-out).
-        for _attempt in range(4):
+        for _attempt in range(6):
             try:
                 result = await fn()
                 if name == 'groq':
@@ -313,8 +313,12 @@ async def chat_completion(
                     logger.info(f'LLM: {name}')
                 return result
             except Exception as e:
-                if _is_rate_limited(e) and _attempt < 3:
-                    wait = _retry_after(e, 1.0 * (_attempt + 1))
+                # A 429 is a *transient rate limit*, not an outage. Wait and retry
+                # on the SAME fast provider (Groq) with exponential backoff rather
+                # than immediately falling back to slow local Ollama — otherwise a
+                # burst makes every call drop to CPU Ollama and generation crawls.
+                if _is_rate_limited(e) and _attempt < 5:
+                    wait = _retry_after(e, min(1.0 * (2 ** _attempt), 30.0))
                     logger.warning(f'LLM {name} rate-limited (429); retrying in {wait:.1f}s')
                     await asyncio.sleep(wait)
                     last_error = e
