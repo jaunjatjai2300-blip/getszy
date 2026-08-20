@@ -115,3 +115,17 @@
 /* Improve contrast for muted text on light bg (was 4.3:1, now 4.6+:1) */
 :root { --gs-muted: #5F5951; }
 
+/* Markdown rendering for AI tool result cards (AITools.jsx) */
+.prose-dashboard h1 { @apply text-lg font-bold mt-3 mb-1; }
+.prose-dashboard h2 { @apply text-base font-semibold mt-3 mb-1 text-[var(--gs-teal)]; }
+.prose-dashboard h3 { @apply text-sm font-semibold mt-2 mb-1; }
+.prose-dashboard p { @apply my-1.5; }
+.prose-dashboard ul { @apply list-disc pl-5 my-1.5 space-y-1; }
+.prose-dashboard ol { @apply list-decimal pl-5 my-1.5 space-y-1; }
+.prose-dashboard li { @apply leading-relaxed; }
+.prose-dashboard strong { @apply font-semibold text-[var(--gs-foreground)]; }
+.prose-dashboard a { @apply text-[var(--gs-teal)] underline; }
+.prose-dashboard code { @apply bg-black/5 rounded px-1 py-0.5 text-[0.85em]; }
+.prose-dashboard blockquote { @apply border-l-2 border-[var(--gs-teal)] pl-3 italic text-[var(--gs-muted)] my-2; }
+.prose-dashboard hr { @apply my-3 border-[var(--gs-surface)]; }
+

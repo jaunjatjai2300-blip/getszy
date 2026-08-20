@@ -16,6 +16,9 @@ MEDIA_DIR = os.path.join(os.path.dirname(__file__), '..', 'media_cache', 'video_
 os.makedirs(MEDIA_DIR, exist_ok=True)
 PEXELS_KEY = os.environ.get('PEXELS_KEY', '').strip()
 HF_TOKEN   = os.environ.get('HF_TOKEN', '').strip()
+# Opt-in upgrade: when HF_TOKEN is set and VF_USE_FLUX != '0', prefer FLUX.1-schnell
+# (best quality) over Pollinations for scene images. Set VF_USE_FLUX=0 to force Pollinations.
+VF_USE_FLUX = os.environ.get('VF_USE_FLUX', '1' if HF_TOKEN else '0').strip().lower() not in ('0', 'false', 'no')
 
 DIMS = {
     '9:16': (1080, 1920),
@@ -116,7 +119,7 @@ async def fetch_scene_image(prompt: str, orientation: str = '9:16', seed: int = 
     if os.path.exists(path) and os.path.getsize(path) > 2000:
         return path
 
-    if provider == 'flux_hd':
+    if provider == 'flux_hd' or (provider == 'pollinations' and VF_USE_FLUX and HF_TOKEN):
         if await _fetch_hf_flux(prompt, orientation, seed, path):
             return path
         print('[visuals] flux_hd unavailable, falling back to pollinations')
