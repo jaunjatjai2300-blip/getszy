@@ -73,11 +73,11 @@ async def _generate_site(prompt: str, current_html: str | None = None, session_i
     if current_html:
         # Refinement: use single-pass refine (not full pipeline)
         user_msg = (
-            f"CURRENT HTML:\n```html\n{current_html[:6000]}\n```\n\n"
+            f"CURRENT HTML:\n```html\n{current_html}\n```\n\n"
             f"REFINEMENT REQUEST:\n{prompt}\n\n"
             "Now output the complete updated HTML document only."
         )
-        raw = await chat_completion(system=SYSTEM_PROMPT_REFINE, user=user_msg, session_id=session_id, temperature=0.6)
+        raw = await chat_completion(system=SYSTEM_PROMPT_REFINE, user=user_msg, session_id=session_id, temperature=0.6, max_tokens=8000)
         html = _sanitize(_extract_html(raw))
         if not html.lower().startswith('<!doctype html'):
             html = current_html  # Fallback: keep original

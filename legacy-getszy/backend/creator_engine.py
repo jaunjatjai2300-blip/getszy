@@ -106,21 +106,34 @@ async def generate_script_with_backoff(topic: str, platform: str) -> str:
         METRICS['llm_errors_total'] += 1
         raise HTTPException(status_code=503, detail='LLM Circuit Breaker Tripped — model gateway unavailable')
 
-    prompt = f'Write a viral {platform} video script about: {topic}. Make it engaging, concise, and platform-optimized.'
-    system = 'You are a viral content script writer. Write engaging, platform-optimized video scripts.'
+    prompt = (
+        f'Write a viral, retention-optimized {platform} video script about: {topic}.\n\n'
+        f'Structure:\n'
+        f'1. HOOK (first 3 seconds) — a bold, curiosity/value-driven opening that stops the scroll.\n'
+        f'2. PROMISE — what the viewer will get.\n'
+        f'3. BODY — 3 punchy value points / story beats, each with a concrete detail or example.\n'
+        f'4. CTA — a clear, natural call-to-action (like / follow / link).\n\n'
+        f'Make it natural, spoken-aloud friendly, specific (no generic filler), and tuned to {platform} '
+        f'style and pacing. Reply with the script only.'
+    )
+    system = (
+        'You are a top 1% short-form video script writer (YouTube Shorts / Reels / TikTok calibre). '
+        'You write hooks that retain, bodies that deliver value fast, and CTAs that convert. '
+        'Never use lorem ipsum or vague placeholders — be specific and compelling.'
+    )
 
     # Use the multi-provider fallback chain (Ollama -> Groq -> Gemini -> etc.)
     from llm_provider import chat_completion
     for attempt in range(3):
         try:
-            result = await chat_completion(system=system, user=prompt, temperature=0.7)
+            result = await chat_completion(system=system, user=prompt, temperature=0.7, max_tokens=3000)
             CircuitBreaker.record_success()
             return result
         except Exception as e:
             logger.warning(f'LLM attempt {attempt+1} failed: {e}')
             if attempt < 2:
-                import time
-                time.sleep([2, 5][attempt])
+                import asyncio
+                await asyncio.sleep([2, 5][attempt])
                 continue
             CircuitBreaker.record_failure()
             METRICS['llm_errors_total'] += 1

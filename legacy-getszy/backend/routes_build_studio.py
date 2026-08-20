@@ -29,10 +29,21 @@ class SaaSIn(BaseModel):
 async def create_saas(payload: SaaSIn, user=Depends(get_current_user)):
     project_id = str(uuid.uuid4())
     try:
-        result = await chat_completion([
-            {'role': 'system', 'content': 'Generate a SaaS project blueprint with: file structure, tech stack, features, and deployment plan as JSON.'},
-            {'role': 'user', 'content': f"Create SaaS: {payload.name} - {payload.description}. Features: {payload.features}. Stack: {payload.tech_stack}"}
-        ])
+        result = await chat_completion(
+            system=(
+                'You are a senior solutions architect. Generate a complete, production-ready '
+                'SaaS project blueprint as a single JSON object (no markdown, no commentary). '
+                'Include: file_structure (nested tree), tech_stack, core_features (array), '
+                'data_models (array of {name, fields}), api_endpoints (array), and a step-by-step '
+                'deployment_plan. Be concrete and professional.'
+            ),
+            user=(
+                f"Create SaaS: {payload.name} - {payload.description}. "
+                f"Features: {payload.features}. Stack: {payload.tech_stack}. "
+                f"Pricing model: {payload.pricing_model}."
+            ),
+            max_tokens=8000,
+        )
         import json
         content = result if isinstance(result, str) else result.get('content', str(result))
         blueprint = json.loads(content) if content.strip().startswith('{') else {'structure': content[:500], 'features': payload.features}

@@ -2222,11 +2222,15 @@ Return ONLY the improved code, no explanations.
 {current_code}
 ```"""
     try:
-        result = chat_completion([
-            {'role': 'system', 'content': 'You are an expert developer. Return only the enhanced code.'},
-            {'role': 'user', 'content': prompt},
-        ])
-        enhanced = result.get('content', current_code)
+        enhanced = await chat_completion(
+            system=(
+                'You are an expert senior software engineer. Improve the provided code strictly '
+                'according to the user instructions. Return ONLY the enhanced code — no explanations, '
+                'no markdown code fences.'
+            ),
+            user=prompt,
+            max_tokens=8000,
+        )
         enhanced = enhanced.strip()
         if enhanced.startswith('```'):
             lines = enhanced.split('\n')
