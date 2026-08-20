@@ -100,7 +100,7 @@ def _retry_after(e: Exception, base: float) -> float:
 # permits a burst). Instead we enforce a minimum spacing between ALL Groq calls
 # app-wide, so the factory chain can never burst past the limit. Tuned under the
 # published limit for headroom.
-GROQ_MAX_RPM = int(os.environ.get('GROQ_MAX_RPM', '25'))
+GROQ_MAX_RPM = int(os.environ.get('GROQ_MAX_RPM', '20'))
 _groq_min_interval = 60.0 / GROQ_MAX_RPM
 _groq_last_call = 0.0
 _groq_rl_lock = asyncio.Lock()
