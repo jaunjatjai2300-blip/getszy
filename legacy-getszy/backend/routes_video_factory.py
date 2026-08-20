@@ -35,6 +35,15 @@ from credits import deduct, refund
 logger = logging.getLogger('getszy.video_factory')
 router = APIRouter(prefix='/video-factory', tags=['video-factory'])
 
+# Bounds a single factory chain run so a misbehaving/unreachable AI provider can
+# never leave a project stuck at "processing" forever. Must be >= the sum of the
+# per-provider httpx timeouts in llm_provider.py, but small enough to fail fast.
+CHAIN_TIMEOUT = int(os.environ.get('VF_CHAIN_TIMEOUT', '900'))
+CHAIN_HEARTBEAT_SECS = int(os.environ.get('VF_CHAIN_HEARTBEAT_SECS', '30'))
+# A chain with no heartbeat newer than this is considered dead (worker crash /
+# restart) and is reset by recover_stuck_video_jobs on startup.
+CHAIN_STALE_SECS = int(os.environ.get('VF_CHAIN_STALE_SECS', str(CHAIN_TIMEOUT)))
+
 
 def _iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -96,21 +105,54 @@ async def create_project(body: CreateProjectIn, background: BackgroundTasks, use
     return doc
 
 
+async def _chain_heartbeat_loop(project_id: str, stop: asyncio.Event):
+    """Stamp chain_heartbeat every CHAIN_HEARTBEAT_SECS while the chain runs, so a
+    crashed/restarted worker is detectable by recover_stuck_video_jobs (cross-process
+    liveness — the missing piece that let projects sit at 'processing' forever)."""
+    try:
+        while not stop.is_set():
+            await _update(project_id, {'chain_heartbeat': _iso()})
+            try:
+                await asyncio.wait_for(stop.wait(), CHAIN_HEARTBEAT_SECS)
+            except asyncio.TimeoutError:
+                continue
+    except Exception:
+        pass
+
+
 async def _run_chain_bg(project_id: str, raw_prompt: str, language: str, user_id: str):
     session_id = f'vf-{project_id}'
-    await _update(project_id, {'status': 'processing'})
+    await _update(project_id, {'status': 'processing', 'chain_started_at': _iso(), 'chain_heartbeat': _iso()})
+    stop = asyncio.Event()
+    hb = asyncio.create_task(_chain_heartbeat_loop(project_id, stop))
     try:
-        result = await run_factory_chain(raw_prompt, language, session_id)
+        try:
+            result = await asyncio.wait_for(
+                run_factory_chain(raw_prompt, language, session_id), timeout=CHAIN_TIMEOUT)
+        except asyncio.TimeoutError:
+            raise RuntimeError(f'factory chain exceeded {CHAIN_TIMEOUT}s')
         patch = {
             'stages': result.get('stages', {}),
             'errors': result.get('errors', {}),
             'selected_script_id': result.get('selected_script_id'),
             'status': 'ready' if not result.get('errors') else 'partial',
+            'chain_heartbeat': _iso(),
         }
         await _update(project_id, patch)
     except Exception as e:
-        await _update(project_id, {'status': 'error', 'errors': {'chain': str(e)[:300]}})
-        await refund(user_id, 'video_factory_chain', reason='chain_failed', ref_id=f'vf-chain-{project_id}')
+        await _update(project_id, {
+            'status': 'error',
+            'errors': {'chain': str(e)[:300]},
+            'chain_heartbeat': _iso(),
+            'refunded': True,
+        })
+        try:
+            await refund(user_id, 'video_factory_chain', reason='chain_failed', ref_id=f'vf-chain-{project_id}')
+        except Exception:
+            logger.warning('chain failure refund failed for %s: %s', project_id, e)
+    finally:
+        stop.set()
+        hb.cancel()
 
 
 @router.get('/project/{project_id}')
@@ -319,8 +361,9 @@ async def _run_render_pipeline(project_id: str, orientation: str, user_id: str):
         if not stages.get('storyboard') or not stages.get('visual_plan'):
             if p.get('status') in ('processing', 'created', 'error', 'partial'):
                 try:
-                    result = await run_factory_chain(
-                        p.get('prompt_raw', ''), p.get('language', 'hinglish'), f'vf-{project_id}')
+                    result = await asyncio.wait_for(run_factory_chain(
+                        p.get('prompt_raw', ''), p.get('language', 'hinglish'), f'vf-{project_id}'),
+                        timeout=CHAIN_TIMEOUT)
                     await _update(project_id, {
                         'stages': result.get('stages', {}),
                         'selected_script_id': result.get('selected_script_id'),
@@ -449,16 +492,25 @@ async def cancel_generation(project_id: str, user=Depends(get_current_user)):
 
 
 async def recover_stuck_video_jobs():
-    """On server (re)start, any job left mid-render by a crash/restart is reset to
-    'error', refunded once, and its partial files cleaned — so it never sticks at
-    'generating_*' forever (no orphaned jobs, no leaked credits)."""
+    """On server (re)start, reset jobs left mid-flight by a crash/restart.
+
+    Pass 1 (render): any job stuck in render_status (queued/generating_*) is reset
+    to 'error', refunded once, partial files cleaned.
+
+    Pass 2 (chain): THE FIX for "everything stuck on processing". Previously only
+    render_status was recovered, so a factory chain killed by a worker restart /
+    OOM / unreachable AI provider was left at status='processing' FOREVER with no
+    recovery. Now we reset projects whose chain is stale (no heartbeat newer than
+    CHAIN_STALE_SECS) or never started, refunding the chain credit once.
+    """
+    # --- Pass 1: in-flight renders (existing behavior) ---
     cursor = db.video_projects.find(
         {'render_status': {'$in': ['queued', 'generating_images', 'generating_voice', 'assembling']}},
         {'_id': 0, 'id': 1, 'user_id': 1, 'refunded': 1},
     )
-    count = 0
+    render_count = 0
     async for p in cursor:
-        count += 1
+        render_count += 1
         if p.get('user_id') and not p.get('refunded'):
             try:
                 await refund(p['user_id'], 'video_factory_assets', reason='server_restart_recovery', ref_id=f'vf-assets-{p["id"]}')
@@ -470,9 +522,50 @@ async def recover_stuck_video_jobs():
                       'refunded': True, 'updated_at': _iso()}},
         )
         _cleanup_project_files(p['id'])
-    if count:
-        logger.warning('recover_stuck_video_jobs: reset %s interrupted video job(s)', count)
-    return count
+
+    # --- Pass 2: factory CHAIN stuck at processing/created/partial ---
+    cutoff = datetime.now(timezone.utc).timestamp() - CHAIN_STALE_SECS
+    chain_cursor = db.video_projects.find(
+        {'status': {'$in': ['processing', 'created', 'partial']}},
+        {'_id': 0, 'id': 1, 'user_id': 1, 'refunded': 1,
+         'chain_heartbeat': 1, 'updated_at': 1, 'stages': 1},
+    )
+    chain_count = 0
+    async for p in chain_cursor:
+        # A 'partial' project that already produced stages may be user-editable;
+        # only reset ones that never produced any stages (truly stuck at chain).
+        if p.get('status') == 'partial' and (p.get('stages') or {}):
+            continue
+        hb = p.get('chain_heartbeat') or p.get('updated_at')
+        stale = True
+        if hb:
+            try:
+                dt = datetime.fromisoformat(hb)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                stale = dt.timestamp() < cutoff
+            except Exception:
+                stale = True
+        if not stale:
+            # Heartbeat is fresh — the chain is still legitimately running; leave it.
+            continue
+        chain_count += 1
+        if p.get('user_id') and not p.get('refunded'):
+            try:
+                await refund(p['user_id'], 'video_factory_chain', reason='chain_recovery', ref_id=f'vf-chain-{p["id"]}')
+            except Exception as e:
+                logger.warning('recover_stuck_chain refund failed: %s', e)
+        await db.video_projects.update_one(
+            {'id': p['id']},
+            {'$set': {'status': 'error',
+                      'errors': {'chain': 'interrupted by server restart / no heartbeat'},
+                      'refunded': True, 'updated_at': _iso()}},
+        )
+        _cleanup_project_files(p['id'])
+
+    if render_count or chain_count:
+        logger.warning('recover_stuck_video_jobs: reset %s render + %s chain job(s)', render_count, chain_count)
+    return render_count + chain_count
 
 
 @router.get('/project/{project_id}/scene-image/{scene_index}')
