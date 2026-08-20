@@ -147,8 +147,10 @@ function LogoTool({ color }) {
     setBusy(true); toast.loading("Generating logos…", { id: "logo" });
     try {
       const r = await api.post("/media/logo", { brand_name: brand, style, palette: "teal" });
-      setLogos(r.data.variants?.map(v => v.url) || []);
-      toast.success("4 logo concepts ready ✅", { id: "logo" });
+      const urls = r.data.variants?.map(v => v.url) || [];
+      setLogos(urls);
+      if (urls.length) toast.success("4 logo concepts ready ✅", { id: "logo" });
+      else toast.error("No logos returned — try a different brand name", { id: "logo" });
     } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "logo" }); }
     finally { setBusy(false); }
   };
@@ -206,8 +208,10 @@ function CopyTool({ color }) {
     setBusy(true); toast.loading("Writing copy…", { id: "copy" });
     try {
       const r = await api.post("/architect/generate", { text: desc, intent: "copy", language: lang, product_query: product || undefined });
-      setResult(r.data.content || r.data.brief?.structured_prompt || "No result");
-      toast.success("Copy ready ✅", { id: "copy" });
+      const content = r.data.content || r.data.brief?.structured_prompt || "";
+      setResult(content || "No result");
+      if (content) toast.success("Copy ready ✅", { id: "copy" });
+      else toast.error("Couldn't generate copy — try rephrasing", { id: "copy" });
     } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "copy" }); }
     finally { setBusy(false); }
   };
@@ -277,8 +281,10 @@ function LandingTool({ color }) {
         setProject({ id: r.data.project_id, preview: r.data.preview_url, download: r.data.download_url, size: r.data.size_bytes });
         toast.success("Landing page ready ✅", { id: "land" });
       } else {
-        setResult(r.data.brief?.structured_prompt || "No result");
-        toast.success("Landing page ready ✅", { id: "land" });
+        const c = r.data.brief?.structured_prompt || "";
+        setResult(c || "No result");
+        if (c) toast.success("Landing page ready ✅", { id: "land" });
+        else toast.error("Couldn't build the page — try again", { id: "land" });
       }
     } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "land" }); }
     finally { setBusy(false); }
@@ -361,8 +367,10 @@ function ImageGenTool({ color }) {
     toast.loading("Generating image…", { id: "img" });
     try {
       const r = await api.post("/media/image", { prompt, width: 1024, height: 1024 });
-      setImage(r.data.url || "");
-      toast.success("Image ready ✅", { id: "img" });
+      const u = r.data.url || "";
+      setImage(u);
+      if (u) toast.success("Image ready ✅", { id: "img" });
+      else toast.error("Image generation failed — try again", { id: "img" });
     } catch (e) { toast.error("Failed", { id: "img" }); }
     finally { setBusy(false); }
   };

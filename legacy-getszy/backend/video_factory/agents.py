@@ -201,6 +201,9 @@ async def generate_hooks(topic: str, angle: str, style: str, session_id: str) ->
     """AI generates 8-10 hook options across styles, ranked by expected performance."""
     system = (
         "You are a viral hook writer. Generate diverse hooks in different psychological styles. "
+        "CRITICAL: Do NOT invent statistics, percentages, or factual claims — never output fabricated "
+        "numbers like '73% of people'. If a hook style implies a stat, reframe it as a curiosity or "
+        "question instead of asserting a fake number. Use only the topic/angle provided. "
         "Return STRICT JSON array only."
     )
     prompt = (

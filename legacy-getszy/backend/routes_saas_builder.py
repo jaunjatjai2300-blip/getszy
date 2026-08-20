@@ -494,11 +494,18 @@ def _validate_python(code: str) -> tuple[bool, str | None]:
 
 
 def _code_stub(filename: str, context: Dict[str, Any]) -> str:
+    """Last-resort fallback used ONLY when no base template exists and AI generation
+    produced nothing valid. Returns a syntactically valid (compilable) module that
+    honestly states generation was incomplete — never a fake/empty 'success' file."""
     feats = ', '.join(context.get('features', [])) if isinstance(context.get('features'), list) else str(context.get('features', ''))
     return (
-        f"# Auto-generated: {filename}\n"
-        f"# Template: {context.get('template')}\n"
-        f"# Features: {feats}\n"
+        f'"""Auto-generated module: {filename}\n'
+        f'Template: {context.get("template")}. Features: {feats}.\n'
+        'NOTE: AI code generation did not return valid output and no base template was\n'
+        'available, so this is an explicit placeholder — regenerate to get a full implementation.\n'
+        '"""\n'
+        'def placeholder() -> None:\n'
+        '    raise NotImplementedError("code generation incomplete — please regenerate")\n'
     )
 
 
