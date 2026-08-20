@@ -78,3 +78,8 @@ docker-compose.override.yml
 package-lock.json
 backups/
 legacy-getszy/deploy/*.bak
+
+# Secrets / pasted-asset backups (never commit)
+attached_assets/
+attached_assets-security-backup/
+
