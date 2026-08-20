@@ -84,7 +84,7 @@ async def generate_plan(project_id: str, user=Depends(get_current_user)):
     system = ("You are Neo, an AI Builder. Read the conversation and produce a project PLAN as strict JSON with keys "
               "\"summary\" (1-2 sentences describing what the user is building) and \"steps\" (array of 4-8 short "
               "action-focused steps). Respond with ONLY the JSON object, no code fences, no extra prose.")
-    prompt = f"Conversation so far:\n{convo}\n\nReturn JSON: {{\"summary\":\"…\",\"steps\":[\"…\"]}}"
+    prompt = f"Conversation so far:\n{convo}\n\nReturn JSON: {{'summary':'…','steps':['…']}}"
 
     try:
         raw = await chat_completion(system=system, user=prompt, temperature=0.4, session_id=f'plan-{project_id}')
@@ -114,6 +114,61 @@ async def generate_plan(project_id: str, user=Depends(get_current_user)):
     await db.workspace_plans.update_one({'project_id': project_id},
                                         {'$set': doc, '$setOnInsert': {'created_at': _iso()}}, upsert=True)
     return {'ok': True, 'summary': summary, 'steps': steps[:12]}
+
+
+# ---------- Auto-tasks from chat (Neo generates a checklist) ----------
+@router.post('/{project_id}/tasks/generate')
+async def generate_tasks(project_id: str, user=Depends(get_current_user)):
+    """Ask the LLM to break the conversation into actionable tasks and persist them."""
+    await _project_or_404(project_id, user)
+    msgs = [m async for m in db.chat_messages.find({'project_id': project_id}, {'_id': 0, 'role': 1, 'content': 1}).sort('created_at', 1).limit(40)]
+    if len(msgs) < 2:
+        raise HTTPException(400, 'Not enough conversation to generate tasks — chat some more first')
+    try:
+        from llm_provider import chat_completion
+    except Exception:
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
+
+    convo = '\n'.join([f"{'User' if m.get('role') == 'user' else 'Neo'}: {(m.get('content') or '')[:400]}" for m in msgs])
+    system = ("You are Neo, an AI project manager. Read the conversation and produce a checklist of actionable "
+              "TASKS as strict JSON: an array of objects, each with \"title\" (short action, max 12 words) and "
+              "\"status\" (one of: todo, doing, done, blocked — use todo for almost all). Respond with ONLY the JSON "
+              "array, no code fences, no extra prose.")
+    prompt = f"Conversation so far:\n{convo}\n\nReturn JSON: [{'title':'…','status':'todo'}]"
+
+    try:
+        raw = await chat_completion(system=system, user=prompt, temperature=0.3, session_id=f'tasks-{project_id}')
+    except Exception:
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
+
+    import json as _json
+    import re as _re
+    raw = (raw or '').strip()
+    raw = _re.sub(r'^```(?:json)?\s*', '', raw)
+    raw = _re.sub(r'\s*```\s*$', '', raw)
+    m = _re.search(r'\[.*\]', raw, _re.DOTALL)
+    if m:
+        raw = m.group(0)
+    try:
+        data = _json.loads(raw)
+    except Exception:
+        raise HTTPException(500, f'Could not parse tasks JSON. Raw: {raw[:200]}')
+
+    tasks = []
+    for t in (data if isinstance(data, list) else []):
+        title = str((t.get('title') if isinstance(t, dict) else t) or '').strip()[:280]
+        status = str(t.get('status') if isinstance(t, dict) else 'todo').strip().lower()
+        if status not in ('todo', 'doing', 'done', 'blocked'):
+            status = 'todo'
+        if not title:
+            continue
+        doc = {'id': str(uuid.uuid4()), 'project_id': project_id, 'user_id': user['id'],
+               'title': title, 'description': '', 'status': status, 'priority': 'normal',
+               'created_at': _iso(), 'updated_at': _iso()}
+        await db.workspace_tasks.insert_one(doc)
+        doc.pop('_id', None)
+        tasks.append(doc)
+    return {'ok': True, 'tasks': tasks, 'count': len(tasks)}
 
 
 # ---------- Plan ----------
@@ -178,7 +233,7 @@ async def delete_task(project_id: str, task_id: str, user=Depends(get_current_us
     return {'deleted': r.deleted_count}
 
 
-# ---------- Versions (snapshot) ----------
+# ---------- Versions (snapshot + restore) ----------
 class VersionIn(BaseModel):
     label: Optional[str] = None
 
@@ -186,18 +241,116 @@ class VersionIn(BaseModel):
 @router.post('/{project_id}/version')
 async def snapshot(project_id: str, body: VersionIn, user=Depends(get_current_user)):
     await _project_or_404(project_id, user)
-    # Count-only snapshot (lightweight) — captures message + asset counts + last asset kind.
-    n_messages = await db.chat_messages.count_documents({'project_id': project_id})
-    n_assets = await db.chat_assets.count_documents({'project_id': project_id})
-    last_asset = await db.chat_assets.find_one({'project_id': project_id}, {'_id': 0, 'kind': 1, 'title': 1},
-                                                sort=[('created_at', -1)])
+    # Full-state snapshot — captures messages, assets, plan and tasks so the
+    # workspace can be rolled back exactly (not just counts).
+    messages = [m async for m in db.chat_messages.find({'project_id': project_id}, {'_id': 0})]
+    assets = [a async for a in db.chat_assets.find({'project_id': project_id}, {'_id': 0})]
+    plan = await db.workspace_plans.find_one({'project_id': project_id}, {'_id': 0})
+    tasks = [t async for t in db.workspace_tasks.find({'project_id': project_id}, {'_id': 0})]
+    n_messages, n_assets = len(messages), len(assets)
     doc = {'id': str(uuid.uuid4()), 'project_id': project_id, 'user_id': user['id'],
            'label': (body.label or '').strip()[:120] or f'v{n_messages}-{n_assets}',
-           'message_count': n_messages, 'asset_count': n_assets,
-           'last_asset': last_asset, 'created_at': _iso()}
+           'message_count': n_messages, 'asset_count': n_assets, 'task_count': len(tasks),
+           'state': {'messages': messages, 'assets': assets, 'plan': plan, 'tasks': tasks},
+           'created_at': _iso()}
     await db.workspace_versions.insert_one(doc)
     doc.pop('_id', None)
     return doc
+
+
+@router.post('/{project_id}/version/{version_id}/restore')
+async def restore_version(project_id: str, version_id: str, user=Depends(get_current_user)):
+    """Roll the workspace back to a snapshot: messages, assets, plan and tasks."""
+    await _project_or_404(project_id, user)
+    v = await db.workspace_versions.find_one({'id': version_id, 'project_id': project_id, 'user_id': user['id']}, {'_id': 0})
+    if not v:
+        raise HTTPException(404, 'version not found')
+    state = v.get('state') or {}
+
+    # Messages
+    await db.chat_messages.delete_many({'project_id': project_id})
+    for m in (state.get('messages') or []):
+        m2 = {k: val for k, val in dict(m).items() if k != '_id'}
+        m2['project_id'] = project_id
+        await db.chat_messages.insert_one(m2)
+
+    # Assets
+    await db.chat_assets.delete_many({'project_id': project_id})
+    for a in (state.get('assets') or []):
+        a2 = {k: val for k, val in dict(a).items() if k != '_id'}
+        a2['project_id'] = project_id
+        await db.chat_assets.insert_one(a2)
+
+    # Plan
+    await db.workspace_plans.delete_many({'project_id': project_id})
+    if state.get('plan'):
+        p = {k: val for k, val in dict(state['plan']).items() if k != '_id'}
+        p['project_id'] = project_id
+        p['user_id'] = user['id']
+        await db.workspace_plans.insert_one(p)
+
+    # Tasks
+    await db.workspace_tasks.delete_many({'project_id': project_id})
+    for t in (state.get('tasks') or []):
+        t2 = {k: val for k, val in dict(t).items() if k != '_id'}
+        t2['project_id'] = project_id
+        t2['user_id'] = user['id']
+        await db.workspace_tasks.insert_one(t2)
+
+    return {'ok': True, 'restored': {
+        'messages': len(state.get('messages') or []),
+        'assets': len(state.get('assets') or []),
+        'tasks': len(state.get('tasks') or []),
+    }}
+
+
+# ---------- Inline edit asset content (+ re-deploy for webapps) ----------
+class AssetContentIn(BaseModel):
+    content: str
+    field: Optional[str] = None  # for scripts: which data field to write (default 'body')
+
+
+@router.put('/{project_id}/asset/{asset_id}/content')
+async def edit_asset_content(project_id: str, asset_id: str, body: AssetContentIn, user=Depends(get_current_user)):
+    await _project_or_404(project_id, user)
+    asset = await db.chat_assets.find_one({'id': asset_id, 'project_id': project_id, 'user_id': user['id']}, {'_id': 0})
+    if not asset:
+        raise HTTPException(404, 'asset not found')
+    kind = asset.get('kind') or ''
+    content = body.content or ''
+
+    if kind == 'webapp':
+        bpid = (asset.get('data') or {}).get('project_id')
+        if not bpid:
+            raise HTTPException(400, 'webapp asset missing project_id')
+        bp = await db.builder_projects.find_one({'id': bpid, 'user_id': user['id']}, {'_id': 0})
+        if not bp:
+            raise HTTPException(404, 'builder project not found')
+        history = (bp.get('history') or [])
+        history.append({'prompt': '(inline edit)', 'html_content': bp.get('html_content', ''), 'at': _iso()})
+        history = history[-8:]
+        await db.builder_projects.update_one(
+            {'id': bpid},
+            {'$set': {'html_content': content, 'history': history, 'updated_at': _iso(),
+                      'prompt': ((bp.get('prompt') or '') + ' (inline edited)')[:2000]}}
+        )
+        hosted = await db.hosted_sites.find_one({'asset_id': asset_id, 'user_id': user['id']}, {'_id': 0, 'slug': 1})
+        redeployed = False
+        if hosted:
+            try:
+                from routes_hosting import DeployIn, deploy as _deploy
+                await _deploy(DeployIn(project_id=project_id, asset_id=asset_id, slug=hosted.get('slug')), user=user)
+                redeployed = True
+            except Exception as e:
+                raise HTTPException(500, f'HTML saved but re-deploy failed: {e}')
+        return {'ok': True, 'redeployed': redeployed, 'kind': 'webapp'}
+
+    field = body.field or ('body' if kind == 'script' else 'content')
+    await db.chat_assets.update_one(
+        {'id': asset_id, 'project_id': project_id, 'user_id': user['id']},
+        {'$set': {f'data.{field}': content, 'updated_at': _iso()}}
+    )
+    return {'ok': True, 'field': field, 'kind': kind}
 
 
 # ---------- Timeline ----------

@@ -10,7 +10,7 @@ import {
   Layout, FormInput, Mail, Tag, FileText, MessageSquare, Crown,
   FlaskConical, BookOpen, BookMarked, Brain, MessageCircleCode, GitBranch,
   BarChart2, IndianRupee, Receipt, RefreshCw, Command, ShieldCheck, RocketIcon,
-  StoreIcon, Trophy, Book, Target, LineChart
+  StoreIcon,   Trophy, Book, Target, LineChart, Radio
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import CopilotSidebar from "@/components/CopilotSidebar";
@@ -68,6 +68,7 @@ const NAV = [
     icon: Bot,
     items: [
       { to: "/admin/chat",           label: "Neo AI",           icon: Sparkle },
+    { to: "/admin/live",           label: "Live Co-Host",     icon: Radio },
       { to: "/admin/video",          label: "Video Studio",     icon: Film },
       { to: "/admin/creator",        label: "Creator OS",       icon: PenTool },
       { to: "/admin/avatar",         label: "Avatar Studio",    icon: Image },
