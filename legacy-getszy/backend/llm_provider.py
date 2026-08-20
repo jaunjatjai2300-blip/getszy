@@ -9,6 +9,7 @@ Priority chain (local free providers first):
 """
 import os
 import json
+import asyncio
 import httpx
 import uuid
 import logging
@@ -70,6 +71,25 @@ def _increment(provider: str):
 def _under_limit(provider: str) -> bool:
     limits = {'groq': GROQ_DAILY_LIMIT, 'gemini': GEMINI_DAILY_LIMIT}
     return _count(provider) < limits.get(provider, 999999)
+
+
+def _is_rate_limited(e: Exception) -> bool:
+    """True if the provider rejected us with HTTP 429 (rate limit)."""
+    try:
+        return isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 429
+    except Exception:
+        return False
+
+
+def _retry_after(e: Exception, base: float) -> float:
+    """Seconds to wait before retrying a rate-limited request (honors Retry-After)."""
+    try:
+        ra = e.response.headers.get('retry-after')
+        if ra:
+            return float(ra)
+    except Exception:
+        pass
+    return base
 
 # ── Provider implementations ──────────────────────────────────────────────────
 
@@ -276,20 +296,32 @@ async def chat_completion(
     chain = _build_chain(system, user, temperature, session_id, max_tokens)
     last_error = None
     for name, fn in chain:
-        try:
-            result = await fn()
-            if name == 'groq':
-                _increment('groq')
-                logger.info(f'LLM: groq ({_count("groq")}/{GROQ_DAILY_LIMIT} today)')
-            elif name == 'gemini':
-                _increment('gemini')
-                logger.info(f'LLM: gemini ({_count("gemini")}/{GEMINI_DAILY_LIMIT} today)')
-            else:
-                logger.info(f'LLM: {name}')
-            return result
-        except Exception as e:
-            logger.warning(f'LLM {name} failed: {e}')
-            last_error = e
+        # Retry on rate-limit (429) with backoff BEFORE falling back to the next
+        # provider. This keeps us on the fast provider (Groq) instead of dropping
+        # to slow local Ollama the moment we hit a transient RPM limit during a
+        # burst (e.g. the video-factory script fan-out).
+        for _attempt in range(4):
+            try:
+                result = await fn()
+                if name == 'groq':
+                    _increment('groq')
+                    logger.info(f'LLM: groq ({_count("groq")}/{GROQ_DAILY_LIMIT} today)')
+                elif name == 'gemini':
+                    _increment('gemini')
+                    logger.info(f'LLM: gemini ({_count("gemini")}/{GEMINI_DAILY_LIMIT} today)')
+                else:
+                    logger.info(f'LLM: {name}')
+                return result
+            except Exception as e:
+                if _is_rate_limited(e) and _attempt < 3:
+                    wait = _retry_after(e, 1.0 * (_attempt + 1))
+                    logger.warning(f'LLM {name} rate-limited (429); retrying in {wait:.1f}s')
+                    await asyncio.sleep(wait)
+                    last_error = e
+                    continue
+                logger.warning(f'LLM {name} failed: {e}')
+                last_error = e
+                break
 
     # Surface total AI outages to Sentry (observability of the fallback chain)
     try:
