@@ -13,7 +13,11 @@ import urllib.parse
 import httpx
 
 MEDIA_DIR = os.path.join(os.path.dirname(__file__), '..', 'media_cache', 'video_scenes')
-os.makedirs(MEDIA_DIR, exist_ok=True)
+try:
+    os.makedirs(MEDIA_DIR, exist_ok=True)
+except (PermissionError, OSError):
+    MEDIA_DIR = os.path.join('/tmp', 'getszy_video_scenes')
+    os.makedirs(MEDIA_DIR, exist_ok=True)
 PEXELS_KEY = os.environ.get('PEXELS_KEY', '').strip()
 HF_TOKEN   = os.environ.get('HF_TOKEN', '').strip()
 # Opt-in upgrade: when HF_TOKEN is set and VF_USE_FLUX != '0', prefer FLUX.1-schnell
