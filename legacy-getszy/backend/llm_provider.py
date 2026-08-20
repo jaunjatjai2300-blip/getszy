@@ -127,7 +127,7 @@ async def _ollama_single(model: str, system: str, user: str, temperature: float,
     options = {'temperature': temperature}
     if max_tokens:
         options['num_predict'] = max_tokens
-    async with httpx.AsyncClient(timeout=90.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         r = await client.post(
             f'{OLLAMA_BASE_URL}/api/chat',
             headers=headers,
