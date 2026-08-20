@@ -368,16 +368,20 @@ async def generate_assets(project_id: str, body: GenerateAssetsIn, background: B
     active = p.get('render_status') in ('generating_images', 'generating_voice', 'assembling')
     if active:
         hb = p.get('render_heartbeat') or p.get('render_started_at')
+        if hb is None:
+            # No heartbeat recorded — we can't prove it's dead, so treat it as a
+            # live job. (This also matches the unit-test contract and lets the
+            # startup recovery job reset legacy orphans instead of here.)
+            return {'ok': True, 'already_running': True, 'render_status': p.get('render_status')}
         alive = False
-        if hb:
-            try:
-                dt = datetime.fromisoformat(hb)
-                now = datetime.now(timezone.utc)
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
-                alive = (now - dt).total_seconds() <= STALE_SECS
-            except Exception:
-                alive = False
+        try:
+            dt = datetime.fromisoformat(hb)
+            now = datetime.now(timezone.utc)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            alive = (now - dt).total_seconds() <= STALE_SECS
+        except Exception:
+            alive = True  # on parse error, never kill a possibly-live job
         if alive:
             return {'ok': True, 'already_running': True, 'render_status': p.get('render_status')}
         if not p.get('refunded'):
