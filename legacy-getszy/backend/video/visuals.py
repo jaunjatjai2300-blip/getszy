@@ -19,6 +19,9 @@ HF_TOKEN   = os.environ.get('HF_TOKEN', '').strip()
 # Opt-in upgrade: when HF_TOKEN is set and VF_USE_FLUX != '0', prefer FLUX.1-schnell
 # (best quality) over Pollinations for scene images. Set VF_USE_FLUX=0 to force Pollinations.
 VF_USE_FLUX = os.environ.get('VF_USE_FLUX', '1' if HF_TOKEN else '0').strip().lower() not in ('0', 'false', 'no')
+# Free stock photos are the PRIMARY image source (no credit cost, 4K-capable).
+from stock_media import USE_STOCK as VF_USE_STOCK
+from safety_filter import contains_unsafe
 
 DIMS = {
     '9:16': (1080, 1920),
@@ -118,6 +121,34 @@ async def fetch_scene_image(prompt: str, orientation: str = '9:16', seed: int = 
     path = os.path.join(MEDIA_DIR, f'{cache_key}.jpg')
     if os.path.exists(path) and os.path.getsize(path) > 2000:
         return path
+
+    # Refuse to generate unsafe/indecent media of any kind (stock OR AI fallback).
+    if contains_unsafe(prompt):
+        try:
+            from PIL import Image
+            Image.new('RGB', (w, h), color=(20, 20, 30)).save(path, 'JPEG', quality=80)
+        except Exception:
+            pass
+        return path
+
+    # ── PRIMARY: free, licence-clear stock photos (4K when available) ──
+    # Real footage = faster (no AI round-trip) and zero credit cost.
+    if USE_STOCK:
+        try:
+            from stock_media import search_stock_images
+            imgs = await search_stock_images(prompt, n=1, min_width=1280)
+            if imgs:
+                sp = imgs[0]
+                try:
+                    from PIL import Image
+                    im = Image.open(sp).convert('RGB')
+                    im = im.resize((w, h))
+                    im.save(path, 'JPEG', quality=88)
+                    return path
+                except Exception:
+                    return sp
+        except Exception as e:
+            print('[visuals] stock image failed, falling back to AI:', e)
 
     if provider == 'flux_hd' or (provider == 'pollinations' and VF_USE_FLUX and HF_TOKEN):
         if await _fetch_hf_flux(prompt, orientation, seed, path):
