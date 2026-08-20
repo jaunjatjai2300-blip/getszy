@@ -119,8 +119,8 @@ SCRIPT_STYLES = [
 ]
 
 
-async def generate_script_variants(topic: str, angle: str, duration_s: int, research: Dict[str, Any], language: str, session_id: str) -> List[Dict[str, Any]]:
-    """Generate 5 script variants in different styles, concurrently for speed."""
+async def generate_script_variants(topic: str, angle: str, duration_s: int, research: Dict[str, Any], language: str, session_id: str, count: int = 5) -> List[Dict[str, Any]]:
+    """Generate `count` script variants in different styles, concurrently for speed."""
     facts_str = ' | '.join((research.get('key_facts') or [])[:5])
     system = (
         "You are a professional YouTube script writer. Write ONE script in the exact style specified. "
@@ -152,13 +152,14 @@ async def generate_script_variants(topic: str, angle: str, duration_s: int, rese
         return parsed
 
     # CPU-bound Ollama serializes inference, so limit concurrency; GPU/Groq
-    # scales to all 5 at once. Failures drop a single variant instead of
+    # scales to all at once. Failures drop a single variant instead of
     # aborting the whole stage.
+    styles = SCRIPT_STYLES[:max(1, min(count, len(SCRIPT_STYLES)))]
     sem = asyncio.Semaphore(_SCRIPT_CONCURRENCY)
     async def _guarded(item):
         async with sem:
             return await _gen_one(item[0], item[1])
-    results = await asyncio.gather(*[_guarded(it) for it in SCRIPT_STYLES], return_exceptions=True)
+    results = await asyncio.gather(*[_guarded(it) for it in styles], return_exceptions=True)
     return [r for r in results if not isinstance(r, Exception)]
 
 
@@ -300,10 +301,14 @@ async def plan_visuals(scenes: List[Dict[str, Any]], style: str, session_id: str
 # ============================================================
 # Full orchestrator: run the whole factory chain
 # ============================================================
-async def run_factory_chain(raw_prompt: str, language: str, session_id: str) -> Dict[str, Any]:
-    """End-to-end: raw prompt → enhanced → research → 5 scripts → hooks (for viral variant) → storyboard → visual plan.
+async def run_factory_chain(raw_prompt: str, language: str, session_id: str,
+                            fast: bool = False, brief: dict = None) -> Dict[str, Any]:
+    """End-to-end: prompt → enhanced → research → scripts → hooks → storyboard → visual plan.
 
-    Returns partial results even if a stage fails.
+    `fast=True` is the ≤60s path: skips the research round-trip, generates a
+    single script, and targets a ~60s video. `brief` (from Prompt Architect)
+    supplies a pre-structured prompt so the chain produces best-in-class output
+    on the first try instead of re-deriving intent from raw text.
     """
     result = {'stages': {}, 'errors': {}}
 
@@ -316,27 +321,44 @@ async def run_factory_chain(raw_prompt: str, language: str, session_id: str) -> 
             result['errors'][key] = str(e)[:200]
             return None
 
-    try:
-        enhanced = await enhance_prompt(raw_prompt, session_id)
+    # Use a pre-structured brief when available (no wasted enhance call + better output)
+    if brief and brief.get('structured_prompt'):
+        work_prompt = brief['structured_prompt']
+        enhanced = {
+            'enhanced_topic': (brief.get('name') or brief.get('category') or raw_prompt)[:300],
+            'angle': (brief.get('goal') or brief.get('tone') or '')[:200],
+            'estimated_duration_seconds': 60 if fast else 180,
+        }
         result['stages']['enhanced'] = enhanced
-    except Exception as e:
-        result['errors']['enhance'] = str(e)[:200]
-        return result
+    else:
+        try:
+            enhanced = await enhance_prompt(raw_prompt, session_id)
+            result['stages']['enhanced'] = enhanced
+        except Exception as e:
+            result['errors']['enhance'] = str(e)[:200]
+            return result
+        work_prompt = enhanced.get('enhanced_topic', raw_prompt)
 
-    # `research` needs `enhanced`; `hooks` only needs `enhanced` too, so run
-    # them concurrently to shave one full LLM round-trip off the chain.
-    research, hooks = await asyncio.gather(
-        _stage('research', research_topic(enhanced['enhanced_topic'], enhanced['angle'], session_id)),
-        _stage('hooks', generate_hooks(enhanced['enhanced_topic'], enhanced['angle'], 'viral', session_id)),
-    )
+    duration = 60 if fast else enhanced.get('estimated_duration_seconds', 300)
+
+    # In fast mode skip research (one fewer LLM round-trip); always compute hooks.
+    if fast:
+        await _stage('hooks', generate_hooks(enhanced['enhanced_topic'], enhanced['angle'], 'viral', session_id))
+        research: Dict[str, Any] = {}
+    else:
+        research, hooks = await asyncio.gather(
+            _stage('research', research_topic(enhanced['enhanced_topic'], enhanced['angle'], session_id)),
+            _stage('hooks', generate_hooks(enhanced['enhanced_topic'], enhanced['angle'], 'viral', session_id)),
+        )
 
     await _stage(
         'script_variants',
         generate_script_variants(
             enhanced['enhanced_topic'], enhanced['angle'],
-            enhanced.get('estimated_duration_seconds', 300),
-            result['stages'].get('research', {}),
+            duration,
+            (research or {}),
             language, session_id,
+            count=1 if fast else 5,
         ),
     )
 
@@ -349,7 +371,7 @@ async def run_factory_chain(raw_prompt: str, language: str, session_id: str) -> 
             'storyboard',
             build_storyboard(
                 viral.get('narration', ''),
-                enhanced.get('estimated_duration_seconds', 300),
+                duration,
                 session_id,
             ),
         )

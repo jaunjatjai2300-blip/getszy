@@ -27,6 +27,7 @@ AI_ROUTERS = [
     ('chat_builder', 'routes_chat_builder', 'chat-builder'),
     ('copilot', 'routes_copilot', 'copilot'),
     ('neo_content', 'routes_neo_content', 'neo-content'),
+    ('architect', 'routes_architect', 'architect'),
 ]
 
 # ── Commerce & Payments ───────────────────────────────────────────────────────

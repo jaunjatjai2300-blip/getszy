@@ -193,19 +193,14 @@ function CopyTool({ color }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
 
-  const generate = async () => {
+    const generate = async () => {
     if (!desc.trim()) return toast.error("Describe your page");
     setBusy(true); toast.loading("Writing copy…", { id: "copy" });
     try {
-      const r = await api.post("/ai-tools/chat/completions", {
-        messages: [
-          { role: "system", content: "You are a world-class, conversion-focused website copywriter. Produce brand-grade, specific, benefit-driven copy — never generic filler or 'lorem ipsum'. Structure the response with clear markdown headings and bulleted sections. Match the requested goal and tone." },
-          { role: "user", content: `Write high-converting website copy for: ${desc}\nPrimary goal: ${goal}\n\nDeliver exactly:\n## Headline Options\n- 3 distinct, punchy hero headlines\n## Subheadline\n- One compelling subheadline that reinforces the value prop\n## Body Copy\n- 2-3 short, benefit-led paragraphs\n## Social Proof Angle\n- One credibility statement (stats, testimonial style, or trust signal)\n## CTA Buttons\n- 2 CTA button texts (action-oriented, < 5 words)` }
-        ]
-      });
-      setResult(r.data.choices?.[0]?.message?.content || "No result");
+      const r = await api.post("/architect/generate", { text: desc, intent: "copy", language: "en" });
+      setResult(r.data.content || r.data.brief?.structured_prompt || "No result");
       toast.success("Copy ready ✅", { id: "copy" });
-    } catch (e) { toast.error("Failed", { id: "copy" }); }
+    } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "copy" }); }
     finally { setBusy(false); }
   };
 
@@ -241,20 +236,21 @@ function LandingTool({ color }) {
   const [desc, setDesc] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
+  const [project, setProject] = useState(null);
 
   const generate = async () => {
     if (!desc.trim()) return toast.error("Describe your landing page");
-    setBusy(true); toast.loading("Building landing page…", { id: "land" });
+    setBusy(true); setProject(null); toast.loading("Building landing page…", { id: "land" });
     try {
-      const r = await api.post("/ai-tools/chat/completions", {
-        messages: [
-          { role: "system", content: "You are a senior conversion-rate-optimization specialist and landing page copywriter. Write a complete, ready-to-build landing page copy deck that is specific, persuasive, and structured. Use clear markdown headings. Never use generic placeholders — invent plausible, compelling specifics." },
-          { role: "user", content: `Create a high-converting landing page copy deck for: ${desc}\n\nInclude:\n## Hero\n- Headline + subheadline + primary CTA text\n## Value Proposition\n- 3 benefit-driven bullet points\n## Features / Benefits\n- 4 items (name + one-line benefit each)\n## Social Proof\n- 2 short testimonial-style quotes + 1 trust stat\n## FAQ\n- 4 common objections with reassuring answers\n## Final CTA Section\n- Headline + button text + supporting microcopy\n## SEO Meta\n- Title tag (<=60 chars) + meta description (<=155 chars)` }
-        ]
-      });
-      setResult(r.data.choices?.[0]?.message?.content || "No result");
-      toast.success("Landing page ready ✅", { id: "land" });
-    } catch (e) { toast.error("Failed", { id: "land" }); }
+      const r = await api.post("/architect/generate", { text: desc, intent: "landing", language: "en" });
+      if (r.data.project_id) {
+        setProject({ id: r.data.project_id, preview: r.data.preview_url, download: r.data.download_url, size: r.data.size_bytes });
+        toast.success("Landing page ready ✅", { id: "land" });
+      } else {
+        setResult(r.data.brief?.structured_prompt || "No result");
+        toast.success("Landing page ready ✅", { id: "land" });
+      }
+    } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "land" }); }
     finally { setBusy(false); }
   };
 
@@ -268,7 +264,22 @@ function LandingTool({ color }) {
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
         {busy ? "Building…" : "Generate Landing Page"}
       </Button>
-      {result && <ResultCard text={result}/>}
+      {project ? (
+        <div className="rounded-xl border bg-[var(--gs-surface-2)] p-4 space-y-3">
+          <p className="text-sm font-medium">Your landing page is ready 🎉</p>
+          <p className="text-xs text-[var(--gs-muted)]">{(project.size / 1024).toFixed(0)} KB · production-ready HTML</p>
+          <div className="flex gap-2">
+            <a href={project.preview} target="_blank" rel="noreferrer"
+               className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm text-white" style={{ background: color }}>
+              <Layout className="h-4 w-4 mr-2"/>Preview
+            </a>
+            <a href={project.download} target="_blank" rel="noreferrer"
+               className="inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm">
+              <Download className="h-4 w-4 mr-2"/>Download HTML
+            </a>
+          </div>
+        </div>
+      ) : result && <ResultCard text={result}/>}
     </div>
   );
 }
