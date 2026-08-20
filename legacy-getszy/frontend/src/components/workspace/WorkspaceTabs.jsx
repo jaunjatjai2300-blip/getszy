@@ -259,7 +259,22 @@ function PlanTab({ projectId, plan, onSaved, loading }) {
 function TasksTab({ projectId, tasks, onChanged, loading }) {
   const [title, setTitle] = useState("");
   const [adding, setAdding] = useState(false);
+  const [genTasks, setGenTasks] = useState(false);
   const [filter, setFilter] = useState("all");
+
+  const generate = async () => {
+    setGenTasks(true);
+    toast.loading("Neo is breaking this down into tasks…", { id: "taskgen", duration: 30000 });
+    try {
+      await api.post(`/workspace/${projectId}/tasks/generate`);
+      toast.success("Neo added tasks from your chat", { id: "task list updated" });
+      await onChanged?.();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Generation failed", { id: "taskgen" });
+    } finally {
+      setGenTasks(false);
+    }
+  };
 
   const grouped = useMemo(() => {
     const g = { todo: [], doing: [], done: [], blocked: [] };
@@ -308,6 +323,9 @@ function TasksTab({ projectId, tasks, onChanged, loading }) {
           placeholder="Add a task…" className="text-xs h-9" data-testid="tasks-add-input"/>
         <Button size="sm" onClick={add} disabled={adding || title.trim().length < 2} className="bg-[var(--gs-teal)]" data-testid="tasks-add-btn">
           {adding ? <Loader2 className="h-3 w-3 animate-spin"/> : <Plus className="h-3 w-3"/>}
+        </Button>
+        <Button size="sm" variant="outline" onClick={generate} disabled={genTasks} title="Generate tasks from chat" data-testid="tasks-generate-btn">
+          {genTasks ? <Loader2 className="h-3 w-3 animate-spin"/> : <Wand2 className="h-3 w-3"/>}
         </Button>
       </div>
 
@@ -358,6 +376,32 @@ function TasksTab({ projectId, tasks, onChanged, loading }) {
 function FilesTab({ projectId, assets, setActiveAsset, onChanged, loading }) {
   const [filter, setFilter] = useState("all"); // all | pinned
   const backend = process.env.REACT_APP_BACKEND_URL || "";
+  const [editAsset, setEditAsset] = useState(null); // { asset, text, isWebapp, saving }
+
+  const openEdit = async (a) => {
+    if (a.kind === "webapp") {
+      const bpid = a.data?.project_id;
+      if (!bpid) { toast.error("No builder project linked"); return; }
+      try {
+        const r = await api.get(`/builder/projects/${bpid}`);
+        setEditAsset({ asset: a, text: r.data.html_content || "", isWebapp: true, saving: false });
+      } catch (e) { toast.error("Could not load HTML"); }
+    } else {
+      setEditAsset({ asset: a, text: a.data?.body || a.data?.content || "", isWebapp: false, saving: false });
+    }
+  };
+
+  const saveEdit = async () => {
+    if (!editAsset) return;
+    setEditAsset({ ...editAsset, saving: true });
+    try {
+      await api.put(`/workspace/${projectId}/asset/${editAsset.asset.id}/content`, { content: editAsset.text });
+      toast.success(editAsset.isWebapp ? "HTML saved (re-deployed if hosted)" : "Saved");
+      setEditAsset(null);
+      await onChanged?.();
+    } catch (e) { toast.error(e?.response?.data?.detail || "Save failed"); }
+    finally { setEditAsset(p => (p ? { ...p, saving: false } : p)); }
+  };
 
   const shown = useMemo(() => {
     const list = assets || [];
@@ -431,6 +475,13 @@ function FilesTab({ projectId, assets, setActiveAsset, onChanged, loading }) {
                   title={a.pinned ? "Unpin" : "Pin"} data-testid={`file-pin-${a.id}`}>
                   {a.pinned ? <PinOff className="h-3.5 w-3.5"/> : <Pin className="h-3.5 w-3.5"/>}
                 </button>
+                {(a.kind === "script" || a.kind === "webapp") && (
+                  <button onClick={() => openEdit(a)}
+                    className="shrink-0 p-1 rounded text-[var(--gs-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--gs-teal)]"
+                    title="Edit content" data-testid={`file-edit-${a.id}`}>
+                    <PenTool className="h-3.5 w-3.5"/>
+                  </button>
+                )}
                 {dl && (
                   <a href={dl} download onClick={(e) => e.stopPropagation()}
                     className="shrink-0 p-1 rounded text-[var(--gs-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--gs-teal)]"
@@ -452,6 +503,36 @@ function FilesTab({ projectId, assets, setActiveAsset, onChanged, loading }) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {editAsset && (
+        <div className="fixed inset-0 z-50 bg-black/50 grid place-items-center p-4" data-testid="asset-edit-modal">
+          <div className="w-full max-w-2xl bg-[var(--gs-surface)] rounded-2xl border border-[var(--gs-border)] shadow-xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="flex items-center gap-2 p-3 border-b" style={{ borderColor: "var(--gs-border)" }}>
+              <PenTool className="h-4 w-4 text-[var(--gs-teal)]"/>
+              <div className="font-semibold text-sm flex-1">
+                Edit {editAsset.isWebapp ? "HTML" : "script"} — {editAsset.asset.title || editAsset.asset.kind}
+              </div>
+              <button onClick={() => setEditAsset(null)} className="text-[var(--gs-muted)] hover:text-[var(--gs-fg)]" title="Close">
+                <Trash2 className="h-4 w-4 rotate-45"/>
+              </button>
+            </div>
+            <div className="p-3 flex-1 overflow-auto">
+              <Textarea value={editAsset.text} onChange={(e) => setEditAsset({ ...editAsset, text: e.target.value })}
+                className="w-full h-[50vh] font-mono text-xs" data-testid="asset-edit-textarea"
+                placeholder={editAsset.isWebapp ? "<!-- edit HTML here -->" : "Edit your script text here…"}/>
+            </div>
+            <div className="p-3 border-t flex items-center gap-2" style={{ borderColor: "var(--gs-border)" }}>
+              <span className="text-[10px] text-[var(--gs-muted)] flex-1">
+                {editAsset.isWebapp ? "Save karega HTML update + hosted site re-deploy (agar deployed hai)." : "Save karne se asset update ho jayega."}
+              </span>
+              <Button size="sm" variant="outline" onClick={() => setEditAsset(null)}>Cancel</Button>
+              <Button size="sm" onClick={saveEdit} disabled={editAsset.saving} className="bg-[var(--gs-teal)]" data-testid="asset-edit-save">
+                {editAsset.saving ? <Loader2 className="h-3 w-3 animate-spin mr-1"/> : <Check className="h-3 w-3 mr-1"/>}Save
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -533,6 +614,15 @@ function VersionsTab({ projectId, versions, onChanged, loading }) {
     finally { setSnap(false); }
   };
 
+  const restore = async (v) => {
+    if (!confirm(`Restore snapshot "${v.label}"? Isse current messages, assets, plan aur tasks replace ho jayenge.`)) return;
+    try {
+      await api.post(`/workspace/${projectId}/version/${v.id}/restore`);
+      toast.success("Workspace restore ho gaya");
+      await onChanged?.();
+    } catch (e) { toast.error(e?.response?.data?.detail || "Restore failed"); }
+  };
+
   return (
     <div>
       <div className="flex gap-1 mb-3">
@@ -549,9 +639,12 @@ function VersionsTab({ projectId, versions, onChanged, loading }) {
               <div className="flex items-center gap-2">
                 <GitBranch className="h-3.5 w-3.5 text-[var(--gs-teal)]"/>
                 <span className="font-semibold">{v.label}</span>
-                <Badge variant="outline" className="text-[9px] ml-auto">{v.message_count} msg · {v.asset_count} asset</Badge>
+                <Badge variant="outline" className="text-[9px] ml-auto">{v.message_count} msg · {v.asset_count} asset · {v.task_count ?? 0} task</Badge>
               </div>
-              <div className="text-[10px] text-[var(--gs-muted)] mt-0.5">{new Date(v.created_at).toLocaleString()}</div>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="text-[10px] text-[var(--gs-muted)]">{new Date(v.created_at).toLocaleString()}</div>
+                <Button size="sm" variant="ghost" onClick={() => restore(v)} className="text-[10px] h-6 ml-auto" data-testid={`version-restore-${v.id}`}>Restore</Button>
+              </div>
             </li>
           ))}
         </ul>

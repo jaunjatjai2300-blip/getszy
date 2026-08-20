@@ -117,6 +117,7 @@ AI_TOOLS_ROUTERS = [
 ]
 
 MISC_ROUTERS = [
+    ('live', 'routes_live', 'live'),
     ('workspace', 'routes_workspace', 'workspace'),
     ('projects', 'routes_projects', 'projects'),
     ('social', 'routes_social', 'social'),

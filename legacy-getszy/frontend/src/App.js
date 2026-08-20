@@ -47,6 +47,7 @@ const AdminPublishing = lazy(() => import("@/pages/admin/Publishing"));
 const AdminWorkforce = lazy(() => import("@/pages/admin/Workforce"));
 const AdminBuildStudio = lazy(() => import("@/pages/admin/BuildStudio"));
 const AdminChatHome = lazy(() => import("@/pages/admin/ChatHome"));
+const LiveCoHost = lazy(() => import("@/pages/admin/LiveCoHost"));
 const Analytics = lazy(() => import("@/pages/admin/Analytics"));
 const UsersAdmin = lazy(() => import("@/pages/admin/UsersAdmin"));
 const AdminSettings = lazy(() => import("@/pages/admin/AdminSettings"));
@@ -150,6 +151,7 @@ export default function App() {
 
             <Route path="chat" element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />
             <Route path="chat/:sessionId" element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />
+            <Route path="live" element={<Suspense fallback={<AdminFallback />}><LiveCoHost /></Suspense>} />
 
             <Route path="build" element={<Suspense fallback={<AdminFallback />}><AdminBuildStudio /></Suspense>} />
             <Route path="build-web" element={<Suspense fallback={<AdminFallback />}><AdminBuildStudio /></Suspense>} />
