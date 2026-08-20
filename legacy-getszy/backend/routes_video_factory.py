@@ -41,8 +41,10 @@ router = APIRouter(prefix='/video-factory', tags=['video-factory'])
 CHAIN_TIMEOUT = int(os.environ.get('VF_CHAIN_TIMEOUT', '900'))
 CHAIN_HEARTBEAT_SECS = int(os.environ.get('VF_CHAIN_HEARTBEAT_SECS', '30'))
 # A chain with no heartbeat newer than this is considered dead (worker crash /
-# restart) and is reset by recover_stuck_video_jobs on startup.
-CHAIN_STALE_SECS = int(os.environ.get('VF_CHAIN_STALE_SECS', str(CHAIN_TIMEOUT)))
+# restart) and is reset. Keep well above CHAIN_HEARTBEAT_SECS (30) so a *live*
+# chain is never mistaken for dead, but small enough that a chain killed by a
+# restart self-heals within a few minutes via the periodic recovery loop.
+CHAIN_STALE_SECS = int(os.environ.get('VF_CHAIN_STALE_SECS', '180'))
 
 
 def _iso() -> str:
@@ -491,39 +493,14 @@ async def cancel_generation(project_id: str, user=Depends(get_current_user)):
     return {'ok': True, 'already_done': True, 'render_status': status}
 
 
-async def recover_stuck_video_jobs():
-    """On server (re)start, reset jobs left mid-flight by a crash/restart.
+async def recover_stuck_chain_jobs():
+    """Reset factory chains left mid-flight by a crash/restart (heartbeat-based).
 
-    Pass 1 (render): any job stuck in render_status (queued/generating_*) is reset
-    to 'error', refunded once, partial files cleaned.
-
-    Pass 2 (chain): THE FIX for "everything stuck on processing". Previously only
-    render_status was recovered, so a factory chain killed by a worker restart /
-    OOM / unreachable AI provider was left at status='processing' FOREVER with no
-    recovery. Now we reset projects whose chain is stale (no heartbeat newer than
-    CHAIN_STALE_SECS) or never started, refunding the chain credit once.
-    """
-    # --- Pass 1: in-flight renders (existing behavior) ---
-    cursor = db.video_projects.find(
-        {'render_status': {'$in': ['queued', 'generating_images', 'generating_voice', 'assembling']}},
-        {'_id': 0, 'id': 1, 'user_id': 1, 'refunded': 1},
-    )
-    render_count = 0
-    async for p in cursor:
-        render_count += 1
-        if p.get('user_id') and not p.get('refunded'):
-            try:
-                await refund(p['user_id'], 'video_factory_assets', reason='server_restart_recovery', ref_id=f'vf-assets-{p["id"]}')
-            except Exception as e:
-                logger.warning('recover_stuck_video_jobs refund failed: %s', e)
-        await db.video_projects.update_one(
-            {'id': p['id']},
-            {'$set': {'render_status': 'error', 'render_error': 'interrupted by server restart',
-                      'refunded': True, 'updated_at': _iso()}},
-        )
-        _cleanup_project_files(p['id'])
-
-    # --- Pass 2: factory CHAIN stuck at processing/created/partial ---
+    Safe to run repeatedly: only projects whose chain heartbeat is older than
+    CHAIN_STALE_SECS (or never started) are reset, so a *live* chain — which
+    stamps its heartbeat every CHAIN_HEARTBEAT_SECS — is never touched. This is
+    what lets a chain killed by a process restart self-heal without a manual
+    restart (driven by the periodic loop in server.py)."""
     cutoff = datetime.now(timezone.utc).timestamp() - CHAIN_STALE_SECS
     chain_cursor = db.video_projects.find(
         {'status': {'$in': ['processing', 'created', 'partial']}},
@@ -562,6 +539,45 @@ async def recover_stuck_video_jobs():
                       'refunded': True, 'updated_at': _iso()}},
         )
         _cleanup_project_files(p['id'])
+    return chain_count
+
+
+async def recover_stuck_video_jobs():
+    """On server (re)start, reset jobs left mid-flight by a crash/restart.
+
+    Pass 1 (render): any job stuck in render_status (queued/generating_*) is reset
+    to 'error', refunded once, partial files cleaned.
+
+    Pass 2 (chain): THE FIX for "everything stuck on processing". Previously only
+    render_status was recovered, so a factory chain killed by a worker restart /
+    OOM / unreachable AI provider was left at status='processing' FOREVER with no
+    recovery. Now we reset projects whose chain is stale (no heartbeat newer than
+    CHAIN_STALE_SECS) or never started, refunding the chain credit once.
+    """
+    # --- Pass 1: in-flight renders (existing behavior) ---
+    cursor = db.video_projects.find(
+        {'render_status': {'$in': ['queued', 'generating_images', 'generating_voice', 'assembling']}},
+        {'_id': 0, 'id': 1, 'user_id': 1, 'refunded': 1},
+    )
+    render_count = 0
+    async for p in cursor:
+        render_count += 1
+        if p.get('user_id') and not p.get('refunded'):
+            try:
+                await refund(p['user_id'], 'video_factory_assets', reason='server_restart_recovery', ref_id=f'vf-assets-{p["id"]}')
+            except Exception as e:
+                logger.warning('recover_stuck_video_jobs refund failed: %s', e)
+        await db.video_projects.update_one(
+            {'id': p['id']},
+            {'$set': {'render_status': 'error', 'render_error': 'interrupted by server restart',
+                      'refunded': True, 'updated_at': _iso()}},
+        )
+        _cleanup_project_files(p['id'])
+
+    # --- Pass 2: factory CHAIN stuck at processing/created/partial ---
+    # Extracted into recover_stuck_chain_jobs() so the periodic self-heal loop can
+    # call it without re-resetting in-flight renders (Pass 1 runs at startup only).
+    chain_count = await recover_stuck_chain_jobs()
 
     if render_count or chain_count:
         logger.warning('recover_stuck_video_jobs: reset %s render + %s chain job(s)', render_count, chain_count)
