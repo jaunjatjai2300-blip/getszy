@@ -71,17 +71,31 @@ class CreateProjectIn(BaseModel):
     language: str = 'hinglish'
     title: Optional[str] = None
     auto_run: bool = True   # if true, kicks off full chain in background
+    fast: bool = False      # ≤60s express path (skip research, 1 script, ~60s video)
 
 
 @router.post('/project')
 async def create_project(body: CreateProjectIn, background: BackgroundTasks, user=Depends(get_current_user)):
     pid = str(uuid.uuid4())
+    # Prompt Architect: turn the customer's casual text into a structured brief
+    # + optimized prompt so the chain yields best-in-class output without
+    # wasting credits on vague/retried generation.
+    from prompt_architect import architect
+    try:
+        brief = await architect(body.prompt, None)
+    except Exception:
+        brief = None
+    enriched_prompt = (brief or {}).get('structured_prompt') or body.prompt.strip()
+
     doc = {
         'id': pid,
         'user_id': user['id'],
         'title': body.title or body.prompt[:60],
         'prompt_raw': body.prompt.strip(),
+        'prompt': enriched_prompt,
+        'brief': brief,
         'language': body.language,
+        'fast': body.fast,
         'status': 'created',
         'stages': {},   # enhanced / research / script_variants / hooks / storyboard / visual_plan
         'selected_script_id': None,
@@ -100,7 +114,7 @@ async def create_project(body: CreateProjectIn, background: BackgroundTasks, use
     doc.pop('_id', None)
 
     if body.auto_run:
-        background.add_task(_run_chain_bg, pid, body.prompt.strip(), body.language, user['id'])
+        background.add_task(_run_chain_bg, pid, enriched_prompt, body.language, user['id'], body.fast, brief)
         doc['status'] = 'processing'
         await _update(pid, {'status': 'processing'})
 
@@ -122,7 +136,7 @@ async def _chain_heartbeat_loop(project_id: str, stop: asyncio.Event):
         pass
 
 
-async def _run_chain_bg(project_id: str, raw_prompt: str, language: str, user_id: str):
+async def _run_chain_bg(project_id: str, raw_prompt: str, language: str, user_id: str, fast: bool = False, brief: dict = None):
     session_id = f'vf-{project_id}'
     await _update(project_id, {'status': 'processing', 'chain_started_at': _iso(), 'chain_heartbeat': _iso()})
     stop = asyncio.Event()
@@ -130,7 +144,7 @@ async def _run_chain_bg(project_id: str, raw_prompt: str, language: str, user_id
     try:
         try:
             result = await asyncio.wait_for(
-                run_factory_chain(raw_prompt, language, session_id), timeout=CHAIN_TIMEOUT)
+                run_factory_chain(raw_prompt, language, session_id, fast=fast, brief=brief), timeout=CHAIN_TIMEOUT)
         except asyncio.TimeoutError:
             raise RuntimeError(f'factory chain exceeded {CHAIN_TIMEOUT}s')
         patch = {
