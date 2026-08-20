@@ -93,28 +93,87 @@ def _retry_after(e: Exception, base: float) -> float:
     return base
 
 
-# ── Groq rate limiting (fixed-interval pacer) ───────────────────────────────
-# Groq's free tier caps requests/min (~30) but enforces it as a per-SECOND
-# sub-limit, so firing many calls in a 2-second window gets 429'd even when the
-# per-minute total is fine. A token bucket is wrong here (it starts full and
-# permits a burst). Instead we enforce a minimum spacing between ALL Groq calls
-# app-wide, so the factory chain can never burst past the limit. Tuned under the
-# published limit for headroom.
-GROQ_MAX_RPM = int(os.environ.get('GROQ_MAX_RPM', '20'))
+# ── Groq rate limiting (RPM + TPM pacer with adaptive backoff) ──────────────
+# Groq's free tier enforces BOTH a requests/min limit AND a tokens/min (TPM)
+# limit. The 429s in practice come from the TPM budget (large system+user
+# prompts add up fast), not just RPM. So we pace on both axes:
+#   * a minimum spacing between call starts (RPM headroom), and
+#   * a rolling 60s token budget (TPM headroom).
+# We also adapt: a 429 doubles the effective spacing (up to a cap) and honors
+# the provider's Retry-After header as a hard cooldown; a success relaxes the
+# spacing back toward the baseline so we recover throughput once the limit
+# clears. A single lock serializes the whole Groq call (pace + HTTP) so
+# concurrency stays at 1 (Groq free tier concurrency is also limited).
+GROQ_MAX_RPM = int(os.environ.get('GROQ_MAX_RPM', '15'))
+GROQ_MAX_TPM = int(os.environ.get('GROQ_MAX_TPM', '10000'))  # published ~14400; run under it
 _groq_min_interval = 60.0 / GROQ_MAX_RPM
+_groq_eff_interval = _groq_min_interval   # adaptive: grows on 429, shrinks on success
 _groq_last_call = 0.0
+_groq_429_until = 0.0                     # monotonic time until which Groq is hard-blocked
 _groq_rl_lock = asyncio.Lock()
+_groq_tpm_window: list = []               # [(monotonic_ts, est_tokens)] within last 60s
 
 
-async def _groq_pace():
-    """Ensure at least _groq_min_interval seconds between Groq calls app-wide."""
-    global _groq_last_call
-    async with _groq_rl_lock:
-        now = time.monotonic()
-        wait = _groq_min_interval - (now - _groq_last_call)
+def _est_tokens(text: str) -> int:
+    """Rough token estimate (~4 chars/token) so we can budget TPM cheaply."""
+    if not text:
+        return 0
+    return max(1, len(text) // 4)
+
+
+def _groq_record_429(e: Exception):
+    """On a Groq 429: honor Retry-After and adaptively slow the pacer."""
+    global _groq_eff_interval, _groq_429_until
+    try:
+        ra = float(getattr(e, 'response', None).headers.get('retry-after', 0) or 0)
+    except Exception:
+        ra = 0.0
+    if ra > 0:
+        _groq_429_until = max(_groq_429_until, time.monotonic() + ra)
+    _groq_eff_interval = min(_groq_eff_interval * 2.0, 30.0)
+
+
+def _groq_relax():
+    """After a successful Groq call, gently recover throughput."""
+    global _groq_eff_interval
+    _groq_eff_interval = max(_groq_min_interval, _groq_eff_interval * 0.9)
+
+
+async def _groq_wait_tpm(est_tokens: int):
+    """Block until the rolling 60s token budget has room for est_tokens.
+
+    Caller must hold _groq_rl_lock (so the window mutation is race-free).
+    """
+    global _groq_tpm_window
+    now = time.monotonic()
+    cutoff = now - 60.0
+    _groq_tpm_window = [(t, n) for (t, n) in _groq_tpm_window if t > cutoff]
+    used = sum(n for (_, n) in _groq_tpm_window)
+    if used + est_tokens > GROQ_MAX_TPM:
+        # Wait until the oldest contribution expires, then re-check the budget.
+        oldest = _groq_tpm_window[0][0] if _groq_tpm_window else now
+        wait = 60.0 - (oldest - cutoff)
         if wait > 0:
             await asyncio.sleep(wait)
-        _groq_last_call = time.monotonic()
+            now = time.monotonic()
+            _groq_tpm_window = [(t, n) for (t, n) in _groq_tpm_window if t > now - 60.0]
+    _groq_tpm_window.append((time.monotonic(), est_tokens))
+
+
+async def _groq_pace(est_tokens: int = 4096):
+    """Enforce RPM spacing + TPM budget + 429 cooldown. Caller holds _groq_rl_lock."""
+    global _groq_last_call
+    now = time.monotonic()
+    # Hard cooldown carried over from a previous Retry-After header.
+    if now < _groq_429_until:
+        await asyncio.sleep(_groq_429_until - now)
+    # Minimum spacing between call starts.
+    wait = _groq_eff_interval - (now - _groq_last_call)
+    if wait > 0:
+        await asyncio.sleep(wait)
+    _groq_last_call = time.monotonic()
+    # Token budget check (lock held -> no race on the rolling window).
+    await _groq_wait_tpm(est_tokens)
 
 # ── Provider implementations ──────────────────────────────────────────────────
 
@@ -131,25 +190,32 @@ def _truncate(text: str, limit: int = _MAX_CHARS_PER_MSG) -> str:
     return text[:head] + "\n\n...[truncated for token limit]...\n\n" + text[-tail:]
 
 async def _groq(system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
-    await _groq_pace()
     system = _truncate(system)
     user = _truncate(user)
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        r = await client.post(
-            'https://api.groq.com/openai/v1/chat/completions',
-            headers={'Authorization': f'Bearer {GROQ_API_KEY}'},
-            json={
-                'model': GROQ_MODEL,
-                'messages': [
-                    {'role': 'system', 'content': system},
-                    {'role': 'user', 'content': user},
-                ],
-                'temperature': temperature,
-                'max_tokens': max_tokens or 4096,
-            },
-        )
-        r.raise_for_status()
-        return r.json()['choices'][0]['message']['content']
+    est = _est_tokens(system) + _est_tokens(user) + (max_tokens or 4096)
+    async with _groq_rl_lock:
+        await _groq_pace(est)
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            try:
+                r = await client.post(
+                    'https://api.groq.com/openai/v1/chat/completions',
+                    headers={'Authorization': f'Bearer {GROQ_API_KEY}'},
+                    json={
+                        'model': GROQ_MODEL,
+                        'messages': [
+                            {'role': 'system', 'content': system},
+                            {'role': 'user', 'content': user},
+                        ],
+                        'temperature': temperature,
+                        'max_tokens': max_tokens or 4096,
+                    },
+                )
+                r.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429:
+                    _groq_record_429(e)
+                raise
+            return r.json()['choices'][0]['message']['content']
 
 
 async def _gemini(system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
@@ -331,6 +397,7 @@ async def chat_completion(
                 result = await fn()
                 if name == 'groq':
                     _increment('groq')
+                    _groq_relax()
                     logger.info(f'LLM: groq ({_count("groq")}/{GROQ_DAILY_LIMIT} today)')
                 elif name == 'gemini':
                     _increment('gemini')
@@ -339,13 +406,14 @@ async def chat_completion(
                     logger.info(f'LLM: {name}')
                 return result
             except Exception as e:
-                # A 429 is a *transient rate limit*. The global Groq pacer should
-                # prevent most of these; if one slips through, retry briefly with
-                # backoff. Keep the backoff small so a sustained limit can't make
-                # the call hang for minutes (which previously timed out the chain).
-                if _is_rate_limited(e) and _attempt < 3:
-                    wait = _retry_after(e, min(2.0 ** _attempt, 8.0))
-                    logger.warning(f'LLM {name} rate-limited (429); retrying in {wait:.1f}s')
+                # A 429 is a *transient rate limit*. The global Groq pacer prevents
+                # most of these and honors Retry-After itself, so we only retry ONCE
+                # here. Extra retries just burn free-tier quota on calls that will
+                # keep failing (the "127 calls, nothing generated" waste). After the
+                # single retry we fall through to the next provider / give up.
+                if _is_rate_limited(e) and _attempt == 0:
+                    wait = _retry_after(e, 2.0)
+                    logger.warning(f'LLM {name} rate-limited (429); one retry in {wait:.1f}s')
                     await asyncio.sleep(wait)
                     last_error = e
                     continue
@@ -393,10 +461,17 @@ async def _openai_style_with_tools(url, headers, model, messages, tools, tempera
 
 
 async def _groq_with_tools(messages, tools, temperature):
-    await _groq_pace()
-    return await _openai_style_with_tools(
-        'https://api.groq.com/openai/v1/chat/completions',
-        {'Authorization': f'Bearer {GROQ_API_KEY}'}, GROQ_MODEL, messages, tools, temperature)
+    est = sum(_est_tokens(m.get('content') or '') for m in messages) + 4096
+    async with _groq_rl_lock:
+        await _groq_pace(est)
+        try:
+            return await _openai_style_with_tools(
+                'https://api.groq.com/openai/v1/chat/completions',
+                {'Authorization': f'Bearer {GROQ_API_KEY}'}, GROQ_MODEL, messages, tools, temperature)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                _groq_record_429(e)
+            raise
 
 
 async def _openrouter_with_tools(messages, tools, temperature):
