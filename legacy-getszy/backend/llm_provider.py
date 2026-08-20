@@ -22,7 +22,10 @@ logger = logging.getLogger('getszy.llm')
 # ── Config ────────────────────────────────────────────────────────────────────
 FREE_ONLY        = os.environ.get('FREE_ONLY', 'true').lower() != 'false'
 GROQ_API_KEY     = os.environ.get('GROQ_API_KEY', '').strip()
-GROQ_MODEL       = os.environ.get('GROQ_MODEL', 'llama-3.1-8b-instant').strip()
+# Default to a strong *free* Groq model. The 8B instant model produces weak,
+# "basic" landing pages/scripts; llama-3.3-70b is far higher quality and still
+# free on Groq's tier. The RPM/TPM pacer in this module keeps it within limits.
+GROQ_MODEL       = os.environ.get('GROQ_MODEL', 'llama-3.3-70b-versatile').strip()
 GEMINI_API_KEY   = os.environ.get('GEMINI_API_KEY', '').strip()
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '').strip()
 OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'qwen/qwen-2.5-72b-instruct').strip()
@@ -225,7 +228,7 @@ async def _gemini(system: str, user: str, temperature: float, max_tokens: int | 
             json={
                 'system_instruction': {'parts': [{'text': system}]},
                 'contents': [{'parts': [{'text': user}]}],
-                'generationConfig': {'temperature': temperature, 'maxOutputTokens': max_tokens or 2048},
+                'generationConfig': {'temperature': temperature, 'maxOutputTokens': max_tokens or 8192},
             },
         )
         r.raise_for_status()

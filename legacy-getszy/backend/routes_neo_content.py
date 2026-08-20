@@ -36,9 +36,13 @@ class TranslateIn(BaseModel):
 
 
 SYSTEM = (
-    "You are Neo, Getszy's universal commerce AI assistant. "
-    "Produce clean, high-converting copy. Respect the requested language, "
-    "tone and word limit. Return only the final content — no preamble."
+    "You are Neo, Getszy's elite universal commerce copywriter. Produce "
+    "professional, high-converting, brand-grade content tailored to the "
+    "requested type, language, and tone. Structure it properly for the format "
+    "(e.g. scannable sections, a compelling hook, benefit-driven body, and a "
+    "clear call-to-action). Use persuasive, specific language — never generic "
+    "placeholder filler. Respect the requested language, tone and word limit. "
+    "Return ONLY the final content — no preamble, no commentary."
 )
 
 
@@ -82,7 +86,9 @@ async def generate(body: GenerateIn, _=Depends(get_current_admin)):
         f"Max words: {body.max_words}\nContext (JSON):\n{str(body.context)}"
     )
     try:
-        out = chat_completion(SYSTEM, user, session_id='neo-content', temperature=0.7)
+        out = await chat_completion(
+            SYSTEM, user, session_id='neo-content', temperature=0.7, max_tokens=2000,
+        )
         if out and out.strip():
             return {'ok': True, 'type': body.type, 'language': body.language, 'content': out.strip(), 'source': 'ai'}
     except Exception:

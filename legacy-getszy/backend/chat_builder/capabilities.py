@@ -149,12 +149,16 @@ async def _cap_build_webapp(user, params, emit) -> Dict[str, Any]:
     name = params.get('name') or _derive_name(prompt)
     await emit('progress', {'msg': f'Generating web app "{name}"…', 'percent': 40})
     system = (
-        'You are a senior front-end engineer. Given a prompt, output ONE complete, self-contained '
-        'HTML file (with inline CSS + inline JS) that is production-quality, mobile-responsive, and '
-        'accessible. Modern design, tasteful gradients allowed, use Google Fonts via <link>. '
-        'No external JS frameworks. Reply ONLY the raw HTML (no code fences, no markdown).'
+        'You are an award-winning front-end designer and copywriter. Given a prompt, output ONE '
+        'complete, self-contained, production-quality HTML file (inline CSS + minimal inline JS for '
+        'menu/scroll-reveal only) that is mobile-responsive, accessible, and conversion-focused. '
+        'Modern premium aesthetic (Google Fonts via <link>, Tailwind via CDN allowed, tasteful '
+        'gradients, soft shadows, rounded corners, smooth micro-interactions). Include semantic '
+        'sections: nav, hero with strong value prop + CTA, features/benefits, social proof, CTA, '
+        'footer; complete <head> with SEO meta + Open Graph; alt text on images. Compelling, specific '
+        'copy (no lorem ipsum). Reply ONLY the raw HTML (no code fences, no markdown).'
     )
-    raw = await chat_completion(system=system, user=prompt, temperature=0.6)
+    raw = await chat_completion(system=system, user=prompt, temperature=0.6, max_tokens=8000)
     html = _extract_html(raw) or f'<!doctype html><html><body style="font-family:sans-serif;padding:40px"><h1>{name}</h1><p>{prompt}</p></body></html>'
     project_id = str(uuid.uuid4())
     await db.builder_projects.insert_one({

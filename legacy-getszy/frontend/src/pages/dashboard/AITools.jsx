@@ -139,7 +139,7 @@ function LogoTool({ color }) {
     setBusy(true); toast.loading("Generating logos…", { id: "logo" });
     try {
       const r = await api.post("/media/logo", { brand_name: brand, style, palette: "teal" });
-      setLogos(r.data.urls || []);
+      setLogos(r.data.variants?.map(v => v.url) || []);
       toast.success("4 logo concepts ready ✅", { id: "logo" });
     } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "logo" }); }
     finally { setBusy(false); }
@@ -197,8 +197,8 @@ function CopyTool({ color }) {
     try {
       const r = await api.post("/ai-tools/chat/completions", {
         messages: [
-          { role: "system", content: "You are an expert copywriter. Write compelling website copy with headlines, subheadlines, body text, and CTAs. Format as clean markdown." },
-          { role: "user", content: `Write website copy for: ${desc}\nGoal: ${goal}\n\nProvide: 3 headline options, subheadline, body paragraphs, and 2 CTA button texts.` }
+          { role: "system", content: "You are a world-class, conversion-focused website copywriter. Produce brand-grade, specific, benefit-driven copy — never generic filler or 'lorem ipsum'. Structure the response with clear markdown headings and bulleted sections. Match the requested goal and tone." },
+          { role: "user", content: `Write high-converting website copy for: ${desc}\nPrimary goal: ${goal}\n\nDeliver exactly:\n## Headline Options\n- 3 distinct, punchy hero headlines\n## Subheadline\n- One compelling subheadline that reinforces the value prop\n## Body Copy\n- 2-3 short, benefit-led paragraphs\n## Social Proof Angle\n- One credibility statement (stats, testimonial style, or trust signal)\n## CTA Buttons\n- 2 CTA button texts (action-oriented, < 5 words)` }
         ]
       });
       setResult(r.data.choices?.[0]?.message?.content || "No result");
@@ -246,8 +246,8 @@ function LandingTool({ color }) {
     try {
       const r = await api.post("/ai-tools/chat/completions", {
         messages: [
-          { role: "system", content: "You are a landing page specialist. Generate a complete landing page structure with: Hero (headline + subheadline + CTA), Benefits (3-4 items), Social Proof (testimonials), FAQ, and Final CTA. Use compelling copy. Format as clean markdown." },
-          { role: "user", content: `Create a landing page for: ${desc}` }
+          { role: "system", content: "You are a senior conversion-rate-optimization specialist and landing page copywriter. Write a complete, ready-to-build landing page copy deck that is specific, persuasive, and structured. Use clear markdown headings. Never use generic placeholders — invent plausible, compelling specifics." },
+          { role: "user", content: `Create a high-converting landing page copy deck for: ${desc}\n\nInclude:\n## Hero\n- Headline + subheadline + primary CTA text\n## Value Proposition\n- 3 benefit-driven bullet points\n## Features / Benefits\n- 4 items (name + one-line benefit each)\n## Social Proof\n- 2 short testimonial-style quotes + 1 trust stat\n## FAQ\n- 4 common objections with reassuring answers\n## Final CTA Section\n- Headline + button text + supporting microcopy\n## SEO Meta\n- Title tag (<=60 chars) + meta description (<=155 chars)` }
         ]
       });
       setResult(r.data.choices?.[0]?.message?.content || "No result");

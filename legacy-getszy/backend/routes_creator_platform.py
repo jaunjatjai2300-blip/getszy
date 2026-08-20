@@ -87,10 +87,16 @@ class ThumbnailIn(BaseModel):
 async def generate_thumbnail(payload: ThumbnailIn, user=Depends(get_current_user)):
     prompt = f"Create a YouTube thumbnail: title='{payload.title}', style={payload.style}, colors={payload.color_scheme}, elements={payload.elements}"
     try:
-        result = await chat_completion([
-            {'role': 'system', 'content': 'You are a thumbnail design expert. Describe a detailed thumbnail layout with colors, positioning, and text styling.'},
-            {'role': 'user', 'content': prompt}
-        ])
+        result = await chat_completion(
+            system=(
+                'You are an elite YouTube thumbnail designer with millions of views of experience. '
+                'Describe a detailed, high-CTR thumbnail layout: composition, focal point, color '
+                'palette, typography, text overlay copy (short, punchy), and emotional angle. '
+                'Be specific and visual.'
+            ),
+            user=prompt,
+            max_tokens=1500,
+        )
         description = result if isinstance(result, str) else result.get('content', str(result))
     except Exception:
         description = f"Bold thumbnail: '{payload.title}' with {payload.color_scheme} colors, {payload.style} style"
@@ -130,12 +136,23 @@ class ScriptIn(BaseModel):
 
 @router.post('/scripts/generate')
 async def generate_script(payload: ScriptIn, user=Depends(get_current_user)):
-    prompt = f"Write a {payload.duration_minutes}-minute {payload.format} script about '{payload.topic}'. Tone: {payload.tone}. Language: {payload.language}. Include hooks, sections, CTAs."
+    prompt = (
+        f"Write a {payload.duration_minutes}-minute {payload.format} script about '{payload.topic}'. "
+        f"Tone: {payload.tone}. Language: {payload.language}. "
+        f"Structure it with: a scroll-stopping Hook (first 3 seconds), a clear Promise, "
+        f"3-5 value-packed Sections, tasteful Story/example, and a strong Call-To-Action. "
+        f"Make it natural, spoken-aloud friendly, and retention-optimized."
+    )
     try:
-        result = await chat_completion([
-            {'role': 'system', 'content': 'You are a professional script writer for YouTube and social media. Write engaging, hook-driven scripts with clear sections.'},
-            {'role': 'user', 'content': prompt}
-        ])
+        result = await chat_completion(
+            system=(
+                'You are a top-tier script writer for YouTube and short-form social video (10M+ '
+                'subscriber calibre). Write engaging, hook-driven, retention-optimized scripts with '
+                'clear sections, natural spoken language, and a compelling CTA. Avoid fluff.'
+            ),
+            user=prompt,
+            max_tokens=4000,
+        )
         content = result if isinstance(result, str) else result.get('content', str(result))
     except Exception:
         content = f"Script for: {payload.topic}\n\nHook: Attention-grabbing opening\nIntro: Set expectations\nBody: Main content\nCTA: Call to action"
@@ -217,15 +234,24 @@ async def ai_generate_scenes(reel_id: str, user=Depends(get_current_user)):
     if not reel:
         raise HTTPException(status_code=404, detail='Reel not found')
     try:
-        result = await chat_completion([
-            {'role': 'system', 'content': 'Break a video script into scenes. Return JSON array of scenes with: index, title, description, duration_seconds.'},
-            {'role': 'user', 'content': f'Script: {reel.get("script", "")}'}
-        ])
+        result = await chat_completion(
+            system=(
+                'You are a professional video editor. Break the given script into a JSON array of '
+                'scenes. Each scene: {"index": int, "title": str, "description": str (visual + what '
+                'happens), "duration_seconds": int (3-8), "visual_prompt": str (image-gen prompt)}. '
+                'Return ONLY the JSON array, no markdown.'
+            ),
+            user=f'Script: {reel.get("script", "")}',
+            max_tokens=4000,
+        )
         import json
+        import re
         content = result if isinstance(result, str) else result.get('content', str(result))
-        scenes = json.loads(content) if content.strip().startswith('[') else [
-            {'index': 0, 'title': 'Opening', 'description': content[:200], 'duration_seconds': 5}
-        ]
+        content = re.sub(r'^```(?:json)?\s*|\s*```$', '', content.strip(), flags=re.IGNORECASE)
+        try:
+            scenes = json.loads(content)
+        except Exception:
+            scenes = [{'index': 0, 'title': 'Opening', 'description': content[:200], 'duration_seconds': 5}]
     except Exception:
         scenes = [{'index': 0, 'title': 'Scene 1', 'description': reel.get('script', '')[:200], 'duration_seconds': 5}]
     await db.creator_reels.update_one({'id': reel_id}, {'$set': {'scenes': scenes, 'updated_at': _now()}})

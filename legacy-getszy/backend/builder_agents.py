@@ -49,21 +49,30 @@ Given a site plan (JSON), output a detailed design brief as JSON:
 
 Reply ONLY with valid JSON. No prose."""
 
-CODER_PROMPT = """You are an elite front-end developer. Generate a stunning, modern, fully-responsive SINGLE-PAGE WEBSITE.
+CODER_PROMPT = """You are an award-winning front-end designer and copywriter. Generate a stunning, modern, fully-responsive, conversion-focused SINGLE-PAGE WEBSITE.
 
 STRICT OUTPUT RULES:
 1. Output ONLY a SINGLE complete HTML document. No prose. No markdown fences.
 2. Begin with <!DOCTYPE html> and end with </html>.
 3. Use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
-4. Use Google Fonts via <link> for typography.
+4. Use Google Fonts via <link> for premium typography (e.g. Inter, Plus Jakarta Sans, Space Grotesk).
 5. Use real, free placeholder images from https://images.unsplash.com or https://picsum.photos.
-6. Include semantic sections: header/nav, hero, features, testimonials, CTA, footer.
-7. CSS-only animations (transform/opacity transitions). Tiny inline <script> for menu toggle OK.
-8. Modern design: generous whitespace, premium typography, soft shadows, rounded corners, smooth hover states.
-9. Fully responsive (mobile-first).
-10. NEVER include forms that POST to external URLs. NEVER include trackers or fetch() to third-party.
-11. Total HTML should be 300-800 lines.
-12. Color scheme, fonts, and section layout MUST match the design brief exactly.
+6. Include semantic sections: sticky header/nav, hero (with a bold value proposition + primary CTA),
+   trust bar (logos/stats), features/benefits (with icons), "how it works", social proof/testimonials,
+   pricing or offer, FAQ, strong CTA section, and footer.
+7. Micro-interactions via CSS transitions/animations and a tiny inline <script> ONLY for the mobile
+   menu toggle and scroll-reveal (no other JS needed).
+8. Premium aesthetic: generous whitespace, refined typographic scale, soft shadows, rounded corners,
+   tasteful gradients, smooth hover/focus states, consistent spacing scale.
+9. Fully responsive and mobile-first; flawless at 375px and 1440px.
+10. Accessibility: semantic landmarks, alt text on every image, sufficient contrast, visible focus rings,
+    ARIA where helpful. SEO: complete <head> with title, meta description, Open Graph, and structured
+    JSON-LD where relevant.
+11. Compelling, specific conversion copy (not lorem ipsum) — clear headlines, benefit-driven body,
+    persuasive CTAs.
+12. NEVER include forms that POST to external URLs. NEVER include trackers or fetch() to third-party.
+13. Total HTML should be 300-800 lines.
+14. Color scheme, fonts, and section layout MUST match the design brief exactly.
 
 START IMMEDIATELY WITH <!DOCTYPE html>. End with </html>. Nothing else."""
 
@@ -189,6 +198,7 @@ async def code_site(prompt: str, plan: dict, design: dict, session_id: str = 'bu
         user=context,
         session_id=f'{session_id}-code',
         temperature=0.6,
+        max_tokens=8000,
     )
     html = _extract_html(raw)
     if not html.lower().startswith('<!doctype html'):
@@ -206,9 +216,10 @@ async def review_site(html: str, session_id: str = 'builder') -> str:
     try:
         raw = await chat_completion(
             system=REVIEWER_PROMPT,
-            user=f"Review and fix this HTML:\n\n{html[:6000]}",
+            user=f"Review and fix this HTML:\n\n{html}",
             session_id=f'{session_id}-review',
             temperature=0.3,
+            max_tokens=8000,
         )
         reviewed = _extract_html(raw)
         if reviewed.lower().startswith('<!doctype html') and len(reviewed) > len(html) * 0.5:
@@ -226,10 +237,11 @@ async def refine_element(html: str, selector: str, instruction: str, session_id:
         user=(
             f"TARGET: {selector}\n"
             f"INSTRUCTION: {instruction}\n\n"
-            f"CURRENT HTML:\n\n{html[:6000]}"
+            f"CURRENT HTML:\n\n{html}"
         ),
         session_id=f'{session_id}-refine',
         temperature=0.5,
+        max_tokens=8000,
     )
     refined = _extract_html(raw)
     if refined.lower().startswith('<!doctype html') and len(refined) > len(html) * 0.5:
