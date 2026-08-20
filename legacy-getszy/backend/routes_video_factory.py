@@ -17,10 +17,12 @@
 import uuid
 import os
 import asyncio
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from auth import get_current_user
@@ -486,6 +488,62 @@ async def download_final(project_id: str, user=Depends(get_current_user)):
     except Exception:
         pass
     return FileResponse(path, media_type='video/mp4', filename=f'{p.get("title","video")[:40]}.mp4')
+
+
+@router.get('/project/{project_id}/subtitles')
+async def download_subtitles(project_id: str, user=Depends(get_current_user)):
+    """Serve the generated SRT subtitle file (export package)."""
+    from fastapi.responses import FileResponse
+    p = await _project_or_404(project_id, user)
+    path = p.get('subtitles_path')
+    if not path or not os.path.exists(path):
+        raise HTTPException(404, 'Subtitles not generated yet.')
+    return FileResponse(path, media_type='text/plain', filename=f'{p.get("title","video")[:40]}.srt')
+
+
+@router.get('/project/{project_id}/events')
+async def project_events(project_id: str, user=Depends(get_current_user)):
+    """Server-Sent Events stream of live render progress (replaces polling)."""
+    await _project_or_404(project_id, user)  # ownership + existence check
+
+    async def event_gen():
+        last_sig = None
+        for _ in range(900):  # ~15 min ceiling
+            p = await db.video_projects.find_one(
+                {'id': project_id},
+                {'_id': 0, 'render_status': 1, 'render_progress': 1, 'render_error': 1,
+                 'stages': 1, 'final_video_path': 1, 'subtitles_url': 1,
+                 'voice_used': 1, 'voice_emotion': 1, 'status': 1},
+            )
+            if not p:
+                yield 'data: {"error":"project gone"}\n\n'
+                return
+            sig = (
+                p.get('render_status'), p.get('render_progress'),
+                bool(p.get('render_error')), len(str(p.get('stages') or '')),
+            )
+            payload = {
+                'render_status': p.get('render_status'),
+                'render_progress': p.get('render_progress'),
+                'render_error': p.get('render_error'),
+                'status': p.get('status'),
+                'has_video': bool(p.get('final_video_path')),
+                'subtitles_url': p.get('subtitles_url'),
+                'voice_used': p.get('voice_used'),
+                'voice_emotion': p.get('voice_emotion'),
+            }
+            if sig != last_sig:
+                yield f'data: {json.dumps(payload)}\n\n'
+                last_sig = sig
+            if p.get('render_status') in ('complete', 'error', 'cancelled'):
+                return
+            await asyncio.sleep(1)
+        yield 'data: {"timeout":true}\n\n'
+
+    return StreamingResponse(
+        event_gen(), media_type='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+    )
 
 
 @router.post('/project/{project_id}/cancel')

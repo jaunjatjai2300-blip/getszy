@@ -162,7 +162,14 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
         full_narration = script.get('narration', '')[:3000]
     voice_path = project_dir / 'voice.mp3'
     voice = pick_voice(language=p.get('language', 'hinglish'), gender='female')
-    voice_task = asyncio.create_task(synth(full_narration[:4000], str(voice_path), voice=voice))
+    # Emotion: match the chosen script's narrative style so the premium voice
+    # reads excited (viral), calm (documentary), warm (story), etc. — not robotic.
+    from video.tts import STYLE_EMOTION
+    script_style = (script or {}).get('style_id') or p.get('style') or 'default'
+    emotion = STYLE_EMOTION.get(script_style, STYLE_EMOTION['default'])
+    voice_task = asyncio.create_task(
+        synth(full_narration[:4000], str(voice_path), voice=voice, emotion=emotion)
+    )
 
     scene_images = list(await asyncio.gather(*[_gen_one(scene) for scene in scenes]))
 
@@ -292,19 +299,39 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
         await _refund_assets(project_id, owner_id, 'output_too_small')
         return {'error': error_msg}
     
+    # Generate SRT subtitles from scene timings + narration (export package).
+    subtitles_path = None
+    try:
+        from video.compose import build_srt
+        srt_text = build_srt([{
+            'seconds': sc.get('seconds', 5),
+            'narration_chunk': sc.get('narration_chunk', ''),
+        } for sc in compose_scenes])
+        srt_path = project_dir / 'subtitles.srt'
+        srt_path.write_text(srt_text, encoding='utf-8')
+        subtitles_path = str(srt_path)
+    except Exception as e:
+        logger.warning('srt generation failed: %s', e)
+
     result = {
         'ok': True,
         'video_path': str(final_path),
         'video_url': f'/api/video-factory/project/{project_id}/download',
+        'subtitles_url': f'/api/video-factory/project/{project_id}/subtitles' if subtitles_path else None,
         'size_bytes': size_bytes,
         'scenes_rendered': len(compose_scenes),
         'voice_used': voice,
+        'emotion': emotion,
     }
     await _update(project_id, {
         'render_status': 'complete',
         'render_progress': 100,
         'final_video_path': str(final_path),
         'final_video_size': size_bytes,
+        'subtitles_path': subtitles_path,
+        'subtitles_url': result['subtitles_url'],
+        'voice_used': voice,
+        'voice_emotion': emotion,
         'scenes_rendered': len(compose_scenes),
     })
     try:

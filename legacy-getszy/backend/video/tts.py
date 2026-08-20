@@ -30,6 +30,28 @@ ELEVENLABS_MODEL = 'eleven_multilingual_v2'
 #   Antoni  (ErXwobaYiN019PkySvjV) — warm male
 ELEVENLABS_VOICE_DEFAULT = os.getenv('ELEVENLABS_VOICE_ID', '21m00Tcm4TlvDq8ikWAM')
 
+# Map narrative "emotion" to ElevenLabs voice_settings so the same premium voice
+# reads excited vs calm vs dramatic. edge-tts can't do true emotion, so this only
+# takes effect when ELEVENLABS_KEY is set (graceful no-op otherwise).
+EMOTION_SETTINGS = {
+    'excited':   {'stability': 0.25, 'similarity_boost': 0.70, 'style': 0.55, 'use_speaker_boost': True},
+    'dramatic':  {'stability': 0.20, 'similarity_boost': 0.80, 'style': 0.70, 'use_speaker_boost': True},
+    'warm':      {'stability': 0.50, 'similarity_boost': 0.75, 'style': 0.25, 'use_speaker_boost': True},
+    'calm':      {'stability': 0.70, 'similarity_boost': 0.60, 'style': 0.10, 'use_speaker_boost': True},
+    'sad':       {'stability': 0.80, 'similarity_boost': 0.55, 'style': 0.05, 'use_speaker_boost': True},
+    'neutral':   {'stability': 0.50, 'similarity_boost': 0.75, 'style': 0.00, 'use_speaker_boost': True},
+}
+
+# Script "style" -> narration emotion (used by the video factory renderer).
+STYLE_EMOTION = {
+    'viral': 'excited',
+    'documentary': 'calm',
+    'story': 'warm',
+    'educational': 'calm',
+    'beginner': 'warm',
+    'default': 'neutral',
+}
+
 # ── edge-tts voice map ────────────────────────────────────────────────────────
 VOICE_MAP = {
     ('hindi', 'female'):    'hi-IN-SwaraNeural',
@@ -58,21 +80,18 @@ def elevenlabs_available() -> bool:
 
 # ── ElevenLabs provider ───────────────────────────────────────────────────────
 
-async def _synth_elevenlabs(text: str, out_path: str, voice_id: Optional[str] = None) -> bool:
+async def _synth_elevenlabs(text: str, out_path: str, voice_id: Optional[str] = None,
+                            emotion: str = 'neutral') -> bool:
     """Call ElevenLabs TTS API. Returns True on success, False on any failure."""
     if not ELEVENLABS_KEY:
         return False
     vid = voice_id or ELEVENLABS_VOICE_DEFAULT
+    settings = EMOTION_SETTINGS.get(emotion, EMOTION_SETTINGS['neutral'])
     url = f'{ELEVENLABS_API}/text-to-speech/{vid}'
     payload = {
         'text': text,
         'model_id': ELEVENLABS_MODEL,
-        'voice_settings': {
-            'stability': 0.5,
-            'similarity_boost': 0.75,
-            'style': 0.0,
-            'use_speaker_boost': True,
-        },
+        'voice_settings': settings,
     }
     headers = {
         'xi-api-key': ELEVENLABS_KEY,
@@ -140,15 +159,16 @@ async def synth(
     voice: Optional[str] = None,
     rate: str = '+0%',
     elevenlabs_voice_id: Optional[str] = None,
+    emotion: str = 'neutral',
 ) -> str:
     """Synthesize narration to MP3.
 
-    Tries ElevenLabs first (if key configured), then edge-tts, then silent fallback.
-    Always returns a valid audio file path — never raises.
+    Tries ElevenLabs first (if key configured) with the requested emotion, then
+    edge-tts, then silent fallback. Always returns a valid audio file path — never raises.
     """
-    # 1. ElevenLabs (premium quality, Hinglish/Hindi capable)
+    # 1. ElevenLabs (premium quality, Hinglish/Hindi capable, emotion-aware)
     if ELEVENLABS_KEY:
-        ok = await _synth_elevenlabs(text, out_path, voice_id=elevenlabs_voice_id)
+        ok = await _synth_elevenlabs(text, out_path, voice_id=elevenlabs_voice_id, emotion=emotion)
         if ok:
             return out_path
 

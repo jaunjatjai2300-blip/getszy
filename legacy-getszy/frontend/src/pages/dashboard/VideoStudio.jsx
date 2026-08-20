@@ -23,6 +23,15 @@ const STYLES = {
   beginner:    { label: "Beginner",    color: "bg-emerald-500", emoji: "🌱" },
 };
 
+const TEMPLATES = [
+  { id: "motivation", emoji: "💪", label: "Motivational Shorts", text: "Create a 60s motivational Hindi short with an inspiring story arc, a strong hook and a powerful climax for YouTube Shorts." },
+  { id: "unboxing", emoji: "📦", label: "Product Unboxing", text: "Create a 60s energetic product unboxing reel highlighting key features, a benefit, and a clear call to action." },
+  { id: "tutorial", emoji: "🎓", label: "Educational Tutorial", text: "Create a 60s educational tutorial in Hinglish explaining a clear concept step by step with examples." },
+  { id: "funny", emoji: "😂", label: "Funny Meme", text: "Create a 60s funny Hinglish comedy short with a relatable hook and a punchline that lands." },
+  { id: "doc", emoji: "🎬", label: "Documentary", text: "Create a 90s documentary-style explainer with cinematic B-roll and a calm, authoritative narration." },
+  { id: "news", emoji: "📰", label: "Trending News", text: "Create a 60s trending-news explainer in Hinglish with a strong hook and a quick recap." },
+];
+
 const SCENE_ROLE_COLOR = {
   hook: "bg-rose-500/15 text-rose-700 border-rose-200",
   problem: "bg-amber-500/15 text-amber-700 border-amber-200",
@@ -145,6 +154,23 @@ export default function VideoStudio() {
             className="text-xs mb-2"
             data-testid="video-prompt-input"
           />
+          <div className="mb-2">
+            <div className="text-[10px] uppercase text-[var(--gs-muted)] mb-1 tracking-wider">Templates (1-click)</div>
+            <div className="flex flex-wrap gap-1.5">
+              {TEMPLATES.map(t => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setPrompt(t.text)}
+                  className="text-[10px] px-2 py-1 rounded-full border bg-white hover:bg-[var(--gs-teal)]/10"
+                  style={{ borderColor: "var(--gs-border)" }}
+                  data-testid={`vf-tpl-${t.id}`}
+                >
+                  {t.emoji} {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <Button
             onClick={createProject}
             disabled={creating || prompt.trim().length < 8}
@@ -464,8 +490,9 @@ function PendingState({ label, status, onRegen }) {
 function RenderTab({ project, onRefresh }) {
   const [orientation, setOrientation] = useState("16:9");
   const [busy, setBusy] = useState(false);
-  const status = project.render_status;
-  const progress = project.render_progress || 0;
+  const [live, setLive] = useState(null);
+  const status = live?.render_status || project.render_status;
+  const progress = live?.render_progress ?? (project.render_progress || 0);
   const backend = process.env.REACT_APP_BACKEND_URL || "";
   const isRendering = ["queued", "generating_images", "generating_voice", "assembling"].includes(status);
   const isComplete = status === "complete" && project.final_video_size > 0;
@@ -474,18 +501,27 @@ function RenderTab({ project, onRefresh }) {
   const hasPipeline = (stages.storyboard || []).length > 0 && (stages.visual_plan || []).length > 0;
 
   useEffect(() => {
-    if (isRendering) {
-      const iv = setInterval(() => onRefresh(), 3000);
-      return () => clearInterval(iv);
+    if (!isRendering) return;
+    // Live SSE progress; fall back to 3s polling if EventSource is unavailable.
+    let es;
+    const apply = (data) => {
+      setLive((d) => ({ ...(d || {}), ...data }));
+      if (["complete", "error", "cancelled"].includes(data.render_status)) onRefresh();
+    };
+    if (typeof EventSource !== "undefined") {
+      es = new EventSource(`${backend}/api/video-factory/project/${project.id}/events`);
+      es.onmessage = (ev) => { try { apply(JSON.parse(ev.data)); } catch (_) {} };
     }
-  }, [isRendering, onRefresh]);
+    const iv = setInterval(() => onRefresh(), 3000);
+    return () => { if (es) es.close(); clearInterval(iv); };
+  }, [isRendering, project.id, onRefresh]);
 
   const generate = async () => {
     if (!hasPipeline) { toast.error("Pipeline (storyboard + visuals) chahiye pehle"); return; }
     setBusy(true);
     try {
       await api.post(`/video-factory/project/${project.id}/generate-assets`, { orientation });
-      toast.success("Asset generation started — 2-5 minutes lagenge");
+      toast.success("Asset generation started — live progress dikh raha hai (30-90s)");
       onRefresh();
     } catch (e) { toast.error(e?.response?.data?.detail || "Failed to start"); }
     finally { setBusy(false); }
@@ -534,7 +570,7 @@ function RenderTab({ project, onRefresh }) {
         <div className="p-4 rounded-lg bg-[var(--gs-teal)]/8 border border-[var(--gs-teal)]/20 mb-3">
           <div className="text-sm font-semibold mb-2">Ready to render your video</div>
           <div className="text-xs text-[var(--gs-muted)] mb-3">
-            Neo will generate {(stages.storyboard || []).length} scene images (Pollinations AI), synthesize voice-over (edge-tts), and assemble into a downloadable MP4.
+             Neo will generate {(stages.storyboard || []).length} scene images (AI), synthesize a premium voice-over (ElevenLabs when configured, else free neural TTS), pull real stock B-roll, and assemble a downloadable MP4 with burned-in captions + an SRT file.
           </div>
           <div className="flex items-center gap-2 mb-3">
             <div className="text-xs text-[var(--gs-muted)]">Orientation:</div>
@@ -568,11 +604,22 @@ function RenderTab({ project, onRefresh }) {
             >
               <Download className="h-4 w-4"/> Download MP4
             </a>
+            {project.subtitles_url && (
+              <a
+                href={`${backend}${project.subtitles_url}`}
+                download
+                className="text-sm px-4 py-2 bg-white border rounded-lg flex items-center gap-2 hover:bg-[var(--gs-surface-2)]"
+                style={{ borderColor: "var(--gs-border)" }}
+                data-testid="vf-download-srt-btn"
+              >
+                <Download className="h-4 w-4"/> Download SRT
+              </a>
+            )}
             <Badge variant="outline" className="text-xs">
               {Math.round((project.final_video_size || 0) / 1024 / 1024 * 10) / 10} MB
             </Badge>
             <Badge variant="outline" className="text-xs">{project.scenes_rendered || 0} scenes</Badge>
-            <Badge variant="outline" className="text-xs">Voice: {project.voice_used || "—"}</Badge>
+            <Badge variant="outline" className="text-xs">Voice: {project.voice_used || "—"}{project.voice_emotion ? ` · ${project.voice_emotion}` : ""}</Badge>
             <Button variant="outline" size="sm" onClick={generate} disabled={busy} className="ml-auto text-xs gap-1" data-testid="vf-regen-video-btn">
               <RefreshCw className="h-3 w-3"/> Re-render
             </Button>
