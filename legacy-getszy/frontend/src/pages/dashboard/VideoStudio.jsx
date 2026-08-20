@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Film, Sparkle, Wand2, Search, PenTool, Layers, Eye, Loader2,
   Plus, RefreshCw, Lock, Unlock, ChevronRight, TrendingUp,
-  Lightbulb, ListChecks, PlayCircle, CheckCircle2, Download, Video,
+  Lightbulb, ListChecks, PlayCircle, CheckCircle2, Download, Video, Scissors,
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -30,6 +30,17 @@ const TEMPLATES = [
   { id: "funny", emoji: "😂", label: "Funny Meme", text: "Create a 60s funny Hinglish comedy short with a relatable hook and a punchline that lands." },
   { id: "doc", emoji: "🎬", label: "Documentary", text: "Create a 90s documentary-style explainer with cinematic B-roll and a calm, authoritative narration." },
   { id: "news", emoji: "📰", label: "Trending News", text: "Create a 60s trending-news explainer in Hinglish with a strong hook and a quick recap." },
+];
+
+const TRENDING = [
+  { id: "ai", emoji: "🤖", label: "AI Robots", angle: "Make a funny hinglish short about robots taking over homes." },
+  { id: "phone", emoji: "📱", label: "Smartphone", angle: "Make a 60s unboxing + honest review reel of a budget smartphone." },
+  { id: "food", emoji: "🍜", label: "Street Food", angle: "Make a 60s documentary-style mouth-watering desi street food short." },
+  { id: "hustle", emoji: "💰", label: "Side Hustle", angle: "Make a 60s educational tutorial on side hustle ideas to make money online." },
+  { id: "stocks", emoji: "📈", label: "Stocks", angle: "Make a 60s simple explainer on stock market for beginners in hinglish." },
+  { id: "fitness", emoji: "💪", label: "Fitness", angle: "Make a 60s motivational weight-loss-without-gym short." },
+  { id: "cricket", emoji: "🏏", label: "Cricket", angle: "Make a 60s top-5 epic cricket world cup moments recap." },
+  { id: "movie", emoji: "🎬", label: "Movie Review", angle: "Make a 60s spicy funny hindi movie review short." },
 ];
 
 const SCENE_ROLE_COLOR = {
@@ -171,6 +182,16 @@ export default function VideoStudio() {
               ))}
             </div>
           </div>
+          <div className="mb-2">
+            <div className="text-[10px] uppercase text-[var(--gs-muted)] mb-1 tracking-wider">Trending angles 🔥</div>
+            <div className="flex flex-wrap gap-1.5">
+              {TRENDING.map(t => (
+                <button key={t.id} type="button" onClick={() => setPrompt(t.angle)} className="text-[10px] px-2 py-1 rounded-full border bg-white hover:bg-[var(--gs-teal)]/10" style={{ borderColor: "var(--gs-border)" }} data-testid={`vf-trend-${t.id}`}>
+                  {t.emoji} {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <Button
             onClick={createProject}
             disabled={creating || prompt.trim().length < 8}
@@ -248,6 +269,7 @@ export default function VideoStudio() {
                   { v: "storyboard", label: "Storyboard", Icon: Layers },
                   { v: "visuals",   label: "Visuals", Icon: Eye },
                   { v: "render",    label: "Render", Icon: Video },
+                  { v: "shorts",    label: "Shorts", Icon: Scissors },
                 ].map(t => (
                   <TabsTrigger key={t.v} value={t.v} className="text-xs gap-1 data-[state=active]:bg-[var(--gs-teal)] data-[state=active]:text-white" data-testid={`vf-tab-${t.v}`}>
                     <t.Icon className="h-3 w-3"/>{t.label}
@@ -416,6 +438,10 @@ export default function VideoStudio() {
                 <TabsContent value="render" className="m-0" data-testid="vf-render-content">
                   <RenderTab project={project} onRefresh={() => loadProject(project.id)}/>
                 </TabsContent>
+
+                <TabsContent value="shorts" className="m-0" data-testid="vf-shorts-content">
+                  <ShortsTab onDone={loadProjects}/>
+                </TabsContent>
               </div>
             </Tabs>
           </Card>
@@ -483,6 +509,97 @@ function PendingState({ label, status, onRegen }) {
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+function ShortsTab({ onDone }) {
+  const [text, setText] = useState("");
+  const [count, setCount] = useState(5);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState(null);
+  const [shorts, setShorts] = useState([]);
+  const [error, setError] = useState(null);
+  const backend = process.env.REACT_APP_BACKEND_URL || "";
+
+  const generate = async () => {
+    if (text.trim().length < 20) { toast.error("Paste a longer script/transcript (min 20 chars)"); return; }
+    setBusy(true); setError(null); setShorts([]); setProgress(0); setStatus("queued");
+    try {
+      const r = await api.post("/video-factory/repurpose", { text: text.trim(), count, language: "hinglish", orientation: "9:16" });
+      const id = r.data.id;
+      const finish = () => { onDone && onDone(); };
+      if (typeof EventSource !== "undefined") {
+        const es = new EventSource(`${backend}/api/video-factory/project/${id}/events`);
+        es.onmessage = (ev) => {
+          try {
+            const d = JSON.parse(ev.data);
+            setProgress(d.render_progress ?? 0);
+            setStatus(d.render_status);
+            if (d.shorts && d.shorts.length) setShorts(d.shorts);
+            if (["complete", "error", "cancelled"].includes(d.render_status)) { es.close(); finish(); }
+          } catch (_) {}
+        };
+        es.onerror = () => es.close();
+      } else {
+        const iv = setInterval(async () => {
+          try {
+            const p = await api.get(`/video-factory/project/${id}`);
+            setProgress(p.data.render_progress || 0);
+            setStatus(p.data.render_status);
+            if (p.data.shorts) setShorts(p.data.shorts);
+            if (["complete", "error"].includes(p.data.render_status)) { clearInterval(iv); finish(); }
+          } catch (_) {}
+        }, 3000);
+      }
+      toast.success("Shorts engine started — extracting highlights...");
+    } catch (e) {
+      setError(e?.response?.data?.detail || "Failed to start");
+      toast.error("Failed to start");
+    } finally { setBusy(false); }
+  };
+
+  const isRendering = ["queued", "assembling"].includes(status);
+
+  return (
+    <div data-testid="vf-shorts">
+      <div className="max-w-3xl">
+        <div className="text-sm font-semibold mb-1">Long-form → Shorts Factory</div>
+        <p className="text-xs text-[var(--gs-muted)] mb-3">
+          Paste a long video script/transcript. Neo finds the most viral moments and turns each into a vertical short with B-roll, premium voice &amp; captions.
+        </p>
+        <Textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste your long-form video transcript or script here..." className="text-xs mb-2" data-testid="vf-shorts-input" />
+        <div className="flex items-center gap-3 mb-3 flex-wrap">
+          <div className="text-xs text-[var(--gs-muted)]">Shorts:</div>
+          {[3, 5, 7, 10].map((c) => (
+            <button key={c} onClick={() => setCount(c)} className={`text-xs px-3 py-1 rounded ${count === c ? "bg-[var(--gs-teal)] text-white" : "bg-white border"}`} style={{ borderColor: "var(--gs-border)" }} data-testid={`vf-shorts-count-${c}`}>{c}</button>
+          ))}
+          <Button onClick={generate} disabled={busy} className="bg-[var(--gs-teal)] ml-auto gap-2" data-testid="vf-shorts-btn">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scissors className="h-4 w-4" />} Generate Shorts
+          </Button>
+        </div>
+        {isRendering && (
+          <div className="mb-4">
+            <div className="text-xs text-[var(--gs-muted)] mb-1">Progress: {progress}%</div>
+            <div className="h-2 rounded-full bg-[var(--gs-surface-2)] overflow-hidden"><div className="h-full bg-[var(--gs-teal)] transition-all" style={{ width: `${progress}%` }} /></div>
+          </div>
+        )}
+        {error && <div className="text-xs text-rose-600 mb-3">{error}</div>}
+        {shorts.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {shorts.map((s, i) => (
+              <div key={i} className="rounded-lg overflow-hidden bg-black border" style={{ borderColor: "var(--gs-border)" }} data-testid={`vf-short-${i}`}>
+                <video controls className="w-full aspect-[9/16]" src={`${backend}${s.url}`} />
+                <div className="p-2 flex items-center gap-2">
+                  <div className="text-[10px] line-clamp-2 flex-1">{s.title || `Short ${i + 1}`}</div>
+                  <a href={`${backend}${s.url}`} download className="text-[10px] px-2 py-1 bg-[var(--gs-teal)] text-white rounded flex items-center gap-1" data-testid={`vf-short-dl-${i}`}><Download className="h-3 w-3" />MP4</a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -613,6 +730,17 @@ function RenderTab({ project, onRefresh }) {
                 data-testid="vf-download-srt-btn"
               >
                 <Download className="h-4 w-4"/> Download SRT
+              </a>
+            )}
+            {stages.storyboard?.length > 0 && (
+              <a
+                href={`${backend}/api/video-factory/project/${project.id}/xml`}
+                download
+                className="text-sm px-4 py-2 bg-white border rounded-lg flex items-center gap-2 hover:bg-[var(--gs-surface-2)]"
+                style={{ borderColor: "var(--gs-border)" }}
+                data-testid="vf-download-xml-btn"
+              >
+                <Download className="h-4 w-4"/> Download XML (Premiere)
               </a>
             )}
             <Badge variant="outline" className="text-xs">

@@ -32,6 +32,7 @@ from video_factory.agents import (
     build_storyboard, plan_visuals, run_factory_chain,
 )
 from video_factory.renderer import generate_all_assets, _cleanup_project_files
+from video_factory import repurpose as repurpose_mod
 from credits import deduct, refund
 
 logger = logging.getLogger('getszy.video_factory')
@@ -83,11 +84,22 @@ async def create_project(body: CreateProjectIn, background: BackgroundTasks, use
     # + optimized prompt so the chain yields best-in-class output without
     # wasting credits on vague/retried generation.
     from prompt_architect import architect
+    from brand_kit import get_brand
     try:
         brief = await architect(body.prompt, None)
     except Exception:
         brief = None
     enriched_prompt = (brief or {}).get('structured_prompt') or body.prompt.strip()
+    # Brand memory: apply the user's saved Brand Kit (if any) so every video matches
+    # their voice/colors without re-entering it each time.
+    try:
+        brand = await get_brand(user['id'])
+        if isinstance(brand, dict) and (brand.get('tone') or brand.get('name')):
+            bnote = brand.get('tone') or brand.get('name')
+            enriched_prompt = f"{enriched_prompt}\n\nBrand voice: {bnote}." + (
+                f" Brand colors: {', '.join(brand.get('colors') or [])}." if brand.get('colors') else "")
+    except Exception:
+        pass
 
     doc = {
         'id': pid,
@@ -501,6 +513,57 @@ async def download_subtitles(project_id: str, user=Depends(get_current_user)):
     return FileResponse(path, media_type='text/plain', filename=f'{p.get("title","video")[:40]}.srt')
 
 
+def _xml_escape(s: str) -> str:
+    return (str(s).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            .replace('"', '&quot;'))
+
+
+def _build_fcp7_xml(project: Dict[str, Any]) -> str:
+    """Export a Final Cut Pro 7 / Premiere-compatible timeline (xmeml) of the storyboard."""
+    scenes = (project.get('stages') or {}).get('storyboard') or []
+    fps = 25
+    items = []
+    total = 0
+    for i, sc in enumerate(scenes, 1):
+        dur = max(1, int(sc.get('duration_s', 5)))
+        frames = dur * fps
+        name = _xml_escape((sc.get('narration_chunk') or f'Scene {i}')[:120])
+        path = _xml_escape(sc.get('image_path') or sc.get('video_path') or '')
+        items.append((i, name, path, frames))
+        total += frames
+    xml = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<!DOCTYPE xmeml>',
+        '<xmeml version="7"><sequence>',
+        f'<name>{_xml_escape(project.get("title", "video"))}</name>',
+        f'<duration>{total}</duration>',
+        '<rate><timebase>25</timebase></rate>',
+        '<media><video><track>',
+    ]
+    for (i, name, path, frames) in items:
+        xml.append(
+            f'<clipitem id="clip{i}"><name>{name}</name><duration>{frames}</duration>'
+            f'<file><name>{path}</name><pathurl>{path}</pathurl></file>'
+            f'<videoclip>{i}</videoclip></clipitem>'
+        )
+    xml.append('</track></video></media></sequence></xmeml>')
+    return '\n'.join(xml)
+
+
+@router.get('/project/{project_id}/xml')
+async def download_xml(project_id: str, user=Depends(get_current_user)):
+    """Serve the timeline as an XML (FCP7/Premiere) for pro editors."""
+    from fastapi.responses import Response
+    p = await _project_or_404(project_id, user)
+    if not (p.get('stages') or {}).get('storyboard'):
+        raise HTTPException(404, 'Storyboard not generated yet.')
+    xml = _build_fcp7_xml(p)
+    return Response(
+        xml, media_type='application/xml',
+        headers={'Content-Disposition': f'attachment; filename="{_xml_escape(p.get("title", "video")[:40])}.xml"'},
+    )
+
+
 @router.get('/project/{project_id}/events')
 async def project_events(project_id: str, user=Depends(get_current_user)):
     """Server-Sent Events stream of live render progress (replaces polling)."""
@@ -513,7 +576,7 @@ async def project_events(project_id: str, user=Depends(get_current_user)):
                 {'id': project_id},
                 {'_id': 0, 'render_status': 1, 'render_progress': 1, 'render_error': 1,
                  'stages': 1, 'final_video_path': 1, 'subtitles_url': 1,
-                 'voice_used': 1, 'voice_emotion': 1, 'status': 1},
+                 'voice_used': 1, 'voice_emotion': 1, 'status': 1, 'shorts': 1, 'kind': 1},
             )
             if not p:
                 yield 'data: {"error":"project gone"}\n\n'
@@ -527,10 +590,12 @@ async def project_events(project_id: str, user=Depends(get_current_user)):
                 'render_progress': p.get('render_progress'),
                 'render_error': p.get('render_error'),
                 'status': p.get('status'),
+                'kind': p.get('kind'),
                 'has_video': bool(p.get('final_video_path')),
                 'subtitles_url': p.get('subtitles_url'),
                 'voice_used': p.get('voice_used'),
                 'voice_emotion': p.get('voice_emotion'),
+                'shorts': p.get('shorts') or [],
             }
             if sig != last_sig:
                 yield f'data: {json.dumps(payload)}\n\n'
@@ -544,6 +609,85 @@ async def project_events(project_id: str, user=Depends(get_current_user)):
         event_gen(), media_type='text/event-stream',
         headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
     )
+
+
+class RepurposeIn(BaseModel):
+    text: str = Field(..., min_length=20, max_length=8000)
+    count: int = Field(5, ge=1, le=10)
+    language: str = 'hinglish'
+    orientation: str = '9:16'
+
+
+@router.post('/repurpose')
+async def repurpose_create(body: RepurposeIn, background: BackgroundTasks, user=Depends(get_current_user)):
+    """Long-form -> Shorts: extract highlight moments and render vertical shorts."""
+    ok, msg, _ = await deduct(user['id'], 'video_factory_assets')
+    if not ok:
+        raise HTTPException(status_code=402, detail=msg)
+    job_id = str(uuid.uuid4())
+    job = {
+        'id': job_id, 'user_id': user['id'], 'kind': 'repurpose',
+        'status': 'processing', 'render_status': 'queued', 'render_progress': 0,
+        'text': body.text, 'count': body.count, 'language': body.language,
+        'orientation': body.orientation, 'shorts': [],
+        'created_at': _iso(),
+    }
+    await db.video_projects.insert_one(job)
+    background.add_task(_run_repurpose, job_id, user['id'])
+    return {'id': job_id, 'status': 'queued', 'poll_url': f'/api/video-factory/project/{job_id}'}
+
+
+async def _run_repurpose(job_id: str, user_id: str):
+    job = await db.video_projects.find_one({'id': job_id}, {'_id': 0})
+    if not job:
+        return
+    out_dir = repurpose_mod.REPURPOSE_DIR / job_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        highlights = await repurpose_mod.extract_highlights(
+            job['text'], job['count'], job['language'], f'rep-{job_id}')
+        total = max(1, len(highlights))
+        shorts = []
+        done = 0
+        for h in highlights:
+            r = await repurpose_mod.render_highlight(h, job['orientation'], out_dir, job['language'])
+            if r.get('path'):
+                shorts.append({
+                    'title': r.get('title'), 'secs': r.get('secs'), 'emotion': r.get('emotion'),
+                    'path': r['path'],
+                    'url': f'/api/video-factory/repurpose/{job_id}/short/{len(shorts)}',
+                })
+            done += 1
+            prog = int(done / total * 100)
+            await db.video_projects.update_one({'id': job_id}, {'$set': {
+                'render_progress': prog, 'shorts': shorts,
+                'render_status': 'assembling' if done < total else 'complete',
+            }})
+        await db.video_projects.update_one({'id': job_id}, {'$set': {
+            'status': 'ready', 'render_status': 'complete', 'render_progress': 100, 'shorts': shorts,
+        }})
+    except Exception as e:
+        logger.exception('repurpose failed')
+        await db.video_projects.update_one({'id': job_id}, {'$set': {
+            'render_status': 'error', 'render_error': str(e)[:200]}})
+
+
+@router.get('/repurpose/{job_id}/short/{idx}')
+async def download_short(job_id: str, idx: int, user=Depends(get_current_user)):
+    """Serve one generated short (vertical MP4)."""
+    from fastapi.responses import FileResponse
+    p = await _project_or_404(job_id, user)
+    shorts = p.get('shorts') or []
+    try:
+        idx = int(idx)
+    except Exception:
+        raise HTTPException(400, 'bad index')
+    if idx < 0 or idx >= len(shorts):
+        raise HTTPException(404, 'short not found')
+    path = shorts[idx].get('path')
+    if not path or not os.path.exists(path):
+        raise HTTPException(404, 'short file missing')
+    return FileResponse(path, media_type='video/mp4', filename=f'short_{idx + 1}.mp4')
 
 
 @router.post('/project/{project_id}/cancel')
