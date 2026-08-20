@@ -65,6 +65,7 @@ jobs:
             tests/test_critical_flows.py tests/test_video_factory.py \
             tests/test_llm_fallback.py tests/test_gst_invoice.py \
             tests/test_einvoice.py tests/test_backup_restore.py \
+            tests/test_workspace_live.py \
             -v --tb=short
 
   build:
