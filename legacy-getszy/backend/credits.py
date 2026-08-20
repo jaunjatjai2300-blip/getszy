@@ -46,8 +46,18 @@ CREDIT_COSTS = {
     'video_translate': 5,        # Video -> translated lip-synced video
     'image_to_video': 3,         # Photo -> animated video clip
     'one_tap_repurposing': 6,    # Long video -> vertical shorts w/ captions
-    'social_publish': 1,         # One-click publish to YouTube/Insta/FB
-    'influencer_reply': 1,       # AI auto-reply to a social comment
+    'social_publish': 1,          # One-click publish to YouTube/Insta/FB
+    'influencer_reply': 1,        # AI auto-reply to a social comment
+    # ── New creator growth tools (Phase 3) ──
+    'creator_thumbnail': 1,       # Thumbnail generator + CTR predictor
+    'creator_sponsor': 1,         # Sponsorship placement finder
+    'creator_dub': 2,             # Multi-language auto-dubbing (per request)
+    'creator_idea': 1,            # Comment -> content idea
+    'creator_funnel': 2,          # One topic -> multi-platform funnel
+    'creator_mentor': 2,         # AI growth mentor / channel audit
+    'creator_interactive': 3,     # Interactive choose-your-path story
+    'creator_twin': 4,            # Digital twin — clone your style
+    'creator_calendar': 2,        # 30-day content calendar
 }
 
 # ===== Paid credit packs (Razorpay monthly subscriptions) =====
