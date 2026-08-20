@@ -13,6 +13,7 @@ import asyncio
 import httpx
 import uuid
 import logging
+import time
 from datetime import datetime, timezone
 from tools import get_schemas, execute_tool
 
@@ -91,6 +92,34 @@ def _retry_after(e: Exception, base: float) -> float:
         pass
     return base
 
+
+# ── Groq rate limiting (token bucket) ────────────────────────────────────────
+# Groq's free tier caps requests/min (~30). The video-factory chain fires many
+# calls in rapid succession; without pacing it bursts past the limit -> 429
+# storms -> slow Ollama fallback or (worse) a chain timeout with empty stages.
+# This paces ALL Groq calls app-wide under the limit so generation stays fast
+# and on Groq. Tuned below the published limit for headroom.
+GROQ_MAX_RPM = int(os.environ.get('GROQ_MAX_RPM', '25'))
+_groq_tokens = float(GROQ_MAX_RPM)
+_groq_last = time.monotonic()
+_groq_rl_lock = asyncio.Lock()
+
+
+async def _groq_pace():
+    """Block until a Groq request slot is available (token-bucket, RPM-paced)."""
+    global _groq_tokens, _groq_last
+    async with _groq_rl_lock:
+        now = time.monotonic()
+        _groq_tokens = min(float(GROQ_MAX_RPM), _groq_tokens + (now - _groq_last) * (GROQ_MAX_RPM / 60.0))
+        _groq_last = now
+        if _groq_tokens < 1.0:
+            deficit = 1.0 - _groq_tokens
+            await asyncio.sleep(deficit / (GROQ_MAX_RPM / 60.0) + 0.05)
+            _groq_tokens = 0.0
+            _groq_last = time.monotonic()
+        else:
+            _groq_tokens -= 1.0
+
 # ── Provider implementations ──────────────────────────────────────────────────
 
 
@@ -106,6 +135,7 @@ def _truncate(text: str, limit: int = _MAX_CHARS_PER_MSG) -> str:
     return text[:head] + "\n\n...[truncated for token limit]...\n\n" + text[-tail:]
 
 async def _groq(system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
+    await _groq_pace()
     system = _truncate(system)
     user = _truncate(user)
     async with httpx.AsyncClient(timeout=60.0) as client:
@@ -300,7 +330,7 @@ async def chat_completion(
         # provider. This keeps us on the fast provider (Groq) instead of dropping
         # to slow local Ollama the moment we hit a transient RPM limit during a
         # burst (e.g. the video-factory script fan-out).
-        for _attempt in range(6):
+        for _attempt in range(4):
             try:
                 result = await fn()
                 if name == 'groq':
@@ -313,12 +343,12 @@ async def chat_completion(
                     logger.info(f'LLM: {name}')
                 return result
             except Exception as e:
-                # A 429 is a *transient rate limit*, not an outage. Wait and retry
-                # on the SAME fast provider (Groq) with exponential backoff rather
-                # than immediately falling back to slow local Ollama — otherwise a
-                # burst makes every call drop to CPU Ollama and generation crawls.
-                if _is_rate_limited(e) and _attempt < 5:
-                    wait = _retry_after(e, min(1.0 * (2 ** _attempt), 30.0))
+                # A 429 is a *transient rate limit*. The global Groq pacer should
+                # prevent most of these; if one slips through, retry briefly with
+                # backoff. Keep the backoff small so a sustained limit can't make
+                # the call hang for minutes (which previously timed out the chain).
+                if _is_rate_limited(e) and _attempt < 3:
+                    wait = _retry_after(e, min(2.0 ** _attempt, 8.0))
                     logger.warning(f'LLM {name} rate-limited (429); retrying in {wait:.1f}s')
                     await asyncio.sleep(wait)
                     last_error = e
@@ -367,6 +397,7 @@ async def _openai_style_with_tools(url, headers, model, messages, tools, tempera
 
 
 async def _groq_with_tools(messages, tools, temperature):
+    await _groq_pace()
     return await _openai_style_with_tools(
         'https://api.groq.com/openai/v1/chat/completions',
         {'Authorization': f'Bearer {GROQ_API_KEY}'}, GROQ_MODEL, messages, tools, temperature)
