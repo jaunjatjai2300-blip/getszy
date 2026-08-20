@@ -113,7 +113,10 @@ def product_block(product: Optional[dict]) -> str:
         parts.append('Description: ' + str(product['description'])[:600])
     imgs = product.get('images') or []
     if imgs:
-        parts.append('Real product image URLs (use these, do not invent): ' + ', '.join(imgs[:4]))
+        urls = ', '.join(imgs[:4])
+        parts.append(
+            f"Real product image URLs (MUST embed these exact URLs via <img src='...'> in the hero "
+            f"and product gallery — do NOT invent or use placeholder images): {urls}")
     return "REAL PRODUCT DATA (use EXACTLY as given, never fabricate price/details):\n- " + "\n- ".join(parts)
 
 

@@ -8,7 +8,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import {
   Wand2, Sparkle, Image, FileText, Search, Palette, Layout,
   Scissors, Flame, ArrowUpCircle, Lightbulb, Loader2, Copy,
-  Download, RefreshCw, CheckCircle2, BadgeCheck,
+  Download, RefreshCw, CheckCircle2, BadgeCheck, Video,
 } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
@@ -37,6 +37,8 @@ const TOOLS = [
     desc: "Describe your idea, get honest feedback on viability, risks, and next steps" },
   { id: "brand", name: "Brand Kit", icon: BadgeCheck, color: "#0ea5e9", category: "strategy",
     desc: "Save your brand once — every video, page and caption we make stays on-brand automatically" },
+  { id: "avatar", name: "Talking Avatar", icon: Video, color: "#f43f5e", category: "media",
+    desc: "Upload a photo + 10s voice sample + script → a talking avatar video in your cloned voice (HeyGen/D-ID replacement)" },
 ];
 
 const CATEGORIES = [
@@ -127,6 +129,7 @@ function ToolDialog({ tool, onClose }) {
         {tool.id === "upscaler" && <UpscalerTool color={tool.color}/>}
         {tool.id === "validate" && <ValidateTool color={tool.color}/>}
         {tool.id === "brand" && <BrandKitTool color={tool.color}/>}
+        {tool.id === "avatar" && <AvatarTool color={tool.color}/>}
       </div>
     </div>
   );
@@ -194,6 +197,7 @@ function CopyTool({ color }) {
   const [desc, setDesc] = useState("");
   const [goal, setGoal] = useState("sales");
   const [product, setProduct] = useState("");
+  const [lang, setLang] = useState("en");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
 
@@ -201,7 +205,7 @@ function CopyTool({ color }) {
     if (!desc.trim()) return toast.error("Describe your page");
     setBusy(true); toast.loading("Writing copy…", { id: "copy" });
     try {
-      const r = await api.post("/architect/generate", { text: desc, intent: "copy", language: "en", product_query: product || undefined });
+      const r = await api.post("/architect/generate", { text: desc, intent: "copy", language: lang, product_query: product || undefined });
       setResult(r.data.content || r.data.brief?.structured_prompt || "No result");
       toast.success("Copy ready ✅", { id: "copy" });
     } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "copy" }); }
@@ -230,6 +234,22 @@ function CopyTool({ color }) {
         <label className="text-xs text-[var(--gs-muted)]">Product (optional — pulls real price, images & details from your catalog)</label>
         <Input value={product} onChange={e => setProduct(e.target.value)} placeholder="e.g. Protein Powder"/>
       </div>
+      <div>
+        <label className="text-xs text-[var(--gs-muted)]">Language</label>
+        <Select value={lang} onValueChange={setLang}>
+          <SelectTrigger><SelectValue/></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="en">English</SelectItem>
+            <SelectItem value="hinglish">Hinglish</SelectItem>
+            <SelectItem value="hi">Hindi</SelectItem>
+            <SelectItem value="ta">Tamil</SelectItem>
+            <SelectItem value="te">Telugu</SelectItem>
+            <SelectItem value="bn">Bengali</SelectItem>
+            <SelectItem value="mr">Marathi</SelectItem>
+            <SelectItem value="gu">Gujarati</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       <Button onClick={generate} disabled={busy} className="w-full text-white" style={{ background: color }}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
         {busy ? "Writing…" : "Generate Copy"}
@@ -243,6 +263,7 @@ function CopyTool({ color }) {
 function LandingTool({ color }) {
   const [desc, setDesc] = useState("");
   const [product, setProduct] = useState("");
+  const [lang, setLang] = useState("en");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
   const [project, setProject] = useState(null);
@@ -251,7 +272,7 @@ function LandingTool({ color }) {
     if (!desc.trim()) return toast.error("Describe your landing page");
     setBusy(true); setProject(null); toast.loading("Building landing page…", { id: "land" });
     try {
-      const r = await api.post("/architect/generate", { text: desc, intent: "landing", language: "en", product_query: product || undefined });
+      const r = await api.post("/architect/generate", { text: desc, intent: "landing", language: lang, product_query: product || undefined });
       if (r.data.project_id) {
         setProject({ id: r.data.project_id, preview: r.data.preview_url, download: r.data.download_url, size: r.data.size_bytes });
         toast.success("Landing page ready ✅", { id: "land" });
@@ -272,6 +293,22 @@ function LandingTool({ color }) {
       <div>
         <label className="text-xs text-[var(--gs-muted)]">Product (optional — pulls real price, images & details from your catalog)</label>
         <Input value={product} onChange={e => setProduct(e.target.value)} placeholder="e.g. Protein Powder"/>
+      </div>
+      <div>
+        <label className="text-xs text-[var(--gs-muted)]">Language</label>
+        <Select value={lang} onValueChange={setLang}>
+          <SelectTrigger><SelectValue/></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="en">English</SelectItem>
+            <SelectItem value="hinglish">Hinglish</SelectItem>
+            <SelectItem value="hi">Hindi</SelectItem>
+            <SelectItem value="ta">Tamil</SelectItem>
+            <SelectItem value="te">Telugu</SelectItem>
+            <SelectItem value="bn">Bengali</SelectItem>
+            <SelectItem value="mr">Marathi</SelectItem>
+            <SelectItem value="gu">Gujarati</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <Button onClick={generate} disabled={busy} className="w-full text-white" style={{ background: color }}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
@@ -304,17 +341,20 @@ function ImageGenTool({ color }) {
   const [busy, setBusy] = useState(false);
   const [image, setImage] = useState("");
   const [stockItems, setStockItems] = useState([]);
+  const [stockSearched, setStockSearched] = useState(false);
 
   const generate = async () => {
     if (!prompt.trim()) return toast.error("Describe the image");
-    setBusy(true); setStockItems([]); setImage("");
+    setBusy(true); setStockItems([]); setImage(""); setStockSearched(false);
     if (source === "stock") {
       toast.loading("Fetching free 4K stock photos…", { id: "img" });
       try {
         const r = await api.post("/architect/stock", { query: prompt, type: "image", n: 8 });
         setStockItems(r.data.items || []);
-        toast.success("Stock photos ready ✅", { id: "img" });
-      } catch (e) { toast.error("Failed", { id: "img" }); }
+        setStockSearched(true);
+        if ((r.data.items || []).length === 0) toast.error("No safe stock matched — try a different description", { id: "img" });
+        else toast.success("Stock photos ready ✅", { id: "img" });
+      } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "img" }); }
       finally { setBusy(false); }
       return;
     }
@@ -363,6 +403,9 @@ function ImageGenTool({ color }) {
             </a>
           ))}
         </div>
+      )}
+      {stockSearched && stockItems.length === 0 && (
+        <p className="text-xs text-[var(--gs-muted)]">No decent/safe stock photos matched. Try a clearer, non-political description.</p>
       )}
     </div>
   );
@@ -667,6 +710,80 @@ function BrandKitTool({ color }) {
         </Button>
         {saved && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle2 className="h-4 w-4"/> Saved</span>}
       </div>
+    </div>
+  );
+}
+
+// ── 12. Talking Avatar (SadTalker + voice clone) ──
+function AvatarTool({ color }) {
+  const [portrait, setPortrait] = useState(null);
+  const [voice, setVoice] = useState(null);
+  const [script, setScript] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [job, setJob] = useState(null);
+  const [video, setVideo] = useState("");
+
+  const start = async () => {
+    if (!portrait || !voice || !script.trim()) return toast.error("Upload a photo, a 10s voice sample, and a script");
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("portrait", portrait);
+      fd.append("reference_audio", voice);
+      fd.append("script", script);
+      const r = await api.post("/avatar/photo-to-avatar", fd);
+      setJob(r.data);
+      toast.success("Avatar queued — building (2-4 min)");
+      poll(r.data.job_id);
+    } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "av" }); }
+    finally { setBusy(false); }
+  };
+
+  const poll = async (id) => {
+    for (let i = 0; i < 60; i++) {
+      await new Promise(r => setTimeout(r, 5000));
+      try {
+        const r = await api.get(`/avatar/job/${id}`);
+        setJob(r.data);
+        if (r.data.status === "done") { setVideo(r.data.url); toast.success("Avatar ready 🎉", { id: "av" }); return; }
+        if (r.data.status === "failed") { toast.error("Failed: " + (r.data.error || "unknown"), { id: "av" }); return; }
+      } catch (e) { /* keep polling */ }
+    }
+    toast.error("Timed out — check back in Avatar history", { id: "av" });
+  };
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-[var(--gs-muted)]">
+        A photo + a short voice clip + your script becomes a talking spokesperson in your own cloned voice.
+        Requires a free <code>HF_TOKEN</code> on the server (SadTalker runs on HuggingFace). No extra subscription needed.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-[var(--gs-muted)]">Portrait photo *</label>
+          <Input type="file" accept="image/*" onChange={e => setPortrait(e.target.files?.[0])}/>
+        </div>
+        <div>
+          <label className="text-xs text-[var(--gs-muted)]">Voice sample (≥10s) *</label>
+          <Input type="file" accept="audio/*" onChange={e => setVoice(e.target.files?.[0])}/>
+        </div>
+      </div>
+      <div>
+        <label className="text-xs text-[var(--gs-muted)]">What should the avatar say? *</label>
+        <Textarea rows={3} value={script} onChange={e => setScript(e.target.value)} placeholder="e.g. Namaste! Welcome to FitFem — India's first women-only fitness coach..."/>
+      </div>
+      <Button onClick={start} disabled={busy} className="w-full text-white" style={{ background: color }}>
+        {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Video className="h-4 w-4 mr-2"/>}
+        {busy ? "Starting…" : "Create Talking Avatar"}
+      </Button>
+      {job && (
+        <div className="text-xs text-[var(--gs-muted)]">
+          Status: <span className="font-medium">{job.status}</span>{job.percent ? ` (${job.percent}%)` : ""}
+        </div>
+      )}
+      {video && (
+        <video src={video} controls className="w-full rounded-xl border"/>
+      )}
     </div>
   );
 }
