@@ -16,12 +16,27 @@ Data model:
 """
 import asyncio
 import json as _json
+import os
 import re as _re
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 from llm_provider import chat_completion
+
+
+# Output-token caps per stage. Bounding generation length is the single
+# biggest CPU-Ollama speed win (fewer tokens generated = less compute) and is
+# harmless on fast GPU providers. Override via env if a stage needs more room.
+_ENHANCE_MAX     = int(os.environ.get('FACTORY_ENHANCE_MAX_TOKENS', '600'))
+_RESEARCH_MAX    = int(os.environ.get('FACTORY_RESEARCH_MAX_TOKENS', '900'))
+_SCRIPT_MAX     = int(os.environ.get('FACTORY_SCRIPT_MAX_TOKENS', '1800'))
+_HOOKS_MAX       = int(os.environ.get('FACTORY_HOOKS_MAX_TOKENS', '800'))
+_STORYBOARD_MAX  = int(os.environ.get('FACTORY_STORYBOARD_MAX_TOKENS', '1500'))
+_VISUALS_MAX     = int(os.environ.get('FACTORY_VISUALS_MAX_TOKENS', '1200'))
+# How many script variants to generate concurrently. CPU-bound Ollama is best
+# with a low value (it serializes inference anyway); GPU/Groq scales to 5.
+_SCRIPT_CONCURRENCY = int(os.environ.get('FACTORY_SCRIPT_CONCURRENCY', '3'))
 
 
 def _iso() -> str:
@@ -60,7 +75,7 @@ async def enhance_prompt(raw_prompt: str, session_id: str) -> Dict[str, Any]:
         '  "improvements": ["3-5 specific ways this idea was improved"]\n'
         "}"
     )
-    raw = await chat_completion(system=system, user=prompt, temperature=0.6, session_id=session_id)
+    raw = await chat_completion(system=system, user=prompt, temperature=0.6, session_id=session_id, max_tokens=_ENHANCE_MAX)
     return _parse_json_response(raw)
 
 
@@ -86,7 +101,7 @@ async def research_topic(topic: str, angle: str, session_id: str) -> Dict[str, A
         '  "credible_sources_types": ["types of sources to cite (e.g. \'peer-reviewed journals\', \'gov.in reports\', \'company annual reports\')"]\n'
         "}"
     )
-    raw = await chat_completion(system=system, user=prompt, temperature=0.4, session_id=session_id)
+    raw = await chat_completion(system=system, user=prompt, temperature=0.4, session_id=session_id, max_tokens=_RESEARCH_MAX)
     return _parse_json_response(raw)
 
 
@@ -103,14 +118,14 @@ SCRIPT_STYLES = [
 
 
 async def generate_script_variants(topic: str, angle: str, duration_s: int, research: Dict[str, Any], language: str, session_id: str) -> List[Dict[str, Any]]:
-    """Generate 5 script variants in different styles."""
+    """Generate 5 script variants in different styles, concurrently for speed."""
     facts_str = ' | '.join((research.get('key_facts') or [])[:5])
     system = (
         "You are a professional YouTube script writer. Write ONE script in the exact style specified. "
         "Return STRICT JSON only. The narration must be spoken by a single voiceover artist (no scene tags in narration)."
     )
-    variants = []
-    for style_id, style_desc in SCRIPT_STYLES:
+
+    async def _gen_one(style_id: str, style_desc: str) -> Dict[str, Any]:
         prompt = (
             f"Style: {style_id} — {style_desc}\n"
             f"Language: {language}\n"
@@ -128,16 +143,21 @@ async def generate_script_variants(topic: str, angle: str, duration_s: int, rese
             '  "key_moments": ["4-6 bullet points describing the story arc"]\n'
             "}"
         )
-        try:
-            raw = await chat_completion(system=system, user=prompt, temperature=0.75, session_id=session_id)
-            parsed = _parse_json_response(raw)
-            parsed['id'] = str(uuid.uuid4())
-            parsed['style_id'] = style_id
-            variants.append(parsed)
-        except Exception as e:
-            # Skip failing variant, keep others
-            continue
-    return variants
+        raw = await chat_completion(system=system, user=prompt, temperature=0.75, session_id=session_id, max_tokens=_SCRIPT_MAX)
+        parsed = _parse_json_response(raw)
+        parsed['id'] = str(uuid.uuid4())
+        parsed['style_id'] = style_id
+        return parsed
+
+    # CPU-bound Ollama serializes inference, so limit concurrency; GPU/Groq
+    # scales to all 5 at once. Failures drop a single variant instead of
+    # aborting the whole stage.
+    sem = asyncio.Semaphore(_SCRIPT_CONCURRENCY)
+    async def _guarded(item):
+        async with sem:
+            return await _gen_one(item[0], item[1])
+    results = await asyncio.gather(*[_guarded(it) for it in SCRIPT_STYLES], return_exceptions=True)
+    return [r for r in results if not isinstance(r, Exception)]
 
 
 # ============================================================
@@ -190,7 +210,7 @@ async def generate_hooks(topic: str, angle: str, style: str, session_id: str) ->
         "]\n"
         "Score based on: scroll-stop power, specificity, emotional trigger."
     )
-    raw = await chat_completion(system=system, user=prompt, temperature=0.85, session_id=session_id)
+    raw = await chat_completion(system=system, user=prompt, temperature=0.85, session_id=session_id, max_tokens=_HOOKS_MAX)
     hooks = _parse_json_response(raw)
     if isinstance(hooks, dict) and 'hooks' in hooks:
         hooks = hooks['hooks']
@@ -223,7 +243,7 @@ async def build_storyboard(script_narration: str, duration_s: int, session_id: s
         "Rules: scene 1 must be 'hook' with duration 3-7s. Last scene must be 'cta'. "
         "Middle scenes 5-15s each. Sum of duration_s should approximately equal total."
     )
-    raw = await chat_completion(system=system, user=prompt, temperature=0.5, session_id=session_id)
+    raw = await chat_completion(system=system, user=prompt, temperature=0.5, session_id=session_id, max_tokens=_STORYBOARD_MAX)
     scenes = _parse_json_response(raw)
     if isinstance(scenes, dict) and 'scenes' in scenes:
         scenes = scenes['scenes']
@@ -265,7 +285,7 @@ async def plan_visuals(scenes: List[Dict[str, Any]], style: str, session_id: str
         "  }\n"
         "]"
     )
-    raw = await chat_completion(system=system, user=prompt, temperature=0.6, session_id=session_id)
+    raw = await chat_completion(system=system, user=prompt, temperature=0.6, session_id=session_id, max_tokens=_VISUALS_MAX)
     plan = _parse_json_response(raw)
     if isinstance(plan, dict) and 'plan' in plan:
         plan = plan['plan']
