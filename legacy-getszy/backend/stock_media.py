@@ -20,7 +20,14 @@ from safety_filter import contains_unsafe, safe_query_guard, safe_item
 logger = logging.getLogger('getszy.stock')
 
 CACHE = os.path.join(os.path.dirname(__file__), '..', 'media_cache', 'stock')
-os.makedirs(CACHE, exist_ok=True)
+try:
+    os.makedirs(CACHE, exist_ok=True)
+except (PermissionError, OSError):
+    # Container may run as a non-root user without write access to the
+    # project's media_cache dir (e.g. /media_cache). Fall back to /tmp so the
+    # app still imports and stock media still works (just not persisted).
+    CACHE = os.path.join('/tmp', 'getszy_stock')
+    os.makedirs(CACHE, exist_ok=True)
 
 PEXELS_KEY = os.environ.get('PEXELS_KEY', '').strip()
 PIXABAY_KEY = os.environ.get('PIXABAY_KEY', '').strip()

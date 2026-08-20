@@ -13,7 +13,11 @@ from video.ffmpeg_bin import FFMPEG
 logger = logging.getLogger(__name__)
 
 VIDEO_DIR = os.path.join(os.path.dirname(__file__), '..', 'media_cache', 'videos')
-os.makedirs(VIDEO_DIR, exist_ok=True)
+try:
+    os.makedirs(VIDEO_DIR, exist_ok=True)
+except (PermissionError, OSError):
+    VIDEO_DIR = os.path.join('/tmp', 'getszy_videos')
+    os.makedirs(VIDEO_DIR, exist_ok=True)
 
 FONT_PATH = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
 FONT_ARG = f":fontfile='{FONT_PATH}'" if os.path.exists(FONT_PATH) else ''
