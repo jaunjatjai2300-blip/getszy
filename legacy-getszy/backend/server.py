@@ -122,9 +122,68 @@ logger = logging.getLogger('getszy')
 from retention import _install_createdAt_stamp
 
 
+async def _check_ai_providers():
+    """Startup self-check: warn loudly if NO usable AI provider is configured.
+
+    Without at least one working provider, every AI/video action fails — and
+    before the video-factory recovery fix, that left projects stuck at
+    'processing' forever. Log this up front so it's caught in deploy logs
+    instead of by confused users.
+    """
+    import httpx
+
+    groq = os.environ.get('GROQ_API_KEY')
+    gemini = os.environ.get('GEMINI_API_KEY')
+    openrouter = os.environ.get('OPENROUTER_API_KEY')
+    emergent = os.environ.get('EMERGENT_LLM_KEY')
+    lmstudio = os.environ.get('LMSTUDIO_BASE_URL')
+    ollama = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434' if False else 'http://localhost:11434')
+
+    remote = []
+    if groq:
+        remote.append('Groq')
+    if gemini:
+        remote.append('Gemini')
+    if openrouter:
+        remote.append('OpenRouter')
+    if emergent:
+        remote.append('Emergent')
+    if lmstudio:
+        remote.append('LM Studio')
+
+    # Ollama is local — don't assume it's up; verify reachability.
+    ollama_ok = False
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as c:
+            r = await c.get(f'{ollama}/api/tags')
+            ollama_ok = r.status_code == 200
+    except Exception:
+        ollama_ok = False
+
+    usable = list(remote) + (['Ollama(local)'] if ollama_ok else [])
+    if usable:
+        logger.info('AI PROVIDER SELF-CHECK: usable providers = %s', ', '.join(usable))
+    else:
+        logger.error(
+            'AI PROVIDER SELF-CHECK: NO usable AI provider detected! Ollama at %s is '
+            'unreachable AND no GROQ/GEMINI/OPENROUTER/EMERGENT keys are set. ALL AI and '
+            'video generation will FAIL. Fix: set GROQ_API_KEY (free) or make Ollama '
+            'reachable from this container (e.g. extra_hosts for host.docker.internal).',
+            ollama,
+        )
+        return
+
+    if not ollama_ok:
+        logger.warning(
+            'AI PROVIDER SELF-CHECK: Ollama at %s unreachable — OK only if relying on '
+            'remote keys (%s).', ollama, ', '.join(remote) or 'none',
+        )
+
+
 @app.on_event('startup')
 async def startup():
     logger.info('getszy backend starting')
+    await _check_ai_providers()
     init_monitoring()
     _install_createdAt_stamp()
     from seed import seed_if_empty, seed_courses_if_empty
