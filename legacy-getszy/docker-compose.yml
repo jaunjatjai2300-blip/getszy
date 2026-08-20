@@ -54,8 +54,6 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-      ollama:
-        condition: service_started
     environment:
       MONGO_URL: "mongodb://mongo:27017/?replicaSet=rs0"
       REDIS_URL: "redis://redis:6379/0"
@@ -76,9 +74,9 @@ services:
       JWT_SECRET: "${JWT_SECRET}"
       FREE_ONLY: "${FREE_ONLY:-true}"
       LLM_PROVIDER: "${LLM_PROVIDER:-ollama}"
-      # Default: the in-stack Ollama service below. Override with
-      # OLLAMA_BASE_URL=http://host.docker.internal:11434 to use a host Ollama.
-      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://ollama:11434}"
+      # Host Ollama (already running on the VPS, port 11434). host.docker.internal
+      # is mapped to the host gateway via extra_hosts below.
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434}"
       OLLAMA_MODEL: "${OLLAMA_MODEL:-qwen2.5:7b}"
       OLLAMA_MODEL_2: "${OLLAMA_MODEL_2:-qwen2.5-coder:7b}"
       OLLAMA_MODEL_3: "${OLLAMA_MODEL_3:-llama3.2:3b}"
@@ -177,27 +175,8 @@ services:
       retries: 5
     networks: [getszy]
 
-  # Self-contained Ollama so the app's LLM chain (video factory, agents, etc.)
-  # has a reachable provider without depending on a host-installed Ollama.
-  # Models are pulled once on first boot (~5GB). Override OLLAMA_BASE_URL in .env
-  # to point at a host Ollama instead (host.docker.internal is already mapped).
-  ollama:
-    image: ollama/ollama:latest
-    container_name: getszy-ollama
-    restart: unless-stopped
-    environment:
-      OLLAMA_HOST: "0.0.0.0:11434"
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    networks: [getszy]
-    command: >
-      bash -c 'ollama serve & sleep 8 && ollama pull qwen2.5:7b && ollama pull qwen2.5-coder:7b && ollama pull llama3.2:3b && wait'
-
 volumes:
   mongo_data:
-  ollama_data:
   caddy_data:
   caddy_config:
   backend_media:
