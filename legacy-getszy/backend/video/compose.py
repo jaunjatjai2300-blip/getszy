@@ -61,6 +61,9 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
         img = sc.get('image_path')
         if not img or not os.path.exists(img):
             continue
+        video_path = sc.get('video_path')
+        if video_path and not os.path.exists(video_path):
+            video_path = None
         clip_path = os.path.join(tmp_dir, f'clip_{i:03d}.mp4')
         motion = sc.get('motion', 'static')
         base_scale = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1"
@@ -87,8 +90,10 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
                 f":line_spacing=6:x=(w-text_w)/2:y=h-(h*0.16)-text_h"
             )
         vf = vf + caption_vf
+        in_args = (['-stream_loop', '-1', '-t', str(secs), '-i', video_path]
+                   if video_path else ['-loop', '1', '-t', str(secs), '-i', img])
         cmd = [
-            FFMPEG, '-y', '-loop', '1', '-t', str(secs), '-i', img,
+            FFMPEG, '-y', *in_args,
             '-vf', vf, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25',
             '-preset', 'veryfast', '-crf', '18', '-an', clip_path,
         ]
@@ -101,8 +106,10 @@ async def build_video(scenes: List[Dict[str, Any]], audio_path: str, out_path: s
             err = b'timeout'
         if proc.returncode != 0:
             # Simpler fallback: static scale only (no zoompan), still keep captions if requested
+            fb_in = (['-stream_loop', '-1', '-t', str(secs), '-i', video_path]
+                     if video_path else ['-loop', '1', '-t', str(secs), '-i', img])
             fallback_cmd = [
-                FFMPEG, '-y', '-loop', '1', '-t', str(secs), '-i', img,
+                FFMPEG, '-y', *fb_in,
                 '-vf', base_scale + ',fps=25' + caption_vf, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25',
                 '-preset', 'ultrafast', '-crf', '28', '-an', clip_path,
             ]

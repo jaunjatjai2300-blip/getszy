@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import {
   Wand2, Sparkle, Image, FileText, Search, Palette, Layout,
   Scissors, Flame, ArrowUpCircle, Lightbulb, Loader2, Copy,
-  Download, RefreshCw, CheckCircle2,
+  Download, RefreshCw, CheckCircle2, BadgeCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
@@ -35,6 +35,8 @@ const TOOLS = [
     desc: "Upload an image, get a sharper, higher-resolution version" },
   { id: "validate", name: "Validate My Business Idea", icon: Lightbulb, color: "#8b5cf6", category: "strategy",
     desc: "Describe your idea, get honest feedback on viability, risks, and next steps" },
+  { id: "brand", name: "Brand Kit", icon: BadgeCheck, color: "#0ea5e9", category: "strategy",
+    desc: "Save your brand once — every video, page and caption we make stays on-brand automatically" },
 ];
 
 const CATEGORIES = [
@@ -124,6 +126,7 @@ function ToolDialog({ tool, onClose }) {
         {tool.id === "heatmap" && <HeatmapTool color={tool.color}/>}
         {tool.id === "upscaler" && <UpscalerTool color={tool.color}/>}
         {tool.id === "validate" && <ValidateTool color={tool.color}/>}
+        {tool.id === "brand" && <BrandKitTool color={tool.color}/>}
       </div>
     </div>
   );
@@ -190,6 +193,7 @@ function LogoTool({ color }) {
 function CopyTool({ color }) {
   const [desc, setDesc] = useState("");
   const [goal, setGoal] = useState("sales");
+  const [product, setProduct] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
 
@@ -197,7 +201,7 @@ function CopyTool({ color }) {
     if (!desc.trim()) return toast.error("Describe your page");
     setBusy(true); toast.loading("Writing copy…", { id: "copy" });
     try {
-      const r = await api.post("/architect/generate", { text: desc, intent: "copy", language: "en" });
+      const r = await api.post("/architect/generate", { text: desc, intent: "copy", language: "en", product_query: product || undefined });
       setResult(r.data.content || r.data.brief?.structured_prompt || "No result");
       toast.success("Copy ready ✅", { id: "copy" });
     } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "copy" }); }
@@ -222,6 +226,10 @@ function CopyTool({ color }) {
           </SelectContent>
         </Select>
       </div>
+      <div>
+        <label className="text-xs text-[var(--gs-muted)]">Product (optional — pulls real price, images & details from your catalog)</label>
+        <Input value={product} onChange={e => setProduct(e.target.value)} placeholder="e.g. Protein Powder"/>
+      </div>
       <Button onClick={generate} disabled={busy} className="w-full text-white" style={{ background: color }}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
         {busy ? "Writing…" : "Generate Copy"}
@@ -234,6 +242,7 @@ function CopyTool({ color }) {
 // ── 3. Landing Page ──
 function LandingTool({ color }) {
   const [desc, setDesc] = useState("");
+  const [product, setProduct] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
   const [project, setProject] = useState(null);
@@ -242,7 +251,7 @@ function LandingTool({ color }) {
     if (!desc.trim()) return toast.error("Describe your landing page");
     setBusy(true); setProject(null); toast.loading("Building landing page…", { id: "land" });
     try {
-      const r = await api.post("/architect/generate", { text: desc, intent: "landing", language: "en" });
+      const r = await api.post("/architect/generate", { text: desc, intent: "landing", language: "en", product_query: product || undefined });
       if (r.data.project_id) {
         setProject({ id: r.data.project_id, preview: r.data.preview_url, download: r.data.download_url, size: r.data.size_bytes });
         toast.success("Landing page ready ✅", { id: "land" });
@@ -259,6 +268,10 @@ function LandingTool({ color }) {
       <div>
         <label className="text-xs text-[var(--gs-muted)]">Describe your product/service *</label>
         <Textarea rows={3} value={desc} onChange={e => setDesc(e.target.value)} placeholder="e.g. AI-powered fitness coach app for women, ₹299/month, tracks workouts + nutrition"/>
+      </div>
+      <div>
+        <label className="text-xs text-[var(--gs-muted)]">Product (optional — pulls real price, images & details from your catalog)</label>
+        <Input value={product} onChange={e => setProduct(e.target.value)} placeholder="e.g. Protein Powder"/>
       </div>
       <Button onClick={generate} disabled={busy} className="w-full text-white" style={{ background: color }}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
@@ -287,12 +300,25 @@ function LandingTool({ color }) {
 // ── 4. Image Generator ──
 function ImageGenTool({ color }) {
   const [prompt, setPrompt] = useState("");
+  const [source, setSource] = useState("ai");
   const [busy, setBusy] = useState(false);
   const [image, setImage] = useState("");
+  const [stockItems, setStockItems] = useState([]);
 
   const generate = async () => {
     if (!prompt.trim()) return toast.error("Describe the image");
-    setBusy(true); toast.loading("Generating image…", { id: "img" });
+    setBusy(true); setStockItems([]); setImage("");
+    if (source === "stock") {
+      toast.loading("Fetching free 4K stock photos…", { id: "img" });
+      try {
+        const r = await api.post("/architect/stock", { query: prompt, type: "image", n: 8 });
+        setStockItems(r.data.items || []);
+        toast.success("Stock photos ready ✅", { id: "img" });
+      } catch (e) { toast.error("Failed", { id: "img" }); }
+      finally { setBusy(false); }
+      return;
+    }
+    toast.loading("Generating image…", { id: "img" });
     try {
       const r = await api.post("/media/image", { prompt, width: 1024, height: 1024 });
       setImage(r.data.url || "");
@@ -305,11 +331,21 @@ function ImageGenTool({ color }) {
     <div className="space-y-4">
       <div>
         <label className="text-xs text-[var(--gs-muted)]">Describe what you want to see *</label>
-        <Textarea rows={3} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="e.g. A serene Japanese garden with cherry blossoms, soft morning light, watercolor style"/>
+        <Textarea rows={3} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="e.g. A serene Japanese garden with cherry blossoms, soft morning light"/>
+      </div>
+      <div>
+        <label className="text-xs text-[var(--gs-muted)]">Source</label>
+        <Select value={source} onValueChange={setSource}>
+          <SelectTrigger><SelectValue/></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ai">AI generated (free)</SelectItem>
+            <SelectItem value="stock">Free stock photos (4K, licence-clear)</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <Button onClick={generate} disabled={busy} className="w-full text-white" style={{ background: color }}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Image className="h-4 w-4 mr-2"/>}
-        {busy ? "Generating…" : "Generate Image"}
+        {busy ? "Working…" : (source === "stock" ? "Find Free Stock" : "Generate Image")}
       </Button>
       {image && (
         <div className="rounded-xl overflow-hidden border">
@@ -317,6 +353,15 @@ function ImageGenTool({ color }) {
           <a href={image} download className="block text-center text-xs py-2 bg-[var(--gs-surface-2)]">
             <Download className="h-3 w-3 inline mr-1"/>Download
           </a>
+        </div>
+      )}
+      {stockItems.length > 0 && (
+        <div className="grid grid-cols-2 gap-2">
+          {stockItems.map((it, i) => (
+            <a key={i} href={it.url} target="_blank" rel="noreferrer" className="rounded-lg overflow-hidden border block">
+              <img src={it.url} alt="Stock" className="w-full h-36 object-cover"/>
+            </a>
+          ))}
         </div>
       )}
     </div>
@@ -558,6 +603,70 @@ function ValidateTool({ color }) {
         {busy ? "Analyzing…" : "Validate Idea"}
       </Button>
       {result && <ResultCard text={result}/>}
+    </div>
+  );
+}
+
+// ── 11. Brand Kit (memory across every generation) ──
+function BrandKitTool({ color }) {
+  const [b, setB] = useState({ name: "", industry: "", tagline: "", usp: "", audience: "", tone: "", colors: "", fonts: "", logo_url: "", social: "", forbidden: "" });
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api.get("/architect/brand").then(r => {
+      if (r.data && Object.keys(r.data).length) {
+        setB(prev => ({ ...prev, ...r.data, colors: Array.isArray(r.data.colors) ? r.data.colors.join(", ") : (r.data.colors || "") }));
+      }
+    }).catch(() => {});
+  }, []);
+
+  const set = k => e => setB({ ...b, [k]: e.target.value });
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const payload = { ...b, colors: b.colors ? b.colors.split(",").map(s => s.trim()).filter(Boolean) : [] };
+      await api.post("/architect/brand", payload);
+      setSaved(true); setTimeout(() => setSaved(false), 2500);
+      toast.success("Brand kit saved — every asset is now on-brand", { id: "brand" });
+    } catch (e) { toast.error("Save failed", { id: "brand" }); }
+    finally { setBusy(false); }
+  };
+
+  const field = (k, label, ph) => (
+    <div>
+      <label className="text-xs text-[var(--gs-muted)]">{label}</label>
+      <Input value={b[k]} onChange={set(k)} placeholder={ph}/>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-[var(--gs-muted)]">
+        Save your brand once. Copy, landing pages, videos and captions will automatically use your
+        colors, tone, voice and USP — so you never re-brief us again.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {field("name", "Brand name *", "e.g. FitFem")}
+        {field("industry", "Industry", "e.g. Fitness / D2C")}
+        {field("tagline", "Tagline", "e.g. Stronger every day")}
+        {field("usp", "Unique selling point", "e.g. India's first women-only coach")}
+        {field("audience", "Target audience", "e.g. Women 25-40, urban")}
+        {field("tone", "Tone of voice", "e.g. Bold, friendly, Hindi-English mix")}
+        {field("colors", "Brand colors (comma separated)", "e.g. #7c3aed, #0ea5e9")}
+        {field("fonts", "Preferred fonts", "e.g. Poppins + Inter")}
+        {field("logo_url", "Logo URL", "https://...")}
+        {field("social", "Social handles", "@fitfem")}
+        {field("forbidden", "Words to avoid", "e.g. cheap, scam")}
+      </div>
+      <div className="flex items-center gap-3">
+        <Button onClick={save} disabled={busy || !b.name.trim()} className="text-white" style={{ background: color }}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <BadgeCheck className="h-4 w-4 mr-2"/>}
+          {busy ? "Saving…" : "Save Brand Kit"}
+        </Button>
+        {saved && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle2 className="h-4 w-4"/> Saved</span>}
+      </div>
     </div>
   );
 }

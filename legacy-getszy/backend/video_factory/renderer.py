@@ -22,6 +22,7 @@ from db import db
 from video.visuals import fetch_scene_image
 from video.tts import synth, pick_voice
 from video.compose import build_video
+from stock_media import USE_STOCK_VIDEO
 
 logger = logging.getLogger('getszy.vf.renderer')
 
@@ -103,6 +104,19 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
         nonlocal _done
         vp = next((v for v in visual_plan if v.get('scene_index') == scene.get('index')), None)
         prompt = (vp or {}).get('generation_prompt') or scene.get('visual_intent') or scene.get('narration_chunk', '')[:200]
+
+        # Free stock video clip for this scene (real footage, 4K-capable, no credit cost)
+        video_path = scene.get('video_path')
+        if (not video_path) and USE_STOCK_VIDEO:
+            try:
+                from stock_media import search_stock_videos
+                vids = await search_stock_videos(prompt, n=1)
+                if vids:
+                    video_path = vids[0]
+                    scene['video_path'] = video_path
+            except Exception as e:
+                logger.warning('stock video fetch failed scene %s: %s', scene.get('index'), e)
+
         cached = scene.get('image_path')
         if cached and os.path.exists(cached):
             _done += 1
@@ -210,6 +224,7 @@ async def generate_all_assets(project_id: str, orientation: str = '16:9') -> Dic
             motion = MOTION_CYCLE[idx % len(MOTION_CYCLE)]
         compose_scenes.append({
             'image_path': img,
+            'video_path': scene.get('video_path') if (scene.get('video_path') and os.path.exists(scene.get('video_path'))) else None,
             'seconds': max(3, int(scene.get('duration_s', 5))),
             'narration_chunk': scene.get('narration_chunk', '')[:120],
             'motion': motion,

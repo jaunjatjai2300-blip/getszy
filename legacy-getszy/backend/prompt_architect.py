@@ -96,7 +96,41 @@ def _rule_based(raw: str, intent: str) -> dict:
     }
 
 
-async def architect(raw: str, intent: Optional[str] = None) -> dict:
+def product_block(product: Optional[dict]) -> str:
+    if not product:
+        return ''
+    name = product.get('name') or product.get('title')
+    if not name:
+        return ''
+    price = product.get('sale_price') if product.get('sale_price') is not None else product.get('price')
+    cur = product.get('currency') or 'INR'
+    parts = [f"Product name: {name}"]
+    if price is not None:
+        parts.append(f"Price: {cur} {price}")
+    if product.get('category'):
+        parts.append(f"Category: {product['category']}")
+    if product.get('description'):
+        parts.append('Description: ' + str(product['description'])[:600])
+    imgs = product.get('images') or []
+    if imgs:
+        parts.append('Real product image URLs (use these, do not invent): ' + ', '.join(imgs[:4]))
+    return "REAL PRODUCT DATA (use EXACTLY as given, never fabricate price/details):\n- " + "\n- ".join(parts)
+
+
+def build(raw: str, brief: dict, brand: Optional[dict] = None, product: Optional[dict] = None) -> str:
+    """Compose the final generation prompt from brief + brand + product context."""
+    sp = (brief.get('structured_prompt') or raw).strip()
+    bb = brand_block(brand)
+    pb = product_block(product)
+    if bb:
+        sp = bb + "\n\n" + sp
+    if pb:
+        sp = sp + "\n\n" + pb
+    return sp
+
+
+async def architect(raw: str, intent: Optional[str] = None, brand: Optional[dict] = None,
+                    product: Optional[dict] = None) -> dict:
     """Convert casual text into a structured brief. Always returns a usable dict."""
     intent = intent or detect_intent(raw)
     try:
@@ -112,7 +146,11 @@ async def architect(raw: str, intent: Optional[str] = None) -> dict:
         logger.warning('architect LLM failed, rule-based fallback: %s', e)
         brief = _rule_based(raw, intent)
     brief['intent'] = brief.get('intent') or intent
-    brief['structured_prompt'] = (brief.get('structured_prompt') or raw).strip()
+    brief['structured_prompt'] = build(raw, brief, brand, product)
     if not brief['structured_prompt']:
         brief['structured_prompt'] = raw
+    if product:
+        brief['product'] = product.get('name') or product.get('title')
+    if brand:
+        brief['brand_name'] = brand.get('name')
     return brief
