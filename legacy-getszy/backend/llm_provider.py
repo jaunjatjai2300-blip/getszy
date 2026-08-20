@@ -93,32 +93,28 @@ def _retry_after(e: Exception, base: float) -> float:
     return base
 
 
-# ── Groq rate limiting (token bucket) ────────────────────────────────────────
-# Groq's free tier caps requests/min (~30). The video-factory chain fires many
-# calls in rapid succession; without pacing it bursts past the limit -> 429
-# storms -> slow Ollama fallback or (worse) a chain timeout with empty stages.
-# This paces ALL Groq calls app-wide under the limit so generation stays fast
-# and on Groq. Tuned below the published limit for headroom.
+# ── Groq rate limiting (fixed-interval pacer) ───────────────────────────────
+# Groq's free tier caps requests/min (~30) but enforces it as a per-SECOND
+# sub-limit, so firing many calls in a 2-second window gets 429'd even when the
+# per-minute total is fine. A token bucket is wrong here (it starts full and
+# permits a burst). Instead we enforce a minimum spacing between ALL Groq calls
+# app-wide, so the factory chain can never burst past the limit. Tuned under the
+# published limit for headroom.
 GROQ_MAX_RPM = int(os.environ.get('GROQ_MAX_RPM', '25'))
-_groq_tokens = float(GROQ_MAX_RPM)
-_groq_last = time.monotonic()
+_groq_min_interval = 60.0 / GROQ_MAX_RPM
+_groq_last_call = 0.0
 _groq_rl_lock = asyncio.Lock()
 
 
 async def _groq_pace():
-    """Block until a Groq request slot is available (token-bucket, RPM-paced)."""
-    global _groq_tokens, _groq_last
+    """Ensure at least _groq_min_interval seconds between Groq calls app-wide."""
+    global _groq_last_call
     async with _groq_rl_lock:
         now = time.monotonic()
-        _groq_tokens = min(float(GROQ_MAX_RPM), _groq_tokens + (now - _groq_last) * (GROQ_MAX_RPM / 60.0))
-        _groq_last = now
-        if _groq_tokens < 1.0:
-            deficit = 1.0 - _groq_tokens
-            await asyncio.sleep(deficit / (GROQ_MAX_RPM / 60.0) + 0.05)
-            _groq_tokens = 0.0
-            _groq_last = time.monotonic()
-        else:
-            _groq_tokens -= 1.0
+        wait = _groq_min_interval - (now - _groq_last_call)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        _groq_last_call = time.monotonic()
 
 # ── Provider implementations ──────────────────────────────────────────────────
 
