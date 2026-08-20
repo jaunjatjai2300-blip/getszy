@@ -180,6 +180,20 @@ async def _check_ai_providers():
         )
 
 
+async def _periodic_chain_recovery():
+    """Self-healing loop: re-run chain recovery every 60s so a factory chain
+    killed by a process restart is reset+refunded without manual intervention.
+    Heartbeat-based, so live chains are never touched."""
+    from routes_video_factory import recover_stuck_chain_jobs
+    await asyncio.sleep(30)
+    while True:
+        try:
+            await recover_stuck_chain_jobs()
+        except Exception as e:
+            logger.warning(f'periodic chain recovery error: {e}')
+        await asyncio.sleep(60)
+
+
 @app.on_event('startup')
 async def startup():
     logger.info('getszy backend starting')
@@ -307,8 +321,11 @@ async def startup():
     # Recover video jobs interrupted by a previous crash/restart (prevents orphaned
     # 'generating_*' jobs and leaked credits).
     try:
-        from routes_video_factory import recover_stuck_video_jobs
+        from routes_video_factory import recover_stuck_video_jobs, recover_stuck_chain_jobs
         await recover_stuck_video_jobs()
+        # Self-healing: periodically re-check chains so one killed by a restart
+        # (its BackgroundTask dies with the process) resets without a manual restart.
+        asyncio.create_task(_periodic_chain_recovery())
     except Exception as e:
         logger.error(f'could not run video job recovery: {e}')
     # Catalog-to-Video auto-sync watcher (graceful if standalone mongo)
