@@ -250,7 +250,7 @@ export default function VideoStudio() {
                         </div>
                       )}
                     </div>
-                  ) : <PendingState label="Brief" status={project.status}/>}
+                   ) : <PendingState label="Brief" status={project.status} onRegen={() => rerun("enhance", "Brief")}/>}
                 </TabsContent>
 
                 <TabsContent value="research" className="m-0" data-testid="vf-research-content">
@@ -270,7 +270,7 @@ export default function VideoStudio() {
                         </div>
                       </div>
                     </div>
-                  ) : <PendingState label="Research" status={project.status}/>}
+                   ) : <PendingState label="Research" status={project.status} onRegen={() => rerun("research", "Research")}/>}
                 </TabsContent>
 
                 <TabsContent value="scripts" className="m-0" data-testid="vf-scripts-content">
@@ -301,7 +301,7 @@ export default function VideoStudio() {
                         })}
                       </div>
                     </div>
-                  ) : <PendingState label="Scripts" status={project.status}/>}
+                   ) : <PendingState label="Scripts" status={project.status} onRegen={() => rerun("scripts", "Scripts")}/>}
                 </TabsContent>
 
                 <TabsContent value="hooks" className="m-0" data-testid="vf-hooks-content">
@@ -323,7 +323,7 @@ export default function VideoStudio() {
                         ))}
                       </div>
                     </div>
-                  ) : <PendingState label="Hooks" status={project.status}/>}
+                   ) : <PendingState label="Hooks" status={project.status} onRegen={() => rerun("hooks", "Hooks")}/>}
                 </TabsContent>
 
                 <TabsContent value="storyboard" className="m-0" data-testid="vf-storyboard-content">
@@ -360,7 +360,7 @@ export default function VideoStudio() {
                         </AnimatePresence>
                       </div>
                     </div>
-                  ) : <PendingState label="Storyboard" status={project.status}/>}
+                   ) : <PendingState label="Storyboard" status={project.status} onRegen={() => rerun("storyboard", "Storyboard")}/>}
                 </TabsContent>
 
                 <TabsContent value="visuals" className="m-0" data-testid="vf-visuals-content">
@@ -384,7 +384,7 @@ export default function VideoStudio() {
                         ))}
                       </div>
                     </div>
-                  ) : <PendingState label="Visual plan" status={project.status}/>}
+                   ) : <PendingState label="Visual plan" status={project.status} onRegen={() => rerun("visuals", "Visuals")}/>}
                 </TabsContent>
 
                 <TabsContent value="render" className="m-0" data-testid="vf-render-content">
@@ -433,18 +433,30 @@ function FactList({ title, items }) {
   );
 }
 
-function PendingState({ label, status }) {
+function PendingState({ label, status, onRegen }) {
   if (status === "processing") {
     return (
       <div className="text-center py-16" data-testid="vf-pending">
         <Loader2 className="h-8 w-8 mx-auto animate-spin text-[var(--gs-teal)] mb-3"/>
         <div className="text-sm text-[var(--gs-muted)]">{label} generation in progress...</div>
+        {onRegen && (
+          <Button size="sm" variant="outline" onClick={onRegen} className="mt-3 text-xs gap-1" data-testid="vf-pending-regen-btn">
+            <RefreshCw className="h-3 w-3"/> Regenerate now
+          </Button>
+        )}
       </div>
     );
   }
   return (
     <div className="text-center py-16 text-sm text-[var(--gs-muted)]" data-testid="vf-pending">
-      {label} not generated yet. Click Regenerate above or wait for auto-run to complete.
+      {label} not generated yet.
+      {onRegen && (
+        <div className="mt-3">
+          <Button size="sm" variant="outline" onClick={onRegen} className="text-xs gap-1" data-testid="vf-pending-regen-btn">
+            <RefreshCw className="h-3 w-3"/> Regenerate
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
