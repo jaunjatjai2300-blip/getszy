@@ -57,3 +57,11 @@ async def test_all_agents_includes_custom(patch_db):
     assert res['custom'][0]['id'] == 'c1'
     assert res['custom'][0]['type'] == 'custom'
     assert res['total'] == 26
+
+
+def test_agent_sessions_route_precedes_dynamic_agent_route():
+    """Prevent `/agents/sessions` being treated as agent_id='sessions'."""
+    import routes_agents
+
+    paths = [route.path for route in routes_agents.router.routes]
+    assert paths.index('/agents/sessions') < paths.index('/agents/{agent_id}')
