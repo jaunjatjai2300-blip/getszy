@@ -41,6 +41,21 @@ services:
         exit 1;
       '
 
+  # Named Docker volumes mount root-owned by default. This one-shot service
+  # corrects only the mounted data directories, then the backend remains a
+  # non-root process for its entire runtime.
+  storage-init:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: getszy-storage-init
+    user: "0:0"
+    restart: "no"
+    command: ["/bin/sh", "-ec", "mkdir -p /app/backend/media/audio /app/backups && chown -R appuser:appgroup /app/backend/media /app/backups"]
+    volumes:
+      - backend_media:/app/backend/media
+      - backend_backups:/app/backups
+
   backend:
     build:
       context: .
@@ -51,6 +66,8 @@ services:
       mongo:
         condition: service_healthy
       mongo-init:
+        condition: service_completed_successfully
+      storage-init:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
