@@ -59,14 +59,17 @@ async def get_reel(reel_id: str, user=Depends(get_current_user)):
 
 @router.post('/reels/{reel_id}/render')
 async def render_reel(reel_id: str, user=Depends(get_current_user)):
+    # P0-5: previously flipped status to 'rendered' with fake stub scenes
+    # without ever invoking the video pipeline. Reject cleanly until a real
+    # renderer is wired in (video/pipeline.py already exists for text-to-video
+    # jobs — use that flow via /video-tools/text-to-video instead).
     reel = await db.creator_reels.find_one({'id': reel_id, 'user_id': user['id']})
     if not reel:
         raise HTTPException(status_code=404, detail='Reel not found')
-    await db.creator_reels.update_one({'id': reel_id}, {'$set': {'status': 'rendering', 'updated_at': _now()}})
-    scene_count = max(1, len(reel.get('scenes', [])) or len(reel.get('script', '').split('\n')))
-    scenes = [{'index': i, 'text': f'Scene {i+1}', 'status': 'rendered'} for i in range(scene_count)]
-    await db.creator_reels.update_one({'id': reel_id}, {'$set': {'scenes': scenes, 'status': 'rendered', 'rendered_at': _now(), 'updated_at': _now()}})
-    return {'status': 'rendered', 'scene_count': scene_count}
+    raise HTTPException(
+        status_code=501,
+        detail='Reel rendering is not yet implemented on this endpoint. Use /api/video-tools/text-to-video to render a video from a script.',
+    )
 
 
 @router.delete('/reels/{reel_id}')
@@ -85,6 +88,13 @@ class ThumbnailIn(BaseModel):
 
 @router.post('/thumbnails/generate')
 async def generate_thumbnail(payload: ThumbnailIn, user=Depends(get_current_user)):
+    # P0-4: gate the LLM call behind the credit engine. Frontend now prefers
+    # the credited /creator/thumbnail flow — but this endpoint is still mounted
+    # for API compatibility, so it must be equally protected.
+    thumb_id = str(uuid.uuid4())
+    ok, msg, _ = await deduct(user['id'], 'platform_thumbnail')
+    if not ok:
+        raise HTTPException(status_code=402, detail=msg)
     prompt = f"Create a YouTube thumbnail: title='{payload.title}', style={payload.style}, colors={payload.color_scheme}, elements={payload.elements}"
     try:
         result = await chat_completion(
@@ -99,10 +109,11 @@ async def generate_thumbnail(payload: ThumbnailIn, user=Depends(get_current_user
         )
         description = result if isinstance(result, str) else result.get('content', str(result))
     except Exception:
-        description = f"Bold thumbnail: '{payload.title}' with {payload.color_scheme} colors, {payload.style} style"
+        await refund(user['id'], 'platform_thumbnail', reason='generation_failed', ref_id=thumb_id)
+        raise HTTPException(status_code=503, detail='AI service temporarily unavailable. Please try again shortly.')
 
     thumb = {
-        'id': str(uuid.uuid4()), 'user_id': user['id'],
+        'id': thumb_id, 'user_id': user['id'],
         'title': payload.title, 'style': payload.style,
         'color_scheme': payload.color_scheme, 'elements': payload.elements,
         'description': description, 'status': 'generated',
@@ -136,6 +147,11 @@ class ScriptIn(BaseModel):
 
 @router.post('/scripts/generate')
 async def generate_script(payload: ScriptIn, user=Depends(get_current_user)):
+    # P0-4: gate the 4k-token LLM call behind the credit engine.
+    script_id = str(uuid.uuid4())
+    ok, msg, _ = await deduct(user['id'], 'platform_script')
+    if not ok:
+        raise HTTPException(status_code=402, detail=msg)
     prompt = (
         f"Write a {payload.duration_minutes}-minute {payload.format} script about '{payload.topic}'. "
         f"Tone: {payload.tone}. Language: {payload.language}. "
@@ -155,10 +171,11 @@ async def generate_script(payload: ScriptIn, user=Depends(get_current_user)):
         )
         content = result if isinstance(result, str) else result.get('content', str(result))
     except Exception:
-        content = f"Script for: {payload.topic}\n\nHook: Attention-grabbing opening\nIntro: Set expectations\nBody: Main content\nCTA: Call to action"
+        await refund(user['id'], 'platform_script', reason='generation_failed', ref_id=script_id)
+        raise HTTPException(status_code=503, detail='AI service temporarily unavailable. Please try again shortly.')
 
     script = {
-        'id': str(uuid.uuid4()), 'user_id': user['id'],
+        'id': script_id, 'user_id': user['id'],
         'topic': payload.topic, 'format': payload.format,
         'duration_minutes': payload.duration_minutes, 'tone': payload.tone,
         'language': payload.language, 'content': content,
@@ -189,22 +206,12 @@ class BatchRenderIn(BaseModel):
 
 @router.post('/batch/render')
 async def batch_render(payload: BatchRenderIn, user=Depends(get_current_user)):
-    batch_id = str(uuid.uuid4())
-    results = []
-    for i, item in enumerate(payload.items):
-        results.append({
-            'index': i, 'input': item,
-            'status': 'completed', 'output_url': f'/renders/{batch_id}/{i}'
-        })
-    batch = {
-        'id': batch_id, 'user_id': user['id'],
-        'template': payload.template, 'item_count': len(payload.items),
-        'results': results, 'status': 'completed',
-        'created_at': _now()
-    }
-    await db.creator_batches.insert_one(batch)
-    batch.pop('_id', None)
-    return batch
+    # P0-6: previously returned fake success rows with non-existent output URLs.
+    # Reject cleanly until batch rendering is really implemented.
+    raise HTTPException(
+        status_code=501,
+        detail='Batch rendering is not yet implemented. Please render items individually via /api/video-tools/text-to-video.',
+    )
 
 
 @router.get('/batch')
@@ -233,6 +240,10 @@ async def ai_generate_scenes(reel_id: str, user=Depends(get_current_user)):
     reel = await db.creator_reels.find_one({'id': reel_id, 'user_id': user['id']})
     if not reel:
         raise HTTPException(status_code=404, detail='Reel not found')
+    # P0-4: gate the LLM call.
+    ok, msg, _ = await deduct(user['id'], 'platform_scenes')
+    if not ok:
+        raise HTTPException(status_code=402, detail=msg)
     try:
         result = await chat_completion(
             system=(
@@ -253,6 +264,7 @@ async def ai_generate_scenes(reel_id: str, user=Depends(get_current_user)):
         except Exception:
             scenes = [{'index': 0, 'title': 'Opening', 'description': content[:200], 'duration_seconds': 5}]
     except Exception:
-        scenes = [{'index': 0, 'title': 'Scene 1', 'description': reel.get('script', '')[:200], 'duration_seconds': 5}]
+        await refund(user['id'], 'platform_scenes', reason='generation_failed', ref_id=f'scenes:{reel_id}')
+        raise HTTPException(status_code=503, detail='AI service temporarily unavailable. Please try again shortly.')
     await db.creator_reels.update_one({'id': reel_id}, {'$set': {'scenes': scenes, 'updated_at': _now()}})
     return {'scenes': scenes}

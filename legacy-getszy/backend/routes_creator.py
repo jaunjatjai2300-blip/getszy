@@ -87,7 +87,7 @@ async def script(payload: ScriptIn, user=Depends(get_current_user)):
         asset.pop('_id', None)
         return asset
     except Exception:
-        await refund(user['id'], 'script', reason='generation_failed')
+        await refund(user['id'], 'script', reason='generation_failed', ref_id=f"creator-script:{user['id']}:{payload.topic[:64]}")
         raise
 
 
@@ -136,7 +136,7 @@ async def repurpose(payload: RepurposeIn, user=Depends(get_current_user)):
             outputs[fmt] = {'error': str(e)}
             failed_count += 1
     if failed_count:
-        await refund(user['id'], 'repurpose_format', qty=failed_count, reason='generation_failed')
+        await refund(user['id'], 'repurpose_format', qty=failed_count, reason='generation_failed', ref_id=f"creator-repurpose:{user['id']}:{payload.long_script_topic[:64]}:{failed_count}")
     rec = {
         'id': str(uuid.uuid4()), 'user_id': user['id'], 'kind': 'repurpose',
         'topic': payload.long_script_topic, 'outputs': outputs,
@@ -220,10 +220,10 @@ async def viral_hooks(payload: ViralHooksIn, user=Depends(get_current_user)):
         asset.pop('_id', None)
         return asset
     except LLMServiceUnavailable:
-        await refund(user['id'], 'viral_hooks', reason='generation_failed')
+        await refund(user['id'], 'viral_hooks', reason='generation_failed', ref_id=f"creator-viral:{user['id']}:{payload.niche[:64]}")
         raise HTTPException(status_code=503, detail='AI service temporarily unavailable. Please try again shortly.')
     except Exception:
-        await refund(user['id'], 'viral_hooks', reason='generation_failed')
+        await refund(user['id'], 'viral_hooks', reason='generation_failed', ref_id=f"creator-viral:{user['id']}:{payload.niche[:64]}")
         raise
 
 
@@ -271,10 +271,10 @@ async def meme_mode(payload: MemeModeIn, user=Depends(get_current_user)):
         asset.pop('_id', None)
         return asset
     except LLMServiceUnavailable:
-        await refund(user['id'], 'meme_mode', reason='generation_failed')
+        await refund(user['id'], 'meme_mode', reason='generation_failed', ref_id=f"creator-meme:{user['id']}:{payload.source_text[:64]}")
         raise HTTPException(status_code=503, detail='AI service temporarily unavailable. Please try again shortly.')
     except Exception:
-        await refund(user['id'], 'meme_mode', reason='generation_failed')
+        await refund(user['id'], 'meme_mode', reason='generation_failed', ref_id=f"creator-meme:{user['id']}:{payload.source_text[:64]}")
         raise
 
 
@@ -363,7 +363,7 @@ async def thumbnail(payload: ThumbnailIn, user=Depends(get_current_user)):
         if not isinstance(variants, list) or not variants:
             raise ValueError('bad llm output')
     except Exception as e:
-        await refund(user['id'], 'creator_thumbnail', reason='generation_failed')
+        await refund(user['id'], 'creator_thumbnail', reason='generation_failed', ref_id=f"creator-thumb:{user['id']}:{payload.topic[:64]}")
         raise HTTPException(status_code=502, detail=f'thumbnail planning failed: {e}')
 
     results = []
@@ -436,7 +436,7 @@ async def sponsorship(payload: SponsorIn, user=Depends(get_current_user)):
         if not isinstance(data, dict):
             raise ValueError('bad json')
     except Exception as e:
-        await refund(user['id'], 'creator_sponsor', reason='generation_failed')
+        await refund(user['id'], 'creator_sponsor', reason='generation_failed', ref_id=f"creator-sponsor:{user['id']}:{payload.brand[:32]}:{payload.script[:32]}")
         raise HTTPException(status_code=502, detail=f'sponsorship planning failed: {e}')
     data['brand'] = payload.brand
     data['product'] = payload.product
@@ -488,7 +488,7 @@ async def dub(payload: DubIn, user=Depends(get_current_user)):
         except Exception as e:
             logger.warning('dub %s failed: %s', lang, e)
     if not out:
-        await refund(user['id'], 'creator_dub', reason='generation_failed')
+        await refund(user['id'], 'creator_dub', reason='generation_failed', ref_id=f"creator-dub:{user['id']}:{payload.text[:64]}")
         raise HTTPException(status_code=502, detail='dubbing failed for all languages')
     asset = {'id': str(uuid.uuid4()), 'user_id': user['id'], 'kind': 'dub', 'tracks': out,
              'created_at': datetime.now(timezone.utc).isoformat()}
@@ -523,7 +523,7 @@ async def comment_ideas(payload: CommentIdeaIn, user=Depends(get_current_user)):
         if not isinstance(data, dict):
             raise ValueError('bad json')
     except Exception as e:
-        await refund(user['id'], 'creator_idea', reason='generation_failed')
+        await refund(user['id'], 'creator_idea', reason='generation_failed', ref_id=f"creator-idea:{user['id']}:{payload.comments[:64]}")
         raise HTTPException(status_code=502, detail=f'idea generation failed: {e}')
     asset = {'id': str(uuid.uuid4()), 'user_id': user['id'], 'kind': 'comment_idea',
              'topic': payload.topic, 'data': data,
@@ -559,7 +559,7 @@ async def funnel(payload: FunnelIn, user=Depends(get_current_user)):
         if not isinstance(data, dict):
             raise ValueError('bad json')
     except Exception as e:
-        await refund(user['id'], 'creator_funnel', reason='generation_failed')
+        await refund(user['id'], 'creator_funnel', reason='generation_failed', ref_id=f"creator-funnel:{user['id']}:{payload.topic[:64]}")
         raise HTTPException(status_code=502, detail=f'funnel generation failed: {e}')
     asset = {'id': str(uuid.uuid4()), 'user_id': user['id'], 'kind': 'funnel',
              'topic': payload.topic, 'data': data,
@@ -613,7 +613,7 @@ async def mentor(payload: MentorIn, user=Depends(get_current_user)):
         if not isinstance(data, dict):
             raise ValueError('bad json')
     except Exception as e:
-        await refund(user['id'], 'creator_mentor', reason='generation_failed')
+        await refund(user['id'], 'creator_mentor', reason='generation_failed', ref_id=f"creator-mentor:{user['id']}:{payload.goal[:64]}")
         raise HTTPException(status_code=502, detail=f'mentor generation failed: {e}')
     asset = {'id': str(uuid.uuid4()), 'user_id': user['id'], 'kind': 'mentor',
              'data': data, 'created_at': datetime.now(timezone.utc).isoformat()}
@@ -651,7 +651,7 @@ async def interactive(payload: InteractiveIn, user=Depends(get_current_user)):
         if not isinstance(data, dict):
             raise ValueError('bad json')
     except Exception as e:
-        await refund(user['id'], 'creator_interactive', reason='generation_failed')
+        await refund(user['id'], 'creator_interactive', reason='generation_failed', ref_id=f"creator-interactive:{user['id']}:{payload.topic[:64]}")
         raise HTTPException(status_code=502, detail=f'interactive generation failed: {e}')
     asset = {'id': str(uuid.uuid4()), 'user_id': user['id'], 'kind': 'interactive',
              'data': data, 'created_at': datetime.now(timezone.utc).isoformat()}
@@ -701,7 +701,7 @@ async def digital_twin(payload: DigitalTwinIn, user=Depends(get_current_user)):
         if not isinstance(script_data, dict):
             raise ValueError('bad script json')
     except Exception as e:
-        await refund(user['id'], 'creator_twin', reason='generation_failed')
+        await refund(user['id'], 'creator_twin', reason='generation_failed', ref_id=f"creator-twin:{user['id']}:{payload.topic[:64]}")
         raise HTTPException(status_code=502, detail=f'digital twin failed: {e}')
     out = {'style_profile': profile, 'generated': script_data,
            'topic': payload.topic, 'platform': payload.platform}
@@ -741,7 +741,7 @@ async def calendar(payload: CalendarIn, user=Depends(get_current_user)):
         if not isinstance(data, dict) or not data.get('entries'):
             raise ValueError('bad json')
     except Exception as e:
-        await refund(user['id'], 'creator_calendar', reason='generation_failed')
+        await refund(user['id'], 'creator_calendar', reason='generation_failed', ref_id=f"creator-calendar:{user['id']}:{payload.niche[:64]}")
         raise HTTPException(status_code=502, detail=f'calendar generation failed: {e}')
     asset = {'id': str(uuid.uuid4()), 'user_id': user['id'], 'kind': 'calendar',
              'data': data, 'created_at': datetime.now(timezone.utc).isoformat()}

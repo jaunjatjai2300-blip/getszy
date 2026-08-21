@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from auth import get_current_user
 from db import db
 from llm_provider import chat_completion
+from credits import deduct, refund
 
 router = APIRouter(prefix='/build-studio', tags=['build-studio'])
 
@@ -28,6 +29,10 @@ class SaaSIn(BaseModel):
 @router.post('/saas/create')
 async def create_saas(payload: SaaSIn, user=Depends(get_current_user)):
     project_id = str(uuid.uuid4())
+    # P0-1: gate the 8k-token LLM call behind the credit engine.
+    ok, msg, _ = await deduct(user['id'], 'saas_blueprint')
+    if not ok:
+        raise HTTPException(status_code=402, detail=msg)
     try:
         result = await chat_completion(
             system=(
@@ -48,6 +53,8 @@ async def create_saas(payload: SaaSIn, user=Depends(get_current_user)):
         content = result if isinstance(result, str) else result.get('content', str(result))
         blueprint = json.loads(content) if content.strip().startswith('{') else {'structure': content[:500], 'features': payload.features}
     except Exception:
+        # Refund the deduct on failure — idempotent via ref_id=project_id.
+        await refund(user['id'], 'saas_blueprint', reason='generation_failed', ref_id=project_id)
         blueprint = {'structure': 'Generated structure', 'features': payload.features, 'stack': payload.tech_stack}
 
     project = {
@@ -162,10 +169,13 @@ async def create_workflow(payload: WorkflowIn, user=Depends(get_current_user)):
 
 @router.post('/workflow/execute')
 async def execute_workflow(workflow_id: str, user=Depends(get_current_user)):
+    # P0-6: this endpoint used to return {'status': 'executed'} without running
+    # anything, misleading the UI into a false-success state. Until a real
+    # workflow engine ships, return 501 so the UI can render "coming soon".
     wf = await db.build_projects.find_one({'id': workflow_id, 'user_id': user['id'], 'type': 'workflow'})
     if not wf:
         raise HTTPException(status_code=404, detail='Workflow not found')
-    return {'status': 'executed', 'nodes_processed': len(wf.get('nodes', []))}
+    raise HTTPException(status_code=501, detail='Workflow execution is not yet implemented. This feature will be enabled in a future release.')
 
 
 # ===== Marketplace =====
@@ -185,7 +195,9 @@ async def list_templates(category: str = 'all', limit: int = 20):
 
 @router.post('/marketplace/install/{template_id}')
 async def install_template(template_id: str, user=Depends(get_current_user)):
-    return {'status': 'installed', 'template_id': template_id, 'project_id': str(uuid.uuid4())}
+    # P0-6: previously returned a fake project_id without actually installing
+    # anything. Reject cleanly until real template installation ships.
+    raise HTTPException(status_code=501, detail='Template installation is not yet implemented. This feature will be enabled in a future release.')
 
 
 # ===== Shared: List all build projects =====

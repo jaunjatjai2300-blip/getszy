@@ -58,6 +58,14 @@ CREDIT_COSTS = {
     'creator_interactive': 3,     # Interactive choose-your-path story
     'creator_twin': 4,            # Digital twin — clone your style
     'creator_calendar': 2,        # 30-day content calendar
+    # ── Production hardening (Phase 4): credit-gate all uncredited LLM endpoints ──
+    'saas_blueprint': 8,          # Build Studio — /build-studio/saas/create (8k LLM tokens)
+    'custom_agent_run': 1,        # Build Studio — /builder/agent/{id}/run
+    'starter_kit': 5,             # Build Studio — /builder/starter (mobile/fullstack/blog zip gen)
+    'channel_plan': 1,            # Build Studio — /builder/channel/plan (5-video plan LLM call)
+    'platform_script': 2,         # Creator Platform — /creator/platform/scripts/generate
+    'platform_thumbnail': 1,      # Creator Platform — /creator/platform/thumbnails/generate
+    'platform_scenes': 2,         # Creator Platform — /creator/platform/scenes/ai-generate
 }
 
 # ===== Paid credit packs (Razorpay monthly subscriptions) =====

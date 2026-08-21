@@ -53,14 +53,17 @@ export default function Integrations() {
     } finally { setLoading(false); }
   };
 
-  const connect = async (id) => {
-    setConnecting(id);
+  const connect = async (integ) => {
+    // P0-7: no integration is production-ready for beta. UI shows Coming Soon
+    // and offers to add the user to the waitlist. Backend also rejects — this
+    // is a defence-in-depth guard, not just cosmetic.
+    setConnecting(integ.id);
     try {
-      await api.post("/integrations/connect", { integration_id: id });
-      toast.success("Connected!");
+      await api.post("/integrations/waitlist", { integration_id: integ.id });
+      toast.success(`You're on the ${integ.name} waitlist — we'll email you when it's live.`);
       load();
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Connection failed");
+      toast.error(e?.response?.data?.detail || "Couldn't join waitlist");
     } finally {
       setConnecting(null);
     }
@@ -141,7 +144,7 @@ export default function Integrations() {
                 key={integ.id}
                 integ={integ}
                 connected={true}
-                onConnect={() => connect(integ.id)}
+                onConnect={() => connect(integ)}
                 onDisconnect={() => disconnect(integ.id)}
                 busy={connecting === integ.id}
                 view={view}
@@ -168,7 +171,7 @@ export default function Integrations() {
                 key={integ.id}
                 integ={integ}
                 connected={false}
-                onConnect={() => connect(integ.id)}
+                onConnect={() => connect(integ)}
                 onDisconnect={() => disconnect(integ.id)}
                 busy={connecting === integ.id}
                 view={view}
@@ -183,10 +186,14 @@ export default function Integrations() {
 
 function IntegrationCard({ integ, connected, onConnect, onDisconnect, busy, view }) {
   const [expanded, setExpanded] = useState(false);
+  // P0-7: honour the backend availability flag. When `available === false`
+  // (default for beta), the card renders in "Coming Soon" mode and the
+  // connect action becomes a waitlist join.
+  const comingSoon = integ.available === false || integ.coming_soon === true;
 
   if (view === "list") {
     return (
-      <div className="gs-card p-3 flex items-center gap-3">
+      <div className="gs-card p-3 flex items-center gap-3" data-testid={`integration-row-${integ.id}`}>
         <div className="h-10 w-10 rounded-xl grid place-items-center text-xl shrink-0"
           style={{ background: `${integ.color}22` }}>
           {integ.icon}
@@ -195,12 +202,24 @@ function IntegrationCard({ integ, connected, onConnect, onDisconnect, busy, view
           <div className="flex items-center gap-2">
             <span className="font-semibold text-sm">{integ.name}</span>
             {connected && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
+            {comingSoon && (
+              <Badge className="text-[9px] bg-amber-100 text-amber-800 border-amber-200" data-testid={`coming-soon-badge-${integ.id}`}>
+                Coming Soon
+              </Badge>
+            )}
           </div>
           <p className="text-xs text-[var(--gs-muted)] truncate">{integ.description}</p>
         </div>
         {connected ? (
           <Button variant="outline" size="sm" onClick={onDisconnect} className="shrink-0 text-xs">
             <Unlink className="h-3 w-3 mr-1" /> Disconnect
+          </Button>
+        ) : comingSoon ? (
+          <Button size="sm" onClick={onConnect} disabled={busy}
+            className="shrink-0 text-xs" variant="outline"
+            data-testid={`notify-me-btn-${integ.id}`}>
+            {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+            Notify me
           </Button>
         ) : (
           <Button size="sm" onClick={onConnect} disabled={busy} className="shrink-0 text-xs bg-[var(--gs-teal)] text-white">
@@ -213,18 +232,24 @@ function IntegrationCard({ integ, connected, onConnect, onDisconnect, busy, view
   }
 
   return (
-    <div className="gs-card p-4 hover:bg-[var(--gs-surface-2)] transition">
+    <div className="gs-card p-4 hover:bg-[var(--gs-surface-2)] transition" data-testid={`integration-card-${integ.id}`}>
       <div className="flex items-start gap-3">
         <div className="h-12 w-12 rounded-2xl grid place-items-center text-2xl shrink-0"
           style={{ background: `${integ.color}22` }}>
           {integ.icon}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="font-display text-base">{integ.name}</span>
             {connected && (
               <Badge className="text-[9px] bg-green-100 text-green-700 border-green-200">
                 Connected
+              </Badge>
+            )}
+            {comingSoon && (
+              <Badge className="text-[9px] bg-amber-100 text-amber-800 border-amber-200"
+                data-testid={`coming-soon-badge-${integ.id}`}>
+                Coming Soon
               </Badge>
             )}
           </div>
@@ -248,6 +273,13 @@ function IntegrationCard({ integ, connected, onConnect, onDisconnect, busy, view
               Disconnect
             </Button>
           </div>
+        ) : comingSoon ? (
+          <Button size="sm" onClick={onConnect} disabled={busy} variant="outline"
+            className="text-xs h-7"
+            data-testid={`notify-me-btn-${integ.id}`}>
+            {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+            Notify me
+          </Button>
         ) : (
           <Button size="sm" onClick={onConnect} disabled={busy}
             className="text-xs h-7 bg-[var(--gs-teal)] text-white">

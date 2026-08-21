@@ -138,7 +138,8 @@ async def create_project(body: BuilderProjectIn, user=Depends(get_current_user))
         html = await _generate_site(body.prompt)
     except Exception as e:
         logger.exception('generate failed')
-        await refund(user['id'], 'builder_website', reason='generation_failed')
+        # P1-3: pass ref_id so a retried failure cannot double-refund.
+        await refund(user['id'], 'builder_website', reason='generation_failed', ref_id=body.name or body.prompt[:64])
         raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
     name = (body.name or _derive_name(body.prompt))[:80]
     history = [
@@ -177,7 +178,8 @@ async def refine_project(pid: str, body: BuilderRefineIn, user=Depends(get_curre
         new_html = await _generate_site(body.prompt, current_html=p.get('html_content'), session_id=f"builder-{pid}")
     except Exception as e:
         logger.exception('refine failed')
-        await refund(user['id'], 'builder_refine', reason='generation_failed')
+        # P1-3: idempotent refund by project id.
+        await refund(user['id'], 'builder_refine', reason='generation_failed', ref_id=f'refine:{pid}')
         raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
     new_history = p.get('history', []) + [
         {'timestamp': _now(), 'prompt': body.prompt, 'role': 'user', 'snapshot': None},
@@ -294,7 +296,8 @@ async def refine_project_element(pid: str, body: dict, user=Depends(get_current_
         )
     except Exception as e:
         logger.exception('element refine failed')
-        await refund(user['id'], 'builder_refine', reason='generation_failed')
+        # P1-3: idempotent refund per (project, selector) pair.
+        await refund(user['id'], 'builder_refine', reason='generation_failed', ref_id=f'refine-elem:{pid}:{selector[:64]}')
         raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
 
     new_history = p.get('history', []) + [
@@ -334,6 +337,11 @@ class ChannelExecuteIn(_BaseModel):
 
 @router.post('/channel/plan')
 async def channel_plan(body: ChannelPlanIn, user=Depends(get_current_user)):
+    # P1-1: gate the free LLM call behind a credit deduct.
+    channel_id = str(_uuid.uuid4())
+    ok, msg, _ = await deduct(user['id'], 'channel_plan')
+    if not ok:
+        raise HTTPException(status_code=402, detail=msg)
     # Keep output small so fast CPU-only Ollama (llama3.2:3b) can respond in <60s.
     # Frontend can call /channel/execute later to expand individual videos.
     total = min(5, max(3, body.posts_per_week))
@@ -346,7 +354,11 @@ async def channel_plan(body: ChannelPlanIn, user=Depends(get_current_user)):
         f'(exactly {total} items in videos array).'
     )
     user_msg = f'Niche: {body.niche}. Audience: {body.audience}. Style: {body.style}. Language: {body.language}.'
-    raw = await chat_completion(system=system, user=user_msg, temperature=0.5)
+    try:
+        raw = await chat_completion(system=system, user=user_msg, temperature=0.5)
+    except Exception:
+        await refund(user['id'], 'channel_plan', reason='generation_failed', ref_id=channel_id)
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
     s = (raw or '').find('{'); e = (raw or '').rfind('}')
     plan = None
     if s != -1:
@@ -357,7 +369,6 @@ async def channel_plan(body: ChannelPlanIn, user=Depends(get_current_user)):
                 'pillars': ['Educate', 'Trends', 'How-to'],
                 'videos': [{'day': i+1, 'topic': f'{body.niche} idea {i+1}', 'hook': 'Watch this!', 'format': 'reel'}
                             for i in range(total)]}
-    channel_id = str(_uuid.uuid4())
     doc = {'id': channel_id, 'user_id': user['id'], 'niche': body.niche, 'audience': body.audience,
            'style': body.style, 'language': body.language, 'orientation': body.orientation,
            'plan': plan, 'status': 'planned', 'executed_video_ids': [],
@@ -376,20 +387,34 @@ async def channel_execute(body: ChannelExecuteIn, user=Depends(get_current_user)
         raise HTTPException(404, 'channel not found')
     videos = (ch.get('plan') or {}).get('videos') or []
     to_run = videos[:max(1, min(10, body.max_videos))]
+    # P1-2: charge the user upfront for the whole batch. Each video job is
+    # expected to refund its own share with ref_id=job_id on downstream failure.
+    ok, msg, _ = await deduct(user['id'], 'faceless_video', qty=len(to_run))
+    if not ok:
+        raise HTTPException(status_code=402, detail=msg)
     job_ids: _List[str] = []
-    for v in to_run:
-        job_id = str(_uuid.uuid4())
-        params = {'topic': v.get('topic', ch.get('niche')), 'orientation': ch.get('orientation', '9:16'),
-                  'language': ch.get('language', 'hinglish'), 'voice_gender': 'female',
-                  'target_seconds': 45, 'tone': ch.get('style', 'energetic'), 'subtitles': True,
-                  'audience': ch.get('audience', 'indian creators')}
-        await db.video_jobs.insert_one({'id': job_id, 'user_id': user['id'], 'topic': v.get('topic'),
-                                         'orientation': params['orientation'], 'language': params['language'],
-                                         'status': 'queued', 'percent': 0, 'params': params,
-                                         'channel_id': body.channel_id,
-                                         'created_at': _now()})
-        _asyncio.create_task(_run_video_job(job_id, params))
-        job_ids.append(job_id)
+    try:
+        for v in to_run:
+            job_id = str(_uuid.uuid4())
+            params = {'topic': v.get('topic', ch.get('niche')), 'orientation': ch.get('orientation', '9:16'),
+                      'language': ch.get('language', 'hinglish'), 'voice_gender': 'female',
+                      'target_seconds': 45, 'tone': ch.get('style', 'energetic'), 'subtitles': True,
+                      'audience': ch.get('audience', 'indian creators')}
+            await db.video_jobs.insert_one({'id': job_id, 'user_id': user['id'], 'topic': v.get('topic'),
+                                             'orientation': params['orientation'], 'language': params['language'],
+                                             'status': 'queued', 'percent': 0, 'params': params,
+                                             'channel_id': body.channel_id,
+                                             'credit_ref_id': job_id,
+                                             'created_at': _now()})
+            _asyncio.create_task(_run_video_job(job_id, params))
+            job_ids.append(job_id)
+    except Exception:
+        # If we couldn't queue everything, refund the unqueued portion.
+        unqueued = len(to_run) - len(job_ids)
+        if unqueued > 0:
+            await refund(user['id'], 'faceless_video', qty=unqueued,
+                         reason='queue_failed', ref_id=f'channel-execute:{body.channel_id}')
+        raise
     await db.channel_plans.update_one({'id': body.channel_id},
         {'$set': {'status': 'executing'}, '$push': {'executed_video_ids': {'$each': job_ids}}})
     return {'channel_id': body.channel_id, 'queued_video_ids': job_ids, 'count': len(job_ids)}
@@ -456,15 +481,24 @@ async def run_custom_agent(aid: str, body: AgentRunIn, user=Depends(get_current_
     ag = await db.custom_agents.find_one({'id': aid, 'user_id': user['id']}, {'_id': 0})
     if not ag:
         raise HTTPException(404, 'agent not found')
+    # P0-2: credit-gate the LLM call. Was previously an unauthenticated cost leak.
+    run_id = str(_uuid.uuid4())
+    ok, msg, _ = await deduct(user['id'], 'custom_agent_run')
+    if not ok:
+        raise HTTPException(status_code=402, detail=msg)
     user_lines = [f'{k}: {str(v)[:1000]}' for k, v in (body.params or {}).items() if v not in (None, '', [])]
     prompt = '\n'.join(user_lines) or 'No parameters provided.'
-    raw = await chat_completion(system=ag['system_prompt'], user=prompt, session_id=f'custom-{aid}', temperature=0.6)
+    try:
+        raw = await chat_completion(system=ag['system_prompt'], user=prompt, session_id=f'custom-{aid}', temperature=0.6)
+    except Exception:
+        await refund(user['id'], 'custom_agent_run', reason='generation_failed', ref_id=run_id)
+        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
     parsed = None
     s = (raw or '').find('{'); e = (raw or '').rfind('}')
     if s != -1:
         try: parsed = _json.loads(raw[s:e+1])
         except Exception: parsed = None
-    rec = {'id': str(_uuid.uuid4()), 'user_id': user['id'], 'agent_id': aid,
+    rec = {'id': run_id, 'user_id': user['id'], 'agent_id': aid,
            'params': body.params, 'raw': (raw or '')[:4000], 'parsed': parsed,
            'created_at': _now()}
     await db.custom_agent_runs.insert_one(rec)
@@ -504,6 +538,11 @@ async def make_starter(body: StarterIn, user=Depends(get_current_user)):
     if len(body.prompt.strip()) < 4:
         raise HTTPException(400, 'prompt too short')
     name = body.app_name.strip() or _derive_name(body.prompt)
+    starter_id = str(_uuid.uuid4())
+    # P0-3: credit-gate the LLM zip generation.
+    ok, msg, _ = await deduct(user['id'], 'starter_kit')
+    if not ok:
+        raise HTTPException(status_code=402, detail=msg)
     try:
         if kind == 'mobileapp':
             data = await gen_mobileapp_zip(body.prompt, name)
@@ -513,8 +552,8 @@ async def make_starter(body: StarterIn, user=Depends(get_current_user)):
             data = await gen_blog_zip(body.prompt, name)
     except Exception as e:
         logger.exception('starter gen failed')
+        await refund(user['id'], 'starter_kit', reason='generation_failed', ref_id=starter_id)
         raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
-    starter_id = str(_uuid.uuid4())
     starters_dir = _os.path.join(_os.path.dirname(__file__), 'media_cache', 'starters')
     _os.makedirs(starters_dir, exist_ok=True)
     zip_path = _os.path.join(starters_dir, f'{starter_id}.zip')
