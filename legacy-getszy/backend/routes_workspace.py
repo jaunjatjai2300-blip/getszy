@@ -297,7 +297,7 @@ async def restore_version(project_id: str, version_id: str, user=Depends(get_cur
         t2['user_id'] = user['id']
         await db.workspace_tasks.insert_one(t2)
 
-    return {'ok': True, 'restored': {
+    return {'ok': True, 'restored': True, 'counts': {
         'messages': len(state.get('messages') or []),
         'assets': len(state.get('assets') or []),
         'tasks': len(state.get('tasks') or []),
