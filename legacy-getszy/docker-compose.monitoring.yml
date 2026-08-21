@@ -40,12 +40,16 @@ services:
       - "127.0.0.1:9093:9093"
     volumes:
       - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    # The block is deliberately the sole item in the command list. Docker then
+    # passes the entire script as one argument to `sh -c`; a scalar command is
+    # otherwise split into words by Compose and executes only `test`.
     entrypoint: ["/bin/sh", "-ec"]
-    command: |
-      test -n "$${ALERT_WEBHOOK_URL}"
-      escaped_url=$$(printf '%s' "$${ALERT_WEBHOOK_URL}" | sed 's/[&|]/\\\\&/g')
-      sed "s|__ALERT_WEBHOOK_URL__|$${escaped_url}|g" /etc/alertmanager/alertmanager.yml > /tmp/alertmanager.yml
-      exec /bin/alertmanager --config.file=/tmp/alertmanager.yml
+    command:
+      - |
+        test -n "$${ALERT_WEBHOOK_URL}"
+        escaped_url=$$(printf '%s' "$${ALERT_WEBHOOK_URL}" | sed 's/[&|]/\\\\&/g')
+        sed "s|__ALERT_WEBHOOK_URL__|$${escaped_url}|g" /etc/alertmanager/alertmanager.yml > /tmp/alertmanager.yml
+        exec /bin/alertmanager --config.file=/tmp/alertmanager.yml
 
   grafana:
     image: grafana/grafana:10.0.0
