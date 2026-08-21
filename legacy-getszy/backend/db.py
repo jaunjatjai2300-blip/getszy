@@ -24,7 +24,20 @@ class _LoopAwareMongo:
         self._loop: asyncio.AbstractEventLoop | None = None
 
     def _active_client(self) -> AsyncIOMotorClient:
-        loop = asyncio.get_running_loop()
+        # Collection classes are inspected and monkeypatched by synchronous tests
+        # before an async handler is entered. Use that thread's policy loop for
+        # inspection, then replace the client once a real running loop takes over.
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                # Python 3.11+ may clear the policy loop after asyncio.run().
+                # Create one only for synchronous collection inspection; an async
+                # handler will replace this client on its own running loop.
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
         if self._client is None or self._loop is not loop:
             if self._client is not None:
                 self._client.close()
