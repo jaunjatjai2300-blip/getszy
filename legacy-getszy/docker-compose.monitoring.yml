@@ -1,7 +1,9 @@
-version: '3.8'
+# Dedicated project name prevents monitoring startup or teardown from managing
+# application containers in the main `legacy-getszy` Compose project.
+name: getszy-monitoring
 
 # Observability stack for Getszy. Run alongside the main app stack:
-#   docker compose -f docker-compose.monitoring.yml up -d
+#   docker compose -p getszy-monitoring -f docker-compose.monitoring.yml up -d
 # Both stacks share the fixed Docker network `getszy` (see docker-compose.yml),
 # so Prometheus scrapes `backend:8001/metrics` directly and the exporters reach
 # `mongo`. The main stack must be running first so the `getszy` network exists.

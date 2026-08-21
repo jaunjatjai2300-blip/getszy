@@ -147,9 +147,6 @@ docker compose config >/tmp/getszy-compose.rendered.yml
 docker compose pull
 docker compose up -d --build --remove-orphans
 
-docker compose -f docker-compose.monitoring.yml config >/tmp/getszy-monitoring.rendered.yml
-docker compose -f docker-compose.monitoring.yml up -d --remove-orphans
-
 info "Waiting for backend health"
 for _ in $(seq 1 30); do
   if curl -fsS -H "Host: ${DOMAIN_VALUE}" http://127.0.0.1/api/health >/dev/null 2>&1; then
@@ -164,6 +161,22 @@ if ! curl -fsS -H "Host: ${DOMAIN_VALUE}" http://127.0.0.1/api/health; then
   fail "Getszy did not become healthy. Review the logs above before retrying."
 fi
 
+info "Starting isolated monitoring stack"
+docker compose -p getszy-monitoring -f docker-compose.monitoring.yml config >/tmp/getszy-monitoring.rendered.yml
+docker compose -p getszy-monitoring -f docker-compose.monitoring.yml up -d --remove-orphans
+
+for _ in $(seq 1 15); do
+  if docker compose -p getszy-monitoring -f docker-compose.monitoring.yml ps --status running --services | grep -qx 'alertmanager'; then
+    break
+  fi
+  sleep 2
+done
+if ! docker compose -p getszy-monitoring -f docker-compose.monitoring.yml ps --status running --services | grep -qx 'alertmanager'; then
+  docker compose -p getszy-monitoring -f docker-compose.monitoring.yml ps
+  docker compose -p getszy-monitoring -f docker-compose.monitoring.yml logs --tail=120 alertmanager
+  fail "Alertmanager did not become healthy. Correct ALERT_WEBHOOK_URL or its template rendering before launch."
+fi
+
 cat <<EOF
 
 Getszy services are running.
@@ -172,7 +185,7 @@ Application directory: ${APP_DIR}
 Health URL: https://${DOMAIN_VALUE}/api/health
 Status: docker compose ps
 Backend logs: docker compose logs -f backend
-Monitoring status: docker compose -f docker-compose.monitoring.yml ps
+Monitoring status: docker compose -p getszy-monitoring -f docker-compose.monitoring.yml ps
 
 Next mandatory checks before public launch:
 1. Confirm DNS for DOMAIN points to this VPS and test HTTPS health.
