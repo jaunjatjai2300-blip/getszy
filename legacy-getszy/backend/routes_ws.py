@@ -1,8 +1,11 @@
-"""WebSocket endpoint for real-time updates."""
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
-import jwt
+"""Authenticated WebSocket endpoints for real-time updates."""
 import os
 
+import jwt
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+
+from auth import is_token_revoked
+from db import db
 from websocket_manager import manager
 
 router = APIRouter(tags=['websocket'])
@@ -11,23 +14,32 @@ JWT_SECRET = os.environ.get('JWT_SECRET', '')
 JWT_ALG = 'HS256'
 
 
-def _verify_ws_token(token: str) -> str | None:
-    """Return user_id from JWT or None if invalid."""
+async def _verify_ws_user(token: str, *, require_admin: bool = False) -> dict | None:
+    """Return the active database user represented by a non-revoked WS JWT."""
     if not token or not JWT_SECRET:
         return None
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
-        return payload.get('sub')
     except Exception:
         return None
+
+    user_id = payload.get('sub')
+    if not user_id or await is_token_revoked(payload.get('jti', '')):
+        return None
+
+    user = await db.users.find_one({'id': user_id}, {'_id': 0, 'id': 1, 'role': 1})
+    if not user or (require_admin and user.get('role') != 'admin'):
+        return None
+    return user
 
 
 @router.websocket('/ws')
 async def websocket_endpoint(websocket: WebSocket, channel: str = 'general', token: str = Query(default='')):
-    user_id = _verify_ws_token(token)
-    if not user_id:
+    user = await _verify_ws_user(token)
+    if not user:
         await websocket.close(code=4001, reason='Invalid or missing token')
         return
+    user_id = user['id']
     await manager.connect(websocket, channel, user_id)
     try:
         while True:
@@ -39,8 +51,8 @@ async def websocket_endpoint(websocket: WebSocket, channel: str = 'general', tok
 
 @router.websocket('/ws/notifications/{user_id}')
 async def notifications_ws(websocket: WebSocket, user_id: str, token: str = Query(default='')):
-    verified_id = _verify_ws_token(token)
-    if not verified_id or verified_id != user_id:
+    user = await _verify_ws_user(token)
+    if not user or user['id'] != user_id:
         await websocket.close(code=4001, reason='Unauthorized')
         return
     await manager.connect(websocket, f'notifications:{user_id}', user_id)
@@ -53,11 +65,12 @@ async def notifications_ws(websocket: WebSocket, user_id: str, token: str = Quer
 
 @router.websocket('/ws/admin-live')
 async def admin_live_ws(websocket: WebSocket, token: str = Query(default='')):
-    """Live ops feed for admins: orders, refunds, signups, threats in real time."""
-    user_id = _verify_ws_token(token)
-    if not user_id:
-        await websocket.close(code=4001, reason='Invalid or missing token')
+    """Live ops feed restricted to an active administrator account."""
+    user = await _verify_ws_user(token, require_admin=True)
+    if not user:
+        await websocket.close(code=4001, reason='Unauthorized')
         return
+    user_id = user['id']
     await manager.connect(websocket, 'admin-live', user_id)
     try:
         while True:

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,7 +47,7 @@ export default function KnowledgeBase() {
   const [tagInput, setTagInput] = useState("");
   const [selected, setSelected] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [dr, sr] = await Promise.allSettled([
@@ -58,9 +58,9 @@ export default function KnowledgeBase() {
       if (sr.status==="fulfilled") setStats(sr.value.data);
     } catch { toast.error("Load failed"); }
     finally { setLoading(false); }
-  };
+  }, [search, catFilter]);
 
-  useEffect(() => { load(); }, [search, catFilter]);
+  useEffect(() => { load(); }, [load]);
 
   const openCreate = () => { setEditing(null); setForm(BLANK); setTagInput(""); setOpen(true); };
   const openEdit = (d) => { setEditing(d); setForm({ title:d.title, content:d.content, category:d.category, tags:d.tags||[], source_url:d.source_url||"" }); setTagInput(""); setOpen(true); };

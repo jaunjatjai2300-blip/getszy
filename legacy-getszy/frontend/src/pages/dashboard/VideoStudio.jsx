@@ -604,6 +604,32 @@ function ShortsTab({ onDone }) {
   );
 }
 
+function useAuthenticatedMedia(path, enabled = true) {
+  const [objectUrl, setObjectUrl] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    let createdUrl = "";
+    if (!enabled || !path) {
+      setObjectUrl("");
+      return undefined;
+    }
+    api.get(path, { responseType: "blob" })
+      .then((response) => {
+        createdUrl = URL.createObjectURL(response.data);
+        if (active) setObjectUrl(createdUrl);
+        else URL.revokeObjectURL(createdUrl);
+      })
+      .catch(() => { if (active) setObjectUrl(""); });
+    return () => {
+      active = false;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
+  }, [path, enabled]);
+
+  return objectUrl;
+}
+
 function RenderTab({ project, onRefresh }) {
   const [orientation, setOrientation] = useState("16:9");
   const [busy, setBusy] = useState(false);
@@ -616,6 +642,7 @@ function RenderTab({ project, onRefresh }) {
   const hasError = status === "error";
   const stages = project.stages || {};
   const hasPipeline = (stages.storyboard || []).length > 0 && (stages.visual_plan || []).length > 0;
+  const videoSrc = useAuthenticatedMedia(`/video-factory/project/${project.id}/download`, isComplete);
 
   useEffect(() => {
     if (!isRendering) return;
@@ -631,7 +658,7 @@ function RenderTab({ project, onRefresh }) {
     }
     const iv = setInterval(() => onRefresh(), 3000);
     return () => { if (es) es.close(); clearInterval(iv); };
-  }, [isRendering, project.id, onRefresh]);
+  }, [isRendering, project.id, onRefresh, backend]);
 
   const generate = async () => {
     if (!hasPipeline) { toast.error("Pipeline (storyboard + visuals) chahiye pehle"); return; }
@@ -710,12 +737,17 @@ function RenderTab({ project, onRefresh }) {
       {isComplete && (
         <div className="space-y-3" data-testid="vf-complete">
           <div className="rounded-lg overflow-hidden bg-black">
-            <video controls className="w-full" src={`${backend}/api/video-factory/project/${project.id}/download`}/>
+            {videoSrc ? (
+              <video controls className="w-full" src={videoSrc}/>
+            ) : (
+              <div className="grid min-h-[220px] place-items-center text-sm text-white/70">Loading video securely…</div>
+            )}
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <a
-              href={`${backend}/api/video-factory/project/${project.id}/download`}
+              href={videoSrc || undefined}
               download
+              aria-disabled={!videoSrc}
               className="text-sm px-4 py-2 bg-[var(--gs-teal)] text-white rounded-lg flex items-center gap-2 hover:opacity-90"
               data-testid="vf-download-btn"
             >

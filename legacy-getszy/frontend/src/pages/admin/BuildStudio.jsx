@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,10 +13,28 @@ import { toast } from "sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 
+async function downloadAuthenticated(path, filename) {
+  const apiPath = path.replace(/^\/api(?=\/)/, "");
+  try {
+    const response = await api.get(apiPath, { responseType: "blob" });
+    const blob = response.data instanceof Blob ? response.data : new Blob([response.data]);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (error) {
+    toast.error(error?.response?.status === 401 ? "Please sign in again to download" : "Download failed — please retry");
+  }
+}
+
 function useHub() {
   const [hub, setHub] = useState({ counts: {}, categories: [] });
-  const load = async () => { try { const r = await api.get("/builder/hub"); setHub(r.data); } catch (e) { toast.error("Couldn't load Build Studio — refresh to retry"); } };
-  useEffect(() => { load(); }, []);
+  const load = useCallback(async () => { try { const r = await api.get("/builder/hub"); setHub(r.data); } catch (e) { toast.error("Couldn't load Build Studio — refresh to retry"); } }, []);
+  useEffect(() => { load(); }, [load]);
   return { hub, reload: load };
 }
 
@@ -137,7 +155,7 @@ function WebAppBuilder({ color }) {
               <div className="text-[10px] text-[var(--gs-muted)] truncate">{p.prompt}</div>
             </div>
             <Button variant="outline" size="sm" onClick={() => setPreviewId(p.id)}><Play className="h-3.5 w-3.5"/></Button>
-            <a href={`${BACKEND_URL}/api/builder/projects/${p.id}/download`} className="text-xs" title="Download zip"><Download className="h-4 w-4"/></a>
+            <button type="button" onClick={() => downloadAuthenticated(`/builder/projects/${p.id}/download`, `${p.name || "project"}.zip`)} className="p-2 text-[var(--gs-muted)] hover:text-[var(--gs-teal)]" title="Download zip" aria-label={`Download ${p.name || "project"} zip`} data-testid={`wa-download-${p.id}`}><Download className="h-4 w-4"/></button>
             <button onClick={() => del(p.id)} className="text-rose-500" data-testid={`wa-del-${p.id}`}><Trash2 className="h-4 w-4"/></button>
           </Card>
         ))}
@@ -393,8 +411,8 @@ function StarterBuilder({ color, kind, placeholder }) {
   const [busy, setBusy] = useState(false);
   const [items, setItems] = useState([]);
 
-  const load = async () => { try { const r = await api.get("/builder/starter"); setItems((r.data.items || []).filter(x => x.kind === kind)); } catch (e) { toast.error("Couldn't load starters — refresh to retry"); } };
-  useEffect(() => { load(); }, [kind]);
+  const load = useCallback(async () => { try { const r = await api.get("/builder/starter"); setItems((r.data.items || []).filter(x => x.kind === kind)); } catch (e) { toast.error("Couldn't load starters — refresh to retry"); } }, [kind]);
+  useEffect(() => { load(); }, [load]);
 
   const build = async () => {
     if (prompt.trim().length < 4) return toast.error("Prompt too short");
@@ -432,7 +450,7 @@ function StarterBuilder({ color, kind, placeholder }) {
               <div className="text-[10px] text-[var(--gs-muted)] truncate">{it.prompt}</div>
             </div>
             <Badge variant="outline" className="text-[10px]">{(it.size_bytes / 1024).toFixed(1)} KB</Badge>
-            <a href={`${BACKEND_URL}${it.download_url}`} download className="text-xs" title="Download"><Download className="h-4 w-4"/></a>
+            <button type="button" onClick={() => downloadAuthenticated(it.download_url, `${it.name || "starter"}-starter.zip`)} className="p-2 text-[var(--gs-muted)] hover:text-[var(--gs-teal)]" title="Download" aria-label={`Download ${it.name || "starter"} starter kit`} data-testid={`st-download-${it.id}`}><Download className="h-4 w-4"/></button>
             <button onClick={() => del(it.id)} className="text-rose-500"><Trash2 className="h-4 w-4"/></button>
           </Card>
         ))}

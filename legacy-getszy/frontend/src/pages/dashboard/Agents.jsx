@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ const AGENT_ICONS = {
 export default function Agents() {
   const [agents, setAgents] = useState([]);
   const [activeAgent, setActiveAgent] = useState(null);
+  const [activeSessionId, setActiveSessionId] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -52,7 +53,7 @@ export default function Agents() {
   };
 
   if (activeAgent) {
-    return <AgentChat agent={activeAgent} onBack={() => setActiveAgent(null)} />;
+    return <AgentChat agent={activeAgent} initialSessionId={activeSessionId} onBack={() => { setActiveAgent(null); setActiveSessionId(null); }} />;
   }
 
   return (
@@ -79,7 +80,7 @@ export default function Agents() {
             return (
               <button
                 key={agent.id}
-                onClick={() => setActiveAgent(agent)}
+                onClick={() => { setActiveAgent(agent); setActiveSessionId(null); }}
                 className="gs-card p-5 text-left hover:bg-[var(--gs-surface-2)] transition group"
               >
                 <div className="flex items-center gap-3">
@@ -129,7 +130,7 @@ export default function Agents() {
                 key={i}
                 onClick={() => {
                   const agent = agents.find((a) => a.id === s.agent_id);
-                  if (agent) setActiveAgent(agent);
+                  if (agent) { setActiveAgent(agent); setActiveSessionId(s.session_id || null); }
                 }}
                 className="w-full gs-card p-3 flex items-center gap-3 text-left hover:bg-[var(--gs-surface-2)]"
               >
@@ -152,22 +153,18 @@ export default function Agents() {
   );
 }
 
-function AgentChat({ agent, onBack }) {
+function AgentChat({ agent, initialSessionId, onBack }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [sessionId] = useState(() => `session_${Date.now()}`);
+  const [sessionId] = useState(() => initialSessionId || `session_${Date.now()}`);
   const bottomRef = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  useEffect(() => {
-    loadHistory();
-  }, []);
-
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     try {
       const r = await api.get(`/agents/${agent.id}/history`, {
         params: { session_id: sessionId, limit: 50 },
@@ -182,7 +179,11 @@ function AgentChat({ agent, onBack }) {
     } catch (e) {
       /* ignore */
     }
-  };
+  }, [agent.id, sessionId]);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   const send = async () => {
     const msg = input.trim();
@@ -214,7 +215,7 @@ function AgentChat({ agent, onBack }) {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
+    <div className="flex flex-col min-h-[calc(100dvh-8rem)] h-[calc(100dvh-8rem)]">
       <div className="flex items-center gap-3 mb-4">
         <Button variant="ghost" size="icon" onClick={onBack}>
           <ArrowLeft className="h-4 w-4" />
@@ -231,7 +232,7 @@ function AgentChat({ agent, onBack }) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-3 pb-4">
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pb-4">
         {messages.length === 0 && (
           <div className="text-center py-12 text-[var(--gs-muted)]">
             <div className="text-4xl mb-3">{agent.avatar}</div>
@@ -244,7 +245,7 @@ function AgentChat({ agent, onBack }) {
             className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
+              className={`max-w-[80%] break-words rounded-2xl px-4 py-2.5 text-sm ${
                 m.role === "user"
                   ? "bg-[var(--gs-teal)] text-white"
                   : "bg-white border"
@@ -279,7 +280,7 @@ function AgentChat({ agent, onBack }) {
         <div ref={bottomRef} />
       </div>
 
-      <div className="flex gap-2 pt-2 border-t" style={{ borderColor: "var(--gs-border)" }}>
+      <div className="flex gap-2 pt-2 pb-[env(safe-area-inset-bottom)] border-t" style={{ borderColor: "var(--gs-border)" }}>
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}

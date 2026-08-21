@@ -96,6 +96,21 @@ def _rule_based(raw: str, intent: str) -> dict:
     }
 
 
+def brand_block(brand: Optional[dict]) -> str:
+    """Format non-empty saved Brand Kit fields for downstream generation prompts."""
+    if not brand:
+        return ''
+    fields = []
+    for key, label in (('name', 'Brand'), ('tone', 'Brand voice'), ('audience', 'Target audience'), ('tagline', 'Tagline')):
+        value = brand.get(key)
+        if value:
+            fields.append(f'{label}: {str(value).strip()}')
+    colors = brand.get('colors') or []
+    if colors:
+        fields.append('Brand colors: ' + ', '.join(str(color).strip() for color in colors if str(color).strip()))
+    return 'BRAND KIT (preserve this identity):\n- ' + '\n- '.join(fields) if fields else ''
+
+
 def product_block(product: Optional[dict]) -> str:
     if not product:
         return ''

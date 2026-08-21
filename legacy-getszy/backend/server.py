@@ -16,6 +16,8 @@ from app.router_registry import load_all_routers
 from monitoring import init_monitoring
 from llm_provider import LLMServiceUnavailable
 
+# FastAPI docs remain available on the private backend for local CI and operator
+# diagnostics. Caddy explicitly returns 404 for these paths on the public domain.
 app = FastAPI(title='getszy API')
 api_router = APIRouter(prefix='/api')
 
@@ -54,8 +56,11 @@ async def health():
     try:
         await db.command('ping')
         return {'status': 'ok', 'ai': 'Getszy AI'}
-    except Exception as e:
-        return {'status': 'error', 'detail': str(e)}
+    except Exception:
+        # A non-2xx response is required for Docker, uptime monitors, and reverse
+        # proxies to recognise a database outage instead of treating an error body
+        # as a healthy service.
+        return JSONResponse(status_code=503, content={'status': 'error', 'detail': 'database_unavailable'})
 
 
 @api_router.get('/health/llm')

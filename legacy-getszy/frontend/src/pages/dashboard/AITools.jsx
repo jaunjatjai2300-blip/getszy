@@ -8,11 +8,66 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import {
   Wand2, Sparkle, Image, FileText, Search, Palette, Layout,
   Scissors, Flame, ArrowUpCircle, Lightbulb, Loader2, Copy,
-  Download, RefreshCw, CheckCircle2, BadgeCheck, Video,
+  Download, RefreshCw, CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+const resolveMediaUrl = (url) => url?.startsWith("/") ? `${BACKEND_URL}${url}` : url;
+const mediaRequestPath = (url) => url?.startsWith("/") ? url.replace(/^\/api(?=\/)/, "") : url;
+const isLocalMedia = (url) => Boolean(url && (url.startsWith("/api/media/") || url.startsWith("/media/") || (BACKEND_URL && url.startsWith(`${BACKEND_URL}/api/media/`))));
+
+async function downloadMedia(url, filename) {
+  try {
+    const response = await api.get(mediaRequestPath(url), { responseType: "blob" });
+    const objectUrl = URL.createObjectURL(response.data);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch (error) {
+    toast.error(error?.response?.status === 401 ? "Please sign in again to download" : "Download failed — please retry");
+  }
+}
+
+function AuthenticatedMedia({ url, alt, className }) {
+  const resolved = resolveMediaUrl(url);
+  const protectedAsset = isLocalMedia(url);
+  const [src, setSrc] = useState(() => protectedAsset ? "" : resolved || "");
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl = "";
+    if (!resolved || !protectedAsset) {
+      setSrc(resolved || "");
+      return undefined;
+    }
+    setSrc("");
+    api.get(mediaRequestPath(url), { responseType: "blob" })
+      .then((response) => {
+        objectUrl = URL.createObjectURL(response.data);
+        if (active) setSrc(objectUrl);
+      })
+      .catch(() => { if (active) setSrc(""); });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [url, resolved, protectedAsset]);
+
+  if (!src) return <div className={`${className} grid place-items-center text-xs text-[var(--gs-muted)]`}>Loading…</div>;
+  return <img src={src} alt={alt} className={className}/>;
+}
+
+function MediaDownload({ url, filename }) {
+  if (!isLocalMedia(url)) {
+    return <a href={resolveMediaUrl(url)} download className="block text-center text-xs py-2 bg-[var(--gs-surface-2)] hover:bg-[var(--gs-surface)]"><Download className="h-3 w-3 inline mr-1"/>Download</a>;
+  }
+  return <button type="button" onClick={() => downloadMedia(url, filename)} className="w-full text-center text-xs py-2 bg-[var(--gs-surface-2)] hover:bg-[var(--gs-surface)]"><Download className="h-3 w-3 inline mr-1"/>Download</button>;
+}
 
 const TOOLS = [
   { id: "logo", name: "Design a Logo", icon: Palette, color: "#7c3aed", category: "design",
@@ -35,10 +90,6 @@ const TOOLS = [
     desc: "Upload an image, get a sharper, higher-resolution version" },
   { id: "validate", name: "Validate My Business Idea", icon: Lightbulb, color: "#8b5cf6", category: "strategy",
     desc: "Describe your idea, get honest feedback on viability, risks, and next steps" },
-  { id: "brand", name: "Brand Kit", icon: BadgeCheck, color: "#0ea5e9", category: "strategy",
-    desc: "Save your brand once — every video, page and caption we make stays on-brand automatically" },
-  { id: "avatar", name: "Talking Avatar", icon: Video, color: "#f43f5e", category: "media",
-    desc: "Upload a photo + 10s voice sample + script → a talking avatar video in your cloned voice (HeyGen/D-ID replacement)" },
 ];
 
 const CATEGORIES = [
@@ -128,8 +179,6 @@ function ToolDialog({ tool, onClose }) {
         {tool.id === "heatmap" && <HeatmapTool color={tool.color}/>}
         {tool.id === "upscaler" && <UpscalerTool color={tool.color}/>}
         {tool.id === "validate" && <ValidateTool color={tool.color}/>}
-        {tool.id === "brand" && <BrandKitTool color={tool.color}/>}
-        {tool.id === "avatar" && <AvatarTool color={tool.color}/>}
       </div>
     </div>
   );
@@ -147,10 +196,8 @@ function LogoTool({ color }) {
     setBusy(true); toast.loading("Generating logos…", { id: "logo" });
     try {
       const r = await api.post("/media/logo", { brand_name: brand, style, palette: "teal" });
-      const urls = r.data.variants?.map(v => v.url) || [];
-      setLogos(urls);
-      if (urls.length) toast.success("4 logo concepts ready ✅", { id: "logo" });
-      else toast.error("No logos returned — try a different brand name", { id: "logo" });
+      setLogos((r.data.variants || r.data.urls || []).map((item) => typeof item === "string" ? item : item.url).filter(Boolean));
+      toast.success("4 logo concepts ready ✅", { id: "logo" });
     } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "logo" }); }
     finally { setBusy(false); }
   };
@@ -176,19 +223,15 @@ function LogoTool({ color }) {
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
         {busy ? "Generating…" : "Generate 4 Logo Concepts"}
       </Button>
-      {logos.length > 0 ? (
+      {logos.length > 0 && (
         <div className="grid grid-cols-2 gap-3">
           {logos.map((url, i) => (
             <div key={i} className="rounded-xl overflow-hidden border bg-white">
-              <img src={url} alt={`Logo ${i+1}`} className="w-full aspect-square object-contain"/>
-              <a href={url} download className="block text-center text-xs py-2 bg-[var(--gs-surface-2)] hover:bg-[var(--gs-surface)]">
-                <Download className="h-3 w-3 inline mr-1"/>Download
-              </a>
+              <AuthenticatedMedia url={url} alt={`Logo ${i+1}`} className="w-full aspect-square object-contain"/>
+              <MediaDownload url={url} filename={`logo-${i + 1}.png`}/>
             </div>
           ))}
         </div>
-      ) : !busy && (
-        <p className="text-xs text-[var(--gs-muted)]">Your generated logo concepts will appear here.</p>
       )}
     </div>
   );
@@ -198,21 +241,22 @@ function LogoTool({ color }) {
 function CopyTool({ color }) {
   const [desc, setDesc] = useState("");
   const [goal, setGoal] = useState("sales");
-  const [product, setProduct] = useState("");
-  const [lang, setLang] = useState("en");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
 
-    const generate = async () => {
+  const generate = async () => {
     if (!desc.trim()) return toast.error("Describe your page");
     setBusy(true); toast.loading("Writing copy…", { id: "copy" });
     try {
-      const r = await api.post("/architect/generate", { text: desc, intent: "copy", language: lang, product_query: product || undefined });
-      const content = r.data.content || r.data.brief?.structured_prompt || "";
-      setResult(content || "No result");
-      if (content) toast.success("Copy ready ✅", { id: "copy" });
-      else toast.error("Couldn't generate copy — try rephrasing", { id: "copy" });
-    } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "copy" }); }
+      const r = await api.post("/ai-tools/chat/completions", {
+        messages: [
+          { role: "system", content: "You are an expert copywriter. Write compelling website copy with headlines, subheadlines, body text, and CTAs. Format as clean markdown." },
+          { role: "user", content: `Write website copy for: ${desc}\nGoal: ${goal}\n\nProvide: 3 headline options, subheadline, body paragraphs, and 2 CTA button texts.` }
+        ]
+      });
+      setResult(r.data.choices?.[0]?.message?.content || "No result");
+      toast.success("Copy ready ✅", { id: "copy" });
+    } catch (e) { toast.error("Failed", { id: "copy" }); }
     finally { setBusy(false); }
   };
 
@@ -234,31 +278,11 @@ function CopyTool({ color }) {
           </SelectContent>
         </Select>
       </div>
-      <div>
-        <label className="text-xs text-[var(--gs-muted)]">Product (optional — pulls real price, images & details from your catalog)</label>
-        <Input value={product} onChange={e => setProduct(e.target.value)} placeholder="e.g. Protein Powder"/>
-      </div>
-      <div>
-        <label className="text-xs text-[var(--gs-muted)]">Language</label>
-        <Select value={lang} onValueChange={setLang}>
-          <SelectTrigger><SelectValue/></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="en">English</SelectItem>
-            <SelectItem value="hinglish">Hinglish</SelectItem>
-            <SelectItem value="hi">Hindi</SelectItem>
-            <SelectItem value="ta">Tamil</SelectItem>
-            <SelectItem value="te">Telugu</SelectItem>
-            <SelectItem value="bn">Bengali</SelectItem>
-            <SelectItem value="mr">Marathi</SelectItem>
-            <SelectItem value="gu">Gujarati</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
       <Button onClick={generate} disabled={busy} className="w-full text-white" style={{ background: color }}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
         {busy ? "Writing…" : "Generate Copy"}
       </Button>
-      {result && <ResultCard text={result} onRegenerate={generate}/>}
+      {result && <ResultCard text={result}/>}
     </div>
   );
 }
@@ -266,27 +290,22 @@ function CopyTool({ color }) {
 // ── 3. Landing Page ──
 function LandingTool({ color }) {
   const [desc, setDesc] = useState("");
-  const [product, setProduct] = useState("");
-  const [lang, setLang] = useState("en");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
-  const [project, setProject] = useState(null);
 
   const generate = async () => {
     if (!desc.trim()) return toast.error("Describe your landing page");
-    setBusy(true); setProject(null); toast.loading("Building landing page…", { id: "land" });
+    setBusy(true); toast.loading("Building landing page…", { id: "land" });
     try {
-      const r = await api.post("/architect/generate", { text: desc, intent: "landing", language: lang, product_query: product || undefined });
-      if (r.data.project_id) {
-        setProject({ id: r.data.project_id, preview: r.data.preview_url, download: r.data.download_url, size: r.data.size_bytes });
-        toast.success("Landing page ready ✅", { id: "land" });
-      } else {
-        const c = r.data.brief?.structured_prompt || "";
-        setResult(c || "No result");
-        if (c) toast.success("Landing page ready ✅", { id: "land" });
-        else toast.error("Couldn't build the page — try again", { id: "land" });
-      }
-    } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "land" }); }
+      const r = await api.post("/ai-tools/chat/completions", {
+        messages: [
+          { role: "system", content: "You are a landing page specialist. Generate a complete landing page structure with: Hero (headline + subheadline + CTA), Benefits (3-4 items), Social Proof (testimonials), FAQ, and Final CTA. Use compelling copy. Format as clean markdown." },
+          { role: "user", content: `Create a landing page for: ${desc}` }
+        ]
+      });
+      setResult(r.data.choices?.[0]?.message?.content || "No result");
+      toast.success("Landing page ready ✅", { id: "land" });
+    } catch (e) { toast.error("Failed", { id: "land" }); }
     finally { setBusy(false); }
   };
 
@@ -296,46 +315,11 @@ function LandingTool({ color }) {
         <label className="text-xs text-[var(--gs-muted)]">Describe your product/service *</label>
         <Textarea rows={3} value={desc} onChange={e => setDesc(e.target.value)} placeholder="e.g. AI-powered fitness coach app for women, ₹299/month, tracks workouts + nutrition"/>
       </div>
-      <div>
-        <label className="text-xs text-[var(--gs-muted)]">Product (optional — pulls real price, images & details from your catalog)</label>
-        <Input value={product} onChange={e => setProduct(e.target.value)} placeholder="e.g. Protein Powder"/>
-      </div>
-      <div>
-        <label className="text-xs text-[var(--gs-muted)]">Language</label>
-        <Select value={lang} onValueChange={setLang}>
-          <SelectTrigger><SelectValue/></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="en">English</SelectItem>
-            <SelectItem value="hinglish">Hinglish</SelectItem>
-            <SelectItem value="hi">Hindi</SelectItem>
-            <SelectItem value="ta">Tamil</SelectItem>
-            <SelectItem value="te">Telugu</SelectItem>
-            <SelectItem value="bn">Bengali</SelectItem>
-            <SelectItem value="mr">Marathi</SelectItem>
-            <SelectItem value="gu">Gujarati</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
       <Button onClick={generate} disabled={busy} className="w-full text-white" style={{ background: color }}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
         {busy ? "Building…" : "Generate Landing Page"}
       </Button>
-      {project ? (
-        <div className="rounded-xl border bg-[var(--gs-surface-2)] p-4 space-y-3">
-          <p className="text-sm font-medium">Your landing page is ready 🎉</p>
-          <p className="text-xs text-[var(--gs-muted)]">{(project.size / 1024).toFixed(0)} KB · production-ready HTML</p>
-          <div className="flex gap-2">
-            <a href={project.preview} target="_blank" rel="noreferrer"
-               className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm text-white" style={{ background: color }}>
-              <Layout className="h-4 w-4 mr-2"/>Preview
-            </a>
-            <a href={project.download} target="_blank" rel="noreferrer"
-               className="inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm">
-              <Download className="h-4 w-4 mr-2"/>Download HTML
-            </a>
-          </div>
-        </div>
-      ) : result && <ResultCard text={result} onRegenerate={generate}/>}
+      {result && <ResultCard text={result}/>}
     </div>
   );
 }
@@ -343,34 +327,16 @@ function LandingTool({ color }) {
 // ── 4. Image Generator ──
 function ImageGenTool({ color }) {
   const [prompt, setPrompt] = useState("");
-  const [source, setSource] = useState("ai");
   const [busy, setBusy] = useState(false);
   const [image, setImage] = useState("");
-  const [stockItems, setStockItems] = useState([]);
-  const [stockSearched, setStockSearched] = useState(false);
 
   const generate = async () => {
     if (!prompt.trim()) return toast.error("Describe the image");
-    setBusy(true); setStockItems([]); setImage(""); setStockSearched(false);
-    if (source === "stock") {
-      toast.loading("Fetching free 4K stock photos…", { id: "img" });
-      try {
-        const r = await api.post("/architect/stock", { query: prompt, type: "image", n: 8 });
-        setStockItems(r.data.items || []);
-        setStockSearched(true);
-        if ((r.data.items || []).length === 0) toast.error("No safe stock matched — try a different description", { id: "img" });
-        else toast.success("Stock photos ready ✅", { id: "img" });
-      } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "img" }); }
-      finally { setBusy(false); }
-      return;
-    }
-    toast.loading("Generating image…", { id: "img" });
+    setBusy(true); toast.loading("Generating image…", { id: "img" });
     try {
       const r = await api.post("/media/image", { prompt, width: 1024, height: 1024 });
-      const u = r.data.url || "";
-      setImage(u);
-      if (u) toast.success("Image ready ✅", { id: "img" });
-      else toast.error("Image generation failed — try again", { id: "img" });
+      setImage(r.data.url || "");
+      toast.success("Image ready ✅", { id: "img" });
     } catch (e) { toast.error("Failed", { id: "img" }); }
     finally { setBusy(false); }
   };
@@ -379,41 +345,17 @@ function ImageGenTool({ color }) {
     <div className="space-y-4">
       <div>
         <label className="text-xs text-[var(--gs-muted)]">Describe what you want to see *</label>
-        <Textarea rows={3} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="e.g. A serene Japanese garden with cherry blossoms, soft morning light"/>
-      </div>
-      <div>
-        <label className="text-xs text-[var(--gs-muted)]">Source</label>
-        <Select value={source} onValueChange={setSource}>
-          <SelectTrigger><SelectValue/></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ai">AI generated (free)</SelectItem>
-            <SelectItem value="stock">Free stock photos (4K, licence-clear)</SelectItem>
-          </SelectContent>
-        </Select>
+        <Textarea rows={3} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="e.g. A serene Japanese garden with cherry blossoms, soft morning light, watercolor style"/>
       </div>
       <Button onClick={generate} disabled={busy} className="w-full text-white" style={{ background: color }}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Image className="h-4 w-4 mr-2"/>}
-        {busy ? "Working…" : (source === "stock" ? "Find Free Stock" : "Generate Image")}
+        {busy ? "Generating…" : "Generate Image"}
       </Button>
       {image && (
         <div className="rounded-xl overflow-hidden border">
-          <img src={image} alt="Generated" className="w-full"/>
-          <a href={image} download className="block text-center text-xs py-2 bg-[var(--gs-surface-2)]">
-            <Download className="h-3 w-3 inline mr-1"/>Download
-          </a>
+          <AuthenticatedMedia url={image} alt="Generated" className="w-full"/>
+          <MediaDownload url={image} filename="generated-image.png"/>
         </div>
-      )}
-      {stockItems.length > 0 && (
-        <div className="grid grid-cols-2 gap-2">
-          {stockItems.map((it, i) => (
-            <a key={i} href={it.url} target="_blank" rel="noreferrer" className="rounded-lg overflow-hidden border block">
-              <img src={it.url} alt="Stock" className="w-full h-36 object-cover"/>
-            </a>
-          ))}
-        </div>
-      )}
-      {stockSearched && stockItems.length === 0 && (
-        <p className="text-xs text-[var(--gs-muted)]">No decent/safe stock photos matched. Try a clearer, non-political description.</p>
       )}
     </div>
   );
@@ -451,7 +393,7 @@ function SEOTool({ color }) {
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Search className="h-4 w-4 mr-2"/>}
         {busy ? "Analyzing…" : "Run SEO Audit"}
       </Button>
-      {result && <ResultCard text={result} onRegenerate={analyze}/>}
+      {result && <ResultCard text={result}/>}
     </div>
   );
 }
@@ -493,7 +435,7 @@ function ContentTool({ color }) {
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
         {busy ? "Writing…" : "Generate Content"}
       </Button>
-      {result && <ResultCard text={result} onRegenerate={generate}/>}
+      {result && <ResultCard text={result}/>}
     </div>
   );
 }
@@ -529,10 +471,8 @@ function BGRemoveTool({ color }) {
       </div>
       {result && (
         <div className="rounded-xl overflow-hidden border">
-          <img src={result} alt="Result" className="w-full"/>
-          <a href={result} download className="block text-center text-xs py-2 bg-[var(--gs-surface-2)]">
-            <Download className="h-3 w-3 inline mr-1"/>Download
-          </a>
+          <AuthenticatedMedia url={result} alt="Result" className="w-full"/>
+          <MediaDownload url={result} filename="ai-result.png"/>
         </div>
       )}
     </div>
@@ -570,10 +510,8 @@ function HeatmapTool({ color }) {
       </div>
       {result && (
         <div className="rounded-xl overflow-hidden border">
-          <img src={result} alt="Heatmap" className="w-full"/>
-          <a href={result} download className="block text-center text-xs py-2 bg-[var(--gs-surface-2)]">
-            <Download className="h-3 w-3 inline mr-1"/>Download
-          </a>
+          <AuthenticatedMedia url={result} alt="Heatmap" className="w-full"/>
+          <MediaDownload url={result} filename="ai-result.png"/>
         </div>
       )}
     </div>
@@ -611,10 +549,8 @@ function UpscalerTool({ color }) {
       </div>
       {result && (
         <div className="rounded-xl overflow-hidden border">
-          <img src={result} alt="Upscaled" className="w-full"/>
-          <a href={result} download className="block text-center text-xs py-2 bg-[var(--gs-surface-2)]">
-            <Download className="h-3 w-3 inline mr-1"/>Download
-          </a>
+          <AuthenticatedMedia url={result} alt="Upscaled" className="w-full"/>
+          <MediaDownload url={result} filename="ai-result.png"/>
         </div>
       )}
     </div>
@@ -653,176 +589,25 @@ function ValidateTool({ color }) {
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Lightbulb className="h-4 w-4 mr-2"/>}
         {busy ? "Analyzing…" : "Validate Idea"}
       </Button>
-      {result && <ResultCard text={result} onRegenerate={validate}/>}
-    </div>
-  );
-}
-
-// ── 11. Brand Kit (memory across every generation) ──
-function BrandKitTool({ color }) {
-  const [b, setB] = useState({ name: "", industry: "", tagline: "", usp: "", audience: "", tone: "", colors: "", fonts: "", logo_url: "", social: "", forbidden: "" });
-  const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    api.get("/architect/brand").then(r => {
-      if (r.data && Object.keys(r.data).length) {
-        setB(prev => ({ ...prev, ...r.data, colors: Array.isArray(r.data.colors) ? r.data.colors.join(", ") : (r.data.colors || "") }));
-      }
-    }).catch(() => {});
-  }, []);
-
-  const set = k => e => setB({ ...b, [k]: e.target.value });
-
-  const save = async () => {
-    setBusy(true);
-    try {
-      const payload = { ...b, colors: b.colors ? b.colors.split(",").map(s => s.trim()).filter(Boolean) : [] };
-      await api.post("/architect/brand", payload);
-      setSaved(true); setTimeout(() => setSaved(false), 2500);
-      toast.success("Brand kit saved — every asset is now on-brand", { id: "brand" });
-    } catch (e) { toast.error("Save failed", { id: "brand" }); }
-    finally { setBusy(false); }
-  };
-
-  const field = (k, label, ph) => (
-    <div>
-      <label className="text-xs text-[var(--gs-muted)]">{label}</label>
-      <Input value={b[k]} onChange={set(k)} placeholder={ph}/>
-    </div>
-  );
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-[var(--gs-muted)]">
-        Save your brand once. Copy, landing pages, videos and captions will automatically use your
-        colors, tone, voice and USP — so you never re-brief us again.
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {field("name", "Brand name *", "e.g. FitFem")}
-        {field("industry", "Industry", "e.g. Fitness / D2C")}
-        {field("tagline", "Tagline", "e.g. Stronger every day")}
-        {field("usp", "Unique selling point", "e.g. India's first women-only coach")}
-        {field("audience", "Target audience", "e.g. Women 25-40, urban")}
-        {field("tone", "Tone of voice", "e.g. Bold, friendly, Hindi-English mix")}
-        {field("colors", "Brand colors (comma separated)", "e.g. #7c3aed, #0ea5e9")}
-        {field("fonts", "Preferred fonts", "e.g. Poppins + Inter")}
-        {field("logo_url", "Logo URL", "https://...")}
-        {field("social", "Social handles", "@fitfem")}
-        {field("forbidden", "Words to avoid", "e.g. cheap, scam")}
-      </div>
-      <div className="flex items-center gap-3">
-        <Button onClick={save} disabled={busy || !b.name.trim()} className="text-white" style={{ background: color }}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <BadgeCheck className="h-4 w-4 mr-2"/>}
-          {busy ? "Saving…" : "Save Brand Kit"}
-        </Button>
-        {saved && <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle2 className="h-4 w-4"/> Saved</span>}
-      </div>
-    </div>
-  );
-}
-
-// ── 12. Talking Avatar (SadTalker + voice clone) ──
-function AvatarTool({ color }) {
-  const [portrait, setPortrait] = useState(null);
-  const [voice, setVoice] = useState(null);
-  const [script, setScript] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [job, setJob] = useState(null);
-  const [video, setVideo] = useState("");
-
-  const start = async () => {
-    if (!portrait || !voice || !script.trim()) return toast.error("Upload a photo, a 10s voice sample, and a script");
-    setBusy(true);
-    try {
-      const fd = new FormData();
-      fd.append("portrait", portrait);
-      fd.append("reference_audio", voice);
-      fd.append("script", script);
-      const r = await api.post("/avatar/photo-to-avatar", fd);
-      setJob(r.data);
-      toast.success("Avatar queued — building (2-4 min)");
-      poll(r.data.job_id);
-    } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "av" }); }
-    finally { setBusy(false); }
-  };
-
-  const poll = async (id) => {
-    for (let i = 0; i < 60; i++) {
-      await new Promise(r => setTimeout(r, 5000));
-      try {
-        const r = await api.get(`/avatar/job/${id}`);
-        setJob(r.data);
-        if (r.data.status === "done") { setVideo(r.data.url); toast.success("Avatar ready 🎉", { id: "av" }); return; }
-        if (r.data.status === "failed") { toast.error("Failed: " + (r.data.error || "unknown"), { id: "av" }); return; }
-      } catch (e) { /* keep polling */ }
-    }
-    toast.error("Timed out — check back in Avatar history", { id: "av" });
-  };
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-[var(--gs-muted)]">
-        A photo + a short voice clip + your script becomes a talking spokesperson in your own cloned voice.
-        Requires a free <code>HF_TOKEN</code> on the server (SadTalker runs on HuggingFace). No extra subscription needed.
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs text-[var(--gs-muted)]">Portrait photo *</label>
-          <Input type="file" accept="image/*" onChange={e => setPortrait(e.target.files?.[0])}/>
-        </div>
-        <div>
-          <label className="text-xs text-[var(--gs-muted)]">Voice sample (≥10s) *</label>
-          <Input type="file" accept="audio/*" onChange={e => setVoice(e.target.files?.[0])}/>
-        </div>
-      </div>
-      <div>
-        <label className="text-xs text-[var(--gs-muted)]">What should the avatar say? *</label>
-        <Textarea rows={3} value={script} onChange={e => setScript(e.target.value)} placeholder="e.g. Namaste! Welcome to FitFem — India's first women-only fitness coach..."/>
-      </div>
-      <Button onClick={start} disabled={busy} className="w-full text-white" style={{ background: color }}>
-        {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Video className="h-4 w-4 mr-2"/>}
-        {busy ? "Starting…" : "Create Talking Avatar"}
-      </Button>
-      {job && (
-        <div className="text-xs text-[var(--gs-muted)]">
-          Status: <span className="font-medium">{job.status}</span>{job.percent ? ` (${job.percent}%)` : ""}
-        </div>
-      )}
-      {video && (
-        <video src={video} controls className="w-full rounded-xl border"/>
-      )}
+      {result && <ResultCard text={result}/>}
     </div>
   );
 }
 
 // ── Shared result card ──
-function ResultCard({ text, onRegenerate }) {
+function ResultCard({ text }) {
   const [copied, setCopied] = useState(false);
-  const ref = useRef(null);
   const copy = () => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); };
-  useEffect(() => {
-    if (text && ref.current) ref.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [text]);
   return (
-    <div ref={ref} className="rounded-xl border bg-[var(--gs-surface-2)] p-4">
+    <div className="rounded-xl border bg-[var(--gs-surface-2)] p-4">
       <div className="flex items-center justify-between mb-2">
         <Badge variant="outline" className="text-[10px]">Result</Badge>
-        <div className="flex items-center gap-3">
-          {onRegenerate && (
-            <button onClick={onRegenerate} className="text-xs text-[var(--gs-muted)] hover:text-[var(--gs-teal)]">
-              <RefreshCw className="h-3.5 w-3.5 inline mr-1" /> Regenerate
-            </button>
-          )}
-          <button onClick={copy} className="text-xs text-[var(--gs-muted)] hover:text-[var(--gs-teal)]">
-            {copied ? <CheckCircle2 className="h-3.5 w-3.5 inline mr-1" /> : <Copy className="h-3.5 w-3.5 inline mr-1" />}
-            {copied ? "Copied" : "Copy"}
-          </button>
-        </div>
+        <button onClick={copy} className="text-xs text-[var(--gs-muted)] hover:text-[var(--gs-teal)]">
+          {copied ? <CheckCircle2 className="h-3.5 w-3.5 inline mr-1"/> : <Copy className="h-3.5 w-3.5 inline mr-1"/>}
+          {copied ? "Copied" : "Copy"}
+        </button>
       </div>
-      <div className="text-sm leading-relaxed prose-dashboard">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
-      </div>
+      <div className="text-sm whitespace-pre-wrap leading-relaxed">{text}</div>
     </div>
   );
 }

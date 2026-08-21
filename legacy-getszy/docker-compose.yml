@@ -58,7 +58,10 @@ services:
       MONGO_URL: "mongodb://mongo:27017/?replicaSet=rs0"
       REDIS_URL: "redis://redis:6379/0"
       BACKUP_DIR: "/app/backups"
+      MEDIA_CACHE_DIR: "/app/backend/media"
       BACKUP_INTERVAL_HOURS: "${BACKUP_INTERVAL_HOURS:-4}"
+      # Required for encrypted production backups; empty is permitted only for local development.
+      BACKUP_ENCRYPTION_KEY: "${BACKUP_ENCRYPTION_KEY:-}"
       BACKUP_RETENTION_DAILY: "${BACKUP_RETENTION_DAILY:-7}"
       BACKUP_RETENTION_WEEKLY: "${BACKUP_RETENTION_WEEKLY:-5}"
       BACKUP_RETENTION_MONTHLY: "${BACKUP_RETENTION_MONTHLY:-12}"
@@ -71,7 +74,8 @@ services:
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:-}"
       DB_NAME: "getszy_db"
       CORS_ORIGINS: "${CORS_ORIGINS:-https://getszy.com,https://www.getszy.com}"
-      JWT_SECRET: "${JWT_SECRET}"
+      JWT_SECRET: "${JWT_SECRET:?Set JWT_SECRET in .env}"
+      INTEGRATION_ENCRYPTION_KEY: "${INTEGRATION_ENCRYPTION_KEY:?Set INTEGRATION_ENCRYPTION_KEY in .env}"
       FREE_ONLY: "${FREE_ONLY:-true}"
       LLM_PROVIDER: "${LLM_PROVIDER:-ollama}"
       # Host Ollama (already running on the VPS, port 11434). host.docker.internal

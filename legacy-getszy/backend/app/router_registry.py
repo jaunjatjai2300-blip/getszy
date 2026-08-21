@@ -92,6 +92,8 @@ PLATFORM_ROUTERS = [
     ('observability', 'routes_observability', 'observability'),
     ('i18n', 'routes_i18n', 'i18n'),
     ('einvoice', 'routes_einvoice', 'einvoice'),
+    ('releases', 'routes_releases', 'releases'),
+    ('woo_sync', 'routes_woo_sync', 'woo-sync'),
 ]
 
 # ── Support & Legal ───────────────────────────────────────────────────────────
@@ -150,6 +152,11 @@ def load_all_routers() -> APIRouter:
             router = getattr(mod, 'router', None)
             if router:
                 combined.include_router(router)
+            # Hosted sites intentionally use a second public router so generated
+            # pages live at /api/host/<slug> rather than /api/hosting/*.
+            extra_router = getattr(mod, 'host_router', None)
+            if extra_router:
+                combined.include_router(extra_router)
         except ImportError as e:
             print(f'[router-registry] Skipping {name}: {e}')
     return combined

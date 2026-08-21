@@ -12,8 +12,9 @@ services:
     container_name: getszy-prometheus
     restart: unless-stopped
     networks: [getszy]
+    # Prometheus is reachable only through an SSH tunnel from the VPS.
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./alerts.yml:/etc/prometheus/alerts.yml:ro
@@ -30,23 +31,31 @@ services:
     container_name: getszy-alertmanager
     restart: unless-stopped
     networks: [getszy]
+    environment:
+      ALERT_WEBHOOK_URL: "${ALERT_WEBHOOK_URL:?Set ALERT_WEBHOOK_URL in .env to receive production alerts}"
+    # Alertmanager has no public UI; local access is for break-glass debugging only.
     ports:
-      - "9093:9093"
+      - "127.0.0.1:9093:9093"
     volumes:
       - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-    command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
+    entrypoint: ["/bin/sh", "-ec"]
+    command: |
+      test -n "$${ALERT_WEBHOOK_URL}"
+      escaped_url=$$(printf '%s' "$${ALERT_WEBHOOK_URL}" | sed 's/[&|]/\\\\&/g')
+      sed "s|__ALERT_WEBHOOK_URL__|$${escaped_url}|g" /etc/alertmanager/alertmanager.yml > /tmp/alertmanager.yml
+      exec /bin/alertmanager --config.file=/tmp/alertmanager.yml
 
   grafana:
     image: grafana/grafana:10.0.0
     container_name: getszy-grafana
     restart: unless-stopped
     networks: [getszy]
+    # Access Grafana using an SSH tunnel or place it behind authenticated SSO.
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-getszy-change-on-deploy}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:?Set GRAFANA_PASSWORD in .env}
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:
@@ -57,8 +66,7 @@ services:
     container_name: getszy-node-exporter
     restart: unless-stopped
     networks: [getszy]
-    ports:
-      - "9100:9100"
+    # Prometheus reaches this exporter through the internal getszy network.
     pid: host
     command:
       - '--path.rootfs=/host'
@@ -70,8 +78,7 @@ services:
     container_name: getszy-mongodb-exporter
     restart: unless-stopped
     networks: [getszy]
-    ports:
-      - "9216:9216"
+    # Prometheus reaches this exporter through the internal getszy network.
     environment:
       - MONGODB_URI=mongodb://mongo:27017
     # If using a separate Mongo service name, point MONGODB_URI at it.

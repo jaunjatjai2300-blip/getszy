@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,9 +21,7 @@ export default function Integrations() {
   const [view, setView] = useState("grid");
   const [connecting, setConnecting] = useState(null);
 
-  useEffect(() => { load(); }, [cat]);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     setError(null);
     setLoading(true);
     try {
@@ -40,7 +38,9 @@ export default function Integrations() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [cat, search]);
+
+  useEffect(() => { load(); }, [load]);
 
   const doSearch = async () => {
     setError(null);

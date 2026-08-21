@@ -3,6 +3,10 @@
 Users can browse integrations, connect/disconnect, and view connection status.
 Admins can manage the catalog and see usage analytics.
 """
+import base64
+import hashlib
+import json
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
@@ -13,6 +17,26 @@ from auth import get_current_user, get_current_admin
 from db import db
 
 router = APIRouter(tags=['integrations'])
+
+
+def _credential_cipher():
+    """Build the dedicated Fernet cipher required before any live provider stores credentials."""
+    from cryptography.fernet import Fernet
+    secret = os.environ.get('INTEGRATION_ENCRYPTION_KEY')
+    if not secret or secret in {'change-me', 'secret', 'dev-secret'}:
+        raise RuntimeError('INTEGRATION_ENCRYPTION_KEY is not configured')
+    return Fernet(base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest()))
+
+
+def _encrypt_credentials(credentials: Dict[str, str]) -> str:
+    payload = json.dumps(credentials, separators=(',', ':'), ensure_ascii=True).encode()
+    return _credential_cipher().encrypt(payload).decode()
+
+
+def _decrypt_credentials(ciphertext: str) -> Dict[str, str]:
+    """Decode credentials that were stored with ``_encrypt_credentials``."""
+    payload = _credential_cipher().decrypt(ciphertext.encode())
+    return json.loads(payload.decode())
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -279,7 +303,8 @@ async def list_integrations(category: str = '', search: str = '', user=Depends(g
 async def list_connected(user=Depends(get_current_user)):
     """List user's connected integrations."""
     cur = db.user_integrations.find(
-        {'user_id': user['id'], 'status': 'connected'}, {'_id': 0}
+        {'user_id': user['id'], 'status': 'connected'},
+        {'_id': 0, 'credentials': 0, 'credentials_encrypted': 0},
     ).sort('connected_at', -1)
     items = [doc async for doc in cur]
     # Enrich with catalog info
@@ -360,12 +385,16 @@ async def integration_waitlist(payload: WaitlistIn, user=Depends(get_current_use
     return {'ok': True, 'waitlisted': True, 'integration_id': payload.integration_id}
 
 
+class DisconnectIn(BaseModel):
+    integration_id: str = Field(..., min_length=1, max_length=100)
+
+
 @router.post('/integrations/disconnect')
-async def disconnect_integration(integration_id: str, user=Depends(get_current_user)):
-    """Disconnect an integration."""
+async def disconnect_integration(payload: DisconnectIn, user=Depends(get_current_user)):
+    """Disconnect an integration owned by the current user."""
     result = await db.user_integrations.delete_one({
         'user_id': user['id'],
-        'integration_id': integration_id,
+        'integration_id': payload.integration_id,
     })
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail='Connection not found')
