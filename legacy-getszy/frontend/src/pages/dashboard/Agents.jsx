@@ -4,11 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Send, Loader2, ArrowLeft, Plus, MessageSquare, Sparkle,
+  Send, Loader2, ArrowLeft, Plus, MessageSquare, Sparkle, Copy,
   Briefcase, PenTool, Search, BarChart3, Scale, MessageCircle, Handshake,
 } from "lucide-react";
 import { toast } from "sonner";
 import PageState from "@/components/dashboard/PageState";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const AGENT_ICONS = {
   'business-advisor': Briefcase,
@@ -248,7 +250,21 @@ function AgentChat({ agent, onBack }) {
                   : "bg-white border"
               }`}
             >
-              {m.content}
+              {m.role === "user" ? (
+                <span className="whitespace-pre-wrap">{m.content}</span>
+              ) : (
+                <div>
+                  <div className="prose-dashboard max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                  </div>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(m.content)}
+                    className="mt-1 inline-flex items-center gap-1 text-[11px] text-[var(--gs-muted)] hover:text-[var(--gs-teal)]"
+                  >
+                    <Copy className="h-3 w-3" /> Copy
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}
