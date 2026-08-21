@@ -215,6 +215,30 @@ CATEGORIES = [
 
 INTEGRATION_MAP = {i['id']: i for i in INTEGRATIONS}
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Availability gate — P0-7
+# ═══════════════════════════════════════════════════════════════════════════════
+# For the public beta, NO integration is production-ready: there is no OAuth
+# flow, no credential validation, no token refresh, and no client code that
+# actually talks to any provider. The previous /connect endpoint stored a fake
+# "connected" row without doing anything, and the UI misled users into thinking
+# they were connected. Until each integration has:
+#   1. a real OAuth 2.0 flow (state + PKCE) OR validated API-key handshake,
+#   2. encrypted-at-rest credential storage,
+#   3. a working provider client,
+#   4. a token-refresh + revocation worker,
+# the integration is NOT available.
+#
+# `AVAILABLE_INTEGRATIONS` is the single source of truth. To ship a real
+# integration in the future, add its id to this set (and remove the frontend
+# "Coming Soon" pill). Every endpoint below enforces it — the UI cannot bypass
+# by calling the API directly.
+AVAILABLE_INTEGRATIONS: set = set()  # BETA: no integrations are live yet.
+
+
+def _is_available(integration_id: str) -> bool:
+    return integration_id in AVAILABLE_INTEGRATIONS
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # API Routes
@@ -241,8 +265,10 @@ async def list_integrations(category: str = '', search: str = '', user=Depends(g
         conn = conn_map.get(i['id'])
         result.append({
             **i,
-            'connected': bool(conn),
-            'status': conn.get('status', 'disconnected') if conn else 'disconnected',
+            'available': _is_available(i['id']),  # P0-7: honest availability flag
+            'coming_soon': not _is_available(i['id']),
+            'connected': bool(conn) and _is_available(i['id']),
+            'status': (conn.get('status', 'disconnected') if conn else 'disconnected') if _is_available(i['id']) else 'coming_soon',
             'connected_at': conn.get('connected_at') if conn else None,
         })
 
@@ -272,27 +298,66 @@ class ConnectIn(BaseModel):
 
 @router.post('/integrations/connect')
 async def connect_integration(payload: ConnectIn, user=Depends(get_current_user)):
-    """Connect an integration (stores credentials, validates connection)."""
+    """Connect an integration.
+
+    P0-7: For the public beta, NO integrations are enabled. The previous
+    implementation blindly stored whatever credentials the client sent (or
+    nothing at all) and marked the user "connected" — a facade. Until a real
+    OAuth flow + encrypted credential store ships, every connect request is
+    rejected at the backend so the API cannot be bypassed by hitting it
+    directly (bypassing the frontend "Coming Soon" state).
+    """
     integ = INTEGRATION_MAP.get(payload.integration_id)
     if not integ:
         raise HTTPException(status_code=404, detail='Integration not found')
 
-    doc = {
-        'user_id': user['id'],
-        'integration_id': payload.integration_id,
-        'name': integ['name'],
-        'status': 'connected',
-        'auth_type': integ.get('auth_type', 'api_key'),
-        'credentials': payload.credentials or {},
-        'connected_at': datetime.now(timezone.utc).isoformat(),
-        'last_sync': None,
-    }
-    await db.user_integrations.update_one(
+    if not _is_available(payload.integration_id):
+        # Log the attempt for waitlist analytics, but do NOT store any
+        # credentials the client may have sent.
+        try:
+            await db.integration_waitlist.update_one(
+                {'user_id': user['id'], 'integration_id': payload.integration_id},
+                {'$set': {
+                    'user_id': user['id'],
+                    'integration_id': payload.integration_id,
+                    'name': integ['name'],
+                    'requested_at': datetime.now(timezone.utc).isoformat(),
+                }},
+                upsert=True,
+            )
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=503,
+            detail=f"{integ['name']} integration is coming soon. You've been added to the waitlist — we'll notify you when it's live.",
+        )
+
+    # Real integrations would fall through here with a validated OAuth flow.
+    # None exist yet — this branch is intentionally unreachable in the beta.
+    raise HTTPException(status_code=501, detail='Integration connect flow not implemented.')
+
+
+class WaitlistIn(BaseModel):
+    integration_id: str
+
+
+@router.post('/integrations/waitlist')
+async def integration_waitlist(payload: WaitlistIn, user=Depends(get_current_user)):
+    """Explicit "Notify me" endpoint used by the Coming Soon UI."""
+    integ = INTEGRATION_MAP.get(payload.integration_id)
+    if not integ:
+        raise HTTPException(status_code=404, detail='Integration not found')
+    await db.integration_waitlist.update_one(
         {'user_id': user['id'], 'integration_id': payload.integration_id},
-        {'$set': doc},
+        {'$set': {
+            'user_id': user['id'],
+            'integration_id': payload.integration_id,
+            'name': integ['name'],
+            'requested_at': datetime.now(timezone.utc).isoformat(),
+        }},
         upsert=True,
     )
-    return {'ok': True, 'status': 'connected', 'integration_id': payload.integration_id}
+    return {'ok': True, 'waitlisted': True, 'integration_id': payload.integration_id}
 
 
 @router.post('/integrations/disconnect')

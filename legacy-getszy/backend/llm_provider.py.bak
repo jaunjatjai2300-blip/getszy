@@ -1,0 +1,472 @@
+"""LLM Provider — Cost Guard with Multi-Provider Fallback
+
+Priority chain (local free providers first):
+  1. Ollama     — local, free, unlimited (3 models on VPS)
+  2. LM Studio  — local, free, OpenAI-compatible (longcat2.0, etc.)
+  3. Groq       — free tier, 11K req/day
+  4. Gemini     — free tier, 1500 req/day
+  5. OpenRouter — paid (your credits, many models available)
+"""
+import os
+import json
+import httpx
+import uuid
+import logging
+from datetime import datetime, timezone
+from tools import get_schemas, execute_tool
+
+logger = logging.getLogger('getszy.llm')
+
+# ── Config ────────────────────────────────────────────────────────────────────
+FREE_ONLY        = os.environ.get('FREE_ONLY', 'true').lower() != 'false'
+GROQ_API_KEY     = os.environ.get('GROQ_API_KEY', '').strip()
+GROQ_MODEL       = os.environ.get('GROQ_MODEL', 'llama-3.1-8b-instant').strip()
+GEMINI_API_KEY   = os.environ.get('GEMINI_API_KEY', '').strip()
+OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '').strip()
+OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'qwen/qwen-2.5-72b-instruct').strip()
+OLLAMA_BASE_URL  = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
+OLLAMA_SECRET    = os.environ.get('OLLAMA_SECRET', '')
+LMSTUDIO_BASE_URL = os.environ.get('LMSTUDIO_BASE_URL', 'http://localhost:1234/v1')
+LMSTUDIO_MODEL   = os.environ.get('LMSTUDIO_MODEL', 'longcat2.0')
+EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
+EMERGENT_MODEL   = os.environ.get('EMERGENT_MODEL', 'gpt-4o-mini')
+
+# Ollama model chain — comma-separated list from OLLAMA_MODELS env var
+OLLAMA_MODELS = []
+_models_env = os.environ.get('OLLAMA_MODELS', '').strip()
+if _models_env:
+    OLLAMA_MODELS = [m.strip() for m in _models_env.split(',') if m.strip()]
+if not OLLAMA_MODELS:
+    OLLAMA_MODELS = ['qwen2.5:7b']
+
+# Daily free limits (safe = 80% of actual limit)
+GROQ_DAILY_LIMIT   = int(os.environ.get('GROQ_DAILY_LIMIT', '11000'))
+GEMINI_DAILY_LIMIT = int(os.environ.get('GEMINI_DAILY_LIMIT', '1200'))
+
+# ── In-memory daily counters (reset at midnight UTC) ─────────────────────────
+_counters: dict = {}
+
+def _today() -> str:
+    return datetime.now(timezone.utc).strftime('%Y-%m-%d')
+
+def _count(provider: str) -> int:
+    key = f'{provider}:{_today()}'
+    return _counters.get(key, 0)
+
+def _increment(provider: str):
+    key = f'{provider}:{_today()}'
+    _counters[key] = _counters.get(key, 0) + 1
+    today = _today()
+    for k in list(_counters.keys()):
+        if not k.endswith(today):
+            del _counters[k]
+
+def _under_limit(provider: str) -> bool:
+    limits = {'groq': GROQ_DAILY_LIMIT, 'gemini': GEMINI_DAILY_LIMIT}
+    return _count(provider) < limits.get(provider, 999999)
+
+# ── Provider implementations ──────────────────────────────────────────────────
+
+
+# --- Prompt truncation to avoid 413 Payload Too Large ---
+# Groq llama-3.3-70b: 128k ctx, but TPM caps request size. Keep safe budget.
+_MAX_CHARS_PER_MSG = 48000   # ~12k tokens per message, ~24k total, well under limits
+
+def _truncate(text: str, limit: int = _MAX_CHARS_PER_MSG) -> str:
+    if not text or len(text) <= limit:
+        return text
+    head = int(limit * 0.7)
+    tail = limit - head - 40
+    return text[:head] + "\n\n...[truncated for token limit]...\n\n" + text[-tail:]
+
+async def _groq(system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
+    system = _truncate(system)
+    user = _truncate(user)
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        r = await client.post(
+            'https://api.groq.com/openai/v1/chat/completions',
+            headers={'Authorization': f'Bearer {GROQ_API_KEY}'},
+            json={
+                'model': GROQ_MODEL,
+                'messages': [
+                    {'role': 'system', 'content': system},
+                    {'role': 'user', 'content': user},
+                ],
+                'temperature': temperature,
+                'max_tokens': max_tokens or 4096,
+            },
+        )
+        r.raise_for_status()
+        return r.json()['choices'][0]['message']['content']
+
+
+async def _gemini(system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        r = await client.post(
+            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}',
+            json={
+                'system_instruction': {'parts': [{'text': system}]},
+                'contents': [{'parts': [{'text': user}]}],
+                'generationConfig': {'temperature': temperature, 'maxOutputTokens': max_tokens or 2048},
+            },
+        )
+        r.raise_for_status()
+        return r.json()['candidates'][0]['content']['parts'][0]['text']
+
+
+async def _ollama_single(model: str, system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
+    headers = {}
+    if OLLAMA_SECRET:
+        headers['Authorization'] = f'Bearer {OLLAMA_SECRET}'
+    options = {'temperature': temperature}
+    if max_tokens:
+        options['num_predict'] = max_tokens
+    async with httpx.AsyncClient(timeout=300.0) as client:
+        r = await client.post(
+            f'{OLLAMA_BASE_URL}/api/chat',
+            headers=headers,
+            json={
+                'model': model,
+                'messages': [
+                    {'role': 'system', 'content': system},
+                    {'role': 'user', 'content': user},
+                ],
+                'stream': False,
+                'options': options,
+            },
+        )
+        r.raise_for_status()
+        return r.json().get('message', {}).get('content', '')
+
+
+async def _lmstudio(system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        r = await client.post(
+            f'{LMSTUDIO_BASE_URL}/chat/completions',
+            json={
+                'model': LMSTUDIO_MODEL,
+                'messages': [
+                    {'role': 'system', 'content': system},
+                    {'role': 'user', 'content': user},
+                ],
+                'temperature': temperature,
+                'max_tokens': max_tokens or 4096,
+                'stream': False,
+            },
+        )
+        r.raise_for_status()
+        return r.json()['choices'][0]['message']['content']
+
+
+async def _ollama_chain(system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
+    """Try each Ollama model in order until one works."""
+    last_error = None
+    for model in OLLAMA_MODELS:
+        try:
+            result = await _ollama_single(model, system, user, temperature, max_tokens)
+            logger.info(f'LLM: ollama ({model})')
+            return result
+        except Exception as e:
+            logger.warning(f'LLM ollama {model} failed: {e}')
+            last_error = e
+    raise last_error or RuntimeError('All Ollama models failed')
+
+
+async def _emergent(system: str, user: str, session_id: str) -> str:
+    if FREE_ONLY:
+        raise RuntimeError('FREE_ONLY mode: paid LLM blocked. Set FREE_ONLY=false to enable.')
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except ImportError:
+        raise RuntimeError('emergentintegrations package not installed (optional paid provider).')
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=session_id,
+        system_message=system,
+    ).with_model('openai', EMERGENT_MODEL)
+    return await chat.send_message(UserMessage(text=user))
+
+
+async def _openrouter(system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        r = await client.post(
+            'https://openrouter.ai/api/v1/chat/completions',
+            headers={
+                'Authorization': f'Bearer {OPENROUTER_API_KEY}',
+                'HTTP-Referer': 'https://getszy.com',
+                'X-Title': 'Getszy',
+            },
+            json={
+                'model': OPENROUTER_MODEL,
+                'messages': [
+                    {'role': 'system', 'content': system},
+                    {'role': 'user', 'content': user},
+                ],
+                'temperature': temperature,
+                'max_tokens': max_tokens or 4096,
+            },
+        )
+        r.raise_for_status()
+        return r.json()['choices'][0]['message']['content']
+
+
+# ── Provider ordering ─────────────────────────────────────────────────────────
+# LLM_PROVIDER lets ops pin a primary provider (e.g. groq). Local providers are
+# still attempted first when available because they are 100% free & unlimited.
+LLM_PROVIDER = os.environ.get('LLM_PROVIDER', '').strip().lower()
+
+def _build_chain(system, user, temperature, session_id, max_tokens: int | None = None) -> list:
+    """Return an ordered list of (name, coroutine-factory) to try."""
+    chain = []
+
+    # Always offer local free providers first when configured
+    if OLLAMA_MODELS:
+        chain.append(('ollama', lambda: _ollama_chain(system, user, temperature, max_tokens)))
+    if LMSTUDIO_BASE_URL:
+        chain.append(('lmstudio', lambda: _lmstudio(system, user, temperature, max_tokens)))
+
+    # Cloud free providers
+    if GROQ_API_KEY and _under_limit('groq'):
+        chain.append(('groq', lambda: _groq(system, user, temperature, max_tokens)))
+    if GEMINI_API_KEY and _under_limit('gemini'):
+        chain.append(('gemini', lambda: _gemini(system, user, temperature, max_tokens)))
+
+    # Paid providers (only when not in FREE_ONLY mode)
+    if OPENROUTER_API_KEY and not FREE_ONLY:
+        chain.append(('openrouter', lambda: _openrouter(system, user, temperature, max_tokens)))
+    if EMERGENT_LLM_KEY and not FREE_ONLY:
+        chain.append(('emergent', lambda: _emergent(system, user, session_id)))
+
+    # Honor explicit LLM_PROVIDER pin: move it to the front of the chain
+    if LLM_PROVIDER:
+        pinned = [c for c in chain if c[0] == LLM_PROVIDER]
+        rest = [c for c in chain if c[0] != LLM_PROVIDER]
+        chain = pinned + rest
+
+    return chain
+
+
+# ── Main entry point ──────────────────────────────────────────────────────────
+
+class LLMServiceUnavailable(Exception):
+    """Raised when every configured LLM provider in the fallback chain fails.
+    FastAPI converts this to a clean 503 (see server.py) so users never see a raw 500."""
+
+
+async def chat_completion(
+    system: str,
+    user: str,
+    session_id: str | None = None,
+    temperature: float = 0.4,
+    max_tokens: int | None = None,
+) -> str:
+    session_id = session_id or str(uuid.uuid4())
+
+    # Truncate once here so EVERY provider in the chain receives bounded input.
+    # Prevents 413 / token-limit errors from oversized or malicious prompts on
+    # any backend (previously only Groq was truncated inside _groq).
+    system = _truncate(system)
+    user = _truncate(user)
+
+    chain = _build_chain(system, user, temperature, session_id, max_tokens)
+    last_error = None
+    for name, fn in chain:
+        try:
+            result = await fn()
+            if name == 'groq':
+                _increment('groq')
+                logger.info(f'LLM: groq ({_count("groq")}/{GROQ_DAILY_LIMIT} today)')
+            elif name == 'gemini':
+                _increment('gemini')
+                logger.info(f'LLM: gemini ({_count("gemini")}/{GEMINI_DAILY_LIMIT} today)')
+            else:
+                logger.info(f'LLM: {name}')
+            return result
+        except Exception as e:
+            logger.warning(f'LLM {name} failed: {e}')
+            last_error = e
+
+    # Surface total AI outages to Sentry (observability of the fallback chain)
+    try:
+        import sentry_sdk
+        sentry_sdk.capture_exception(
+            last_error or RuntimeError('All LLM providers failed'),
+            extras={'llm_chain': [c[0] for c in chain], 'session_id': session_id},
+        )
+    except Exception:
+        pass
+
+    try:
+        from middleware import inc_ollama_failure
+        inc_ollama_failure()
+    except Exception:
+        pass
+
+    raise LLMServiceUnavailable(
+        'All LLM providers failed. '
+        'Set LLM_PROVIDER appropriately and ensure at least one of '
+        'GROQ_API_KEY/GEMINI_API_KEY/OPENROUTER_API_KEY is configured.'
+    )
+
+
+# ── Tool-calling (agentic) providers ────────────────────────────────────────────
+# OpenAI-compatible providers support `tools`/`tool_calls`. Ollama supports a
+# native tool format. These let agents actually *execute* actions (search the
+# store, query courses, compute) instead of only generating text.
+
+async def _openai_style_with_tools(url, headers, model, messages, tools, temperature):
+    async with httpx.AsyncClient(timeout=90.0) as client:
+        r = await client.post(
+            url, headers=headers,
+            json={'model': model, 'messages': messages, 'tools': tools,
+                  'temperature': temperature, 'max_tokens': 4096},
+        )
+        r.raise_for_status()
+        return r.json()['choices'][0]['message']
+
+
+async def _groq_with_tools(messages, tools, temperature):
+    return await _openai_style_with_tools(
+        'https://api.groq.com/openai/v1/chat/completions',
+        {'Authorization': f'Bearer {GROQ_API_KEY}'}, GROQ_MODEL, messages, tools, temperature)
+
+
+async def _openrouter_with_tools(messages, tools, temperature):
+    return await _openai_style_with_tools(
+        'https://openrouter.ai/api/v1/chat/completions',
+        {'Authorization': f'Bearer {OPENROUTER_API_KEY}', 'HTTP-Referer': 'https://getszy.com', 'X-Title': 'Getszy'},
+        OPENROUTER_MODEL, messages, tools, temperature)
+
+
+async def _lmstudio_with_tools(messages, tools, temperature):
+    return await _openai_style_with_tools(
+        f'{LMSTUDIO_BASE_URL}/chat/completions',
+        {}, LMSTUDIO_MODEL, messages, tools, temperature)
+
+
+async def _ollama_with_tools(messages, tools, temperature):
+    model = OLLAMA_MODELS[0] if OLLAMA_MODELS else 'qwen2.5:7b'
+    headers = {}
+    if OLLAMA_SECRET:
+        headers['Authorization'] = f'Bearer {OLLAMA_SECRET}'
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        r = await client.post(
+            f'{OLLAMA_BASE_URL}/api/chat',
+            headers=headers,
+            json={'model': model, 'messages': messages, 'tools': tools,
+                  'stream': False, 'options': {'temperature': temperature}},
+        )
+        r.raise_for_status()
+        return r.json().get('message', {})
+
+
+def _tool_args(tc: dict) -> dict:
+    raw = tc.get('function', {}).get('arguments', {})
+    if isinstance(raw, dict):
+        return raw
+    try:
+        return json.loads(raw or '{}')
+    except Exception:
+        return {}
+
+
+async def chat_completion_with_tools(
+    system: str,
+    user: str,
+    tool_names: list,
+    history: list = None,
+    session_id: str | None = None,
+    temperature: float = 0.4,
+    max_tool_rounds: int = 5,
+) -> str:
+    """Run an agentic chat: the model may call real tools, results are fed back,
+    and the loop continues until a final answer is produced.
+
+    Falls back to a plain completion if no tool-capable provider is available.
+    """
+    session_id = session_id or str(uuid.uuid4())
+
+    # Bound input size for every tool-capable provider too (same guard as above).
+    system = _truncate(system)
+    user = _truncate(user)
+
+    schemas = get_schemas(tool_names) if tool_names else []
+    if not schemas:
+        return await chat_completion(system, user, session_id, temperature)
+
+    messages = [{'role': 'system', 'content': system}]
+    for h in (history or []):
+        role = 'user' if h.get('role') == 'user' else 'assistant'
+        if h.get('content'):
+            messages.append({'role': role, 'content': h['content']})
+    messages.append({'role': 'user', 'content': user})
+
+    provider_fns = []
+    if GROQ_API_KEY and _under_limit('groq'):
+        provider_fns.append(('groq', lambda m: _groq_with_tools(m, schemas, temperature)))
+    if OPENROUTER_API_KEY and not FREE_ONLY:
+        provider_fns.append(('openrouter', lambda m: _openrouter_with_tools(m, schemas, temperature)))
+    provider_fns.append(('lmstudio', lambda m: _lmstudio_with_tools(m, schemas, temperature)))
+    if OLLAMA_MODELS:
+        provider_fns.append(('ollama', lambda m: _ollama_with_tools(m, schemas, temperature)))
+
+    last_error = None
+    for _ in range(max_tool_rounds):
+        msg = None
+        for name, fn in provider_fns:
+            try:
+                msg = await fn(messages)
+                logger.info(f'tool-LLM: {name}')
+                break
+            except Exception as e:
+                logger.warning(f'tool-LLM {name} failed: {e}')
+                last_error = e
+        if msg is None:
+            break
+        # No tool calls -> final answer
+        if not msg.get('tool_calls'):
+            return msg.get('content', '') or ''
+        # Execute tool calls and feed results back
+        messages.append({
+            'role': 'assistant',
+            'content': msg.get('content') or '',
+            'tool_calls': msg['tool_calls'],
+        })
+        for tc in msg['tool_calls']:
+            fn_name = tc.get('function', {}).get('name')
+            result = await execute_tool(fn_name, _tool_args(tc))
+            messages.append({
+                'role': 'tool',
+                'tool_call_id': tc.get('id'),
+                'content': result,
+            })
+
+    # Fallback to a plain (no-tool) completion if the tool loop produced nothing
+    try:
+        return await chat_completion(system, user, session_id, temperature)
+    except Exception:
+        if last_error:
+            raise last_error
+        raise LLMServiceUnavailable('Tool agent failed to produce a response.')
+
+
+def provider_info() -> dict:
+    groq_used   = _count('groq')
+    gemini_used = _count('gemini')
+    return {
+        'free_only': FREE_ONLY,
+        'providers': {
+            'groq':    {'available': bool(GROQ_API_KEY),   'used_today': groq_used,   'limit': GROQ_DAILY_LIMIT,   'remaining': max(0, GROQ_DAILY_LIMIT - groq_used)},
+            'gemini':  {'available': bool(GEMINI_API_KEY), 'used_today': gemini_used, 'limit': GEMINI_DAILY_LIMIT, 'remaining': max(0, GEMINI_DAILY_LIMIT - gemini_used)},
+            'ollama':  {'available': True, 'models': OLLAMA_MODELS, 'active_model': OLLAMA_MODELS[0] if OLLAMA_MODELS else None, 'description': '100% free, runs on VPS'},
+            'lmstudio':{'available': True, 'model': LMSTUDIO_MODEL, 'base_url': LMSTUDIO_BASE_URL, 'description': '100% free, local OpenAI-compatible'},
+            'emergent':{'available': bool(EMERGENT_LLM_KEY) and not FREE_ONLY, 'blocked_by_free_only': FREE_ONLY},
+        },
+        'active_chain': (
+            f'ollama ({OLLAMA_MODELS[0]})' if OLLAMA_MODELS else
+            f'lmstudio ({LMSTUDIO_MODEL})' if LMSTUDIO_BASE_URL else
+            'groq' if GROQ_API_KEY and _under_limit('groq') else
+            'gemini' if GEMINI_API_KEY and _under_limit('gemini') else
+            'none'
+        ),
+    }
