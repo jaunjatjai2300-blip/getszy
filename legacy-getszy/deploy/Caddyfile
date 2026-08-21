@@ -10,13 +10,14 @@ getszy.com, www.getszy.com, dash.getszy.com {
         -Server
     }
 
-    handle /api/* {
-        reverse_proxy backend:8001
+    # Production documentation is available only from an authenticated internal
+    # environment; never publish API schemas or interactive docs to the internet.
+    @internal_docs path /docs /docs/* /redoc /redoc/* /openapi.json /api/docs /api/docs/* /api/redoc /api/redoc/* /api/openapi.json
+    handle @internal_docs {
+        respond "Not Found" 404
     }
 
-    @docs path /docs /docs/* /redoc /redoc/* /openapi.json
-
-    handle @docs {
+    handle /api/* {
         reverse_proxy backend:8001
     }
 

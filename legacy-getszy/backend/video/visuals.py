@@ -137,7 +137,7 @@ async def fetch_scene_image(prompt: str, orientation: str = '9:16', seed: int = 
 
     # ── PRIMARY: free, licence-clear stock photos (4K when available) ──
     # Real footage = faster (no AI round-trip) and zero credit cost.
-    if USE_STOCK:
+    if VF_USE_STOCK:
         try:
             from stock_media import search_stock_images
             imgs = await search_stock_images(prompt, n=1, min_width=1280)

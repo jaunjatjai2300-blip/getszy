@@ -26,6 +26,7 @@ jobs:
       SEED_ADMIN_PASSWORD: testpassword123
       ADMIN_EMAIL: admin@getszy.com
       ADMIN_PASSWORD: testpassword123
+      SEED_CUSTOMER_PASSWORD: TestCustomer123!
 
     steps:
       - uses: actions/checkout@v4
@@ -50,17 +51,22 @@ jobs:
       - name: Run unit tests
         run: |
           cd backend
-          python -m pytest tests/test_auth.py tests/test_llm_provider.py tests/test_workspace_live.py -v --tb=short
+          python -m pytest tests/test_llm_provider.py tests/test_workspace_live.py -v --tb=short
 
       - name: Run critical flow tests
         env:
-          TEST_BASE_URL: http://localhost:8000
+          TEST_BASE_URL: http://localhost:8000/api
+          TEST_API_URL: http://localhost:8000/api
         run: |
           cd backend
           # Start server in background
-          python -m uvicorn server:app --host 0.0.0.0 --port 8000 &
-          sleep 5
-          python -m pytest tests/test_critical_flows.py -v --tb=short
+          python -m uvicorn server:app --host 0.0.0.0 --port 8000 > /tmp/getszy-api.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:8000/api/health >/dev/null && break
+            sleep 1
+          done
+          curl -fsS http://localhost:8000/api/health >/dev/null || { cat /tmp/getszy-api.log; exit 1; }
+          python -m pytest tests/test_auth.py tests/test_critical_flows.py -v --tb=short
 
   frontend:
     runs-on: ubuntu-latest

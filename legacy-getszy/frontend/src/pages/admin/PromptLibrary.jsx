@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,16 +26,16 @@ export default function PromptLibrary() {
   const [tagInput, setTagInput] = useState("");
   const [preview, setPreview] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const r = await api.get(`/admin/ai-platform/prompts?search=${search}&category=${catFilter}`);
       setPrompts(r.data);
     } catch { toast.error("Load failed"); }
     finally { setLoading(false); }
-  };
+  }, [search, catFilter]);
 
-  useEffect(() => { load(); }, [search, catFilter]);
+  useEffect(() => { load(); }, [load]);
 
   const openCreate = () => { setEditing(null); setForm(BLANK); setTagInput(""); setOpen(true); };
   const openEdit = (p) => { setEditing(p); setForm({ title:p.title, category:p.category, prompt:p.prompt, variables:p.variables||[], tags:p.tags||[], model:p.model||"any", is_public:!!p.is_public }); setTagInput(""); setOpen(true); };

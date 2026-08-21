@@ -33,6 +33,47 @@ async function pollUntilDone(getUrl, id, onUpdate, max = 80) {
   return null;
 }
 
+function AuthenticatedMedia({ url, type, alt = "Generated media", className = "", controls = false }) {
+  const [objectUrl, setObjectUrl] = useState(null);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    let localUrl;
+    setObjectUrl(null);
+    setLoadError(false);
+    if (!url) return undefined;
+    api.get(url, { responseType: "blob" })
+      .then(({ data }) => {
+        localUrl = URL.createObjectURL(data);
+        if (active) setObjectUrl(localUrl);
+      })
+      .catch(() => { if (active) setLoadError(true); });
+    return () => {
+      active = false;
+      if (localUrl) URL.revokeObjectURL(localUrl);
+    };
+  }, [url]);
+
+  if (loadError) return <div className="mt-1 text-xs text-rose-600">Protected media could not be loaded.</div>;
+  if (!objectUrl) return <div className="mt-1 text-xs text-[var(--gs-muted)]">Loading protected media…</div>;
+  if (type === "image") return <img src={objectUrl} alt={alt} className={className} />;
+  if (type === "audio") return <audio src={objectUrl} controls={controls} className={className} />;
+  return <video src={objectUrl} controls={controls} className={className} />;
+}
+
+async function downloadAuthenticatedMedia(url, filename) {
+  const { data } = await api.get(url, { responseType: "blob" });
+  const objectUrl = URL.createObjectURL(data);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename || "getszy-media";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
 function Section({ icon: Icon, title, badge, children }) {
   return (
     <Card className="p-5">
@@ -71,8 +112,8 @@ function ResultView({ data, kind }) {
             <div className="text-xs font-semibold text-[var(--gs-teal)]">Scene {s.scene}</div>
             <div className="text-sm">{s.visual}</div>
             <div className="text-xs text-[var(--gs-muted)]">“{s.caption}” — {s.narration}</div>
-            {s.image_url ? <img src={s.image_url} alt="" className="mt-1 rounded w-32" /> : null}
-            {s.clip_url ? <video src={s.clip_url} controls className="mt-1 w-40 rounded" /> : null}
+            {s.image_url ? <AuthenticatedMedia url={s.image_url} type="image" alt={`Storyboard scene ${s.scene}`} className="mt-1 rounded w-32" /> : null}
+            {s.clip_url ? <AuthenticatedMedia url={s.clip_url} type="video" controls className="mt-1 w-40 rounded" /> : null}
           </div>
         ))}
       </div>
@@ -91,14 +132,14 @@ function ResultView({ data, kind }) {
     );
   }
   if (kind === "video" && data.url) {
-    return <video src={data.url} controls className="mt-2 w-full rounded-lg" />;
+    return <AuthenticatedMedia url={data.url} type="video" controls className="mt-2 w-full rounded-lg" />;
   }
   if (kind === "translate" && data.translated_text) {
     return (
       <div className="mt-2 space-y-1 text-sm">
         <div><span className="font-semibold">Translated:</span> {data.translated_text}</div>
-        {data.dubbed_audio_url ? <audio src={data.dubbed_audio_url} controls className="w-full" /> : null}
-        {data.synced_video_url ? <video src={data.synced_video_url} controls className="w-full rounded" /> : null}
+        {data.dubbed_audio_url ? <AuthenticatedMedia url={data.dubbed_audio_url} type="audio" controls className="w-full" /> : null}
+        {data.synced_video_url ? <AuthenticatedMedia url={data.synced_video_url} type="video" controls className="w-full rounded" /> : null}
         {data.note ? <div className="text-xs text-amber-600">{data.note}</div> : null}
       </div>
     );
@@ -130,7 +171,7 @@ function StoryboardTimeline({ scenes }) {
           return (
             <div key={idx} className={`relative shrink-0 w-36 rounded-lg border ${locked[idx] ? "border-amber-400" : "border-[var(--gs-border)]"} p-2`}>
               <div className="text-[10px] text-[var(--gs-muted)]">#{pos + 1}</div>
-              {s.image_url ? <img src={s.image_url} alt="" className="h-16 w-full object-cover rounded" /> : <div className="h-16 bg-[var(--gs-surface-2)] rounded" />}
+              {s.image_url ? <AuthenticatedMedia url={s.image_url} type="image" alt={`Storyboard scene ${pos + 1}`} className="h-16 w-full object-cover rounded" /> : <div className="h-16 bg-[var(--gs-surface-2)] rounded" />}
               <div className="text-[11px] mt-1 line-clamp-2">{s.caption || s.visual}</div>
               <div className="mt-1 flex items-center justify-between">
                 <div className="flex gap-1">
@@ -391,7 +432,7 @@ function VideoTools() {
           {ttv?.final_video_url ? (
             <div className="mt-2">
               <div className="text-xs font-semibold text-[var(--gs-teal)]">Captioned final video</div>
-              <video src={ttv.final_video_url} controls className="mt-1 w-full rounded-lg" />
+              <AuthenticatedMedia url={ttv.final_video_url} type="video" controls className="mt-1 w-full rounded-lg" />
             </div>
           ) : null}
         </div>
@@ -528,7 +569,6 @@ function SocialAgents() {
 /* ─── Growth tools (Phase 3) ──────────────────────────────────────────────── */
 
 function GrowthTools() {
-  const BACKEND = process.env.REACT_APP_BACKEND_URL || "";
   const [busy, setBusy] = useState(false);
 
   const [topic, setTopic] = useState("");
@@ -681,14 +721,14 @@ function GrowthTools() {
               {thumbs.variants.map((v, i) => (
                 <Card key={i} className="overflow-hidden">
                   {v.image_url ? (
-                    <img src={`${BACKEND}${v.image_url}`} alt={v.headline} className="w-full h-32 object-cover" />
+                    <AuthenticatedMedia url={v.image_url} type="image" alt={v.headline} className="w-full h-32 object-cover" />
                   ) : (
                     <div className="h-32 bg-[var(--gs-surface-2)] grid place-items-center text-center px-2 text-sm font-semibold">{v.headline}</div>
                   )}
                   <div className="p-2 space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-[var(--gs-teal)]">CTR {v.ctr_score}%</span>
-                      {v.image_url ? <a href={`${BACKEND}${v.image_url}`} download className="text-xs underline">Download</a> : null}
+                      {v.image_url ? <button type="button" onClick={() => downloadAuthenticatedMedia(v.image_url, `getszy-thumbnail-${i + 1}.png`).catch(() => toast.error("Download failed"))} className="text-xs underline">Download</button> : null}
                     </div>
                     <p className="text-xs text-[var(--gs-muted)]">{v.reason}</p>
                   </div>
@@ -739,7 +779,7 @@ function GrowthTools() {
                     <span className="text-xs text-[var(--gs-muted)]">voice: {t.voice}</span>
                   </div>
                   {t.audio_url ? (
-                    <audio controls src={`${BACKEND}${t.audio_url}`} className="w-full" />
+                    <AuthenticatedMedia url={t.audio_url} type="audio" controls className="w-full" />
                   ) : <div className="text-xs text-[var(--gs-muted)]">{t.note || "audio unavailable"}</div>}
                   <div className="text-sm whitespace-pre-wrap">{t.text}</div>
                 </div>

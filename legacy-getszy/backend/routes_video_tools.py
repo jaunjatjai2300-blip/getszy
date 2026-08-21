@@ -355,7 +355,7 @@ async def _youtube_to_transcript(url: str) -> Optional[str]:
     with Whisper. Returns transcript text or None if yt-dlp/ffmpeg missing."""
     import shutil
     import tempfile
-    if not shutil.which('yt-dlp') or not _ffmpeg_available():
+    if not shutil.which('yt-dlp') or not shutil.which('ffmpeg'):
         return None
     tmp = tempfile.mkdtemp()
     out_tmpl = os.path.join(tmp, 'audio.%(ext)s')

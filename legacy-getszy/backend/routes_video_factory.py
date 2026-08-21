@@ -66,6 +66,17 @@ async def _update(project_id: str, patch: dict):
     await db.video_projects.update_one({'id': project_id}, {'$set': patch})
 
 
+async def _refresh_video_jobs_metric() -> None:
+    """Publish live queued/processing factory-project depth for alert evaluation."""
+    try:
+        from middleware import set_video_jobs_pending
+        pending = await db.video_projects.count_documents({'status': {'$in': ['created', 'processing']}})
+        set_video_jobs_pending(pending)
+    except Exception:
+        # Metrics must never make a customer video workflow fail.
+        pass
+
+
 # ============================================================
 # Create + list + get + delete
 # ============================================================
@@ -131,6 +142,7 @@ async def create_project(body: CreateProjectIn, background: BackgroundTasks, use
         background.add_task(_run_chain_bg, pid, enriched_prompt, body.language, user['id'], body.fast, brief)
         doc['status'] = 'processing'
         await _update(pid, {'status': 'processing'})
+    await _refresh_video_jobs_metric()
 
     return doc
 
@@ -183,6 +195,7 @@ async def _run_chain_bg(project_id: str, raw_prompt: str, language: str, user_id
     finally:
         stop.set()
         hb.cancel()
+        await _refresh_video_jobs_metric()
 
 
 @router.get('/project/{project_id}')
@@ -201,6 +214,7 @@ async def delete_project(project_id: str, user=Depends(get_current_user)):
     r = await db.video_projects.delete_one({'id': project_id, 'user_id': user['id']})
     if r.deleted_count == 0:
         raise HTTPException(404, 'not found')
+    await _refresh_video_jobs_metric()
     return {'ok': True}
 
 
@@ -755,6 +769,7 @@ async def recover_stuck_chain_jobs():
                       'refunded': True, 'updated_at': _iso()}},
         )
         _cleanup_project_files(p['id'])
+    await _refresh_video_jobs_metric()
     return chain_count
 
 
@@ -797,6 +812,7 @@ async def recover_stuck_video_jobs():
 
     if render_count or chain_count:
         logger.warning('recover_stuck_video_jobs: reset %s render + %s chain job(s)', render_count, chain_count)
+    await _refresh_video_jobs_metric()
     return render_count + chain_count
 
 
