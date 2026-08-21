@@ -83,3 +83,5 @@ legacy-getszy/deploy/*.bak
 attached_assets/
 attached_assets-security-backup/
 
+*.bak
+production-hardening.*
