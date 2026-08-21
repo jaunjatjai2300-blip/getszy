@@ -258,7 +258,7 @@ function CopyTool({ color }) {
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
         {busy ? "Writing…" : "Generate Copy"}
       </Button>
-      {result && <ResultCard text={result}/>}
+      {result && <ResultCard text={result} onRegenerate={generate}/>}
     </div>
   );
 }
@@ -335,7 +335,7 @@ function LandingTool({ color }) {
             </a>
           </div>
         </div>
-      ) : result && <ResultCard text={result}/>}
+      ) : result && <ResultCard text={result} onRegenerate={generate}/>}
     </div>
   );
 }
@@ -451,7 +451,7 @@ function SEOTool({ color }) {
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Search className="h-4 w-4 mr-2"/>}
         {busy ? "Analyzing…" : "Run SEO Audit"}
       </Button>
-      {result && <ResultCard text={result}/>}
+      {result && <ResultCard text={result} onRegenerate={analyze}/>}
     </div>
   );
 }
@@ -493,7 +493,7 @@ function ContentTool({ color }) {
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
         {busy ? "Writing…" : "Generate Content"}
       </Button>
-      {result && <ResultCard text={result}/>}
+      {result && <ResultCard text={result} onRegenerate={generate}/>}
     </div>
   );
 }
@@ -653,7 +653,7 @@ function ValidateTool({ color }) {
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Lightbulb className="h-4 w-4 mr-2"/>}
         {busy ? "Analyzing…" : "Validate Idea"}
       </Button>
-      {result && <ResultCard text={result}/>}
+      {result && <ResultCard text={result} onRegenerate={validate}/>}
     </div>
   );
 }
@@ -797,17 +797,28 @@ function AvatarTool({ color }) {
 }
 
 // ── Shared result card ──
-function ResultCard({ text }) {
+function ResultCard({ text, onRegenerate }) {
   const [copied, setCopied] = useState(false);
+  const ref = useRef(null);
   const copy = () => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+  useEffect(() => {
+    if (text && ref.current) ref.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [text]);
   return (
-    <div className="rounded-xl border bg-[var(--gs-surface-2)] p-4">
+    <div ref={ref} className="rounded-xl border bg-[var(--gs-surface-2)] p-4">
       <div className="flex items-center justify-between mb-2">
         <Badge variant="outline" className="text-[10px]">Result</Badge>
-        <button onClick={copy} className="text-xs text-[var(--gs-muted)] hover:text-[var(--gs-teal)]">
-          {copied ? <CheckCircle2 className="h-3.5 w-3.5 inline mr-1"/> : <Copy className="h-3.5 w-3.5 inline mr-1"/>}
-          {copied ? "Copied" : "Copy"}
-        </button>
+        <div className="flex items-center gap-3">
+          {onRegenerate && (
+            <button onClick={onRegenerate} className="text-xs text-[var(--gs-muted)] hover:text-[var(--gs-teal)]">
+              <RefreshCw className="h-3.5 w-3.5 inline mr-1" /> Regenerate
+            </button>
+          )}
+          <button onClick={copy} className="text-xs text-[var(--gs-muted)] hover:text-[var(--gs-teal)]">
+            {copied ? <CheckCircle2 className="h-3.5 w-3.5 inline mr-1" /> : <Copy className="h-3.5 w-3.5 inline mr-1" />}
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
       </div>
       <div className="text-sm leading-relaxed prose-dashboard">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
