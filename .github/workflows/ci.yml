@@ -88,7 +88,9 @@ jobs:
 
       - name: Security scan (bandit + safety)
         run: |
-          pip install bandit safety
+          # Patch the runner's setuptools before Safety scans installed packages.
+          # Safety currently identifies CVE-2026-59890 in setuptools <83.0.0.
+          python -m pip install --upgrade "setuptools>=83.0.0" bandit safety
           cd legacy-getszy/backend
           # High-severity only for bandit (low/medium are too noisy to gate on).
           bandit -r . -x ./tests,./venv -lll
