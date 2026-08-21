@@ -9,6 +9,12 @@ export const api = axios.create({ baseURL: API_BASE });
 api.interceptors.request.use((cfg) => {
   const token = localStorage.getItem("gs_token");
   if (token) cfg.headers.Authorization = `Bearer ${token}`;
+  // Backend sometimes returns URLs that already include "/api" (e.g. a job's
+  // status_endpoint). Since API_BASE already ends with "/api", strip any leading
+  // "/api" so we never request "/api/api/..." (which 404s and spams the console).
+  if (cfg.url && API_BASE.replace(/\/+$/, "").endsWith("/api")) {
+    cfg.url = cfg.url.replace(/^(\/api)+/, "");
+  }
   _activityInc();
   return cfg;
 });
