@@ -1,8 +1,8 @@
-getszy.com, www.getszy.com, dash.getszy.com {
+{$DOMAIN}, www.{$DOMAIN}, dash.{$DOMAIN} {
     encode gzip
 
     header {
-        Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://assets.emergent.sh; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.getszy.com https://assets.emergent.sh; frame-ancestors 'none'"
+        Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://assets.emergent.sh; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.{$DOMAIN} https://assets.emergent.sh; frame-ancestors 'none'"
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
