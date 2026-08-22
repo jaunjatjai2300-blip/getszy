@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useContext } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useInView } from "framer-motion";
 import {
@@ -9,9 +9,8 @@ import {
   Leaf, Moon, ShoppingCart, Headphones, LineChart, Users, Lock, FileText, Command, Hand, Shield
 } from "lucide-react";
 import { api } from "../lib/api";
-import { useWishlistContext } from "../context/WishlistContext";
-import { useCart } from "../context/CartContext";
-import { AuthContext } from "../context/AuthContext";
+import { useCart } from "../lib/cart";
+import { useAuth } from "../lib/auth";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 26 },
@@ -191,10 +190,10 @@ function DiscoveryRail({ title, icon: Icon, items, wishlist, toggleWish, addToCa
 function MobileBottomNav({ onAskNeo, navigate }) {
   const items = [
     { id: "home", label: "Home", icon: HomeIcon, to: "/" },
-    { id: "search", label: "Search", icon: Search, to: "/products" },
+    { id: "search", label: "Search", icon: Search, to: "/shop" },
     { id: "neo", label: "Neo", icon: Sparkles, action: onAskNeo, special: true },
-    { id: "cart", label: "Cart", icon: ShoppingBag, to: "/checkout" },
-    { id: "me", label: "Me", icon: User, to: "/profile" },
+    { id: "cart", label: "Cart", icon: ShoppingBag, to: "/cart" },
+    { id: "me", label: "Me", icon: User, to: "/account" },
   ];
   return (
     <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-[#FFFDFB]/95 backdrop-blur border-t border-[#E7D9CE]">
@@ -369,7 +368,7 @@ function Hero({ onAskNeo }) {
               ))}
             </div>
             <div className="mt-8 flex flex-wrap items-center gap-4">
-              <button onClick={() => navigate("/products")} className="gs-btn-primary inline-flex items-center gap-2">Shop the Edit <ArrowRight className="h-4 w-4" /></button>
+              <button onClick={() => navigate("/shop")} className="gs-btn-primary inline-flex items-center gap-2">Shop the Edit <ArrowRight className="h-4 w-4" /></button>
               <button onClick={() => onAskNeo && onAskNeo("What can you do for me?")} className="inline-flex items-center gap-2 font-semibold text-[#A86B5B] hover:gap-3 transition-all">Explore Neo <Sparkles className="h-4 w-4" /></button>
             </div>
             <p className="mt-7 text-sm text-[#6B625B]">Trusted by 12,000+ women creators · 4.8★ · Made by women, for women</p>
@@ -405,17 +404,19 @@ function Hero({ onAskNeo }) {
 
 
 export default function Home() {
-  const { openNeo } = useContext(AuthContext) || {};
-  const askNeo = (msg) => { if (openNeo) openNeo(msg); };
   const navigate = useNavigate();
-  const { wishlist, toggleWishlist } = useWishlistContext();
-  const { addToCart } = useCart();
+  const { add } = useCart();
+  const { user } = useAuth() || {};
+  const [wishlist, setWishlist] = useState(() => new Set());
+  const toggleWishlist = (p) => setWishlist((prev) => { const n = new Set(prev); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n; });
+  const addToCart = (p) => add(p.id);
+  const askNeo = (msg) => navigate("/dashboard");
   const [email, setEmail] = useState("");
   const [subbed, setSubbed] = useState(false);
   const subscribe = (e) => { e.preventDefault(); if (email.trim()) setSubbed(true); };
   const categories = useApi("/categories");
-  const trending = useApi("/products?sort=trending&limit=10");
-  const bestsellers = useApi("/products?sort=bestseller&limit=10");
+  const trending = useApi("/shop?sort=trending&limit=10");
+  const bestsellers = useApi("/shop?sort=bestseller&limit=10");
 
   return (
     <div className="bg-[#FBF7F2]">
@@ -426,7 +427,7 @@ export default function Home() {
           {(categories.data.length ? categories.data : CATEGORIES).map((c) => {
             const Icon = c.icon || ShoppingBag;
             return (
-              <button key={c.id} onClick={() => navigate("/products?category=" + c.id)} className="group flex flex-col items-center gap-2 rounded-2xl bg-white border border-[#E7D9CE] p-4 text-center hover:border-[#C58B7A] transition">
+              <button key={c.id} onClick={() => navigate("/shop?category=" + c.id)} className="group flex flex-col items-center gap-2 rounded-2xl bg-white border border-[#E7D9CE] p-4 text-center hover:border-[#C58B7A] transition">
                 <span className="h-11 w-11 grid place-items-center rounded-full bg-[#F1E7DD] text-[#A86B5B] group-hover:bg-[#C58B7A] group-hover:text-white transition"><Icon className="h-5 w-5" /></span>
                 <span className="text-xs font-semibold text-[#1B1A18]">{c.label}</span>
               </button>
@@ -462,11 +463,11 @@ export default function Home() {
         <div className="gs-container">
           <div className="flex items-end justify-between mb-6">
             <div><span className="gs-eyebrow">Curated</span><h2 className="font-display text-3xl sm:text-4xl text-[#1B1A18] mt-2">The Getszy Edit</h2></div>
-            <button onClick={() => navigate("/products")} className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-[#A86B5B]">Shop all <ArrowRight className="h-4 w-4" /></button>
+            <button onClick={() => navigate("/shop")} className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-[#A86B5B]">Shop all <ArrowRight className="h-4 w-4" /></button>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {EDIT_HIGHLIGHTS.map((h) => (
-              <button key={h.label} onClick={() => navigate("/products")} className={"group relative overflow-hidden rounded-3xl bg-gradient-to-br p-6 text-left min-h-[150px] flex flex-col justify-between " + h.grad}>
+              <button key={h.label} onClick={() => navigate("/shop")} className={"group relative overflow-hidden rounded-3xl bg-gradient-to-br p-6 text-left min-h-[150px] flex flex-col justify-between " + h.grad}>
                 <span className="gs-pill bg-white/70 text-[#A86B5B] w-fit">{h.tag}</span>
                 <span className="font-display text-xl text-[#5F4535]">{h.label}</span>
               </button>
@@ -482,7 +483,7 @@ export default function Home() {
             {MOODS.map((m) => {
               const Icon = m.Icon;
               return (
-                <button key={m.id} onClick={() => navigate("/products?mood=" + m.id)} className={"group relative overflow-hidden rounded-3xl bg-gradient-to-br p-5 text-left min-h-[180px] flex flex-col justify-between " + m.grad}>
+                <button key={m.id} onClick={() => navigate("/shop?mood=" + m.id)} className={"group relative overflow-hidden rounded-3xl bg-gradient-to-br p-5 text-left min-h-[180px] flex flex-col justify-between " + m.grad}>
                   <span className="h-10 w-10 grid place-items-center rounded-full bg-white/60 text-[#A86B5B]"><Icon className="h-5 w-5" /></span>
                   <div><div className="font-display text-lg text-[#5F4535]">{m.label}</div><div className="text-xs text-[#6B5A48] mt-1">{m.sub}</div></div>
                 </button>
@@ -494,8 +495,8 @@ export default function Home() {
 
 
 
-      <Section><div className="gs-container"><DiscoveryRail title="Trending Now" icon={TrendingUp} items={trending.data} wishlist={wishlist} toggleWish={toggleWishlist} addToCart={addToCart} viewAllTo="/products?sort=trending" /></div></Section>
-      <Section><div className="gs-container"><DiscoveryRail title="Best Sellers" icon={Star} items={bestsellers.data} wishlist={wishlist} toggleWish={toggleWishlist} addToCart={addToCart} viewAllTo="/products?sort=bestseller" /></div></Section>
+      <Section><div className="gs-container"><DiscoveryRail title="Trending Now" icon={TrendingUp} items={trending.data} wishlist={wishlist} toggleWish={toggleWishlist} addToCart={addToCart} viewAllTo="/shop?sort=trending" /></div></Section>
+      <Section><div className="gs-container"><DiscoveryRail title="Best Sellers" icon={Star} items={bestsellers.data} wishlist={wishlist} toggleWish={toggleWishlist} addToCart={addToCart} viewAllTo="/shop?sort=bestseller" /></div></Section>
 
       <Section className="bg-[#FBF1E9]">
         <div className="gs-container">
@@ -541,7 +542,7 @@ export default function Home() {
       </div></Section>
 
       <Section><div className="gs-container">
-        <div className="flex items-end justify-between mb-6"><div><span className="gs-eyebrow">Stylist pick</span><h2 className="font-display text-3xl sm:text-4xl text-[#1B1A18] mt-2">Complete the Look</h2></div><button onClick={() => navigate("/products")} className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-[#A86B5B]">Shop the look <ArrowRight className="h-4 w-4" /></button></div>
+        <div className="flex items-end justify-between mb-6"><div><span className="gs-eyebrow">Stylist pick</span><h2 className="font-display text-3xl sm:text-4xl text-[#1B1A18] mt-2">Complete the Look</h2></div><button onClick={() => navigate("/shop")} className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-[#A86B5B]">Shop the look <ArrowRight className="h-4 w-4" /></button></div>
         <div className="grid sm:grid-cols-3 gap-4">
           {[{ n: "The Soft Minimal", g: "from-[#F4DDE6] to-[#F3E2C7]" }, { n: "The Power Edit", g: "from-[#D7F0EE] to-[#F3E2C7]" }, { n: "The Festive Glow", g: "from-[#F6C9B8] to-[#E79C86]" }].map((t) => (
             <div key={t.n} className={"group relative overflow-hidden rounded-3xl bg-gradient-to-br p-8 min-h-[220px] flex flex-col justify-end " + t.g}>
@@ -617,7 +618,7 @@ export default function Home() {
           <div className="grid grid-cols-2 gap-3">
             {[{ l: "My Orders", i: Package }, { l: "My Projects", i: FolderKanban }, { l: "Downloads", i: Bookmark }, { l: "Wishlist", i: Heart }, { l: "Credits", i: CreditCard }, { l: "Support", i: Headphones }].map((q) => {
               const Icon = q.i;
-              return <button key={q.l} onClick={() => navigate("/profile")} className="flex items-center gap-3 rounded-2xl bg-[#FBF7F2] border border-[#E7D9CE] p-4 text-left hover:border-[#C58B7A] transition"><Icon className="h-5 w-5 text-[#A86B5B]" /><span className="text-sm font-semibold text-[#1B1A18]">{q.l}</span></button>;
+              return <button key={q.l} onClick={() => navigate("/account")} className="flex items-center gap-3 rounded-2xl bg-[#FBF7F2] border border-[#E7D9CE] p-4 text-left hover:border-[#C58B7A] transition"><Icon className="h-5 w-5 text-[#A86B5B]" /><span className="text-sm font-semibold text-[#1B1A18]">{q.l}</span></button>;
             })}
           </div>
         </div>
@@ -643,7 +644,7 @@ export default function Home() {
           <h2 className="font-display text-4xl sm:text-6xl text-white">Ready to build something yours?</h2>
           <p className="mt-4 text-[#D9CFC4] max-w-xl mx-auto">Shop, learn, build and earn — all under one rooftop, with Neo by your side.</p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <button onClick={() => navigate("/products")} className="gs-btn-primary inline-flex items-center gap-2">Shop the Edit <ArrowRight className="h-4 w-4" /></button>
+            <button onClick={() => navigate("/shop")} className="gs-btn-primary inline-flex items-center gap-2">Shop the Edit <ArrowRight className="h-4 w-4" /></button>
             <button onClick={() => askNeo("Help me get started")} className="inline-flex items-center gap-2 rounded-full border border-white/30 px-6 py-3 font-semibold text-white hover:bg-white/10 transition">Talk to Neo <Sparkles className="h-4 w-4" /></button>
           </div>
         </div>
