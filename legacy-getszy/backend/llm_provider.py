@@ -373,6 +373,56 @@ class LLMServiceUnavailable(Exception):
     FastAPI converts this to a clean 503 (see server.py) so users never see a raw 500."""
 
 
+async def _run_provider_chain(chain: list, *, session_id: str) -> str:
+    """Run a prepared provider chain with the shared rate-limit/retry discipline."""
+    last_error = None
+    for name, fn in chain:
+        # Retry one 429 before dropping to the next provider. The provider-specific
+        # pacer controls normal concurrency; this is only a transient recovery path.
+        for _attempt in range(4):
+            try:
+                result = await fn()
+                if name == 'groq':
+                    _increment('groq')
+                    _groq_relax()
+                    logger.info(f'LLM: groq ({_count("groq")}/{GROQ_DAILY_LIMIT} today)')
+                elif name == 'gemini':
+                    _increment('gemini')
+                    logger.info(f'LLM: gemini ({_count("gemini")}/{GEMINI_DAILY_LIMIT} today)')
+                else:
+                    logger.info(f'LLM: {name}')
+                return result
+            except Exception as e:
+                if _is_rate_limited(e) and _attempt == 0:
+                    wait = _retry_after(e, 2.0)
+                    logger.warning(f'LLM {name} rate-limited (429); one retry in {wait:.1f}s')
+                    await asyncio.sleep(wait)
+                    last_error = e
+                    continue
+                logger.warning(f'LLM {name} failed: {e}')
+                last_error = e
+                break
+
+    try:
+        import sentry_sdk
+        sentry_sdk.capture_exception(
+            last_error or RuntimeError('All LLM providers failed'),
+            extras={'llm_chain': [c[0] for c in chain], 'session_id': session_id},
+        )
+    except Exception:
+        pass
+    try:
+        from middleware import inc_ollama_failure
+        inc_ollama_failure()
+    except Exception:
+        pass
+    raise LLMServiceUnavailable(
+        'All LLM providers failed. '
+        'Set LLM_PROVIDER appropriately and ensure at least one of '
+        'GROQ_API_KEY/GEMINI_API_KEY/OPENROUTER_API_KEY is configured.'
+    )
+
+
 async def chat_completion(
     system: str,
     user: str,
@@ -389,62 +439,30 @@ async def chat_completion(
     user = _truncate(user)
 
     chain = _build_chain(system, user, temperature, session_id, max_tokens)
-    last_error = None
-    for name, fn in chain:
-        # Retry on rate-limit (429) with backoff BEFORE falling back to the next
-        # provider. This keeps us on the fast provider (Groq) instead of dropping
-        # to slow local Ollama the moment we hit a transient RPM limit during a
-        # burst (e.g. the video-factory script fan-out).
-        for _attempt in range(4):
-            try:
-                result = await fn()
-                if name == 'groq':
-                    _increment('groq')
-                    _groq_relax()
-                    logger.info(f'LLM: groq ({_count("groq")}/{GROQ_DAILY_LIMIT} today)')
-                elif name == 'gemini':
-                    _increment('gemini')
-                    logger.info(f'LLM: gemini ({_count("gemini")}/{GEMINI_DAILY_LIMIT} today)')
-                else:
-                    logger.info(f'LLM: {name}')
-                return result
-            except Exception as e:
-                # A 429 is a *transient rate limit*. The global Groq pacer prevents
-                # most of these and honors Retry-After itself, so we only retry ONCE
-                # here. Extra retries just burn free-tier quota on calls that will
-                # keep failing (the "127 calls, nothing generated" waste). After the
-                # single retry we fall through to the next provider / give up.
-                if _is_rate_limited(e) and _attempt == 0:
-                    wait = _retry_after(e, 2.0)
-                    logger.warning(f'LLM {name} rate-limited (429); one retry in {wait:.1f}s')
-                    await asyncio.sleep(wait)
-                    last_error = e
-                    continue
-                logger.warning(f'LLM {name} failed: {e}')
-                last_error = e
-                break
+    return await _run_provider_chain(chain, session_id=session_id)
 
-    # Surface total AI outages to Sentry (observability of the fallback chain)
-    try:
-        import sentry_sdk
-        sentry_sdk.capture_exception(
-            last_error or RuntimeError('All LLM providers failed'),
-            extras={'llm_chain': [c[0] for c in chain], 'session_id': session_id},
-        )
-    except Exception:
-        pass
 
-    try:
-        from middleware import inc_ollama_failure
-        inc_ollama_failure()
-    except Exception:
-        pass
+async def professional_builder_completion(
+    system: str,
+    user: str,
+    session_id: str | None = None,
+    temperature: float = 0.4,
+    max_tokens: int | None = None,
+) -> str:
+    """Quality-first customer builder ladder: Groq 70B -> Gemini -> Qwen/Ollama.
 
-    raise LLMServiceUnavailable(
-        'All LLM providers failed. '
-        'Set LLM_PROVIDER appropriately and ensure at least one of '
-        'GROQ_API_KEY/GEMINI_API_KEY/OPENROUTER_API_KEY is configured.'
-    )
+    This intentionally ignores the generic app-wide LLM_PROVIDER pin. Paid
+    customer-facing refinements must use the strongest managed quality path, and
+    only fall back when its predecessor is unavailable or rate-limited.
+    """
+    session_id = session_id or str(uuid.uuid4())
+    system = _truncate(system)
+    user = _truncate(user)
+    available = _build_chain(system, user, temperature, session_id, max_tokens)
+    rank = {'groq': 0, 'gemini': 1, 'ollama': 2, 'openrouter': 3, 'lmstudio': 4, 'emergent': 5}
+    chain = sorted(available, key=lambda item: rank.get(item[0], 99))
+    logger.info('LLM professional builder ladder: %s', [name for name, _ in chain])
+    return await _run_provider_chain(chain, session_id=session_id)
 
 
 # ── Tool-calling (agentic) providers ────────────────────────────────────────────
