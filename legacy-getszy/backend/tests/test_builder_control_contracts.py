@@ -48,7 +48,7 @@ async def test_new_page_uses_managed_composition_and_saves_private_draft(monkeyp
 
     monkeypatch.setattr(builder_routes, 'db', fake_db)
     monkeypatch.setattr(builder_routes, 'deduct', fake_deduct)
-    monkeypatch.setattr(builder_routes, 'build_site', fake_compose)
+    monkeypatch.setattr(builder_routes, 'compose_site_fast', fake_compose)
     result = await create_project(
         BuilderProjectIn(prompt='Build a beauty studio website', brief={'primary_goal': 'Book appointments', 'primary_cta': 'Book now'}),
         user={'id': 'customer-test', 'role': 'customer', 'credits': 100},
@@ -74,7 +74,7 @@ async def test_failed_composition_refunds_customer_credit(monkeypatch):
         return 100
 
     monkeypatch.setattr(builder_routes, 'deduct', fake_deduct)
-    monkeypatch.setattr(builder_routes, 'build_site', fail_compose)
+    monkeypatch.setattr(builder_routes, 'compose_site_fast', fail_compose)
     monkeypatch.setattr(builder_routes, 'refund', fake_refund)
 
     with pytest.raises(HTTPException) as exc:
