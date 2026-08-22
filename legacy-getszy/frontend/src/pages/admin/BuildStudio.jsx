@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import * as Icons from "lucide-react";
-import { Wand2, Loader2, Play, Download, Trash2, ExternalLink, Copy, Sparkle, Plus } from "lucide-react";
+import { Wand2, Loader2, Play, Download, Trash2, ExternalLink, Copy, Sparkle, Plus, Laptop, Smartphone, Tablet, RotateCcw, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
@@ -38,16 +38,18 @@ function useHub() {
   return { hub, reload: load };
 }
 
-export default function BuildStudio() {
+export default function BuildStudio({ embedded = false }) {
   const { hub, reload: reloadHub } = useHub();
   const [active, setActive] = useState(null); // category id
 
   return (
     <div className="space-y-6" data-testid="admin-build-studio-page">
-      <div>
-        <h1 className="font-display text-3xl flex items-center gap-2"><Wand2 className="h-7 w-7 text-[var(--gs-teal)]"/> Build Studio</h1>
-        <p className="text-sm text-[var(--gs-muted)] mt-1">One place to build anything — web apps, faceless channels, custom AI agents, mobile apps, full-stack sites, blogs. Preview, download, deploy.</p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 className="font-display text-3xl flex items-center gap-2"><Wand2 className="h-7 w-7 text-[var(--gs-teal)]"/> Build Studio</h1>
+          <p className="text-sm text-[var(--gs-muted)] mt-1">One place to build anything — web apps, faceless channels, custom AI agents, mobile apps, full-stack sites, blogs. Preview, download, deploy.</p>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3" data-testid="hub-stats">
@@ -115,6 +117,7 @@ function WebAppBuilder({ color }) {
   const [busy, setBusy] = useState(false);
   const [projects, setProjects] = useState([]);
   const [previewId, setPreviewId] = useState(null);
+  const [previewDevice, setPreviewDevice] = useState("desktop");
 
   const load = async () => { try { const r = await api.get("/builder/projects"); setProjects(r.data || []); } catch (e) { toast.error("Couldn't load projects — refresh to retry"); } };
   useEffect(() => { load(); }, []);
@@ -162,12 +165,35 @@ function WebAppBuilder({ color }) {
       </div>
 
       {previewId && (
-        <div className="mt-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Badge variant="outline">Live Preview</Badge>
-            <a href={`${BACKEND_URL}/api/builder/projects/${previewId}/preview`} target="_blank" rel="noreferrer" className="text-xs underline flex items-center gap-1"><ExternalLink className="h-3 w-3"/>Open in new tab</a>
+        <div className="mt-5 overflow-hidden rounded-2xl border" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}>
+          <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)" }}>
+            <div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="border-[var(--gs-teal)]/30 bg-[var(--gs-teal)]/10 text-[var(--gs-teal)]">Private preview</Badge>
+                <span className="text-xs font-medium text-[var(--gs-ink)]">Not deployed</span>
+              </div>
+              <p className="mt-1 text-xs text-[var(--gs-muted)]">Review layout and content here before you download or publish this project.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[
+                ["desktop", "Desktop", Laptop],
+                ["tablet", "Tablet", Tablet],
+                ["mobile", "Mobile", Smartphone],
+              ].map(([id, label, DeviceIcon]) => (
+                <Button key={id} type="button" size="sm" variant={previewDevice === id ? "default" : "outline"} onClick={() => setPreviewDevice(id)} className={previewDevice === id ? "bg-[var(--gs-teal)] text-white hover:bg-[var(--gs-teal)]" : ""}>
+                  <DeviceIcon className="mr-1.5 h-3.5 w-3.5" />{label}
+                </Button>
+              ))}
+              <Button type="button" size="icon" variant="outline" onClick={() => setPreviewId(null)} aria-label="Close preview"><RotateCcw className="h-3.5 w-3.5" /></Button>
+              <a href={`${BACKEND_URL}/api/builder/projects/${previewId}/preview`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium hover:bg-[var(--gs-surface-2)]" style={{ borderColor: "var(--gs-border)" }}><ExternalLink className="h-3.5 w-3.5" />Open</a>
+            </div>
           </div>
-          <iframe src={`${BACKEND_URL}/api/builder/projects/${previewId}/preview`} className="w-full h-[520px] border rounded-xl bg-white" title="preview" data-testid="wa-preview-iframe"/>
+          <div className="overflow-auto p-4">
+            <div className={`mx-auto overflow-hidden rounded-xl border bg-white shadow-sm ${previewDevice === "mobile" ? "h-[680px] max-w-[390px]" : previewDevice === "tablet" ? "h-[620px] max-w-[768px]" : "h-[560px] w-full"}`} style={{ borderColor: "var(--gs-border)" }}>
+              <iframe src={`${BACKEND_URL}/api/builder/projects/${previewId}/preview`} className="h-full w-full" title="Private project preview" data-testid="wa-preview-iframe"/>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 border-t px-4 py-3 text-xs text-[var(--gs-muted)]" style={{ borderColor: "var(--gs-border)" }}><ShieldCheck className="h-4 w-4 text-emerald-600" />This draft is private. Preview does not publish it to a public domain.</div>
         </div>
       )}
     </div>

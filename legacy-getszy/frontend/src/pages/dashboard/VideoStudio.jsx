@@ -148,9 +148,9 @@ export default function VideoStudio() {
   const selectedScript = (stages.script_variants || []).find(v => v.id === project?.selected_script_id) || (stages.script_variants || [])[0];
 
   return (
-    <div className="grid grid-cols-12 gap-4 h-[calc(100vh-120px)]" data-testid="video-studio-page">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-12 xl:h-[calc(100vh-120px)]" data-testid="video-studio-page">
       {/* Sidebar: Projects list + new project */}
-      <Card className="col-span-3 flex flex-col overflow-hidden">
+      <Card className="flex max-h-[560px] flex-col overflow-hidden xl:col-span-3 xl:max-h-none">
         <div className="p-3 border-b" style={{ borderColor: "var(--gs-border)" }}>
           <div className="flex items-center gap-2 mb-2">
             <Film className="h-4 w-4 text-[var(--gs-teal)]"/>
@@ -230,7 +230,7 @@ export default function VideoStudio() {
       </Card>
 
       {/* Main workspace */}
-      <div className="col-span-9 overflow-hidden flex flex-col">
+      <div className="flex min-h-[65vh] flex-col overflow-hidden xl:col-span-9 xl:min-h-0">
         {!project ? (
           <Card className="flex-1 grid place-items-center text-center p-12">
             <div>

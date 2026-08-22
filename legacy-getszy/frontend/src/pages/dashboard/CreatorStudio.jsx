@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import PageState from "@/components/dashboard/PageState";
+import DashboardPageFrame from "@/components/dashboard/DashboardPageFrame";
 
 /* ─── tiny helpers ─────────────────────────────────────────────────────────── */
 
@@ -983,15 +984,15 @@ const TABS = [
 export default function CreatorStudio() {
   const [tab, setTab] = useState("hooks");
   return (
-    <div className="space-y-6" data-testid="creator-studio-page">
-      <div>
-        <h1 className="font-display text-3xl flex items-center gap-2">
-          <Clapperboard className="h-7 w-7 text-[var(--gs-teal)]" /> Creator Studio
-        </h1>
-        <p className="mt-1 text-sm text-[var(--gs-muted)]">
-          The Viral Engine for YouTubers, Reel creators & faceless channels — cheap, fast, Hinglish-native.
-        </p>
-      </div>
+    <DashboardPageFrame
+      className="space-y-6"
+      eyebrow="Creator OS"
+      title="Create the next piece of content with a clear outcome"
+      description="Plan hooks, generate creator assets, turn audience signals into ideas, and grow your channel with Hinglish-native workflows."
+      icon={Clapperboard}
+      metrics={[{ label: "creator workflows", value: TABS.length }, { label: "active workspace", value: TABS.find((item) => item.id === tab)?.label }]}
+      hint="Choose the stage of your content workflow first, then complete one focused creation task at a time."
+    >
 
       <div className="flex flex-wrap gap-2">
         {TABS.map((t) => (
@@ -1007,6 +1008,6 @@ export default function CreatorStudio() {
       {tab === "video" && <VideoTools />}
       {tab === "social" && <SocialAgents />}
       {tab === "growth" && <GrowthTools />}
-    </div>
+    </DashboardPageFrame>
   );
 }
