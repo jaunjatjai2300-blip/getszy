@@ -36,28 +36,31 @@ for _d in [IMG_DIR, AUDIO_DIR, AVATAR_DIR, CLIP_DIR]:
     _d.mkdir(parents=True, exist_ok=True)
 
 
-# ─── 1. FLUX.1-schnell — HD Image Generation ─────────────────────────────────
+# ─── 1. Managed Hugging Face image generation ─────────────────────────────
 
-# Hugging Face retired the legacy api-inference hostname. Use its supported
-# Inference Providers router for the hf-inference provider; this keeps normal
-# TLS/DNS routing intact and avoids any hard-coded CDN address.
-_FLUX_URL  = 'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell'
-_HF_HDR    = lambda: {'Authorization': f'Bearer {HF_TOKEN}'} if HF_TOKEN else {}
+# HF Inference retired FLUX.1-schnell for this provider. This verified default
+# returns images for Getszy's configured token. The model identifier is not a
+# secret and can be overridden only through the server environment.
+HF_IMAGE_MODEL = os.environ.get(
+    'HF_IMAGE_MODEL', 'stabilityai/stable-diffusion-3-medium-diffusers'
+).strip()
+_HF_IMAGE_URL = f'https://router.huggingface.co/hf-inference/models/{HF_IMAGE_MODEL}'
+_HF_HDR = lambda: {'Authorization': f'Bearer {HF_TOKEN}'} if HF_TOKEN else {}
 
 
 async def flux_image(prompt: str, seed: int = 42) -> Optional[str]:
-    """FLUX.1-schnell via HuggingFace Inference API. Returns local image path or None."""
+    """Generate an image through Hugging Face Inference Providers."""
     if not HF_TOKEN:
-        logger.info('HF_TOKEN not set — skipping FLUX')
+        logger.info('HF_TOKEN not set — skipping managed Hugging Face image generation')
         return None
     payload = {'inputs': prompt, 'parameters': {'seed': seed, 'num_inference_steps': 4}}
     try:
         async with httpx.AsyncClient(timeout=60.0) as c:
-            r = await c.post(_FLUX_URL, headers=_HF_HDR(), json=payload)
+            r = await c.post(_HF_IMAGE_URL, headers=_HF_HDR(), json=payload)
             if r.status_code == 200 and 'image' in r.headers.get('content-type', ''):
                 path = IMG_DIR / f'flux_{uuid.uuid4().hex[:10]}.jpg'
                 path.write_bytes(r.content)
-                logger.info('FLUX image ok: %s', path.name)
+                logger.info('Hugging Face image ok: %s', path.name)
                 return str(path)
             if r.status_code == 503:
                 # Model loading — wait 15s and retry once
@@ -67,9 +70,9 @@ async def flux_image(prompt: str, seed: int = 42) -> Optional[str]:
                     path = IMG_DIR / f'flux_{uuid.uuid4().hex[:10]}.jpg'
                     path.write_bytes(r2.content)
                     return str(path)
-            logger.warning('FLUX status=%s', r.status_code)
+            logger.warning('Hugging Face image status=%s model=%s', r.status_code, HF_IMAGE_MODEL)
     except Exception as exc:
-        logger.warning('FLUX error: %s', exc)
+        logger.warning('Hugging Face image error: %s', exc)
     return None
 
 
@@ -90,7 +93,7 @@ async def pollinations_image(prompt: str, seed: int = 42) -> Optional[str]:
 
 
 async def fetch_image(prompt: str, seed: int = 42) -> Optional[str]:
-    """Smart image fetch: FLUX (HD) first → Pollinations (fallback)."""
+    """Smart image fetch: managed Hugging Face image first → Pollinations fallback."""
     if HF_TOKEN:
         result = await flux_image(prompt, seed)
         if result:
