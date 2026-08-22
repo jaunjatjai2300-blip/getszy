@@ -40,7 +40,12 @@
 # Isolated customer-dashboard UI preview. This hostname is intentionally
 # read-only: only sign-in is allowed as a POST so a real customer can inspect
 # their workspace, while all other mutations are rejected before reaching APIs.
-preview.{$DOMAIN} {
+# Keep the HTTP-to-HTTPS transition explicit for this isolated hostname.
+http://preview.{$DOMAIN} {
+    redir https://preview.{$DOMAIN}{uri} permanent
+}
+
+https://preview.{$DOMAIN} {
     encode gzip
 
     header {
