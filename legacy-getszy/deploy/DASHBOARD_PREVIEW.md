@@ -8,58 +8,78 @@ The preview is served at `https://preview.<DOMAIN>`. Its Caddy route proxies `GE
 
 Do not use this preview stack for payment, content generation, integration connection, or publication testing. Those functions require a separate staging backend and database before they can be tested safely.
 
-## One-time DNS requirement
+## Prerequisites
 
-Create an `A` record before starting the preview:
+The production Caddy route must already have been deployed from `release/getszy-production-hardening` and validated inside the existing Caddy container. The preview DNS record must resolve directly to the VPS:
 
 ```text
-preview.getszy.com  ->  <your VPS public IPv4 address>
+preview.getszy.com  ->  <VPS public IPv4 address>
 ```
 
-Wait until the record resolves to the VPS. Caddy will obtain the HTTPS certificate when it receives the hostname and DNS is correct.
+The preview service attaches to the existing Docker network named `getszy` and advertises the explicit network alias `getszy-dashboard-preview`. It has no host ports, database volumes, Redis volumes, or production service dependencies.
 
 ## Start or refresh the preview
 
-Run the following from the repository root on the VPS after the preview branch has been pushed and checked out:
+Run the following in a shell on the VPS. It creates or refreshes an isolated checkout and starts **only** the preview frontend service.
 
 ```bash
-cd /root/getszy-dashboard-preview
+set -euo pipefail
+PREVIEW_ROOT=/root/getszy-dashboard-preview
+BRANCH=feature/customer-dashboard-preview
+REPOSITORY=https://github.com/jaunjatjai2300-blip/getszy.git
 
-git fetch origin feature/customer-dashboard-preview
-git checkout feature/customer-dashboard-preview
-git pull --ff-only origin feature/customer-dashboard-preview
+if [ -d "$PREVIEW_ROOT/.git" ]; then
+  cd "$PREVIEW_ROOT"
+  git fetch origin "$BRANCH"
+  git checkout "$BRANCH"
+  git pull --ff-only origin "$BRANCH"
+elif [ ! -e "$PREVIEW_ROOT" ]; then
+  git clone --branch "$BRANCH" --single-branch "$REPOSITORY" "$PREVIEW_ROOT"
+else
+  echo "Refusing to use $PREVIEW_ROOT because it exists but is not a Git checkout." >&2
+  exit 1
+fi
 
-cd legacy-getszy
+cd "$PREVIEW_ROOT/legacy-getszy"
+docker compose -p getszy-dashboard-preview \
+  -f docker-compose.dashboard-preview.yml config
+docker compose -p getszy-dashboard-preview \
+  -f docker-compose.dashboard-preview.yml up -d --build
 
-docker compose -p getszy-dashboard-preview -f docker-compose.dashboard-preview.yml up -d --build
-
-docker compose up -d --force-recreate caddy
-
-docker compose -p getszy-dashboard-preview -f docker-compose.dashboard-preview.yml ps
-curl -i https://preview.getszy.com/
+docker compose -p getszy-dashboard-preview \
+  -f docker-compose.dashboard-preview.yml ps
 ```
 
-The first `docker compose` command starts only `getszy-dashboard-preview`. The second command reloads Caddy so it receives the additional preview hostname block. It does not rebuild the production backend or production frontend.
+This build uses the preview branch's `Dockerfile.frontend` and serves the static React build through a non-root Nginx container named `getszy-dashboard-preview`. The command neither rebuilds nor restarts the production frontend, backend, MongoDB, Redis, Caddy, backups, or monitoring services.
 
 ## Preview verification
 
-1. Open `https://preview.getszy.com` in an incognito/private browser window.
-2. Sign in with a non-admin customer account.
-3. Visit each dashboard tab: Neo, Video Studio, Creator Studio, Build Studio, AI Tools, Agents, and Integrations.
-4. In Build Studio, create nothing. Inspect an existing build preview only if one already exists. Verify desktop, tablet, and mobile preview modes. The panel must visibly state **Private preview** and **Not deployed**.
-5. Verify a write operation is blocked with HTTP 405 at the preview hostname:
+First verify the explicit Docker alias from the live Caddy container:
 
 ```bash
-curl -i -X POST https://preview.getszy.com/api/builder/projects
+cd /root/getszy-production/legacy-getszy
+docker compose exec caddy getent hosts getszy-dashboard-preview
 ```
 
-Expected result: `405` and a message that the dashboard preview is read-only.
+The output must show an internal Docker address in the `172.*` range, not `127.0.0.1`. Then perform the public checks:
+
+```bash
+curl -fsS --max-time 20 https://getszy.com/api/health; echo
+curl -fsSI --max-time 20 https://preview.getszy.com/
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST https://preview.getszy.com/api/builder/projects
+```
+
+Expected results are: production health JSON, a successful `200` or redirect-to-login response for the preview page, and `405` for the preview mutation test.
+
+Open `https://preview.getszy.com` in a private/incognito browser window and sign in with a non-admin customer account. Review Neo, Video Studio, Creator Studio, Build Studio, AI Tools, Agents, and Integrations. In Build Studio, inspect an existing build preview only; do not attempt to create or publish anything. The workspace must visibly state **Private preview** and **Not deployed**.
 
 ## Stop the preview
 
 ```bash
 cd /root/getszy-dashboard-preview/legacy-getszy
-docker compose -p getszy-dashboard-preview -f docker-compose.dashboard-preview.yml down
+docker compose -p getszy-dashboard-preview \
+  -f docker-compose.dashboard-preview.yml down
 ```
 
 Stopping the preview does not stop or delete the production Getszy containers, database volumes, Redis, backups, or monitoring services.
