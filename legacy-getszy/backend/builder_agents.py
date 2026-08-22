@@ -23,7 +23,10 @@ Given a user request, produce a concise site plan as JSON:
   "typography": "modern|classic|playful|minimal",
   "tone": "professional|friendly|bold|elegant",
   "key_message": "one sentence describing the site's core purpose",
-  "target_audience": "who this site is for"
+  "target_audience": "who this site is for",
+  "primary_goal": "one measurable action such as collect leads, book a demo, sell a product, or start a trial",
+  "primary_cta": "short action-led button label",
+  "proof_strategy": "only real proof supplied by the customer, otherwise an honest proof-plan placeholder"
 }
 
 Reply ONLY with valid JSON. No prose."""
@@ -44,7 +47,8 @@ Given a site plan (JSON), output a detailed design brief as JSON:
     }
   ],
   "animations": ["fade-in", "slide-up", "hover-scale"],
-  "responsive_notes": "any special mobile considerations"
+  "responsive_notes": "mobile hierarchy, touch targets, and breakpoint considerations",
+  "conversion_hierarchy": "what visitors should understand and do in the first 5 seconds"
 }
 
 Reply ONLY with valid JSON. No prose."""
@@ -56,35 +60,29 @@ STRICT OUTPUT RULES:
 2. Begin with <!DOCTYPE html> and end with </html>.
 3. Use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
 4. Use Google Fonts via <link> for premium typography (e.g. Inter, Plus Jakarta Sans, Space Grotesk).
-5. Images: use ONLY the real product images provided in the brief (embed them via <img src>). If no product image is available, use tasteful CSS gradients, brand colors, or inline SVG — NEVER use placeholder/random image services (no picsum, no lorem, no via.placeholder).
-6. Include semantic sections: sticky header/nav, hero (with a bold value proposition + primary CTA),
-   trust bar (logos/stats), features/benefits (with icons), "how it works", social proof/testimonials,
-   pricing or offer, FAQ, strong CTA section, and footer.
-7. Micro-interactions via CSS transitions/animations and a tiny inline <script> ONLY for the mobile
-   menu toggle and scroll-reveal (no other JS needed).
-8. Premium aesthetic: generous whitespace, refined typographic scale, soft shadows, rounded corners,
-   tasteful gradients, smooth hover/focus states, consistent spacing scale.
-9. Fully responsive and mobile-first; flawless at 375px and 1440px.
-10. Accessibility: semantic landmarks, alt text on every image, sufficient contrast, visible focus rings,
-    ARIA where helpful. SEO: complete <head> with title, meta description, Open Graph, and structured
-    JSON-LD where relevant.
-11. Compelling, specific conversion copy (not lorem ipsum) — clear headlines, benefit-driven body,
-    persuasive CTAs.
-12. NEVER include forms that POST to external URLs. NEVER include trackers or fetch() to third-party.
-13. Total HTML should be 300-800 lines.
-14. Color scheme, fonts, and section layout MUST match the design brief exactly.
+5. Images: use ONLY real product images provided in the brief. If none are provided, use tasteful CSS gradients, brand colors, or inline SVG — NEVER use placeholder/random image services (no picsum, no lorem, no via.placeholder).
+6. Treat the supplied professional page brief as product truth. Do not invent testimonials, company logos, customer counts, pricing, guarantees, legal claims, integrations, or capabilities. If authentic proof is not supplied, use an honest editable proof-plan placeholder rather than a fake testimonial or statistic.
+7. Build around one conversion goal and one primary CTA. Include only sections that support that goal: hero with a benefit-led H1 and CTA, relevant benefits, how it works, real proof or proof-plan, offer/pricing only when supplied, FAQ, closing CTA and footer. Do not add distracting navigation or competing CTAs to a campaign landing page.
+8. Micro-interactions via CSS transitions/animations and a tiny inline <script> ONLY for the mobile menu toggle and scroll-reveal (no other JS needed).
+9. Premium aesthetic: generous whitespace, refined typographic scale, consistent spacing, restrained decoration, strong CTA contrast, and content that remains readable rather than merely decorative.
+10. Fully responsive and mobile-first. Verify the information hierarchy, CTA visibility, horizontal overflow, and touch targets at 375px, tablet width, and 1440px.
+11. Accessibility: semantic header/main/footer landmarks, a single H1, alt text on every meaningful image, sufficient contrast, visible focus rings, and ARIA where helpful. SEO: complete head with title, meta description, Open Graph, and structured JSON-LD only when the supplied brief supports it.
+12. Compelling, specific conversion copy (not lorem ipsum): clear headline, concise benefit-driven body, and action-led CTA that matches the primary goal.
+13. NEVER include forms that POST to external URLs. NEVER include trackers or fetch() to third-party.
+14. Total HTML should be 300-800 lines. Color scheme, fonts, and section layout MUST match the design brief exactly.
 
 START IMMEDIATELY WITH <!DOCTYPE html>. End with </html>. Nothing else."""
 
 REVIEWER_PROMPT = """You are a code reviewer for HTML/CSS websites.
 
 Review the provided HTML and fix:
-1. Any broken image URLs (replace with working Unsplash/Picsum URLs)
-2. Missing responsive classes (ensure mobile-first)
-3. Accessibility issues (missing alt text, low contrast)
-4. CSS inconsistencies or broken layouts
-5. Any JavaScript errors
-6. Missing meta tags (charset, viewport)
+1. Broken image URLs by removing the image or replacing it only with a real asset supplied in the brief; never add placeholder or random-image services.
+2. Missing mobile-responsive layout rules, CTA visibility, or horizontal-overflow issues.
+3. Accessibility issues: missing landmarks, missing image alt text, low contrast, missing focus styles, or invalid heading hierarchy.
+4. CSS inconsistencies, broken layouts, and visual clutter that obscures the primary conversion goal.
+5. JavaScript errors or third-party network calls that are not required for the page.
+6. Missing technical metadata: charset, viewport, descriptive title, and meta description.
+7. Fabricated proof, claims, prices, guarantees, testimonials, logos, or metrics. Remove unverified claims and leave an honest editable placeholder where customer proof is needed.
 
 Output ONLY the COMPLETE, FIXED HTML document. No explanation. No markdown."""
 

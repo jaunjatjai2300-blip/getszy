@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import * as Icons from "lucide-react";
-import { Wand2, Loader2, Play, Download, Trash2, ExternalLink, Copy, Sparkle, Plus, Laptop, Smartphone, Tablet, RotateCcw, ShieldCheck } from "lucide-react";
+import { Wand2, Loader2, Play, Download, Trash2, ExternalLink, Copy, Sparkle, Plus, Laptop, Smartphone, Tablet, RotateCcw, ShieldCheck, CheckCircle2, AlertTriangle, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
@@ -118,17 +118,31 @@ function WebAppBuilder({ color }) {
   const [projects, setProjects] = useState([]);
   const [previewId, setPreviewId] = useState(null);
   const [previewDevice, setPreviewDevice] = useState("desktop");
+  const [previewQuality, setPreviewQuality] = useState(null);
+  const [showBrief, setShowBrief] = useState(false);
+  const [proofPoints, setProofPoints] = useState("");
+  const [brief, setBrief] = useState({ audience: "", primary_goal: "", primary_cta: "", brand_name: "", visual_style: "", offer: "" });
+  const [templateId, setTemplateId] = useState("");
+  const [templates, setTemplates] = useState([]);
 
+  const updateBrief = (field, value) => setBrief((current) => ({ ...current, [field]: value }));
   const load = async () => { try { const r = await api.get("/builder/projects"); setProjects(r.data || []); } catch (e) { toast.error("Couldn't load projects — refresh to retry"); } };
-  useEffect(() => { load(); }, []);
+  const loadTemplates = async () => { try { const r = await api.get("/builder/templates"); setTemplates(r.data.templates || []); } catch { toast.error("Couldn't load professional starters — custom build is still available"); } };
+  useEffect(() => { load(); loadTemplates(); }, []);
 
   const build = async () => {
     if (prompt.trim().length < 4) return toast.error("Prompt too short");
     setBusy(true); toast.loading("Building your web app…", { id: "wa", duration: 60000 });
     try {
-      const r = await api.post("/builder/projects", { prompt, name });
+      const normalizedBrief = {
+        ...brief,
+        proof_points: proofPoints.split("\n").map((item) => item.trim()).filter(Boolean).slice(0, 6),
+      };
+      const r = await api.post("/builder/projects", { prompt, name, template_id: templateId || null, brief: normalizedBrief });
       toast.success(`Built: ${r.data.name} ✅`, { id: "wa" });
-      setPrompt(""); setName(""); setPreviewId(r.data.id); await load();
+      setPrompt(""); setName(""); setProofPoints(""); setTemplateId("");
+      setBrief({ audience: "", primary_goal: "", primary_cta: "", brand_name: "", visual_style: "", offer: "" });
+      setPreviewId(r.data.id); setPreviewQuality(r.data.quality_report || null); await load();
     } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "wa" }); }
     finally { setBusy(false); }
   };
@@ -137,17 +151,41 @@ function WebAppBuilder({ color }) {
 
   return (
     <div className="space-y-4 mt-4">
+      <div className="rounded-xl border p-3" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)" }}>
+        <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gs-teal)]" /><div><div className="text-sm font-semibold">Start from a professional industry layout</div><p className="mt-0.5 text-xs text-[var(--gs-muted)]">Choose an MIT-licensed starter for a stronger visual foundation, then personalize it with your brief. A starter does not consume generation credits; AI custom builds do.</p></div></div>
+        <div className="mt-3"><label className="text-xs text-[var(--gs-muted)]">Professional starter</label><Select value={templateId || "custom"} onValueChange={(value) => setTemplateId(value === "custom" ? "" : value)}><SelectTrigger data-testid="wa-template"><SelectValue placeholder="Start from a custom AI build" /></SelectTrigger><SelectContent className="max-h-72"><SelectItem value="custom">Custom AI build — no starter</SelectItem>{templates.map((template) => <SelectItem key={template.id} value={template.id}>{template.name} · {template.industry}</SelectItem>)}</SelectContent></Select></div>
+      </div>
       <div>
-        <label className="text-xs text-[var(--gs-muted)]">Prompt *</label>
+        <label className="text-xs text-[var(--gs-muted)]">What should this page achieve? *</label>
         <Textarea rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Build a modern landing page for a Kathak dance academy in Jaipur…" data-testid="wa-prompt"/>
       </div>
       <div>
         <label className="text-xs text-[var(--gs-muted)]">Name (optional)</label>
         <Input value={name} onChange={(e) => setName(e.target.value)} data-testid="wa-name"/>
       </div>
+      <div className="rounded-xl border" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}>
+        <button type="button" onClick={() => setShowBrief((open) => !open)} className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left">
+          <span className="flex items-center gap-2 text-sm font-semibold"><SlidersHorizontal className="h-4 w-4 text-[var(--gs-teal)]" />Professional page brief</span>
+          <span className="text-xs text-[var(--gs-muted)]">{showBrief ? "Hide" : "Add context"}</span>
+        </button>
+        {showBrief && (
+          <div className="space-y-3 border-t px-3 py-3" style={{ borderColor: "var(--gs-border)" }}>
+            <p className="text-xs text-[var(--gs-muted)]">Optional, but this is how Getszy turns a generic request into a clearer, on-brand, conversion-focused page. Only add claims and proof you can verify.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div><label className="text-xs text-[var(--gs-muted)]">Brand name</label><Input value={brief.brand_name} onChange={(e) => updateBrief("brand_name", e.target.value)} placeholder="e.g. Raag Dance Academy" /></div>
+              <div><label className="text-xs text-[var(--gs-muted)]">Target audience</label><Input value={brief.audience} onChange={(e) => updateBrief("audience", e.target.value)} placeholder="e.g. Jaipur parents and adult learners" /></div>
+              <div><label className="text-xs text-[var(--gs-muted)]">Primary goal</label><Select value={brief.primary_goal} onValueChange={(value) => updateBrief("primary_goal", value)}><SelectTrigger><SelectValue placeholder="Choose one outcome" /></SelectTrigger><SelectContent><SelectItem value="Collect qualified leads">Collect qualified leads</SelectItem><SelectItem value="Book a consultation">Book a consultation</SelectItem><SelectItem value="Sell a product">Sell a product</SelectItem><SelectItem value="Start a free trial">Start a free trial</SelectItem><SelectItem value="Grow an audience">Grow an audience</SelectItem></SelectContent></Select></div>
+              <div><label className="text-xs text-[var(--gs-muted)]">Primary CTA</label><Input value={brief.primary_cta} onChange={(e) => updateBrief("primary_cta", e.target.value)} placeholder="e.g. Book a free class" /></div>
+              <div><label className="text-xs text-[var(--gs-muted)]">Visual direction</label><Select value={brief.visual_style} onValueChange={(value) => updateBrief("visual_style", value)}><SelectTrigger><SelectValue placeholder="Choose a style" /></SelectTrigger><SelectContent><SelectItem value="Warm and premium">Warm and premium</SelectItem><SelectItem value="Modern and minimal">Modern and minimal</SelectItem><SelectItem value="Bold and energetic">Bold and energetic</SelectItem><SelectItem value="Editorial and refined">Editorial and refined</SelectItem><SelectItem value="Trustworthy and clinical">Trustworthy and clinical</SelectItem></SelectContent></Select></div>
+              <div><label className="text-xs text-[var(--gs-muted)]">Core offer</label><Input value={brief.offer} onChange={(e) => updateBrief("offer", e.target.value)} placeholder="e.g. 8-week beginner Kathak course" /></div>
+            </div>
+            <div><label className="text-xs text-[var(--gs-muted)]">Verified proof points (one per line)</label><Textarea rows={3} value={proofPoints} onChange={(e) => setProofPoints(e.target.value)} placeholder="e.g. Established in 2015&#10;e.g. 120 verified Google reviews" /><p className="mt-1 text-[11px] text-[var(--gs-muted)]">Do not add testimonials, ratings, counts, prices, guarantees, or certifications unless they are true and approved for use.</p></div>
+          </div>
+        )}
+      </div>
       <Button onClick={build} disabled={busy} className="w-full text-white" style={{ background: color }} data-testid="wa-build-btn">
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
-        {busy ? "Building…" : "Build Web App"}
+        {busy ? "Preparing…" : templateId ? "Create Professional Starter" : "Build Custom Web App"}
       </Button>
 
       <div className="grid md:grid-cols-2 gap-2 max-h-80 overflow-y-auto" data-testid="wa-projects">
@@ -157,7 +195,7 @@ function WebAppBuilder({ color }) {
               <div className="text-sm font-semibold truncate">{p.name}</div>
               <div className="text-[10px] text-[var(--gs-muted)] truncate">{p.prompt}</div>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setPreviewId(p.id)}><Play className="h-3.5 w-3.5"/></Button>
+            <Button variant="outline" size="sm" onClick={() => { setPreviewId(p.id); setPreviewQuality(p.quality_report || null); }}><Play className="h-3.5 w-3.5"/></Button>
             <button type="button" onClick={() => downloadAuthenticated(`/builder/projects/${p.id}/download`, `${p.name || "project"}.zip`)} className="p-2 text-[var(--gs-muted)] hover:text-[var(--gs-teal)]" title="Download zip" aria-label={`Download ${p.name || "project"} zip`} data-testid={`wa-download-${p.id}`}><Download className="h-4 w-4"/></button>
             <button onClick={() => del(p.id)} className="text-rose-500" data-testid={`wa-del-${p.id}`}><Trash2 className="h-4 w-4"/></button>
           </Card>
@@ -188,6 +226,12 @@ function WebAppBuilder({ color }) {
               <a href={`${BACKEND_URL}/api/builder/projects/${previewId}/preview`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium hover:bg-[var(--gs-surface-2)]" style={{ borderColor: "var(--gs-border)" }}><ExternalLink className="h-3.5 w-3.5" />Open</a>
             </div>
           </div>
+          {previewQuality && (
+            <div className="border-b px-4 py-3" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)" }}>
+              <div className="flex flex-wrap items-center gap-2"><Badge variant="outline" className={previewQuality.status === "ready_for_human_review" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700" : "border-amber-500/40 bg-amber-500/10 text-amber-700"}>{previewQuality.score}/100 structural preflight</Badge><span className="text-xs text-[var(--gs-muted)]">{previewQuality.required_checks_passed}/{previewQuality.required_checks_total} required checks passed</span></div>
+              {previewQuality.next_actions?.length > 0 ? <div className="mt-2 flex items-start gap-2 text-xs text-[var(--gs-muted)]"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" /><span>{previewQuality.next_actions[0]}</span></div> : <div className="mt-2 flex items-start gap-2 text-xs text-[var(--gs-muted)]"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" /><span>Technical foundation is complete. Review the private preview for brand accuracy, claims, assets, and conversion fit before publishing.</span></div>}
+            </div>
+          )}
           <div className="overflow-auto p-4">
             <div className={`mx-auto overflow-hidden rounded-xl border bg-white shadow-sm ${previewDevice === "mobile" ? "h-[680px] max-w-[390px]" : previewDevice === "tablet" ? "h-[620px] max-w-[768px]" : "h-[560px] w-full"}`} style={{ borderColor: "var(--gs-border)" }}>
               <iframe src={`${BACKEND_URL}/api/builder/projects/${previewId}/preview`} className="h-full w-full" title="Private project preview" data-testid="wa-preview-iframe"/>
