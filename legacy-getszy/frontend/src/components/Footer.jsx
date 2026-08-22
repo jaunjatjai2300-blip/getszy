@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unescaped-entities */
 import { useState } from "react";
 import { Sparkle, Instagram, Twitter, Facebook, ArrowRight, Heart, ShoppingBag, GraduationCap, Wand2, User, LifeBuoy } from "lucide-react";
 import { Link } from "react-router-dom";
