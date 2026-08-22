@@ -17,7 +17,10 @@ from models import (
 from auth import get_current_user, get_optional_user
 from llm_provider import chat_completion, professional_builder_completion
 from credits import deduct, refund
-from builder_agents import build_site, refine_element, plan_site, design_site
+from builder_agents import (
+    ProfessionalCompositionError, build_site, refine_element, plan_site,
+    design_site, review_site,
+)
 from builder_quality import evaluate_landing_page_quality
 from builder_controls import mission_control_state
 from template_catalog import public_template_catalog, get_template, recommend_template_id, render_customer_template
@@ -194,15 +197,77 @@ async def create_project(body: BuilderProjectIn, user=Depends(get_current_user))
     if not body.prompt.strip():
         raise HTTPException(400, 'Prompt required')
 
-    # Two temporary starter layouts were intentionally retired: forcing every
-    # business into them created repetitive output and would misrepresent the
-    # coverage of the professional catalogue. We refuse new page production until
-    # a lawful, category-specific Getszy pack is ready. Existing projects remain
-    # owner-accessible for private review, download, refinement and version control.
-    raise HTTPException(
-        409,
-        'New page production is temporarily paused while Getszy prepares approved category-specific professional packs. Prepare your professional brief with Neo; no page or credit charge has been created.',
+    brief_data = body.brief.model_dump(exclude_none=True) if body.brief else {}
+    project_id = str(uuid.uuid4())
+    charged = user.get('role') not in ('admin', 'founder')
+    ok, message, _balance_after = await deduct(
+        user['id'],
+        'builder_website',
+        meta={'project_id': project_id, 'stage': 'professional_composition'},
+        user=user,
     )
+    if not ok:
+        raise HTTPException(402, message)
+
+    try:
+        html = await build_site(body.prompt, session_id=f'professional-{project_id}', brief=brief_data)
+        quality_report = evaluate_landing_page_quality(html, brief_data)
+
+        # One bounded repair pass translates objective preflight failures into
+        # concrete instructions for the managed quality ladder. A second failure is
+        # not silently saved or presented as a finished professional result.
+        if quality_report.get('status') == 'needs_work':
+            html = await review_site(
+                html,
+                session_id=f'professional-{project_id}-repair',
+                quality_feedback=quality_report.get('next_actions') or [],
+            )
+            html = _sanitize(html)
+            quality_report = evaluate_landing_page_quality(html, brief_data)
+
+        if quality_report.get('status') == 'needs_work':
+            raise ProfessionalCompositionError(
+                'The draft did not meet Getszy\'s private-review quality baseline after repair.'
+            )
+
+        name = (body.name or brief_data.get('brand_name') or _derive_name(body.prompt))[:80]
+        history = [
+            BuilderHistoryItem(timestamp=_now(), prompt=body.prompt, role='user'),
+            BuilderHistoryItem(
+                timestamp=_now(),
+                prompt='Managed professional private draft created; review required before release.',
+                role='assistant',
+                snapshot=html,
+            ),
+        ]
+        project = BuilderProject(
+            id=project_id,
+            user_id=user['id'],
+            name=name,
+            prompt=body.prompt,
+            template_id=None,
+            brief=body.brief,
+            quality_report=quality_report,
+            html_content=html,
+            history=history,
+        )
+        await db.builder_projects.insert_one(project.model_dump())
+        return project.model_dump()
+    except ProfessionalCompositionError as exc:
+        if charged:
+            await refund(user['id'], 'builder_website', reason='professional_composition_quality_failed', ref_id=project_id)
+        raise HTTPException(
+            422,
+            'Getszy could not create a reviewable professional private draft for this request. No credit has been consumed. Add more verified brief details or try again.',
+        ) from exc
+    except Exception as exc:
+        logger.exception('Professional builder composition failed for project %s', project_id)
+        if charged:
+            await refund(user['id'], 'builder_website', reason='professional_composition_failed', ref_id=project_id)
+        raise HTTPException(
+            503,
+            'Getszy\'s professional composition service is temporarily unavailable. No credit has been consumed; please retry shortly.',
+        ) from exc
 
 
 @router.get('/projects')

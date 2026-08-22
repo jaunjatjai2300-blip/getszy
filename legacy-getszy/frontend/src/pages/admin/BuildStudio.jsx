@@ -140,12 +140,14 @@ function WebAppBuilder({ color }) {
   const [showBrief, setShowBrief] = useState(false);
   const [proofPoints, setProofPoints] = useState("");
   const [brief, setBrief] = useState({ audience: "", primary_goal: "", primary_cta: "", brand_name: "", visual_style: "", offer: "" });
-  const [briefReady, setBriefReady] = useState(null);
+  const [creditInfo, setCreditInfo] = useState({ credits: null, costs: {} });
+  const [createdProject, setCreatedProject] = useState(null);
   const isReadOnlyPreview = typeof window !== "undefined" && window.location.hostname.startsWith("preview.");
 
   const updateBrief = (field, value) => setBrief((current) => ({ ...current, [field]: value }));
   const load = async () => { try { const r = await api.get("/builder/projects"); setProjects(r.data || []); } catch (e) { toast.error("Couldn't load projects — refresh to retry"); } };
-  useEffect(() => { load(); }, []);
+  const loadCredits = async () => { try { const r = await api.get("/credits/me"); setCreditInfo({ credits: Number(r.data?.credits ?? 0), costs: r.data?.costs || {} }); } catch { setCreditInfo({ credits: null, costs: {} }); } };
+  useEffect(() => { load(); loadCredits(); }, []);
   useEffect(() => {
     try {
       const draft = JSON.parse(sessionStorage.getItem("getszy_mission_draft") || "null");
@@ -153,8 +155,12 @@ function WebAppBuilder({ color }) {
     } catch { /* An invalid local mission draft must never block a customer build. */ }
   }, []);
 
+  const buildCost = Number(creditInfo.costs?.builder_website ?? 0);
+  const hasEnoughCredits = creditInfo.credits === null || creditInfo.credits >= buildCost;
+
   const build = async () => {
     if (prompt.trim().length < 4) return toast.error("Tell Neo a little more about your goal first");
+    if (!hasEnoughCredits) return toast.error(`This professional private draft needs ${buildCost} prepaid credits. Please top up first.`);
     const normalizedBrief = {
       ...brief,
       proof_points: proofPoints.split("\n").map((item) => item.trim()).filter(Boolean).slice(0, 6),
@@ -163,16 +169,21 @@ function WebAppBuilder({ color }) {
       prompt: prompt.trim(),
       name: name.trim(),
       brief: normalizedBrief,
-      intention: "professional-brief",
-      status: "brief_ready",
+      intention: "professional-composition",
       createdAt: new Date().toISOString(),
     };
-    setBusy(true);
+    const confirmation = `Create a managed professional private draft for ${buildCost} prepaid credits? Groq 70B is used first, with controlled fallback and a quality repair pass. A failed quality check is refunded automatically.`;
+    if (!window.confirm(confirmation)) return;
+    setCreatedProject(null);
+    setBusy(true); toast.loading("Composing your professional private draft…", { id: "wa", duration: 60000 });
     try {
       sessionStorage.setItem("getszy_mission_draft", JSON.stringify(mission));
-      setBriefReady(mission);
-      toast.success("Professional brief prepared — no page has been generated yet", { id: "wa" });
-    } finally { setBusy(false); }
+      const r = await api.post("/builder/projects", { prompt, name, brief: normalizedBrief });
+      toast.success(`Private draft created: ${r.data.name}`, { id: "wa" });
+      setPreviewId(r.data.id); setPreviewQuality(r.data.quality_report || null); setCreatedProject(r.data); sessionStorage.setItem("getszy_last_project_id", r.data.id);
+      await Promise.all([load(), loadCredits()]);
+    } catch (e) { toast.error(e?.response?.data?.detail || "Could not create a reviewable professional draft", { id: "wa" }); }
+    finally { setBusy(false); }
   };
 
   const del = async (pid) => { try { await api.delete(`/builder/projects/${pid}`); load(); toast.success("Deleted"); } catch (e) { toast.error("Delete failed — please retry"); } };
@@ -180,7 +191,7 @@ function WebAppBuilder({ color }) {
   return (
     <div className="space-y-4 mt-4">
       <div className="rounded-xl border p-3" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)" }}>
-        <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gs-teal)]" /><div><div className="text-sm font-semibold">Professional brief before production</div><p className="mt-0.5 text-xs text-[var(--gs-muted)]">Getszy will not force your business into a repeated two-template layout or create a generic page from one prompt. First prepare a verified brief, visual direction and evidence checklist. A page is created only when an approved category-specific professional pack is available.</p></div></div>
+        <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gs-teal)]" /><div><div className="text-sm font-semibold">Managed professional composition</div><p className="mt-0.5 text-xs text-[var(--gs-muted)]">Getszy does not force your business into two repeated templates. Neo uses your verified brief, visual direction and evidence rules to compose a unique private draft, then checks and repairs structural quality before you review it.</p></div></div>
       </div>
       <div>
         <label className="text-xs text-[var(--gs-muted)]">What should this page achieve? *</label>
@@ -211,20 +222,20 @@ function WebAppBuilder({ color }) {
         )}
       </div>
       <div className="rounded-xl border px-3 py-3 text-sm" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}>
-        <div className="flex flex-wrap items-center justify-between gap-2"><div className="font-semibold">Brief and production plan</div><div className="rounded-full bg-white px-2.5 py-1 text-xs font-bold">0 credits</div></div>
-        <p className="mt-1 text-xs text-[var(--gs-muted)]">Preparing a brief does not consume credits. A future category-specific build or AI refinement will show its prepaid cost before you confirm it.</p>
+        <div className="flex flex-wrap items-center justify-between gap-2"><div className="font-semibold">Professional private draft</div><div className="rounded-full bg-white px-2.5 py-1 text-xs font-bold">{buildCost} credits</div></div>
+        <p className="mt-1 text-xs text-[var(--gs-muted)]">You confirm the visible prepaid cost before composition starts. If Getszy cannot create a reviewable professional draft after its quality repair pass, the credit is refunded automatically.</p>
       </div>
-      {isReadOnlyPreview && <div className="rounded-lg border px-3 py-2 text-xs text-[var(--gs-muted)]" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}>Preview mode is read-only: you can inspect the professional brief workflow, but no mission data is saved until an approved production release.</div>}
-      <Button onClick={build} disabled={busy || isReadOnlyPreview} className="w-full text-white" style={{ background: color }} data-testid="wa-build-btn">
+      {isReadOnlyPreview && <div className="rounded-lg border px-3 py-2 text-xs text-[var(--gs-muted)]" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}>Preview mode is read-only: you can inspect the professional composition workflow and prepaid cost, but creation remains disabled until an approved production release.</div>}
+      <Button onClick={build} disabled={busy || isReadOnlyPreview || !hasEnoughCredits} className="w-full text-white" style={{ background: color }} data-testid="wa-build-btn">
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
-        {busy ? "Preparing…" : isReadOnlyPreview ? "Preview mode — creation disabled" : "Prepare Professional Brief"}
+        {busy ? "Composing private draft…" : isReadOnlyPreview ? "Preview mode — creation disabled" : !hasEnoughCredits ? "Top up to create private draft" : "Create Professional Private Draft"}
       </Button>
 
       <div className="rounded-xl border p-3 text-sm" style={{ borderColor: busy ? "#9dc9ee" : "var(--gs-border)", background: busy ? "#f0f8ff" : "var(--gs-surface-2)" }} aria-live="polite" data-testid="wa-build-status">
-        {busy ? <div className="flex items-start gap-2"><Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-sky-700" /><div><strong>Preparing your professional brief.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">Getszy is recording your goal, evidence and visual direction. No generic page is being generated.</p></div></div> : <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gs-teal)]" /><div><strong>Quality comes before a page.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">Getszy does not reuse two designs for every business. Your brief stays visible while the appropriate category-specific professional build path is prepared.</p></div></div>}
+        {busy ? <div className="flex items-start gap-2"><Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-sky-700" /><div><strong>Composing your private draft.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">Neo is applying your brief through the managed quality ladder. This page will show a real finished project or a clear refunded failure—never a made-up progress percentage.</p></div></div> : <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gs-teal)]" /><div><strong>Professional composition, then private review.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">A unique draft is generated from your brief, checked for objective quality failures, and kept private until you inspect and approve it.</p></div></div>}
       </div>
 
-      {briefReady && <div className="rounded-xl border border-[#9ed2c3] bg-[#f0f8f5] p-4" data-testid="wa-brief-ready"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-sm font-semibold text-[#183c3c]"><CheckCircle2 className="h-4 w-4 text-emerald-700" />Professional brief prepared</div><p className="mt-1 text-xs leading-5 text-[#39685f]">{briefReady.name || briefReady.brief.brand_name || "Your mission"} is saved for Neo. No page has been generated, published or charged.</p></div><Button type="button" onClick={() => navigate("/dashboard")} className="bg-[#183c3c] text-white hover:bg-[#102f2f]">Open mission workspace <ExternalLink className="ml-2 h-4 w-4" /></Button></div></div>}
+      {createdProject && <div className="rounded-xl border border-[#9ed2c3] bg-[#f0f8f5] p-4" data-testid="wa-created-project"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-sm font-semibold text-[#183c3c]"><CheckCircle2 className="h-4 w-4 text-emerald-700" />Private draft created</div><p className="mt-1 text-xs leading-5 text-[#39685f]">{createdProject.name} is ready for your private review. It has not been published or deployed.</p></div><Button type="button" onClick={() => navigate(`/dashboard/projects/${createdProject.id}`)} className="bg-[#183c3c] text-white hover:bg-[#102f2f]">Review finished project <ExternalLink className="ml-2 h-4 w-4" /></Button></div></div>}
 
       <div className="grid md:grid-cols-2 gap-2 max-h-80 overflow-y-auto" data-testid="wa-projects">
         {projects.map((p) => (
