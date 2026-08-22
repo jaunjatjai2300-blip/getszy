@@ -38,7 +38,10 @@ for _d in [IMG_DIR, AUDIO_DIR, AVATAR_DIR, CLIP_DIR]:
 
 # ─── 1. FLUX.1-schnell — HD Image Generation ─────────────────────────────────
 
-_FLUX_URL  = 'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell'
+# Hugging Face retired the legacy api-inference hostname. Use its supported
+# Inference Providers router for the hf-inference provider; this keeps normal
+# TLS/DNS routing intact and avoids any hard-coded CDN address.
+_FLUX_URL  = 'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell'
 _HF_HDR    = lambda: {'Authorization': f'Bearer {HF_TOKEN}'} if HF_TOKEN else {}
 
 

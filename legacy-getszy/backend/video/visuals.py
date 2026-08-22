@@ -74,7 +74,7 @@ async def _fetch_hf_flux(prompt: str, orientation: str, seed: int, path: str) ->
     try:
         async with httpx.AsyncClient(timeout=120.0) as c:
             r = await c.post(
-                f'https://api-inference.huggingface.co/models/{HF_MODEL}',
+                f'https://router.huggingface.co/hf-inference/models/{HF_MODEL}',
                 content=payload, headers=headers
             )
             if r.status_code == 200 and r.headers.get('content-type', '').startswith('image'):
@@ -85,7 +85,7 @@ async def _fetch_hf_flux(prompt: str, orientation: str, seed: int, path: str) ->
             if r.status_code == 503:
                 await asyncio.sleep(20)
                 r2 = await c.post(
-                    f'https://api-inference.huggingface.co/models/{HF_MODEL}',
+                    f'https://router.huggingface.co/hf-inference/models/{HF_MODEL}',
                     content=payload, headers=headers
                 )
                 if r2.status_code == 200 and r2.headers.get('content-type', '').startswith('image'):
