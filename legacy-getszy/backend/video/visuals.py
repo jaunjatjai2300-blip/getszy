@@ -40,7 +40,11 @@ HF_DIMS = {
     '1:1':  (1024, 1024),
 }
 
-HF_MODEL = 'black-forest-labs/FLUX.1-schnell'
+# Verified against the configured HF_TOKEN on the production backend. The
+# model ID is non-secret; operators may override it through the server .env.
+HF_MODEL = os.environ.get(
+    'HF_IMAGE_MODEL', 'stabilityai/stable-diffusion-3-medium-diffusers'
+).strip()
 
 
 async def _fetch_pollinations(prompt: str, orientation: str, seed: int, path: str) -> bool:
