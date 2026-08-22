@@ -16,6 +16,11 @@ class TestLLMProviderConfig:
         from llm_provider import FREE_ONLY
         assert isinstance(FREE_ONLY, bool)
 
+    def test_verified_cloud_model_defaults(self):
+        from llm_provider import GROQ_MODEL, GEMINI_MODEL
+        assert GROQ_MODEL == 'qwen/qwen3.6-27b'
+        assert GEMINI_MODEL == 'gemini-2.5-flash'
+
     def test_provider_info_shape(self):
         from llm_provider import provider_info
         info = provider_info()
