@@ -4,25 +4,82 @@ Manual grant exists so the founder can hand out credits to test users BEFORE
 Razorpay/Stripe is wired up. Once payments go live, the payment webhook will
 call `credits.add_credits()` the same way this endpoint does.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from auth import get_current_user, get_current_admin
 from db import db
-from credits import CREDIT_COSTS, get_balance, add_credits
+from credits import CREDIT_COSTS, CREDIT_PACKS, CREATOR_PACKS, add_credits, get_balance
 
 router = APIRouter(prefix='/credits', tags=['credits'])
+
+# The threshold belongs to the server response, not a browser-only rule, so every
+# customer surface receives the same warning policy. It is intentionally separate
+# from the free video allowance: paid-credit actions still require paid credits.
+LOW_CREDIT_THRESHOLD = 20
+CRITICAL_CREDIT_THRESHOLD = 5
+
+
+def _credit_status(balance: int, billing_exempt: bool) -> str:
+    if billing_exempt:
+        return 'exempt'
+    if balance <= 0:
+        return 'empty'
+    if balance <= CRITICAL_CREDIT_THRESHOLD:
+        return 'critical'
+    if balance <= LOW_CREDIT_THRESHOLD:
+        return 'low'
+    return 'healthy'
 
 
 @router.get('/me')
 async def my_credits(user=Depends(get_current_user)):
     balance = await get_balance(user['id'])
-    return {'credits': balance, 'costs': CREDIT_COSTS}
+    billing_exempt = user.get('role') in ('admin', 'founder')
+    return {
+        'credits': balance,
+        'costs': CREDIT_COSTS,
+        'billing_exempt': billing_exempt,
+        'credit_status': _credit_status(balance, billing_exempt),
+        'low_credit_threshold': LOW_CREDIT_THRESHOLD,
+        'critical_credit_threshold': CRITICAL_CREDIT_THRESHOLD,
+        'access_model': 'prepaid_credits_only',
+        'packs': {
+            **CREDIT_PACKS,
+            **CREATOR_PACKS,
+        },
+    }
 
 
 @router.get('/costs')
 async def costs(_=Depends(get_current_user)):
     return {'costs': CREDIT_COSTS}
+
+
+@router.get('/me/transactions')
+async def my_credit_transactions(
+    limit: int = Query(default=20, ge=1, le=100),
+    user=Depends(get_current_user),
+):
+    """Return only the current customer's audited credit activity, newest first."""
+    cursor = db.credit_transactions.find(
+        {'user_id': user['id']},
+        {'_id': 0, 'user_id': 0},
+    ).sort('created_at', -1).limit(limit)
+    items = []
+    async for item in cursor:
+        meta = item.get('meta') if isinstance(item.get('meta'), dict) else {}
+        items.append({
+            'id': item.get('id') or item.get('ref_id') or f"{item.get('created_at', '')}:{item.get('action', '')}",
+            'type': item.get('type'),
+            'action': item.get('action'),
+            'qty': item.get('qty'),
+            'amount': item.get('amount'),
+            'balance_after': item.get('balance_after'),
+            'reason': meta.get('reason'),
+            'created_at': item.get('created_at'),
+        })
+    return {'items': items}
 
 
 class AdminGrantIn(BaseModel):

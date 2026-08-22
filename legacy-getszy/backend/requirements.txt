@@ -19,7 +19,7 @@ PyJWT>=2.10.0
 # HTTP / AI
 httpx==0.28.1
 openai==1.99.9
-aiohttp==3.14.1
+aiohttp>=3.14.3
 requests==2.34.2
 # emergentintegrations is ONLY on a private index (optional paid LLM provider).
 # It is lazily imported in llm_provider.py and blocked by FREE_ONLY, so the
@@ -37,7 +37,7 @@ stripe==14.4.1
 # Media
 edge-tts==7.2.8
 moviepy==1.0.3
-pillow==12.2.0
+pillow>=12.3.0
 ImageIO==2.37.3
 imageio-ffmpeg==0.6.0
 numpy==2.4.6
@@ -72,7 +72,7 @@ websockets==16.0
 certifi>=2025.0.0
 
 # Testing
-pytest==8.3.4
-pytest-asyncio==0.25.2
+pytest>=9.0.3
+pytest-asyncio>=1.3.0
 locust==2.31.0
 

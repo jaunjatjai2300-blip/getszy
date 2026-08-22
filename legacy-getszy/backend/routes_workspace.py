@@ -134,7 +134,7 @@ async def generate_tasks(project_id: str, user=Depends(get_current_user)):
               "TASKS as strict JSON: an array of objects, each with \"title\" (short action, max 12 words) and "
               "\"status\" (one of: todo, doing, done, blocked — use todo for almost all). Respond with ONLY the JSON "
               "array, no code fences, no extra prose.")
-    prompt = f"Conversation so far:\n{convo}\n\nReturn JSON: [{'title':'…','status':'todo'}]"
+    prompt = f"Conversation so far:\n{convo}\n\nReturn JSON: [{{'title':'…','status':'todo'}}]"
 
     try:
         raw = await chat_completion(system=system, user=prompt, temperature=0.3, session_id=f'tasks-{project_id}')
@@ -297,7 +297,7 @@ async def restore_version(project_id: str, version_id: str, user=Depends(get_cur
         t2['user_id'] = user['id']
         await db.workspace_tasks.insert_one(t2)
 
-    return {'ok': True, 'restored': {
+    return {'ok': True, 'restored': True, 'counts': {
         'messages': len(state.get('messages') or []),
         'assets': len(state.get('assets') or []),
         'tasks': len(state.get('tasks') or []),

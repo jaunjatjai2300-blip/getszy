@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,28 +9,64 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import * as Icons from "lucide-react";
-import { Wand2, Loader2, Play, Download, Trash2, ExternalLink, Copy, Sparkle, Plus } from "lucide-react";
+import { Wand2, Loader2, Play, Download, Trash2, ExternalLink, Copy, Sparkle, Plus, Laptop, Smartphone, Tablet, RotateCcw, ShieldCheck, CheckCircle2, AlertTriangle, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+const PREVIEW_TEMPLATE_FALLBACK = [
+  { id: "dance-academy", name: "Dance Academy", industry: "Dance & Performing Arts", source: "Getszy curated" },
+  { id: "brand-foundation", name: "Professional Brand Foundation", industry: "General Business", source: "Getszy curated" },
+  { id: "saas-app", name: "SaaS App Launch", industry: "Technology & SaaS" },
+  { id: "agency-digital", name: "Digital Agency", industry: "Professional Services" },
+  { id: "business-startup", name: "Startup Launch", industry: "Business" },
+  { id: "ecommerce-tech", name: "Tech Shop", industry: "E-commerce" },
+  { id: "education-courses", name: "Online Courses", industry: "Education" },
+  { id: "fitness-gym", name: "Fitness Gym", industry: "Wellness & Fitness" },
+  { id: "medical-clinic", name: "Health Clinic", industry: "Healthcare" },
+  { id: "realestate-luxury", name: "Luxury Properties", industry: "Real Estate" },
+  { id: "restaurant-cafe", name: "Cafe & Bistro", industry: "Food & Beverage" },
+  { id: "portfolio-creative", name: "Creative Studio", industry: "Portfolio & Agency" },
+  { id: "blog-modern", name: "Modern Editorial", industry: "Blog & Editorial" },
+  { id: "photography-wedding", name: "Wedding Photography", industry: "Events & Wedding" },
+];
+
+async function downloadAuthenticated(path, filename) {
+  const apiPath = path.replace(/^\/api(?=\/)/, "");
+  try {
+    const response = await api.get(apiPath, { responseType: "blob" });
+    const blob = response.data instanceof Blob ? response.data : new Blob([response.data]);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (error) {
+    toast.error(error?.response?.status === 401 ? "Please sign in again to download" : "Download failed — please retry");
+  }
+}
 
 function useHub() {
   const [hub, setHub] = useState({ counts: {}, categories: [] });
-  const load = async () => { try { const r = await api.get("/builder/hub"); setHub(r.data); } catch (e) { toast.error("Couldn't load Build Studio — refresh to retry"); } };
-  useEffect(() => { load(); }, []);
+  const load = useCallback(async () => { try { const r = await api.get("/builder/hub"); setHub(r.data); } catch (e) { toast.error("Couldn't load Build Studio — refresh to retry"); } }, []);
+  useEffect(() => { load(); }, [load]);
   return { hub, reload: load };
 }
 
-export default function BuildStudio() {
+export default function BuildStudio({ embedded = false }) {
   const { hub, reload: reloadHub } = useHub();
   const [active, setActive] = useState(null); // category id
 
   return (
     <div className="space-y-6" data-testid="admin-build-studio-page">
-      <div>
-        <h1 className="font-display text-3xl flex items-center gap-2"><Wand2 className="h-7 w-7 text-[var(--gs-teal)]"/> Build Studio</h1>
-        <p className="text-sm text-[var(--gs-muted)] mt-1">One place to build anything — web apps, faceless channels, custom AI agents, mobile apps, full-stack sites, blogs. Preview, download, deploy.</p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 className="font-display text-3xl flex items-center gap-2"><Wand2 className="h-7 w-7 text-[var(--gs-teal)]"/> Build Studio</h1>
+          <p className="text-sm text-[var(--gs-muted)] mt-1">One place to build anything — web apps, faceless channels, custom AI agents, mobile apps, full-stack sites, blogs. Preview, download, deploy.</p>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3" data-testid="hub-stats">
@@ -92,23 +129,60 @@ function BuilderDialog({ category, onClose }) {
 // 1) Web App Builder
 // ============================================================
 function WebAppBuilder({ color }) {
+  const navigate = useNavigate();
   const [prompt, setPrompt] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [projects, setProjects] = useState([]);
   const [previewId, setPreviewId] = useState(null);
+  const [previewDevice, setPreviewDevice] = useState("desktop");
+  const [previewQuality, setPreviewQuality] = useState(null);
+  const [showBrief, setShowBrief] = useState(false);
+  const [proofPoints, setProofPoints] = useState("");
+  const [brief, setBrief] = useState({ audience: "", primary_goal: "", primary_cta: "", brand_name: "", visual_style: "", offer: "" });
+  const [creditInfo, setCreditInfo] = useState({ credits: null, costs: {} });
+  const [createdProject, setCreatedProject] = useState(null);
+  const isReadOnlyPreview = typeof window !== "undefined" && window.location.hostname.startsWith("preview.");
 
+  const updateBrief = (field, value) => setBrief((current) => ({ ...current, [field]: value }));
   const load = async () => { try { const r = await api.get("/builder/projects"); setProjects(r.data || []); } catch (e) { toast.error("Couldn't load projects — refresh to retry"); } };
-  useEffect(() => { load(); }, []);
+  const loadCredits = async () => { try { const r = await api.get("/credits/me"); setCreditInfo({ credits: Number(r.data?.credits ?? 0), costs: r.data?.costs || {} }); } catch { setCreditInfo({ credits: null, costs: {} }); } };
+  useEffect(() => { load(); loadCredits(); }, []);
+  useEffect(() => {
+    try {
+      const draft = JSON.parse(sessionStorage.getItem("getszy_mission_draft") || "null");
+      if (draft?.prompt) setPrompt((current) => current || draft.prompt);
+    } catch { /* An invalid local mission draft must never block a customer build. */ }
+  }, []);
+
+  const buildCost = Number(creditInfo.costs?.builder_website ?? 0);
+  const hasEnoughCredits = creditInfo.credits === null || creditInfo.credits >= buildCost;
 
   const build = async () => {
-    if (prompt.trim().length < 4) return toast.error("Prompt too short");
-    setBusy(true); toast.loading("Building your web app…", { id: "wa", duration: 60000 });
+    if (prompt.trim().length < 4) return toast.error("Tell Neo a little more about your goal first");
+    if (!hasEnoughCredits) return toast.error(`This professional private draft needs ${buildCost} prepaid credits. Please top up first.`);
+    const normalizedBrief = {
+      ...brief,
+      proof_points: proofPoints.split("\n").map((item) => item.trim()).filter(Boolean).slice(0, 6),
+    };
+    const mission = {
+      prompt: prompt.trim(),
+      name: name.trim(),
+      brief: normalizedBrief,
+      intention: "professional-composition",
+      createdAt: new Date().toISOString(),
+    };
+    const confirmation = `Create a managed professional private draft for ${buildCost} prepaid credits? Groq 70B is used first, with controlled fallback and a quality repair pass. A failed quality check is refunded automatically.`;
+    if (!window.confirm(confirmation)) return;
+    setCreatedProject(null);
+    setBusy(true); toast.loading("Composing your professional private draft…", { id: "wa", duration: 60000 });
     try {
-      const r = await api.post("/builder/projects", { prompt, name });
-      toast.success(`Built: ${r.data.name} ✅`, { id: "wa" });
-      setPrompt(""); setName(""); setPreviewId(r.data.id); await load();
-    } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "wa" }); }
+      sessionStorage.setItem("getszy_mission_draft", JSON.stringify(mission));
+      const r = await api.post("/builder/projects", { prompt, name, brief: normalizedBrief });
+      toast.success(`Private draft created: ${r.data.name}`, { id: "wa" });
+      setPreviewId(r.data.id); setPreviewQuality(r.data.quality_report || null); setCreatedProject(r.data); sessionStorage.setItem("getszy_last_project_id", r.data.id);
+      await Promise.all([load(), loadCredits()]);
+    } catch (e) { toast.error(e?.response?.data?.detail || "Could not create a reviewable professional draft", { id: "wa" }); }
     finally { setBusy(false); }
   };
 
@@ -116,18 +190,52 @@ function WebAppBuilder({ color }) {
 
   return (
     <div className="space-y-4 mt-4">
+      <div className="rounded-xl border p-3" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)" }}>
+        <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gs-teal)]" /><div><div className="text-sm font-semibold">Managed professional composition</div><p className="mt-0.5 text-xs text-[var(--gs-muted)]">Getszy does not force your business into two repeated templates. Neo uses your verified brief, visual direction and evidence rules to compose a unique private draft, then checks and repairs structural quality before you review it.</p></div></div>
+      </div>
       <div>
-        <label className="text-xs text-[var(--gs-muted)]">Prompt *</label>
-        <Textarea rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Build a modern landing page for a Kathak dance academy in Jaipur…" data-testid="wa-prompt"/>
+        <label className="text-xs text-[var(--gs-muted)]">What should this page achieve? *</label>
+        <Textarea rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="For example: I need a premium website for my beauty studio in Jaipur…" data-testid="wa-prompt"/>
       </div>
       <div>
         <label className="text-xs text-[var(--gs-muted)]">Name (optional)</label>
         <Input value={name} onChange={(e) => setName(e.target.value)} data-testid="wa-name"/>
       </div>
-      <Button onClick={build} disabled={busy} className="w-full text-white" style={{ background: color }} data-testid="wa-build-btn">
+      <div className="rounded-xl border" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}>
+        <button type="button" onClick={() => setShowBrief((open) => !open)} className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left">
+          <span className="flex items-center gap-2 text-sm font-semibold"><SlidersHorizontal className="h-4 w-4 text-[var(--gs-teal)]" />Professional page brief</span>
+          <span className="text-xs text-[var(--gs-muted)]">{showBrief ? "Hide" : "Add context"}</span>
+        </button>
+        {showBrief && (
+          <div className="space-y-3 border-t px-3 py-3" style={{ borderColor: "var(--gs-border)" }}>
+            <p className="text-xs text-[var(--gs-muted)]">Optional, but this is how Getszy turns a generic request into a clearer, on-brand, conversion-focused page. Only add claims and proof you can verify.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div><label className="text-xs text-[var(--gs-muted)]">Brand name</label><Input value={brief.brand_name} onChange={(e) => updateBrief("brand_name", e.target.value)} placeholder="e.g. Raag Dance Academy" /></div>
+              <div><label className="text-xs text-[var(--gs-muted)]">Target audience</label><Input value={brief.audience} onChange={(e) => updateBrief("audience", e.target.value)} placeholder="e.g. Jaipur parents and adult learners" /></div>
+              <div><label className="text-xs text-[var(--gs-muted)]">Primary goal</label><Select value={brief.primary_goal} onValueChange={(value) => updateBrief("primary_goal", value)}><SelectTrigger><SelectValue placeholder="Choose one outcome" /></SelectTrigger><SelectContent><SelectItem value="Collect qualified leads">Collect qualified leads</SelectItem><SelectItem value="Book a consultation">Book a consultation</SelectItem><SelectItem value="Sell a product">Sell a product</SelectItem><SelectItem value="Start a free trial">Start a free trial</SelectItem><SelectItem value="Grow an audience">Grow an audience</SelectItem></SelectContent></Select></div>
+              <div><label className="text-xs text-[var(--gs-muted)]">Primary CTA</label><Input value={brief.primary_cta} onChange={(e) => updateBrief("primary_cta", e.target.value)} placeholder="e.g. Book a free class" /></div>
+              <div><label className="text-xs text-[var(--gs-muted)]">Visual direction</label><Select value={brief.visual_style} onValueChange={(value) => updateBrief("visual_style", value)}><SelectTrigger><SelectValue placeholder="Choose a style" /></SelectTrigger><SelectContent><SelectItem value="Warm and premium">Warm and premium</SelectItem><SelectItem value="Modern and minimal">Modern and minimal</SelectItem><SelectItem value="Bold and energetic">Bold and energetic</SelectItem><SelectItem value="Editorial and refined">Editorial and refined</SelectItem><SelectItem value="Trustworthy and clinical">Trustworthy and clinical</SelectItem></SelectContent></Select></div>
+              <div><label className="text-xs text-[var(--gs-muted)]">Core offer</label><Input value={brief.offer} onChange={(e) => updateBrief("offer", e.target.value)} placeholder="e.g. 8-week beginner Kathak course" /></div>
+            </div>
+            <div><label className="text-xs text-[var(--gs-muted)]">Verified proof points (one per line)</label><Textarea rows={3} value={proofPoints} onChange={(e) => setProofPoints(e.target.value)} placeholder="e.g. Established in 2015&#10;e.g. 120 verified Google reviews" /><p className="mt-1 text-[11px] text-[var(--gs-muted)]">Do not add testimonials, ratings, counts, prices, guarantees, or certifications unless they are true and approved for use.</p></div>
+          </div>
+        )}
+      </div>
+      <div className="rounded-xl border px-3 py-3 text-sm" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}>
+        <div className="flex flex-wrap items-center justify-between gap-2"><div className="font-semibold">Professional private draft</div><div className="rounded-full bg-white px-2.5 py-1 text-xs font-bold">{buildCost} credits</div></div>
+        <p className="mt-1 text-xs text-[var(--gs-muted)]">You confirm the visible prepaid cost before composition starts. If Getszy cannot create a reviewable professional draft after its quality repair pass, the credit is refunded automatically.</p>
+      </div>
+      {isReadOnlyPreview && <div className="rounded-lg border px-3 py-2 text-xs text-[var(--gs-muted)]" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}>Preview mode is read-only: you can inspect the professional composition workflow and prepaid cost, but creation remains disabled until an approved production release.</div>}
+      <Button onClick={build} disabled={busy || isReadOnlyPreview || !hasEnoughCredits} className="w-full text-white" style={{ background: color }} data-testid="wa-build-btn">
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
-        {busy ? "Building…" : "Build Web App"}
+        {busy ? "Composing private draft…" : isReadOnlyPreview ? "Preview mode — creation disabled" : !hasEnoughCredits ? "Top up to create private draft" : "Create Professional Private Draft"}
       </Button>
+
+      <div className="rounded-xl border p-3 text-sm" style={{ borderColor: busy ? "#9dc9ee" : "var(--gs-border)", background: busy ? "#f0f8ff" : "var(--gs-surface-2)" }} aria-live="polite" data-testid="wa-build-status">
+        {busy ? <div className="flex items-start gap-2"><Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-sky-700" /><div><strong>Composing your private draft.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">Neo is applying your brief through the managed quality ladder. This page will show a real finished project or a clear refunded failure—never a made-up progress percentage.</p></div></div> : <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gs-teal)]" /><div><strong>Professional composition, then private review.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">A unique draft is generated from your brief, checked for objective quality failures, and kept private until you inspect and approve it.</p></div></div>}
+      </div>
+
+      {createdProject && <div className="rounded-xl border border-[#9ed2c3] bg-[#f0f8f5] p-4" data-testid="wa-created-project"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-sm font-semibold text-[#183c3c]"><CheckCircle2 className="h-4 w-4 text-emerald-700" />Private draft created</div><p className="mt-1 text-xs leading-5 text-[#39685f]">{createdProject.name} is ready for your private review. It has not been published or deployed.</p></div><Button type="button" onClick={() => navigate(`/dashboard/projects/${createdProject.id}`)} className="bg-[#183c3c] text-white hover:bg-[#102f2f]">Review finished project <ExternalLink className="ml-2 h-4 w-4" /></Button></div></div>}
 
       <div className="grid md:grid-cols-2 gap-2 max-h-80 overflow-y-auto" data-testid="wa-projects">
         {projects.map((p) => (
@@ -136,20 +244,49 @@ function WebAppBuilder({ color }) {
               <div className="text-sm font-semibold truncate">{p.name}</div>
               <div className="text-[10px] text-[var(--gs-muted)] truncate">{p.prompt}</div>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setPreviewId(p.id)}><Play className="h-3.5 w-3.5"/></Button>
-            <a href={`${BACKEND_URL}/api/builder/projects/${p.id}/download`} className="text-xs" title="Download zip"><Download className="h-4 w-4"/></a>
+            <Button variant="outline" size="sm" onClick={() => { setPreviewId(p.id); setPreviewQuality(p.quality_report || null); }}><Play className="h-3.5 w-3.5"/></Button>
+            <button type="button" onClick={() => downloadAuthenticated(`/builder/projects/${p.id}/download`, `${p.name || "project"}.zip`)} className="p-2 text-[var(--gs-muted)] hover:text-[var(--gs-teal)]" title="Download zip" aria-label={`Download ${p.name || "project"} zip`} data-testid={`wa-download-${p.id}`}><Download className="h-4 w-4"/></button>
             <button onClick={() => del(p.id)} className="text-rose-500" data-testid={`wa-del-${p.id}`}><Trash2 className="h-4 w-4"/></button>
           </Card>
         ))}
       </div>
 
       {previewId && (
-        <div className="mt-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Badge variant="outline">Live Preview</Badge>
-            <a href={`${BACKEND_URL}/api/builder/projects/${previewId}/preview`} target="_blank" rel="noreferrer" className="text-xs underline flex items-center gap-1"><ExternalLink className="h-3 w-3"/>Open in new tab</a>
+        <div className="mt-5 overflow-hidden rounded-2xl border" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}>
+          <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)" }}>
+            <div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="border-[var(--gs-teal)]/30 bg-[var(--gs-teal)]/10 text-[var(--gs-teal)]">Private preview</Badge>
+                <span className="text-xs font-medium text-[var(--gs-ink)]">Not deployed</span>
+              </div>
+              <p className="mt-1 text-xs text-[var(--gs-muted)]">Review layout and content here before you download or publish this project.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[
+                ["desktop", "Desktop", Laptop],
+                ["tablet", "Tablet", Tablet],
+                ["mobile", "Mobile", Smartphone],
+              ].map(([id, label, DeviceIcon]) => (
+                <Button key={id} type="button" size="sm" variant={previewDevice === id ? "default" : "outline"} onClick={() => setPreviewDevice(id)} className={previewDevice === id ? "bg-[var(--gs-teal)] text-white hover:bg-[var(--gs-teal)]" : ""}>
+                  <DeviceIcon className="mr-1.5 h-3.5 w-3.5" />{label}
+                </Button>
+              ))}
+              <Button type="button" size="icon" variant="outline" onClick={() => setPreviewId(null)} aria-label="Close preview"><RotateCcw className="h-3.5 w-3.5" /></Button>
+              <a href={`${BACKEND_URL}/api/builder/projects/${previewId}/preview`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium hover:bg-[var(--gs-surface-2)]" style={{ borderColor: "var(--gs-border)" }}><ExternalLink className="h-3.5 w-3.5" />Open</a>
+            </div>
           </div>
-          <iframe src={`${BACKEND_URL}/api/builder/projects/${previewId}/preview`} className="w-full h-[520px] border rounded-xl bg-white" title="preview" data-testid="wa-preview-iframe"/>
+          {previewQuality && (
+            <div className="border-b px-4 py-3" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)" }}>
+              <div className="flex flex-wrap items-center gap-2"><Badge variant="outline" className={previewQuality.status === "ready_for_human_review" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700" : "border-amber-500/40 bg-amber-500/10 text-amber-700"}>{previewQuality.score}/100 structural preflight</Badge><span className="text-xs text-[var(--gs-muted)]">{previewQuality.required_checks_passed}/{previewQuality.required_checks_total} required checks passed</span></div>
+              {previewQuality.next_actions?.length > 0 ? <div className="mt-2 flex items-start gap-2 text-xs text-[var(--gs-muted)]"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" /><span>{previewQuality.next_actions[0]}</span></div> : <div className="mt-2 flex items-start gap-2 text-xs text-[var(--gs-muted)]"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" /><span>Technical foundation is complete. Review the private preview for brand accuracy, claims, assets, and conversion fit before publishing.</span></div>}
+            </div>
+          )}
+          <div className="overflow-auto p-4">
+            <div className={`mx-auto overflow-hidden rounded-xl border bg-white shadow-sm ${previewDevice === "mobile" ? "h-[680px] max-w-[390px]" : previewDevice === "tablet" ? "h-[620px] max-w-[768px]" : "h-[560px] w-full"}`} style={{ borderColor: "var(--gs-border)" }}>
+              <iframe src={`${BACKEND_URL}/api/builder/projects/${previewId}/preview`} className="h-full w-full" title="Private project preview" data-testid="wa-preview-iframe"/>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 border-t px-4 py-3 text-xs text-[var(--gs-muted)]" style={{ borderColor: "var(--gs-border)" }}><ShieldCheck className="h-4 w-4 text-emerald-600" />This draft is private. Preview does not publish it to a public domain.</div>
         </div>
       )}
     </div>
@@ -393,8 +530,8 @@ function StarterBuilder({ color, kind, placeholder }) {
   const [busy, setBusy] = useState(false);
   const [items, setItems] = useState([]);
 
-  const load = async () => { try { const r = await api.get("/builder/starter"); setItems((r.data.items || []).filter(x => x.kind === kind)); } catch (e) { toast.error("Couldn't load starters — refresh to retry"); } };
-  useEffect(() => { load(); }, [kind]);
+  const load = useCallback(async () => { try { const r = await api.get("/builder/starter"); setItems((r.data.items || []).filter(x => x.kind === kind)); } catch (e) { toast.error("Couldn't load starters — refresh to retry"); } }, [kind]);
+  useEffect(() => { load(); }, [load]);
 
   const build = async () => {
     if (prompt.trim().length < 4) return toast.error("Prompt too short");
@@ -432,7 +569,7 @@ function StarterBuilder({ color, kind, placeholder }) {
               <div className="text-[10px] text-[var(--gs-muted)] truncate">{it.prompt}</div>
             </div>
             <Badge variant="outline" className="text-[10px]">{(it.size_bytes / 1024).toFixed(1)} KB</Badge>
-            <a href={`${BACKEND_URL}${it.download_url}`} download className="text-xs" title="Download"><Download className="h-4 w-4"/></a>
+            <button type="button" onClick={() => downloadAuthenticated(it.download_url, `${it.name || "starter"}-starter.zip`)} className="p-2 text-[var(--gs-muted)] hover:text-[var(--gs-teal)]" title="Download" aria-label={`Download ${it.name || "starter"} starter kit`} data-testid={`st-download-${it.id}`}><Download className="h-4 w-4"/></button>
             <button onClick={() => del(it.id)} className="text-rose-500"><Trash2 className="h-4 w-4"/></button>
           </Card>
         ))}

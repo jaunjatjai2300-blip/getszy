@@ -6,7 +6,7 @@ Each agent specializes in one aspect, producing better output than a single mono
 import re
 import json
 import logging
-from llm_provider import chat_completion
+from llm_provider import professional_builder_completion
 
 logger = logging.getLogger('getszy.builder.agents')
 
@@ -23,7 +23,10 @@ Given a user request, produce a concise site plan as JSON:
   "typography": "modern|classic|playful|minimal",
   "tone": "professional|friendly|bold|elegant",
   "key_message": "one sentence describing the site's core purpose",
-  "target_audience": "who this site is for"
+  "target_audience": "who this site is for",
+  "primary_goal": "one measurable action such as collect leads, book a demo, sell a product, or start a trial",
+  "primary_cta": "short action-led button label",
+  "proof_strategy": "only real proof supplied by the customer, otherwise an honest proof-plan placeholder"
 }
 
 Reply ONLY with valid JSON. No prose."""
@@ -44,7 +47,8 @@ Given a site plan (JSON), output a detailed design brief as JSON:
     }
   ],
   "animations": ["fade-in", "slide-up", "hover-scale"],
-  "responsive_notes": "any special mobile considerations"
+  "responsive_notes": "mobile hierarchy, touch targets, and breakpoint considerations",
+  "conversion_hierarchy": "what visitors should understand and do in the first 5 seconds"
 }
 
 Reply ONLY with valid JSON. No prose."""
@@ -56,35 +60,47 @@ STRICT OUTPUT RULES:
 2. Begin with <!DOCTYPE html> and end with </html>.
 3. Use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
 4. Use Google Fonts via <link> for premium typography (e.g. Inter, Plus Jakarta Sans, Space Grotesk).
-5. Images: use ONLY the real product images provided in the brief (embed them via <img src>). If no product image is available, use tasteful CSS gradients, brand colors, or inline SVG — NEVER use placeholder/random image services (no picsum, no lorem, no via.placeholder).
-6. Include semantic sections: sticky header/nav, hero (with a bold value proposition + primary CTA),
-   trust bar (logos/stats), features/benefits (with icons), "how it works", social proof/testimonials,
-   pricing or offer, FAQ, strong CTA section, and footer.
-7. Micro-interactions via CSS transitions/animations and a tiny inline <script> ONLY for the mobile
-   menu toggle and scroll-reveal (no other JS needed).
-8. Premium aesthetic: generous whitespace, refined typographic scale, soft shadows, rounded corners,
-   tasteful gradients, smooth hover/focus states, consistent spacing scale.
-9. Fully responsive and mobile-first; flawless at 375px and 1440px.
-10. Accessibility: semantic landmarks, alt text on every image, sufficient contrast, visible focus rings,
-    ARIA where helpful. SEO: complete <head> with title, meta description, Open Graph, and structured
-    JSON-LD where relevant.
-11. Compelling, specific conversion copy (not lorem ipsum) — clear headlines, benefit-driven body,
-    persuasive CTAs.
-12. NEVER include forms that POST to external URLs. NEVER include trackers or fetch() to third-party.
-13. Total HTML should be 300-800 lines.
-14. Color scheme, fonts, and section layout MUST match the design brief exactly.
+5. Images: use ONLY real product images provided in the brief. If none are provided, use tasteful CSS gradients, brand colors, or inline SVG — NEVER use placeholder/random image services (no picsum, no lorem, no via.placeholder).
+6. Treat the supplied professional page brief as product truth. Do not invent testimonials, company logos, customer counts, pricing, guarantees, legal claims, integrations, or capabilities. If authentic proof is not supplied, use an honest editable proof-plan placeholder rather than a fake testimonial or statistic.
+7. Build around one conversion goal and one primary CTA. Include only sections that support that goal: hero with a benefit-led H1 and CTA, relevant benefits, how it works, real proof or proof-plan, offer/pricing only when supplied, FAQ, closing CTA and footer. Do not add distracting navigation or competing CTAs to a campaign landing page.
+8. Micro-interactions via CSS transitions/animations and a tiny inline <script> ONLY for the mobile menu toggle and scroll-reveal (no other JS needed).
+9. Premium aesthetic: generous whitespace, refined typographic scale, consistent spacing, restrained decoration, strong CTA contrast, and content that remains readable rather than merely decorative.
+10. Fully responsive and mobile-first. Verify the information hierarchy, CTA visibility, horizontal overflow, and touch targets at 375px, tablet width, and 1440px.
+11. Accessibility: semantic header/main/footer landmarks, a single H1, alt text on every meaningful image, sufficient contrast, visible focus rings, and ARIA where helpful. SEO: complete head with title, meta description, Open Graph, and structured JSON-LD only when the supplied brief supports it.
+12. Compelling, specific conversion copy (not lorem ipsum): clear headline, concise benefit-driven body, and action-led CTA that matches the primary goal.
+13. NEVER include forms that POST to external URLs. NEVER include trackers or fetch() to third-party.
+14. Do not use a generic card grid as the primary visual language. Compose one intentional hero, one editorial rhythm, two or three distinct section treatments, and a closing conversion moment. Use the supplied visual direction rather than repeating the same layout.
+15. If no real customer image is supplied, create a premium CSS/SVG art direction that is specific to the business brief; do not leave empty image cards or image placeholder areas.
+16. Total HTML should be 300-800 lines. Color scheme, fonts, and section layout MUST match the design brief exactly.
 
 START IMMEDIATELY WITH <!DOCTYPE html>. End with </html>. Nothing else."""
+
+FAST_COMPOSITION_PROMPT = """You are Getszy's Professional Composition Engine. Create one distinctive, premium, responsive private landing-page draft from the verified customer brief.
+
+OUTPUT: ONLY one complete HTML document, beginning with <!DOCTYPE html> and ending with </html>. Use Tailwind CDN and one premium Google font pairing.
+
+NON-NEGOTIABLE:
+1. Treat VERIFIED CUSTOMER BRIEF as the only product truth. Never invent testimonials, ratings, awards, logos, addresses, phone numbers, prices, discounts, guarantees, urgency, stock, certifications, or legal claims.
+2. Build a unique visual composition for this brief, not a reusable generic card grid: a strong editorial hero, one intentional art direction, varied section rhythms, decisive CTA, and a polished mobile experience.
+3. If no real image URL is supplied, create a business-specific premium CSS/SVG visual treatment; never use image placeholders, random image services, empty image cards, or third-party trackers.
+4. Include: title, meta description, semantic header/main/footer, exactly one H1, a CTA matching the supplied goal, responsive rules, focus styles, useful image alt text, and private-draft-safe copy.
+5. Use 5–7 meaningful sections only. Prefer specific benefit, process and offer sections. Include testimonials/prices/claims only when they appear in the verified brief.
+6. No external form POST, fetch(), trackers, iframes, data:text/html, or unsafe JavaScript. Use a tiny mobile-menu script only if necessary.
+7. Target 250–450 lines with refined typography, generous whitespace, strong hierarchy and clear device responsiveness. Do not narrate your work or output markdown.
+
+Speed matters. Make the complete professional draft in this one response. A deterministic Getszy quality check will inspect it before the customer sees it."""
+
 
 REVIEWER_PROMPT = """You are a code reviewer for HTML/CSS websites.
 
 Review the provided HTML and fix:
-1. Any broken image URLs (replace with working Unsplash/Picsum URLs)
-2. Missing responsive classes (ensure mobile-first)
-3. Accessibility issues (missing alt text, low contrast)
-4. CSS inconsistencies or broken layouts
-5. Any JavaScript errors
-6. Missing meta tags (charset, viewport)
+1. Broken image URLs by removing the image or replacing it only with a real asset supplied in the brief; never add placeholder or random-image services.
+2. Missing mobile-responsive layout rules, CTA visibility, or horizontal-overflow issues.
+3. Accessibility issues: missing landmarks, missing image alt text, low contrast, missing focus styles, or invalid heading hierarchy.
+4. CSS inconsistencies, broken layouts, and visual clutter that obscures the primary conversion goal.
+5. JavaScript errors or third-party network calls that are not required for the page.
+6. Missing technical metadata: charset, viewport, descriptive title, and meta description.
+7. Fabricated proof, claims, prices, guarantees, testimonials, logos, or metrics. Remove unverified claims and leave an honest editable placeholder where customer proof is needed.
 
 Output ONLY the COMPLETE, FIXED HTML document. No explanation. No markdown."""
 
@@ -137,6 +153,10 @@ def _extract_html(raw: str) -> str:
     return raw
 
 
+class ProfessionalCompositionError(RuntimeError):
+    """Raised when the managed builder cannot produce a reviewable private draft."""
+
+
 def _sanitize(html: str) -> str:
     html = re.sub(r'(file://|javascript:eval\()', '', html, flags=re.IGNORECASE)
     return html
@@ -144,17 +164,17 @@ def _sanitize(html: str) -> str:
 
 async def plan_site(prompt: str, session_id: str = 'builder') -> dict:
     """Agent 1: Plan the site structure."""
-    raw = await chat_completion(
+    raw = await professional_builder_completion(
         system=PLANNER_PROMPT,
         user=f"User request: {prompt}",
         session_id=f'{session_id}-plan',
-        temperature=0.4,
+        temperature=0.35,
     )
     plan = _extract_json(raw)
     if not plan:
         plan = {
             'site_type': 'landing',
-            'sections': ['hero', 'features', 'testimonials', 'cta', 'footer'],
+            'sections': ['hero', 'benefits', 'how_it_works', 'cta', 'footer'],
             'color_scheme': 'cool',
             'typography': 'modern',
             'tone': 'professional',
@@ -167,11 +187,11 @@ async def plan_site(prompt: str, session_id: str = 'builder') -> dict:
 
 async def design_site(plan: dict, prompt: str, session_id: str = 'builder') -> dict:
     """Agent 2: Create design brief from plan."""
-    raw = await chat_completion(
+    raw = await professional_builder_completion(
         system=DESIGNER_PROMPT,
         user=f"Original request: {prompt}\n\nSite plan:\n{json.dumps(plan, indent=2)}",
         session_id=f'{session_id}-design',
-        temperature=0.5,
+        temperature=0.45,
     )
     design = _extract_json(raw)
     if not design:
@@ -193,38 +213,31 @@ async def code_site(prompt: str, plan: dict, design: dict, session_id: str = 'bu
         f"Design brief:\n{json.dumps(design, indent=2)}\n\n"
         "Now generate the complete HTML website following this plan and design exactly."
     )
-    raw = await chat_completion(
+    raw = await professional_builder_completion(
         system=CODER_PROMPT,
         user=context,
         session_id=f'{session_id}-code',
-        temperature=0.6,
+        temperature=0.48,
         max_tokens=8000,
     )
     html = _extract_html(raw)
-    if not html.lower().startswith('<!doctype html'):
-        # Graceful, valid fallback: a real (if minimal) HTML page — never a raw
-        # <pre> dump presented as a "website", and never a silent failure.
-        safe = (raw or 'Content could not be generated. Please retry.').replace('<', '&lt;').replace('>', '&gt;')
-        html = (
-            "<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>"
-            "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-            "<title>Generated Preview</title>"
-            "<script src='https://cdn.tailwindcss.com'></script></head>"
-            "<body class='p-8 font-sans bg-white text-gray-900'>"
-            f"<div class='prose max-w-3xl mx-auto'>{safe}</div></body></html>"
-        )
+    if not html.lower().startswith('<!doctype html') or len(html) < 4000:
+        raise ProfessionalCompositionError('The managed composition engine did not return a complete professional private draft. No generic fallback page was created.')
     logger.info(f'Builder coded: {len(html)} chars')
     return html
 
 
-async def review_site(html: str, session_id: str = 'builder') -> str:
-    """Agent 4: Review and fix issues."""
+async def review_site(html: str, session_id: str = 'builder', quality_feedback: list[str] | None = None) -> str:
+    """Agent 4: Review and fix issues, including deterministic preflight feedback."""
+    feedback = ""
+    if quality_feedback:
+        feedback = "\n\nDETERMINISTIC PREFLIGHT FAILURES TO FIX:\n- " + "\n- ".join(quality_feedback)
     try:
-        raw = await chat_completion(
+        raw = await professional_builder_completion(
             system=REVIEWER_PROMPT,
-            user=f"Review and fix this HTML:\n\n{html}",
+            user=f"Review and fix this HTML:{feedback}\n\n{html}",
             session_id=f'{session_id}-review',
-            temperature=0.3,
+            temperature=0.25,
             max_tokens=8000,
         )
         reviewed = _extract_html(raw)
@@ -238,7 +251,7 @@ async def review_site(html: str, session_id: str = 'builder') -> str:
 
 async def refine_element(html: str, selector: str, instruction: str, session_id: str = 'builder') -> str:
     """Refine a specific section/element of the site."""
-    raw = await chat_completion(
+    raw = await professional_builder_completion(
         system=ELEMENT_REFINE_PROMPT,
         user=(
             f"TARGET: {selector}\n"
@@ -257,10 +270,46 @@ async def refine_element(html: str, selector: str, instruction: str, session_id:
 
 # ── Full Pipeline ──────────────────────────────────────────────────────────────
 
-async def build_site(prompt: str, session_id: str = 'builder') -> str:
-    """Run the full multi-agent pipeline: plan → design → code → review."""
-    plan = await plan_site(prompt, session_id)
-    design = await design_site(plan, prompt, session_id)
-    html = await code_site(prompt, plan, design, session_id)
+async def compose_site_fast(prompt: str, brief: dict | None = None, session_id: str = 'builder') -> str:
+    """Create a normal customer draft in one managed quality-ladder call.
+
+    This is intentionally the default customer path. The legacy multi-agent path
+    remains available for internal diagnostics and streamed specialist workflows,
+    but customer wait time must not include four serial model calls.
+    """
+    brief = brief or {}
+    confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
+    context = (
+        f"CUSTOMER REQUEST:\n{prompt}\n\n"
+        f"VERIFIED CUSTOMER BRIEF:\n{json.dumps(confirmed, ensure_ascii=False, indent=2)}\n\n"
+        "Compose the complete private draft now."
+    )
+    raw = await professional_builder_completion(
+        system=FAST_COMPOSITION_PROMPT,
+        user=context,
+        session_id=f'{session_id}-fast-compose',
+        temperature=0.38,
+        max_tokens=6000,
+    )
+    html = _extract_html(raw)
+    if not html.lower().startswith('<!doctype html') or len(html) < 4000:
+        raise ProfessionalCompositionError('The fast managed composer did not return a complete reviewable private draft.')
+    logger.info('Fast professional composition completed: %s chars', len(html))
+    return _sanitize(html)
+
+
+async def build_site(prompt: str, session_id: str = 'builder', brief: dict | None = None) -> str:
+    """Run the managed professional pipeline: plan → design → code → review.
+
+    The customer brief is supplied as project truth. It is deliberately passed to
+    every stage so a generic prompt cannot override the confirmed offer, audience,
+    CTA, visual direction, or evidence policy.
+    """
+    brief = brief or {}
+    confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
+    enriched_prompt = f"{prompt}\n\nCONFIRMED CUSTOMER BRIEF (treat as product truth):\n{json.dumps(confirmed, ensure_ascii=False)}"
+    plan = await plan_site(enriched_prompt, session_id)
+    design = await design_site(plan, enriched_prompt, session_id)
+    html = await code_site(enriched_prompt, plan, design, session_id)
     html = await review_site(html, session_id)
     return _sanitize(html)

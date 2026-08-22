@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import PageState from "@/components/dashboard/PageState";
+import DashboardPageFrame from "@/components/dashboard/DashboardPageFrame";
 
 /* ─── tiny helpers ─────────────────────────────────────────────────────────── */
 
@@ -31,6 +32,47 @@ async function pollUntilDone(getUrl, id, onUpdate, max = 80) {
   }
   onUpdate({ status: "timeout" });
   return null;
+}
+
+function AuthenticatedMedia({ url, type, alt = "Generated media", className = "", controls = false }) {
+  const [objectUrl, setObjectUrl] = useState(null);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    let localUrl;
+    setObjectUrl(null);
+    setLoadError(false);
+    if (!url) return undefined;
+    api.get(url, { responseType: "blob" })
+      .then(({ data }) => {
+        localUrl = URL.createObjectURL(data);
+        if (active) setObjectUrl(localUrl);
+      })
+      .catch(() => { if (active) setLoadError(true); });
+    return () => {
+      active = false;
+      if (localUrl) URL.revokeObjectURL(localUrl);
+    };
+  }, [url]);
+
+  if (loadError) return <div className="mt-1 text-xs text-rose-600">Protected media could not be loaded.</div>;
+  if (!objectUrl) return <div className="mt-1 text-xs text-[var(--gs-muted)]">Loading protected media…</div>;
+  if (type === "image") return <img src={objectUrl} alt={alt} className={className} />;
+  if (type === "audio") return <audio src={objectUrl} controls={controls} className={className} />;
+  return <video src={objectUrl} controls={controls} className={className} />;
+}
+
+async function downloadAuthenticatedMedia(url, filename) {
+  const { data } = await api.get(url, { responseType: "blob" });
+  const objectUrl = URL.createObjectURL(data);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename || "getszy-media";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
 }
 
 function Section({ icon: Icon, title, badge, children }) {
@@ -71,8 +113,8 @@ function ResultView({ data, kind }) {
             <div className="text-xs font-semibold text-[var(--gs-teal)]">Scene {s.scene}</div>
             <div className="text-sm">{s.visual}</div>
             <div className="text-xs text-[var(--gs-muted)]">“{s.caption}” — {s.narration}</div>
-            {s.image_url ? <img src={s.image_url} alt="" className="mt-1 rounded w-32" /> : null}
-            {s.clip_url ? <video src={s.clip_url} controls className="mt-1 w-40 rounded" /> : null}
+            {s.image_url ? <AuthenticatedMedia url={s.image_url} type="image" alt={`Storyboard scene ${s.scene}`} className="mt-1 rounded w-32" /> : null}
+            {s.clip_url ? <AuthenticatedMedia url={s.clip_url} type="video" controls className="mt-1 w-40 rounded" /> : null}
           </div>
         ))}
       </div>
@@ -91,14 +133,14 @@ function ResultView({ data, kind }) {
     );
   }
   if (kind === "video" && data.url) {
-    return <video src={data.url} controls className="mt-2 w-full rounded-lg" />;
+    return <AuthenticatedMedia url={data.url} type="video" controls className="mt-2 w-full rounded-lg" />;
   }
   if (kind === "translate" && data.translated_text) {
     return (
       <div className="mt-2 space-y-1 text-sm">
         <div><span className="font-semibold">Translated:</span> {data.translated_text}</div>
-        {data.dubbed_audio_url ? <audio src={data.dubbed_audio_url} controls className="w-full" /> : null}
-        {data.synced_video_url ? <video src={data.synced_video_url} controls className="w-full rounded" /> : null}
+        {data.dubbed_audio_url ? <AuthenticatedMedia url={data.dubbed_audio_url} type="audio" controls className="w-full" /> : null}
+        {data.synced_video_url ? <AuthenticatedMedia url={data.synced_video_url} type="video" controls className="w-full rounded" /> : null}
         {data.note ? <div className="text-xs text-amber-600">{data.note}</div> : null}
       </div>
     );
@@ -130,7 +172,7 @@ function StoryboardTimeline({ scenes }) {
           return (
             <div key={idx} className={`relative shrink-0 w-36 rounded-lg border ${locked[idx] ? "border-amber-400" : "border-[var(--gs-border)]"} p-2`}>
               <div className="text-[10px] text-[var(--gs-muted)]">#{pos + 1}</div>
-              {s.image_url ? <img src={s.image_url} alt="" className="h-16 w-full object-cover rounded" /> : <div className="h-16 bg-[var(--gs-surface-2)] rounded" />}
+              {s.image_url ? <AuthenticatedMedia url={s.image_url} type="image" alt={`Storyboard scene ${pos + 1}`} className="h-16 w-full object-cover rounded" /> : <div className="h-16 bg-[var(--gs-surface-2)] rounded" />}
               <div className="text-[11px] mt-1 line-clamp-2">{s.caption || s.visual}</div>
               <div className="mt-1 flex items-center justify-between">
                 <div className="flex gap-1">
@@ -191,7 +233,7 @@ function HooksMemes() {
             <label className="text-xs font-medium">Hooks</label>
             <Input type="number" min={1} max={10} value={count} onChange={(e) => setCount(Number(e.target.value) || 5)} className="w-20" />
             <label className="flex items-center gap-1.5 text-xs ml-auto cursor-pointer">
-              <input type="checkbox" checked={blend} onChange={(e) => setBlend(e.target.checked)} /> Blend live trends
+              <input type="checkbox" checked={blend} onChange={(e) => setBlend(e.target.checked)} /> Blend trend-inspired patterns
             </label>
           </div>
           <Button onClick={genHooks} disabled={busy} className="w-full bg-rose-600 hover:bg-rose-700" data-testid="hook-generate">
@@ -241,10 +283,13 @@ function Avatars() {
   const [twinScript, setTwinScript] = useState("");
   const [photoRes, setPhotoRes] = useState(null);
   const [twinRes, setTwinRes] = useState(null);
+  const [avatarConsent, setAvatarConsent] = useState(false);
+  const [twinConsent, setTwinConsent] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const photoToAvatar = async () => {
     if (!portrait || !voice || script.trim().length < 2) return toast.error("Need photo, voice sample & script");
+    if (!avatarConsent) return toast.error("Confirm that you have permission to use this person’s portrait and voice");
     setBusy(true); setPhotoRes({ status: "queued" });
     try {
       const fd = new FormData();
@@ -256,6 +301,7 @@ function Avatars() {
   };
   const digitalTwin = async () => {
     if (!twinVideo || !twinPortrait || twinScript.trim().length < 2) return toast.error("Need video, portrait & script");
+    if (!twinConsent) return toast.error("Confirm that you have permission to create this digital twin");
     setBusy(true); setTwinRes({ status: "queued" });
     try {
       const fd = new FormData();
@@ -278,7 +324,8 @@ function Avatars() {
           <select value={expr} onChange={(e) => setExpr(e.target.value)} className="rounded-lg border bg-white px-2 py-1 text-sm">
             {["neutral", "happy", "excited", "urgent", "calm"].map((x) => <option key={x} value={x}>{x}</option>)}
           </select>
-          <Button onClick={photoToAvatar} disabled={busy} className="w-full" data-testid="photo-to-avatar">
+          <label className="flex items-start gap-2 rounded-lg border p-2 text-xs" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}><input type="checkbox" checked={avatarConsent} onChange={(e) => setAvatarConsent(e.target.checked)} className="mt-0.5" /><span>I confirm that I have permission to use this person’s portrait and voice for this output. I will review the final video, claims, disclosures, and platform rules before publishing.</span></label>
+          <Button onClick={photoToAvatar} disabled={busy || !avatarConsent} className="w-full" data-testid="photo-to-avatar">
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />} Create Talking Avatar
           </Button>
           <ResultView data={photoRes} kind="video" />
@@ -290,8 +337,9 @@ function Avatars() {
           <FileField label="Short video of you speaking" accept="video/*" onChange={setTwinVideo} file={twinVideo} />
           <FileField label="Clear portrait photo" accept="image/*" onChange={setTwinPortrait} file={twinPortrait} />
           <label className="text-xs font-medium">Script</label>
-          <Textarea value={twinScript} onChange={(e) => setTwinScript(e.target.value)} rows={2} placeholder="Your cloned voice will say this." />
-          <Button onClick={digitalTwin} disabled={busy} className="w-full" data-testid="digital-twin">
+          <Textarea value={twinScript} onChange={(e) => setTwinScript(e.target.value)} rows={2} placeholder="What should the presenter say? Include only approved claims and product facts." />
+          <label className="flex items-start gap-2 rounded-lg border p-2 text-xs" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}><input type="checkbox" checked={twinConsent} onChange={(e) => setTwinConsent(e.target.checked)} className="mt-0.5" /><span>I confirm I have explicit permission from the person depicted to create and use this digital twin. I will not use it to mislead viewers or impersonate someone without consent.</span></label>
+          <Button onClick={digitalTwin} disabled={busy || !twinConsent} className="w-full" data-testid="digital-twin">
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mic className="mr-2 h-4 w-4" />} Build Digital Twin
           </Button>
           <ResultView data={twinRes} kind="video" />
@@ -391,7 +439,7 @@ function VideoTools() {
           {ttv?.final_video_url ? (
             <div className="mt-2">
               <div className="text-xs font-semibold text-[var(--gs-teal)]">Captioned final video</div>
-              <video src={ttv.final_video_url} controls className="mt-1 w-full rounded-lg" />
+              <AuthenticatedMedia url={ttv.final_video_url} type="video" controls className="mt-1 w-full rounded-lg" />
             </div>
           ) : null}
         </div>
@@ -528,7 +576,6 @@ function SocialAgents() {
 /* ─── Growth tools (Phase 3) ──────────────────────────────────────────────── */
 
 function GrowthTools() {
-  const BACKEND = process.env.REACT_APP_BACKEND_URL || "";
   const [busy, setBusy] = useState(false);
 
   const [topic, setTopic] = useState("");
@@ -681,14 +728,14 @@ function GrowthTools() {
               {thumbs.variants.map((v, i) => (
                 <Card key={i} className="overflow-hidden">
                   {v.image_url ? (
-                    <img src={`${BACKEND}${v.image_url}`} alt={v.headline} className="w-full h-32 object-cover" />
+                    <AuthenticatedMedia url={v.image_url} type="image" alt={v.headline} className="w-full h-32 object-cover" />
                   ) : (
                     <div className="h-32 bg-[var(--gs-surface-2)] grid place-items-center text-center px-2 text-sm font-semibold">{v.headline}</div>
                   )}
                   <div className="p-2 space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-[var(--gs-teal)]">CTR {v.ctr_score}%</span>
-                      {v.image_url ? <a href={`${BACKEND}${v.image_url}`} download className="text-xs underline">Download</a> : null}
+                      {v.image_url ? <button type="button" onClick={() => downloadAuthenticatedMedia(v.image_url, `getszy-thumbnail-${i + 1}.png`).catch(() => toast.error("Download failed"))} className="text-xs underline">Download</button> : null}
                     </div>
                     <p className="text-xs text-[var(--gs-muted)]">{v.reason}</p>
                   </div>
@@ -739,7 +786,7 @@ function GrowthTools() {
                     <span className="text-xs text-[var(--gs-muted)]">voice: {t.voice}</span>
                   </div>
                   {t.audio_url ? (
-                    <audio controls src={`${BACKEND}${t.audio_url}`} className="w-full" />
+                    <AuthenticatedMedia url={t.audio_url} type="audio" controls className="w-full" />
                   ) : <div className="text-xs text-[var(--gs-muted)]">{t.note || "audio unavailable"}</div>}
                   <div className="text-sm whitespace-pre-wrap">{t.text}</div>
                 </div>
@@ -943,15 +990,15 @@ const TABS = [
 export default function CreatorStudio() {
   const [tab, setTab] = useState("hooks");
   return (
-    <div className="space-y-6" data-testid="creator-studio-page">
-      <div>
-        <h1 className="font-display text-3xl flex items-center gap-2">
-          <Clapperboard className="h-7 w-7 text-[var(--gs-teal)]" /> Creator Studio
-        </h1>
-        <p className="mt-1 text-sm text-[var(--gs-muted)]">
-          The Viral Engine for YouTubers, Reel creators & faceless channels — cheap, fast, Hinglish-native.
-        </p>
-      </div>
+    <DashboardPageFrame
+      className="space-y-6"
+      eyebrow="Creator OS"
+      title="Create the next piece of content with a clear outcome"
+      description="Plan hooks, generate creator assets, turn audience signals into ideas, and grow your channel with Hinglish-native workflows."
+      icon={Clapperboard}
+      metrics={[{ label: "creator workflows", value: TABS.length }, { label: "active workspace", value: TABS.find((item) => item.id === tab)?.label }]}
+      hint="Choose the stage of your content workflow first, then complete one focused creation task at a time."
+    >
 
       <div className="flex flex-wrap gap-2">
         {TABS.map((t) => (
@@ -967,6 +1014,6 @@ export default function CreatorStudio() {
       {tab === "video" && <VideoTools />}
       {tab === "social" && <SocialAgents />}
       {tab === "growth" && <GrowthTools />}
-    </div>
+    </DashboardPageFrame>
   );
 }

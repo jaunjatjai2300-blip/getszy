@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends
+import os
+
+from fastapi import APIRouter, Depends, HTTPException
 from auth import get_current_user, get_current_admin
 from subscription import (
     PRICING, effective_subscription, start_trial, grant_plan, cancel_subscription,

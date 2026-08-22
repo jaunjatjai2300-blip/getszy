@@ -73,6 +73,16 @@
   .gs-link:hover { text-decoration: underline; }
   .gs-hero-wash { background: linear-gradient(135deg, rgba(243,226,199,0.55) 0%, rgba(215,240,238,0.45) 55%, rgba(251,247,242,0.0) 100%); }
   .gs-ai-glow { background: radial-gradient(600px circle at 20% 0%, rgba(47,126,122,0.18), transparent 55%), radial-gradient(600px circle at 80% 10%, rgba(197,139,122,0.14), transparent 55%); }
+
+  .gs-eyebrow { @apply inline-flex items-center gap-2 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.24em] text-[var(--gs-primary-2)]; }
+  .gs-eyebrow::before { content:""; width:24px; height:1px; background: var(--gs-primary); display:inline-block; }
+  .gs-eyebrow-light { @apply inline-flex items-center gap-2 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.24em] text-[#E7C9A8]; }
+  .gs-eyebrow-light::before { content:""; width:24px; height:1px; background: linear-gradient(90deg,#F3E2C7,transparent); display:inline-block; }
+  .gs-hairline { height:1px; background: linear-gradient(90deg, transparent, var(--gs-border), transparent); }
+  .gs-noise { position:absolute; inset:0; pointer-events:none; opacity:.05; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); background-size:160px 160px; }
+  .gs-dark { background: radial-gradient(700px circle at 12% -10%, rgba(243,226,199,0.16), transparent 55%), radial-gradient(720px circle at 92% 0%, rgba(47,126,122,0.20), transparent 55%), linear-gradient(180deg,#15110D,#1B1510); }
+  .gs-glass { background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); backdrop-filter: blur(10px); }
+  .gs-pill { @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium; }
 }
 
 [data-debug-wrapper="true"] { display: contents !important; }

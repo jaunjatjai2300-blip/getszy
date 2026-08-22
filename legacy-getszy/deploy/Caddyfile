@@ -1,31 +1,68 @@
-getszy.com, www.getszy.com, dash.getszy.com {
+{$DOMAIN}, www.{$DOMAIN}, dash.{$DOMAIN}, preview.{$DOMAIN} {
     encode gzip
 
+    # Keep all normal routes protected from clickjacking.
     header {
-        Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://assets.emergent.sh; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.getszy.com https://assets.emergent.sh; frame-ancestors 'none'"
-        X-Content-Type-Options "nosniff"
+        Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://assets.emergent.sh; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.{$DOMAIN} https://assets.emergent.sh; frame-ancestors 'none'"
         X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
         Referrer-Policy "strict-origin-when-cross-origin"
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
         -Server
     }
 
-    handle /api/* {
-        reverse_proxy backend:8001
+    # A private Build Studio document may be embedded only by the same Getszy origin.
+    @private_build_preview path_regexp private_build_preview ^/api/builder/projects/[^/]+/preview/?$
+    header @private_build_preview {
+        -X-Frame-Options
+        Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://assets.emergent.sh; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.{$DOMAIN} https://assets.emergent.sh; frame-ancestors 'self'"
     }
 
-    @docs path /docs /docs/* /redoc /redoc/* /openapi.json
+    # The preview hostname uses the proven production TLS listener but routes to
+    # an isolated frontend container. It is read-only except for customer sign-in.
+    route {
+        @preview_docs {
+            host preview.{$DOMAIN}
+            path /docs /docs/* /redoc /redoc/* /openapi.json /api/docs /api/docs/* /api/redoc /api/redoc/* /api/openapi.json
+        }
+        respond @preview_docs "Not Found" 404
 
-    handle @docs {
-        reverse_proxy backend:8001
-    }
+        @preview_login {
+            host preview.{$DOMAIN}
+            method POST
+            path /api/auth/login
+        }
+        reverse_proxy @preview_login backend:8001
 
-    handle /hooks/* {
-        uri strip_prefix /hooks
-        reverse_proxy host.docker.internal:9000
-    }
+        @preview_mutation {
+            host preview.{$DOMAIN}
+            method POST PUT PATCH DELETE
+        }
+        respond @preview_mutation "Dashboard preview is read-only. Review the UI here; create, publish, and other write actions are disabled." 405
 
-    handle {
+        @preview_api {
+            host preview.{$DOMAIN}
+            path /api/*
+        }
+        reverse_proxy @preview_api backend:8001
+
+        @preview_frontend host preview.{$DOMAIN}
+        reverse_proxy @preview_frontend getszy-dashboard-preview:80
+
+        # Production documentation is available only from an authenticated internal
+        # environment; never publish API schemas or interactive docs to the internet.
+        @internal_docs path /docs /docs/* /redoc /redoc/* /openapi.json /api/docs /api/docs/* /api/redoc /api/redoc/* /api/openapi.json
+        respond @internal_docs "Not Found" 404
+
+        @production_api path /api/*
+        reverse_proxy @production_api backend:8001
+
+        @workflow_hooks path /hooks/*
+        handle @workflow_hooks {
+            uri strip_prefix /hooks
+            reverse_proxy host.docker.internal:9000
+        }
+
         reverse_proxy frontend:80
     }
 

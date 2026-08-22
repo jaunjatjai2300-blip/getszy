@@ -40,7 +40,11 @@ HF_DIMS = {
     '1:1':  (1024, 1024),
 }
 
-HF_MODEL = 'black-forest-labs/FLUX.1-schnell'
+# Verified against the configured HF_TOKEN on the production backend. The
+# model ID is non-secret; operators may override it through the server .env.
+HF_MODEL = os.environ.get(
+    'HF_IMAGE_MODEL', 'stabilityai/stable-diffusion-3-medium-diffusers'
+).strip()
 
 
 async def _fetch_pollinations(prompt: str, orientation: str, seed: int, path: str) -> bool:
@@ -74,7 +78,7 @@ async def _fetch_hf_flux(prompt: str, orientation: str, seed: int, path: str) ->
     try:
         async with httpx.AsyncClient(timeout=120.0) as c:
             r = await c.post(
-                f'https://api-inference.huggingface.co/models/{HF_MODEL}',
+                f'https://router.huggingface.co/hf-inference/models/{HF_MODEL}',
                 content=payload, headers=headers
             )
             if r.status_code == 200 and r.headers.get('content-type', '').startswith('image'):
@@ -85,7 +89,7 @@ async def _fetch_hf_flux(prompt: str, orientation: str, seed: int, path: str) ->
             if r.status_code == 503:
                 await asyncio.sleep(20)
                 r2 = await c.post(
-                    f'https://api-inference.huggingface.co/models/{HF_MODEL}',
+                    f'https://router.huggingface.co/hf-inference/models/{HF_MODEL}',
                     content=payload, headers=headers
                 )
                 if r2.status_code == 200 and r2.headers.get('content-type', '').startswith('image'):
@@ -137,7 +141,7 @@ async def fetch_scene_image(prompt: str, orientation: str = '9:16', seed: int = 
 
     # ── PRIMARY: free, licence-clear stock photos (4K when available) ──
     # Real footage = faster (no AI round-trip) and zero credit cost.
-    if USE_STOCK:
+    if VF_USE_STOCK:
         try:
             from stock_media import search_stock_images
             imgs = await search_stock_images(prompt, n=1, min_width=1280)
