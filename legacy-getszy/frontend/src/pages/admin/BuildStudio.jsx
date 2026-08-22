@@ -12,6 +12,20 @@ import { Wand2, Loader2, Play, Download, Trash2, ExternalLink, Copy, Sparkle, Pl
 import { toast } from "sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+const PREVIEW_TEMPLATE_FALLBACK = [
+  { id: "saas-app", name: "SaaS App Launch", industry: "Technology & SaaS" },
+  { id: "agency-digital", name: "Digital Agency", industry: "Professional Services" },
+  { id: "business-startup", name: "Startup Launch", industry: "Business" },
+  { id: "ecommerce-tech", name: "Tech Shop", industry: "E-commerce" },
+  { id: "education-courses", name: "Online Courses", industry: "Education" },
+  { id: "fitness-gym", name: "Fitness Gym", industry: "Wellness & Fitness" },
+  { id: "medical-clinic", name: "Health Clinic", industry: "Healthcare" },
+  { id: "realestate-luxury", name: "Luxury Properties", industry: "Real Estate" },
+  { id: "restaurant-cafe", name: "Cafe & Bistro", industry: "Food & Beverage" },
+  { id: "portfolio-creative", name: "Creative Studio", industry: "Portfolio & Agency" },
+  { id: "blog-modern", name: "Modern Editorial", industry: "Blog & Editorial" },
+  { id: "photography-wedding", name: "Wedding Photography", industry: "Events & Wedding" },
+];
 
 async function downloadAuthenticated(path, filename) {
   const apiPath = path.replace(/^\/api(?=\/)/, "");
@@ -123,11 +137,12 @@ function WebAppBuilder({ color }) {
   const [proofPoints, setProofPoints] = useState("");
   const [brief, setBrief] = useState({ audience: "", primary_goal: "", primary_cta: "", brand_name: "", visual_style: "", offer: "" });
   const [templateId, setTemplateId] = useState("");
-  const [templates, setTemplates] = useState([]);
+  const [templates, setTemplates] = useState(PREVIEW_TEMPLATE_FALLBACK);
+  const isReadOnlyPreview = typeof window !== "undefined" && window.location.hostname.startsWith("preview.");
 
   const updateBrief = (field, value) => setBrief((current) => ({ ...current, [field]: value }));
   const load = async () => { try { const r = await api.get("/builder/projects"); setProjects(r.data || []); } catch (e) { toast.error("Couldn't load projects — refresh to retry"); } };
-  const loadTemplates = async () => { try { const r = await api.get("/builder/templates"); setTemplates(r.data.templates || []); } catch { toast.error("Couldn't load professional starters — custom build is still available"); } };
+  const loadTemplates = async () => { try { const r = await api.get("/builder/templates"); setTemplates(r.data.templates || PREVIEW_TEMPLATE_FALLBACK); } catch { setTemplates(PREVIEW_TEMPLATE_FALLBACK); } };
   useEffect(() => { load(); loadTemplates(); }, []);
 
   const build = async () => {
@@ -183,9 +198,10 @@ function WebAppBuilder({ color }) {
           </div>
         )}
       </div>
-      <Button onClick={build} disabled={busy} className="w-full text-white" style={{ background: color }} data-testid="wa-build-btn">
+      {isReadOnlyPreview && <div className="rounded-lg border px-3 py-2 text-xs text-[var(--gs-muted)]" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}>Preview mode is read-only: you can inspect the professional brief and starter options, but creation remains disabled until this feature is approved and promoted through the release process.</div>}
+      <Button onClick={build} disabled={busy || isReadOnlyPreview} className="w-full text-white" style={{ background: color }} data-testid="wa-build-btn">
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
-        {busy ? "Preparing…" : templateId ? "Create Professional Starter" : "Build Custom Web App"}
+        {busy ? "Preparing…" : isReadOnlyPreview ? "Preview mode — creation disabled" : templateId ? "Create Professional Starter" : "Build Custom Web App"}
       </Button>
 
       <div className="grid md:grid-cols-2 gap-2 max-h-80 overflow-y-auto" data-testid="wa-projects">
