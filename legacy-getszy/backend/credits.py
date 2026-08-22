@@ -167,9 +167,9 @@ async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] =
         'meta': meta or {},
         'created_at': _now(),
     })
-    # A zero balance blocks the next paid action. We retain the historical pack
-    # record for customer support and ledger transparency; it implies no calendar
-    # subscription or recurring access state.
+    if balance_after <= 0:
+        from subscription import end_subscription_if_no_credits
+        await end_subscription_if_no_credits(user_id)
     return True, '', balance_after
 
 
