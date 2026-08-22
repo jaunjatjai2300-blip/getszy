@@ -18,8 +18,8 @@ from auth import get_current_user, get_optional_user
 from llm_provider import chat_completion, professional_builder_completion
 from credits import deduct, refund
 from builder_agents import (
-    ProfessionalCompositionError, build_site, refine_element, plan_site,
-    design_site, review_site,
+    ProfessionalCompositionError, compose_site_fast, build_site, refine_element,
+    plan_site, design_site, review_site,
 )
 from builder_quality import evaluate_landing_page_quality
 from builder_controls import mission_control_state
@@ -203,14 +203,14 @@ async def create_project(body: BuilderProjectIn, user=Depends(get_current_user))
     ok, message, _balance_after = await deduct(
         user['id'],
         'builder_website',
-        meta={'project_id': project_id, 'stage': 'professional_composition'},
+        meta={'project_id': project_id, 'stage': 'fast_professional_composition'},
         user=user,
     )
     if not ok:
         raise HTTPException(402, message)
 
     try:
-        html = await build_site(body.prompt, session_id=f'professional-{project_id}', brief=brief_data)
+        html = await compose_site_fast(body.prompt, session_id=f'professional-{project_id}', brief=brief_data)
         quality_report = evaluate_landing_page_quality(html, brief_data)
 
         # One bounded repair pass translates objective preflight failures into
