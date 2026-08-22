@@ -6,7 +6,7 @@ Each agent specializes in one aspect, producing better output than a single mono
 import re
 import json
 import logging
-from llm_provider import chat_completion
+from llm_provider import professional_builder_completion
 
 logger = logging.getLogger('getszy.builder.agents')
 
@@ -69,7 +69,9 @@ STRICT OUTPUT RULES:
 11. Accessibility: semantic header/main/footer landmarks, a single H1, alt text on every meaningful image, sufficient contrast, visible focus rings, and ARIA where helpful. SEO: complete head with title, meta description, Open Graph, and structured JSON-LD only when the supplied brief supports it.
 12. Compelling, specific conversion copy (not lorem ipsum): clear headline, concise benefit-driven body, and action-led CTA that matches the primary goal.
 13. NEVER include forms that POST to external URLs. NEVER include trackers or fetch() to third-party.
-14. Total HTML should be 300-800 lines. Color scheme, fonts, and section layout MUST match the design brief exactly.
+14. Do not use a generic card grid as the primary visual language. Compose one intentional hero, one editorial rhythm, two or three distinct section treatments, and a closing conversion moment. Use the supplied visual direction rather than repeating the same layout.
+15. If no real customer image is supplied, create a premium CSS/SVG art direction that is specific to the business brief; do not leave empty image cards or image placeholder areas.
+16. Total HTML should be 300-800 lines. Color scheme, fonts, and section layout MUST match the design brief exactly.
 
 START IMMEDIATELY WITH <!DOCTYPE html>. End with </html>. Nothing else."""
 
@@ -135,6 +137,10 @@ def _extract_html(raw: str) -> str:
     return raw
 
 
+class ProfessionalCompositionError(RuntimeError):
+    """Raised when the managed builder cannot produce a reviewable private draft."""
+
+
 def _sanitize(html: str) -> str:
     html = re.sub(r'(file://|javascript:eval\()', '', html, flags=re.IGNORECASE)
     return html
@@ -142,17 +148,17 @@ def _sanitize(html: str) -> str:
 
 async def plan_site(prompt: str, session_id: str = 'builder') -> dict:
     """Agent 1: Plan the site structure."""
-    raw = await chat_completion(
+    raw = await professional_builder_completion(
         system=PLANNER_PROMPT,
         user=f"User request: {prompt}",
         session_id=f'{session_id}-plan',
-        temperature=0.4,
+        temperature=0.35,
     )
     plan = _extract_json(raw)
     if not plan:
         plan = {
             'site_type': 'landing',
-            'sections': ['hero', 'features', 'testimonials', 'cta', 'footer'],
+            'sections': ['hero', 'benefits', 'how_it_works', 'cta', 'footer'],
             'color_scheme': 'cool',
             'typography': 'modern',
             'tone': 'professional',
@@ -165,11 +171,11 @@ async def plan_site(prompt: str, session_id: str = 'builder') -> dict:
 
 async def design_site(plan: dict, prompt: str, session_id: str = 'builder') -> dict:
     """Agent 2: Create design brief from plan."""
-    raw = await chat_completion(
+    raw = await professional_builder_completion(
         system=DESIGNER_PROMPT,
         user=f"Original request: {prompt}\n\nSite plan:\n{json.dumps(plan, indent=2)}",
         session_id=f'{session_id}-design',
-        temperature=0.5,
+        temperature=0.45,
     )
     design = _extract_json(raw)
     if not design:
@@ -191,38 +197,31 @@ async def code_site(prompt: str, plan: dict, design: dict, session_id: str = 'bu
         f"Design brief:\n{json.dumps(design, indent=2)}\n\n"
         "Now generate the complete HTML website following this plan and design exactly."
     )
-    raw = await chat_completion(
+    raw = await professional_builder_completion(
         system=CODER_PROMPT,
         user=context,
         session_id=f'{session_id}-code',
-        temperature=0.6,
+        temperature=0.48,
         max_tokens=8000,
     )
     html = _extract_html(raw)
-    if not html.lower().startswith('<!doctype html'):
-        # Graceful, valid fallback: a real (if minimal) HTML page — never a raw
-        # <pre> dump presented as a "website", and never a silent failure.
-        safe = (raw or 'Content could not be generated. Please retry.').replace('<', '&lt;').replace('>', '&gt;')
-        html = (
-            "<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>"
-            "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-            "<title>Generated Preview</title>"
-            "<script src='https://cdn.tailwindcss.com'></script></head>"
-            "<body class='p-8 font-sans bg-white text-gray-900'>"
-            f"<div class='prose max-w-3xl mx-auto'>{safe}</div></body></html>"
-        )
+    if not html.lower().startswith('<!doctype html') or len(html) < 4000:
+        raise ProfessionalCompositionError('The managed composition engine did not return a complete professional private draft. No generic fallback page was created.')
     logger.info(f'Builder coded: {len(html)} chars')
     return html
 
 
-async def review_site(html: str, session_id: str = 'builder') -> str:
-    """Agent 4: Review and fix issues."""
+async def review_site(html: str, session_id: str = 'builder', quality_feedback: list[str] | None = None) -> str:
+    """Agent 4: Review and fix issues, including deterministic preflight feedback."""
+    feedback = ""
+    if quality_feedback:
+        feedback = "\n\nDETERMINISTIC PREFLIGHT FAILURES TO FIX:\n- " + "\n- ".join(quality_feedback)
     try:
-        raw = await chat_completion(
+        raw = await professional_builder_completion(
             system=REVIEWER_PROMPT,
-            user=f"Review and fix this HTML:\n\n{html}",
+            user=f"Review and fix this HTML:{feedback}\n\n{html}",
             session_id=f'{session_id}-review',
-            temperature=0.3,
+            temperature=0.25,
             max_tokens=8000,
         )
         reviewed = _extract_html(raw)
@@ -236,7 +235,7 @@ async def review_site(html: str, session_id: str = 'builder') -> str:
 
 async def refine_element(html: str, selector: str, instruction: str, session_id: str = 'builder') -> str:
     """Refine a specific section/element of the site."""
-    raw = await chat_completion(
+    raw = await professional_builder_completion(
         system=ELEMENT_REFINE_PROMPT,
         user=(
             f"TARGET: {selector}\n"
@@ -255,10 +254,18 @@ async def refine_element(html: str, selector: str, instruction: str, session_id:
 
 # ── Full Pipeline ──────────────────────────────────────────────────────────────
 
-async def build_site(prompt: str, session_id: str = 'builder') -> str:
-    """Run the full multi-agent pipeline: plan → design → code → review."""
-    plan = await plan_site(prompt, session_id)
-    design = await design_site(plan, prompt, session_id)
-    html = await code_site(prompt, plan, design, session_id)
+async def build_site(prompt: str, session_id: str = 'builder', brief: dict | None = None) -> str:
+    """Run the managed professional pipeline: plan → design → code → review.
+
+    The customer brief is supplied as project truth. It is deliberately passed to
+    every stage so a generic prompt cannot override the confirmed offer, audience,
+    CTA, visual direction, or evidence policy.
+    """
+    brief = brief or {}
+    confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
+    enriched_prompt = f"{prompt}\n\nCONFIRMED CUSTOMER BRIEF (treat as product truth):\n{json.dumps(confirmed, ensure_ascii=False)}"
+    plan = await plan_site(enriched_prompt, session_id)
+    design = await design_site(plan, enriched_prompt, session_id)
+    html = await code_site(enriched_prompt, plan, design, session_id)
     html = await review_site(html, session_id)
     return _sanitize(html)

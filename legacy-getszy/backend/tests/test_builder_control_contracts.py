@@ -8,6 +8,7 @@ os.environ.setdefault('MONGO_URL', 'mongodb://127.0.0.1:27017')
 os.environ.setdefault('JWT_SECRET', 'test-only-builder-control-contract-secret')
 
 from models import BuilderEvidenceItem, BuilderEvidenceUpdateIn, BuilderReleaseReviewIn, BuilderVersionIn, BuilderProjectIn
+import routes_builder as builder_routes
 from routes_builder import router, create_project
 
 
@@ -20,13 +21,67 @@ def test_builder_control_models_validate_customer_review_data():
     assert BuilderReleaseReviewIn(confirm_evidence_review=True).confirm_evidence_review is True
 
 
-@pytest.mark.asyncio
-async def test_new_page_production_is_paused_until_category_packs_are_approved():
-    with pytest.raises(HTTPException) as exc:
-        await create_project(BuilderProjectIn(prompt='Build a beauty studio website'), user={'id': 'customer-test'})
+class _ProjectCollection:
+    def __init__(self):
+        self.saved = []
 
-    assert exc.value.status_code == 409
-    assert 'category-specific professional packs' in exc.value.detail
+    async def insert_one(self, document):
+        self.saved.append(document)
+
+
+class _BuilderDB:
+    def __init__(self):
+        self.builder_projects = _ProjectCollection()
+
+
+@pytest.mark.asyncio
+async def test_new_page_uses_managed_composition_and_saves_private_draft(monkeypatch):
+    fake_db = _BuilderDB()
+    charges = []
+
+    async def fake_deduct(*args, **kwargs):
+        charges.append((args, kwargs))
+        return True, '', 75
+
+    async def fake_compose(*args, **kwargs):
+        return "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width'><title>Beauty Studio</title><meta name='description' content='Beauty appointments'></head><body><header><a>Book now</a></header><main><section><h1>Beauty Studio</h1></section><section><p>How it works</p></section><section><button>Book now</button></section></main><footer></footer><style>@media (max-width:600px){body{padding:1rem}} .hero{background:linear-gradient(#123,#456)}</style></body></html>"
+
+    monkeypatch.setattr(builder_routes, 'db', fake_db)
+    monkeypatch.setattr(builder_routes, 'deduct', fake_deduct)
+    monkeypatch.setattr(builder_routes, 'build_site', fake_compose)
+    result = await create_project(
+        BuilderProjectIn(prompt='Build a beauty studio website', brief={'primary_goal': 'Book appointments', 'primary_cta': 'Book now'}),
+        user={'id': 'customer-test', 'role': 'customer', 'credits': 100},
+    )
+
+    assert charges and charges[0][0][1] == 'builder_website'
+    assert result['template_id'] is None
+    assert fake_db.builder_projects.saved[0]['html_content'].startswith('<!DOCTYPE html>')
+
+
+@pytest.mark.asyncio
+async def test_failed_composition_refunds_customer_credit(monkeypatch):
+    refunds = []
+
+    async def fake_deduct(*args, **kwargs):
+        return True, '', 75
+
+    async def fail_compose(*args, **kwargs):
+        raise builder_routes.ProfessionalCompositionError('quality failure')
+
+    async def fake_refund(*args, **kwargs):
+        refunds.append((args, kwargs))
+        return 100
+
+    monkeypatch.setattr(builder_routes, 'deduct', fake_deduct)
+    monkeypatch.setattr(builder_routes, 'build_site', fail_compose)
+    monkeypatch.setattr(builder_routes, 'refund', fake_refund)
+
+    with pytest.raises(HTTPException) as exc:
+        await create_project(BuilderProjectIn(prompt='Build a beauty studio website'), user={'id': 'customer-test', 'role': 'customer', 'credits': 100})
+
+    assert exc.value.status_code == 422
+    assert refunds and refunds[0][1]['reason'] == 'professional_composition_quality_failed'
 
 
 def test_builder_control_routes_are_registered_before_dynamic_project_route():
