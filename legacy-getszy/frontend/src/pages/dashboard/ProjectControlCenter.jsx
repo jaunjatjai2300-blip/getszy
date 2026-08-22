@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, CircleDashed, ClipboardCheck,
-  FileCheck2, FileText, History, Loader2, Plus, RotateCcw, Save, ShieldCheck,
+  Eye, FileCheck2, FileText, History, Laptop, Loader2, Plus, RotateCcw, Save, ShieldCheck, Smartphone, Tablet,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -58,6 +58,7 @@ export default function ProjectControlCenter() {
   const [versionLabel, setVersionLabel] = useState("");
   const [evidenceItems, setEvidenceItems] = useState([]);
   const [evidenceConfirmed, setEvidenceConfirmed] = useState(false);
+  const [previewDevice, setPreviewDevice] = useState("desktop");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -84,6 +85,8 @@ export default function ProjectControlCenter() {
 
   const quality = controls?.state?.quality;
   const summary = controls?.state?.evidence;
+  const hasPrivateOutput = Boolean(project?.html_content);
+  const previewUrl = `/api/builder/projects/${projectId}/preview`;
   const canSaveEvidence = useMemo(() => evidenceItems.every((item) => String(item.claim || "").trim() && String(item.source || "").trim()), [evidenceItems]);
 
   const saveEvidence = async () => {
@@ -201,6 +204,39 @@ export default function ProjectControlCenter() {
             <div className="rounded-2xl bg-[#183c3c] p-4 text-white"><div className="text-xs text-white/70">Release truth</div><div className="mt-1 font-semibold">No automatic publishing.</div><p className="mt-1 text-xs leading-5 text-white/75">A successful preflight only means the observable checks passed. A separate approval and release process is still required.</p></div>
           </div>
         </aside>
+      </section>
+
+      <section className="rounded-3xl border bg-white p-5 sm:p-6" style={{ borderColor: "var(--gs-border)" }} data-testid="customer-build-output">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[.14em] text-[var(--gs-teal)]"><Eye className="h-4 w-4" /> What you can see and do now</div>
+            <h2 className="mt-2 font-display text-2xl text-[var(--gs-ink)]">Your work never disappears behind “building”.</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--gs-muted)]">This view uses the project and quality information that actually exists. It does not invent a progress percentage or claim that a draft is finished when it is not.</p>
+          </div>
+          <Link to={`/dashboard/build?project=${encodeURIComponent(projectId)}`} className="inline-flex items-center gap-1 rounded-xl border px-3 py-2 text-sm font-semibold text-[var(--gs-teal)] hover:bg-[var(--gs-surface-2)]" style={{ borderColor: "var(--gs-border)" }}>Open builder <ArrowRight className="h-4 w-4" /></Link>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border p-4" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)" }}><div className="text-xs text-[var(--gs-muted)]">Your request</div><div className="mt-2 text-sm font-semibold text-[var(--gs-ink)]">{project.name}</div><p className="mt-2 line-clamp-3 text-xs leading-5 text-[var(--gs-muted)]">{project.prompt}</p></div>
+          <div className="rounded-2xl border p-4" style={{ borderColor: hasPrivateOutput ? "#9ed2c3" : "var(--gs-border)", background: hasPrivateOutput ? "#f0f8f5" : "var(--gs-surface)" }}><div className="text-xs text-[var(--gs-muted)]">Build result</div><div className="mt-2 flex items-center gap-2 text-sm font-semibold text-[var(--gs-ink)]">{hasPrivateOutput ? <CheckCircle2 className="h-4 w-4 text-emerald-700" /> : <CircleDashed className="h-4 w-4 text-sky-700" />}{hasPrivateOutput ? "Private draft ready" : "No private draft yet"}</div><p className="mt-2 text-xs leading-5 text-[var(--gs-muted)]">{hasPrivateOutput ? "A completed draft is available below for your own review. It is not public or deployed." : "Complete the current build step first. Getszy will show the draft here only after the server has created it."}</p></div>
+          <div className="rounded-2xl border p-4" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)" }}><div className="text-xs text-[var(--gs-muted)]">Your next action</div><div className="mt-2 text-sm font-semibold text-[var(--gs-ink)]">{hasPrivateOutput ? "Review on each device" : "Complete the active mission step"}</div><p className="mt-2 text-xs leading-5 text-[var(--gs-muted)]">{hasPrivateOutput ? "Check brand accuracy, facts, pages, and the mobile layout before requesting review." : "Use the Mission map above to see what is current, blocked, done, and next."}</p></div>
+        </div>
+
+        {hasPrivateOutput ? (
+          <div className="mt-5 overflow-hidden rounded-2xl border" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}>
+            <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: "var(--gs-border)", background: "white" }}>
+              <div><div className="flex items-center gap-2"><span className="rounded-full bg-[#e7f4ef] px-2.5 py-1 text-[11px] font-bold text-[#216b59]">PRIVATE PREVIEW</span><span className="text-xs font-medium text-[var(--gs-muted)]">Not published</span></div><p className="mt-1 text-xs text-[var(--gs-muted)]">This is the actual finished draft for this project—not a sample image.</p></div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[["desktop", "Desktop", Laptop], ["tablet", "Tablet", Tablet], ["mobile", "Mobile", Smartphone]].map(([id, label, DeviceIcon]) => <Button key={id} type="button" size="sm" variant={previewDevice === id ? "default" : "outline"} onClick={() => setPreviewDevice(id)} className={previewDevice === id ? "bg-[#183c3c] text-white hover:bg-[#102f2f]" : ""}><DeviceIcon className="mr-1.5 h-3.5 w-3.5" />{label}</Button>)}
+                <a href={previewUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs font-semibold text-[var(--gs-teal)] hover:bg-[var(--gs-surface-2)]" style={{ borderColor: "var(--gs-border)" }}><ArrowRight className="h-3.5 w-3.5" />Open</a>
+              </div>
+            </div>
+            <div className="overflow-auto p-4"><div className={`mx-auto overflow-hidden rounded-xl border bg-white ${previewDevice === "mobile" ? "h-[680px] max-w-[390px]" : previewDevice === "tablet" ? "h-[620px] max-w-[768px]" : "h-[560px] w-full"}`} style={{ borderColor: "var(--gs-border)" }}><iframe src={previewUrl} className="h-full w-full" title={`Private preview of ${project.name}`} data-testid="customer-project-preview" /></div></div>
+            <div className="flex items-center gap-2 border-t px-4 py-3 text-xs text-[var(--gs-muted)]" style={{ borderColor: "var(--gs-border)", background: "white" }}><ShieldCheck className="h-4 w-4 text-emerald-700" />Private preview only. Review is required before any customer-approved release; previewing never publishes.</div>
+          </div>
+        ) : (
+          <div className="mt-5 rounded-2xl border border-dashed p-5 text-sm text-[var(--gs-muted)]" style={{ borderColor: "var(--gs-border)" }}>There is no private draft to preview yet. When a build completes, the finished work, device preview controls, quality status, and review next step will appear here.</div>
+        )}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.1fr_.9fr]">
