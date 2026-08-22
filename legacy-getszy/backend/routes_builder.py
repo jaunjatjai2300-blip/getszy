@@ -182,10 +182,10 @@ async def get_template_asset(asset_name: str):
 
 @router.get('/templates')
 async def list_professional_templates(user=Depends(get_current_user)):
-    """List licensed customer-safe starter templates for professional outputs."""
+    """Expose no new-build starters until category-specific professional packs are ready."""
     return {
-        'templates': public_template_catalog(),
-        'notice': 'Templates are editable starting points. Review all generated copy, claims, images, privacy content and legal requirements before publishing.',
+        'templates': [],
+        'notice': 'New customer website production is paused while Getszy prepares approved category-specific professional packs. Existing private projects remain available for review.',
     }
 
 
@@ -194,38 +194,15 @@ async def create_project(body: BuilderProjectIn, user=Depends(get_current_user))
     if not body.prompt.strip():
         raise HTTPException(400, 'Prompt required')
 
-    brief_data = body.brief.model_dump(exclude_none=True) if body.brief else {}
-    resolved_template_id = body.template_id or recommend_template_id(body.prompt, brief_data)
-    selected_template = get_template(resolved_template_id)
-    if not selected_template:
-        raise HTTPException(422, 'Unknown professional starter template')
-    if selected_template.get('collection') != 'getszy':
-        raise HTTPException(422, 'This starter is still being prepared for customer delivery. Choose a Getszy curated professional starter.')
-
-    # Launch rule: every initial customer landing-page project starts from a curated,
-    # licensed professional visual foundation. Open-ended AI HTML previously produced
-    # generic and unsupported outputs, so it is not an initial-delivery path.
-    # Future paid refinements operate on this explicit, reviewable project instead.
-    html = _sanitize(render_customer_template(
-        resolved_template_id,
-        project_name=body.name,
-        prompt=body.prompt,
-        brief=brief_data,
-    ))
-    build_note = f"Professional starter loaded: {selected_template['name']}"
-
-    name = (body.name or selected_template['name'] or _derive_name(body.prompt))[:80]
-    history = [
-        BuilderHistoryItem(timestamp=_now(), prompt=body.prompt, role='user'),
-        BuilderHistoryItem(timestamp=_now(), prompt=build_note, role='assistant', snapshot=html),
-    ]
-    quality_report = evaluate_landing_page_quality(html, brief_data)
-    project = BuilderProject(
-        user_id=user['id'], name=name, prompt=body.prompt, template_id=resolved_template_id, brief=body.brief,
-        quality_report=quality_report, html_content=html, history=history,
+    # Two temporary starter layouts were intentionally retired: forcing every
+    # business into them created repetitive output and would misrepresent the
+    # coverage of the professional catalogue. We refuse new page production until
+    # a lawful, category-specific Getszy pack is ready. Existing projects remain
+    # owner-accessible for private review, download, refinement and version control.
+    raise HTTPException(
+        409,
+        'New page production is temporarily paused while Getszy prepares approved category-specific professional packs. Prepare your professional brief with Neo; no page or credit charge has been created.',
     )
-    await db.builder_projects.insert_one(project.model_dump())
-    return project.model_dump()
 
 
 @router.get('/projects')
