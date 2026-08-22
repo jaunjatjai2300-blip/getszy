@@ -138,15 +138,26 @@ function WebAppBuilder({ color }) {
   const [brief, setBrief] = useState({ audience: "", primary_goal: "", primary_cta: "", brand_name: "", visual_style: "", offer: "" });
   const [templateId, setTemplateId] = useState("");
   const [templates, setTemplates] = useState(PREVIEW_TEMPLATE_FALLBACK);
+  const [creditInfo, setCreditInfo] = useState({ credits: null, costs: {} });
   const isReadOnlyPreview = typeof window !== "undefined" && window.location.hostname.startsWith("preview.");
 
   const updateBrief = (field, value) => setBrief((current) => ({ ...current, [field]: value }));
   const load = async () => { try { const r = await api.get("/builder/projects"); setProjects(r.data || []); } catch (e) { toast.error("Couldn't load projects — refresh to retry"); } };
   const loadTemplates = async () => { try { const r = await api.get("/builder/templates"); setTemplates(r.data.templates || PREVIEW_TEMPLATE_FALLBACK); } catch { setTemplates(PREVIEW_TEMPLATE_FALLBACK); } };
-  useEffect(() => { load(); loadTemplates(); }, []);
+  const loadCredits = async () => { try { const r = await api.get("/credits/me"); setCreditInfo({ credits: Number(r.data?.credits ?? 0), costs: r.data?.costs || {} }); } catch { setCreditInfo({ credits: null, costs: {} }); } };
+  useEffect(() => { load(); loadTemplates(); loadCredits(); }, []);
+
+  const isStarter = Boolean(templateId);
+  const buildCost = isStarter ? 0 : Number(creditInfo.costs?.builder_website ?? 0);
+  const hasEnoughCredits = creditInfo.credits === null || isStarter || creditInfo.credits >= buildCost;
 
   const build = async () => {
     if (prompt.trim().length < 4) return toast.error("Prompt too short");
+    if (!isStarter && creditInfo.credits !== null && !hasEnoughCredits) return toast.error(`Not enough credits. This custom build needs ${buildCost} credits; you have ${creditInfo.credits}.`);
+    const confirmation = isStarter
+      ? "Load this professional starter? It does not consume AI generation credits."
+      : `Start this custom build? Getszy will ask the server to deduct ${buildCost} credits only if the build request is accepted.`;
+    if (!window.confirm(confirmation)) return;
     setBusy(true); toast.loading("Building your web app…", { id: "wa", duration: 60000 });
     try {
       const normalizedBrief = {
@@ -157,7 +168,7 @@ function WebAppBuilder({ color }) {
       toast.success(`Built: ${r.data.name} ✅`, { id: "wa" });
       setPrompt(""); setName(""); setProofPoints(""); setTemplateId("");
       setBrief({ audience: "", primary_goal: "", primary_cta: "", brand_name: "", visual_style: "", offer: "" });
-      setPreviewId(r.data.id); setPreviewQuality(r.data.quality_report || null); await load();
+      setPreviewId(r.data.id); setPreviewQuality(r.data.quality_report || null); await Promise.all([load(), loadCredits()]);
     } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "wa" }); }
     finally { setBusy(false); }
   };
@@ -198,8 +209,13 @@ function WebAppBuilder({ color }) {
           </div>
         )}
       </div>
-      {isReadOnlyPreview && <div className="rounded-lg border px-3 py-2 text-xs text-[var(--gs-muted)]" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}>Preview mode is read-only: you can inspect the professional brief and starter options, but creation remains disabled until this feature is approved and promoted through the release process.</div>}
-      <Button onClick={build} disabled={busy || isReadOnlyPreview} className="w-full text-white" style={{ background: color }} data-testid="wa-build-btn">
+      <div className="rounded-xl border px-3 py-3 text-sm" style={{ borderColor: hasEnoughCredits ? "var(--gs-border)" : "#f5b6b6", background: hasEnoughCredits ? "var(--gs-surface-2)" : "#fff4f4" }}>
+        <div className="flex flex-wrap items-center justify-between gap-2"><div className="font-semibold">{isStarter ? "Professional starter" : "Custom AI build"}</div><div className="rounded-full bg-white px-2.5 py-1 text-xs font-bold">{isStarter ? "0 credits" : `${buildCost || "—"} credits`}</div></div>
+        <p className="mt-1 text-xs text-[var(--gs-muted)]">{isStarter ? "A starter loads an editable licensed layout without AI generation charges." : `Available balance: ${creditInfo.credits === null ? "loading…" : `${creditInfo.credits} credits`}. The server performs the final balance check and atomic deduction when you confirm.`}</p>
+        {!hasEnoughCredits && <p className="mt-2 text-xs font-semibold text-rose-700">You need more credits before this custom build can start.</p>}
+      </div>
+      {isReadOnlyPreview && <div className="rounded-lg border px-3 py-2 text-xs text-[var(--gs-muted)]" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}>Preview mode is read-only: you can inspect the professional brief, cost and starter options, but creation remains disabled until this feature is approved and promoted through the release process.</div>}
+      <Button onClick={build} disabled={busy || isReadOnlyPreview || !hasEnoughCredits} className="w-full text-white" style={{ background: color }} data-testid="wa-build-btn">
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
         {busy ? "Preparing…" : isReadOnlyPreview ? "Preview mode — creation disabled" : templateId ? "Create Professional Starter" : "Build Custom Web App"}
       </Button>

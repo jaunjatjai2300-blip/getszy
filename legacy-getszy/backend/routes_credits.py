@@ -4,7 +4,7 @@ Manual grant exists so the founder can hand out credits to test users BEFORE
 Razorpay/Stripe is wired up. Once payments go live, the payment webhook will
 call `credits.add_credits()` the same way this endpoint does.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from auth import get_current_user, get_current_admin
@@ -23,6 +23,32 @@ async def my_credits(user=Depends(get_current_user)):
 @router.get('/costs')
 async def costs(_=Depends(get_current_user)):
     return {'costs': CREDIT_COSTS}
+
+
+@router.get('/me/transactions')
+async def my_credit_transactions(
+    limit: int = Query(default=20, ge=1, le=100),
+    user=Depends(get_current_user),
+):
+    """Return only the current customer's audited credit activity, newest first."""
+    cursor = db.credit_transactions.find(
+        {'user_id': user['id']},
+        {'_id': 0, 'user_id': 0},
+    ).sort('created_at', -1).limit(limit)
+    items = []
+    async for item in cursor:
+        meta = item.get('meta') if isinstance(item.get('meta'), dict) else {}
+        items.append({
+            'id': item.get('id') or item.get('ref_id') or f"{item.get('created_at', '')}:{item.get('action', '')}",
+            'type': item.get('type'),
+            'action': item.get('action'),
+            'qty': item.get('qty'),
+            'amount': item.get('amount'),
+            'balance_after': item.get('balance_after'),
+            'reason': meta.get('reason'),
+            'created_at': item.get('created_at'),
+        })
+    return {'items': items}
 
 
 class AdminGrantIn(BaseModel):

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  ArrowRight, BookOpen, Bot, ChevronRight, CircleHelp, CreditCard,
-  FileText, Heart, Loader2, Package, Sparkles, UserRound,
+  ArrowRight, BookOpen, Bot, ChevronRight, CircleHelp, Coins, CreditCard,
+  FileText, Heart, History, Loader2, Package, Sparkles, UserRound,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { api, fmtINR } from "@/lib/api";
@@ -38,7 +38,7 @@ function EmptyState({ title, detail, action, onClick }) {
 export default function MyGetszy() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [state, setState] = useState({ loading: true, orders: [], enrollments: [], subscription: null, sessions: [], builderProjects: [] });
+  const [state, setState] = useState({ loading: true, orders: [], enrollments: [], subscription: null, sessions: [], builderProjects: [], credits: null, creditCosts: {}, creditTransactions: [] });
 
   useEffect(() => {
     let active = true;
@@ -48,7 +48,9 @@ export default function MyGetszy() {
       api.get("/me/subscription"),
               api.get("/agents/sessions"),
         api.get("/builder/projects"),
-      ]).then(([orders, enrollments, subscription, sessions, builderProjects]) => {
+        api.get("/credits/me"),
+        api.get("/credits/me/transactions?limit=8"),
+      ]).then(([orders, enrollments, subscription, sessions, builderProjects, credits, creditTransactions]) => {
 
       if (!active) return;
       setState({
@@ -58,6 +60,9 @@ export default function MyGetszy() {
         subscription: subscription.status === "fulfilled" ? subscription.value.data : null,
         sessions: sessions.status === "fulfilled" ? (sessions.value.data?.sessions || []) : [],
         builderProjects: builderProjects.status === "fulfilled" ? (builderProjects.value.data || []) : [],
+        credits: credits.status === "fulfilled" ? Number(credits.value.data?.credits ?? 0) : null,
+        creditCosts: credits.status === "fulfilled" ? (credits.value.data?.costs || {}) : {},
+        creditTransactions: creditTransactions.status === "fulfilled" ? (creditTransactions.value.data?.items || []) : [],
       });
     });
     return () => { active = false; };
@@ -67,6 +72,7 @@ export default function MyGetszy() {
   const activeLearning = useMemo(() => state.enrollments.filter((enrollment) => Number(enrollment.progress || 0) < 1), [state.enrollments]);
   const activeProjectSessions = useMemo(() => state.sessions.slice(0, 3), [state.sessions]);
   const activeBuilderProjects = useMemo(() => state.builderProjects.slice(0, 3), [state.builderProjects]);
+  const builderCost = state.creditCosts.builder_website;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 pb-8" data-testid="my-getszy-page">
@@ -88,7 +94,7 @@ export default function MyGetszy() {
         <div className="flex min-h-[340px] items-center justify-center text-[var(--gs-muted)]"><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading your Getszy relationship…</div>
       ) : (
         <>
-          <section className="grid gap-4 md:grid-cols-3" aria-label="Your Getszy overview">
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Your Getszy overview">
             <button type="button" onClick={() => navigate("/shop")} className="rounded-2xl border bg-white p-5 text-left transition-colors hover:bg-[#fcfcfb]" style={{ borderColor: "var(--gs-border)" }}>
               <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#fff1e6] text-[#a84816]"><Package className="h-5 w-5" /></span>
               <div className="mt-5 text-xs font-semibold uppercase tracking-[.14em] text-[var(--gs-muted)]">Physical orders</div>
@@ -101,11 +107,17 @@ export default function MyGetszy() {
               <div className="mt-1 font-display text-2xl text-[var(--gs-ink)]">{state.builderProjects.length}</div>
               <div className="mt-1 text-sm text-[var(--gs-muted)]">{state.builderProjects.length ? "Professional project(s) in your workspace" : "Start a mission with Neo"}</div>
             </button>
+            <button type="button" onClick={() => document.getElementById("credit-activity")?.scrollIntoView({ behavior: "smooth" })} className="rounded-2xl border bg-white p-5 text-left transition-colors hover:bg-[#fcfcfb]" style={{ borderColor: "var(--gs-border)" }}>
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#fff5d8] text-[#a66a00]"><Coins className="h-5 w-5" /></span>
+              <div className="mt-5 text-xs font-semibold uppercase tracking-[.14em] text-[var(--gs-muted)]">Available credits</div>
+              <div className="mt-1 font-display text-2xl text-[var(--gs-ink)]">{state.credits === null ? "—" : state.credits}</div>
+              <div className="mt-1 text-sm text-[var(--gs-muted)]">{builderCost ? `Custom website build: ${builderCost} credits` : "See real usage history"}</div>
+            </button>
             <button type="button" onClick={() => navigate("/account")} className="rounded-2xl border bg-white p-5 text-left transition-colors hover:bg-[#fcfcfb]" style={{ borderColor: "var(--gs-border)" }}>
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#eeeaff] text-[#6444a7]"><BookOpen className="h-5 w-5" /></span>
-              <div className="mt-5 text-xs font-semibold uppercase tracking-[.14em] text-[var(--gs-muted)]">Learning & services</div>
-              <div className="mt-1 font-display text-2xl text-[var(--gs-ink)]">{state.enrollments.length}</div>
-              <div className="mt-1 text-sm text-[var(--gs-muted)]">{activeLearning.length ? `${activeLearning.length} learning item(s) in progress` : "View plan and account details"}</div>
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#eeeaff] text-[#6444a7]"><UserRound className="h-5 w-5" /></span>
+              <div className="mt-5 text-xs font-semibold uppercase tracking-[.14em] text-[var(--gs-muted)]">Plan & profile</div>
+              <div className="mt-1 font-display text-2xl text-[var(--gs-ink)]">{String(state.subscription?.plan || "free").replace(/^./, (letter) => letter.toUpperCase())}</div>
+              <div className="mt-1 text-sm text-[var(--gs-muted)]">{state.subscription?.status || "Manage account settings"}</div>
             </button>
           </section>
 
@@ -139,8 +151,9 @@ export default function MyGetszy() {
               <div className="mt-5 space-y-3">
                 <div className="rounded-2xl border bg-white p-4" style={{ borderColor: "var(--gs-border)" }}>
                   <div className="text-sm font-semibold text-[var(--gs-ink)]">Your plan</div>
-                  <p className="mt-1 text-sm text-[var(--gs-muted)]">{state.subscription ? `${String(state.subscription.plan || "free").replace(/^./, (letter) => letter.toUpperCase())} · ${state.subscription.status || "active"}` : "Plan details are available in your account."}</p>
-                  <Link to="/account" className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[var(--gs-teal)] hover:underline">View account <ArrowRight className="h-4 w-4" /></Link>
+                  <p className="mt-1 text-sm text-[var(--gs-muted)]">{state.subscription ? `${String(state.subscription.plan || "free").replace(/^./, (letter) => letter.toUpperCase())} · ${state.subscription.status || "active"}` : "Plan details are available in your account."}{state.subscription?.current_period_end ? ` · Renews ${formatDate(state.subscription.current_period_end)}` : ""}</p>
+                  <div className="mt-3 rounded-xl bg-[#fff7df] px-3 py-2 text-xs text-[#80570c]">Available credits: <strong>{state.credits === null ? "—" : state.credits}</strong>{builderCost ? ` · A custom website build costs ${builderCost} credits` : ""}</div>
+                  <Link to="/account" className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[var(--gs-teal)] hover:underline">Manage plan & profile <ArrowRight className="h-4 w-4" /></Link>
                 </div>
                 <div className="rounded-2xl border bg-white p-4" style={{ borderColor: "var(--gs-border)" }}>
                   <div className="text-sm font-semibold text-[var(--gs-ink)]">Learning</div>
@@ -149,6 +162,14 @@ export default function MyGetszy() {
                 </div>
               </div>
             </div>
+          </section>
+
+          <section id="credit-activity" className="grid gap-4 xl:grid-cols-[1.1fr_.9fr]">
+            <div className="rounded-3xl border bg-white p-5 sm:p-6" style={{ borderColor: "var(--gs-border)" }}>
+              <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[.14em] text-[var(--gs-teal)]"><History className="h-4 w-4" /> Credit activity</div><h2 className="mt-2 font-display text-2xl text-[var(--gs-ink)]">Every grant, spend and refund is visible.</h2><p className="mt-2 text-sm leading-6 text-[var(--gs-muted)]">Credits are added and deducted only by the server-side ledger. Getszy never relies on a browser balance to authorize paid work.</p></div><span className="rounded-full bg-[#fff5d8] px-3 py-1.5 text-sm font-semibold text-[#80570c]">{state.credits === null ? "—" : state.credits} credits</span></div>
+              <div className="mt-5 space-y-2">{state.creditTransactions.length === 0 ? <EmptyState title="No credit activity yet" detail="Subscription grants, approved top-ups, builds, refinements and refunds will appear here with their real balance." /> : state.creditTransactions.map((transaction, index) => <div key={transaction.id || index} className="flex flex-wrap items-center gap-3 rounded-2xl border p-4" style={{ borderColor: "var(--gs-border)" }}><span className={`grid h-9 w-9 place-items-center rounded-xl ${Number(transaction.amount || 0) >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}><Coins className="h-4 w-4" /></span><div className="min-w-0 flex-1"><div className="text-sm font-semibold text-[var(--gs-ink)]">{String(transaction.action || transaction.type || "credit activity").replaceAll("_", " ")}</div><div className="mt-1 text-xs text-[var(--gs-muted)]">{formatDate(transaction.created_at)}{transaction.reason ? ` · ${transaction.reason}` : ""}</div></div><div className={`text-sm font-bold ${Number(transaction.amount || 0) >= 0 ? "text-emerald-700" : "text-amber-700"}`}>{Number(transaction.amount || 0) >= 0 ? "+" : ""}{transaction.amount ?? 0}</div><div className="text-xs text-[var(--gs-muted)]">Balance {transaction.balance_after ?? "—"}</div></div>)}</div>
+            </div>
+            <aside className="rounded-3xl border bg-[#fffdf9] p-5 sm:p-6" style={{ borderColor: "var(--gs-border)" }}><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[.14em] text-[var(--gs-teal)]"><CreditCard className="h-4 w-4" /> Before you build</div><h2 className="mt-2 font-display text-2xl text-[var(--gs-ink)]">Costs are visible before paid work starts.</h2><p className="mt-3 text-sm leading-6 text-[var(--gs-muted)]">A custom website build uses {builderCost ?? "the configured"} credits. A professional starter template does not consume generation credits. The backend performs the final balance check and atomic deduction when you confirm a build.</p><button type="button" onClick={() => navigate("/dashboard/build")} className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-[var(--gs-teal)] hover:underline">Open Build with Neo <ArrowRight className="h-4 w-4" /></button></aside>
           </section>
 
           <section className="grid gap-4 xl:grid-cols-[1.1fr_.9fr]">
