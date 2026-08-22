@@ -250,7 +250,7 @@ function CopyTool({ color }) {
     try {
       const r = await api.post("/ai-tools/chat/completions", {
         messages: [
-          { role: "system", content: "You are an expert copywriter. Write compelling website copy with headlines, subheadlines, body text, and CTAs. Format as clean markdown." },
+          { role: "system", content: "You are an expert conversion copywriter. Write a review-ready website-copy draft with headlines, subheadlines, benefit-led body text, objection handling, and CTAs. Format as clean markdown. Never invent testimonials, metrics, customer logos, prices, certifications, guarantees, legal claims, or capabilities. Mark missing proof and claims that require customer review." },
           { role: "user", content: `Write website copy for: ${desc}\nGoal: ${goal}\n\nProvide: 3 headline options, subheadline, body paragraphs, and 2 CTA button texts.` }
         ]
       });
@@ -290,34 +290,45 @@ function CopyTool({ color }) {
 // ── 3. Landing Page ──
 function LandingTool({ color }) {
   const [desc, setDesc] = useState("");
+  const [audience, setAudience] = useState("");
+  const [goal, setGoal] = useState("collect leads");
+  const [cta, setCta] = useState("");
+  const [proof, setProof] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
 
   const generate = async () => {
-    if (!desc.trim()) return toast.error("Describe your landing page");
-    setBusy(true); toast.loading("Building landing page…", { id: "land" });
+    if (!desc.trim()) return toast.error("Describe your product or service");
+    setBusy(true); toast.loading("Building landing-page brief…", { id: "land" });
     try {
       const r = await api.post("/ai-tools/chat/completions", {
         messages: [
-          { role: "system", content: "You are a landing page specialist. Generate a complete landing page structure with: Hero (headline + subheadline + CTA), Benefits (3-4 items), Social Proof (testimonials), FAQ, and Final CTA. Use compelling copy. Format as clean markdown." },
-          { role: "user", content: `Create a landing page for: ${desc}` }
+          { role: "system", content: "You are a conversion copy strategist. Create a professional, mobile-first landing-page copy brief in clean markdown. Use one conversion goal and one primary CTA. Include: positioning summary, 3 distinct hero directions, recommended section order, benefit copy, objection-handling FAQ, CTA placements, and a launch review checklist. Never invent testimonials, customer logos, metrics, certifications, pricing, guarantees, legal claims, integrations, or product capabilities. If proof is not supplied, write a clearly labelled 'proof to collect before launch' section instead of fake social proof." },
+          { role: "user", content: `Product/service: ${desc}\nTarget audience: ${audience || "not supplied"}\nPrimary goal: ${goal}\nPrimary CTA: ${cta || "not supplied"}\nVerified proof/facts approved for use: ${proof || "none supplied"}` }
         ]
       });
       setResult(r.data.choices?.[0]?.message?.content || "No result");
-      toast.success("Landing page ready ✅", { id: "land" });
+      toast.success("Landing-page brief ready ✅", { id: "land" });
     } catch (e) { toast.error("Failed", { id: "land" }); }
     finally { setBusy(false); }
   };
 
   return (
     <div className="space-y-4">
+      <div className="rounded-xl border p-3 text-xs" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}><span className="font-semibold text-[var(--gs-ink)]">Professional output rule:</span> add only facts and proof you can verify. Getszy will create a copy brief for review, not publish a page or make claims on your behalf.</div>
       <div>
-        <label className="text-xs text-[var(--gs-muted)]">Describe your product/service *</label>
-        <Textarea rows={3} value={desc} onChange={e => setDesc(e.target.value)} placeholder="e.g. AI-powered fitness coach app for women, ₹299/month, tracks workouts + nutrition"/>
+        <label className="text-xs text-[var(--gs-muted)]">Product or service *</label>
+        <Textarea rows={3} value={desc} onChange={e => setDesc(e.target.value)} placeholder="e.g. AI-powered fitness coach for women; ₹299/month; tracks workouts and nutrition"/>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div><label className="text-xs text-[var(--gs-muted)]">Target audience</label><Input value={audience} onChange={e => setAudience(e.target.value)} placeholder="e.g. Indian working women, 25–40" /></div>
+        <div><label className="text-xs text-[var(--gs-muted)]">Primary goal</label><Select value={goal} onValueChange={setGoal}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="collect leads">Collect leads</SelectItem><SelectItem value="book consultations">Book consultations</SelectItem><SelectItem value="sell a product">Sell a product</SelectItem><SelectItem value="start trials">Start trials</SelectItem></SelectContent></Select></div>
+        <div><label className="text-xs text-[var(--gs-muted)]">Primary CTA</label><Input value={cta} onChange={e => setCta(e.target.value)} placeholder="e.g. Start your 7-day trial" /></div>
+        <div><label className="text-xs text-[var(--gs-muted)]">Verified proof or facts</label><Input value={proof} onChange={e => setProof(e.target.value)} placeholder="e.g. approved product facts or real reviews" /></div>
       </div>
       <Button onClick={generate} disabled={busy} className="w-full text-white" style={{ background: color }}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
-        {busy ? "Building…" : "Generate Landing Page"}
+        {busy ? "Building…" : "Create professional page brief"}
       </Button>
       {result && <ResultCard text={result}/>}
     </div>
