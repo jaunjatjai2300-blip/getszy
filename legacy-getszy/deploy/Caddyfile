@@ -1,13 +1,21 @@
 {$DOMAIN}, www.{$DOMAIN}, dash.{$DOMAIN}, preview.{$DOMAIN} {
     encode gzip
 
+    # Keep all normal routes protected from clickjacking.
     header {
         Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://assets.emergent.sh; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.{$DOMAIN} https://assets.emergent.sh; frame-ancestors 'none'"
-        X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
         Referrer-Policy "strict-origin-when-cross-origin"
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
         -Server
+    }
+
+    # A private Build Studio document may be embedded only by the same Getszy origin.
+    @private_build_preview path_regexp private_build_preview ^/api/builder/projects/[^/]+/preview/?$
+    header @private_build_preview {
+        -X-Frame-Options
+        Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://assets.emergent.sh; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.{$DOMAIN} https://assets.emergent.sh; frame-ancestors 'self'"
     }
 
     # The preview hostname uses the proven production TLS listener but routes to
