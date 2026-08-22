@@ -11,7 +11,13 @@ import re
 from typing import Any, Dict, Iterable, List
 
 
-PREVIEW_QUALITY_VERSION = "1.0"
+PREVIEW_QUALITY_VERSION = "1.1"
+
+# Observable content that must never be represented as a finished customer deliverable.
+_PLACEHOLDER_PATTERN = r"\[\s*(?:add|insert|your|placeholder)[^\]]*\]|lorem\s+ipsum|student\s+name|your\s+name"
+_DEMO_PATTERN = r"jaks\.dev|jack-codes|templates\.jack-codes|free\s+(?:html|website)\s+template"
+_FAKE_CONTACT_PATTERN = r"123\s+rhythm\s+street|\+1\s*234\s*567\s*890|info@(?:solaourdance|example)\.com"
+_UNSUPPORTED_PROMISE_PATTERN = r"\b(?:free\s+trial\s+guarantee|money[-\s]?back\s+guarantee|limited\s+stock|unbeatable\s+prices|up\s+to\s+\d+%\s+off)\b"
 
 
 def _has(pattern: str, html: str, flags: int = re.IGNORECASE) -> bool:
@@ -61,6 +67,7 @@ def evaluate_landing_page_quality(
     has_form = _has(r"<form\b", html)
     has_privacy = _has(r"privacy\s*(policy|notice)|privacy-policy", html)
     has_images = _has(r"<img\b", html)
+    has_visual_foundation = has_images or _has(r"background(?:-image)?\s*:\s*(?:url|linear-gradient|radial-gradient)", html) or _has(r"<svg\b", html)
     all_images_have_alt = not _has(r"<img\b(?![^>]*\balt\s*=)[^>]*>", html)
     cta_labels = re.findall(r"<(?:a|button)\b[^>]*>(.*?)</(?:a|button)>", html, re.IGNORECASE | re.DOTALL)
     cta_text = " ".join(re.sub(r"<[^>]+>", " ", value).lower() for value in cta_labels)
@@ -123,11 +130,46 @@ def evaluate_landing_page_quality(
             "Include responsive CSS or utility variants and review desktop, tablet and mobile previews.",
         ),
         _check(
+            "visual_foundation",
+            "Intentional visual foundation",
+            has_visual_foundation,
+            True,
+            "Use an intentional hero visual, brand-led composition or approved customer asset; a plain generic layout is not a finished landing-page deliverable.",
+        ),
+        _check(
             "image_alt_text",
             "Accessible image descriptions",
             (not has_images) or all_images_have_alt,
             True,
             "Every meaningful image needs useful alt text; decorative images may use an empty alt attribute.",
+        ),
+        _check(
+            "no_placeholder_content",
+            "No demo placeholders",
+            not _has(_PLACEHOLDER_PATTERN, html),
+            True,
+            "Replace template placeholders and anonymous testimonial stubs with verified customer content or remove the section before review.",
+        ),
+        _check(
+            "no_demo_residue",
+            "No source-template residue",
+            not _has(_DEMO_PATTERN, html),
+            True,
+            "Remove template-demo bars, source brands, free-download messaging, analytics and source metadata before customer review.",
+        ),
+        _check(
+            "no_fake_contacts",
+            "No example contact details",
+            not _has(_FAKE_CONTACT_PATTERN, html),
+            True,
+            "Use the customer's confirmed contact details or leave contact details out of the private draft.",
+        ),
+        _check(
+            "no_unsupported_promises",
+            "No unsupported promotional promise",
+            not _has(_UNSUPPORTED_PROMISE_PATTERN, html),
+            True,
+            "Remove unverified guarantees, urgency, discounts and promotional promises; add only customer-approved factual offers.",
         ),
         _check(
             "goal_alignment",

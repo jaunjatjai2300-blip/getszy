@@ -5,9 +5,10 @@ import json
 import zipfile
 import logging
 import uuid
+from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import HTMLResponse, StreamingResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse, Response
 from db import db
 from models import (
     BuilderProject, BuilderProjectIn, BuilderRefineIn, BuilderHistoryItem,
@@ -19,10 +20,15 @@ from credits import deduct, refund
 from builder_agents import build_site, refine_element, plan_site, design_site
 from builder_quality import evaluate_landing_page_quality
 from builder_controls import mission_control_state
-from template_catalog import public_template_catalog, get_template, load_template_html
+from template_catalog import public_template_catalog, get_template, recommend_template_id, render_customer_template
 
 logger = logging.getLogger('getszy.builder')
 router = APIRouter(prefix='/builder', tags=['builder'])
+_TEMPLATE_ASSET_ROOT = Path(__file__).resolve().parent / "starter_templates" / "assets"
+_TEMPLATE_ASSETS = {
+    "dance-academy-hero.jpg": "image/jpeg",
+    "brand-foundation-hero.jpg": "image/jpeg",
+}
 
 
 SYSTEM_PROMPT_REFINE = """You are an elite front-end web developer refining an existing single-page website.
@@ -158,6 +164,16 @@ def _brief_to_generation_context(brief: dict | None) -> str:
     )
 
 
+@router.get('/template-assets/{asset_name}', response_class=FileResponse)
+async def get_template_asset(asset_name: str):
+    """Serve only approved static visual assets embedded by curated customer starters."""
+    media_type = _TEMPLATE_ASSETS.get(asset_name)
+    asset_path = (_TEMPLATE_ASSET_ROOT / asset_name).resolve()
+    if not media_type or asset_path.parent != _TEMPLATE_ASSET_ROOT.resolve() or not asset_path.is_file():
+        raise HTTPException(404, 'Template asset not found')
+    return FileResponse(asset_path, media_type=media_type, headers={'Cache-Control': 'public, max-age=86400'})
+
+
 @router.get('/templates')
 async def list_professional_templates(user=Depends(get_current_user)):
     """List licensed customer-safe starter templates for professional outputs."""
@@ -172,38 +188,34 @@ async def create_project(body: BuilderProjectIn, user=Depends(get_current_user))
     if not body.prompt.strip():
         raise HTTPException(400, 'Prompt required')
 
-    selected_template = get_template(body.template_id)
-    if body.template_id and not selected_template:
-        raise HTTPException(422, 'Unknown professional starter template')
-
     brief_data = body.brief.model_dump(exclude_none=True) if body.brief else {}
-    if selected_template:
-        # A starter is a licensed, editable layout. It is not an AI claim or paid
-        # generation, so no customer credits are deducted at this step.
-        html = _sanitize(load_template_html(body.template_id))
-        build_note = f"Professional starter loaded: {selected_template['name']}"
-    else:
-        ok, msg, _ = await deduct(user['id'], 'builder_website')
-        if not ok:
-            raise HTTPException(402, msg)
-        generation_prompt = body.prompt + _brief_to_generation_context(brief_data)
-        try:
-            html = await _generate_site(generation_prompt)
-        except Exception as e:
-            logger.exception('generate failed')
-            # P1-3: pass ref_id so a retried failure cannot double-refund.
-            await refund(user['id'], 'builder_website', reason='generation_failed', ref_id=body.name or body.prompt[:64])
-            raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
-        build_note = 'Initial AI build complete'
+    resolved_template_id = body.template_id or recommend_template_id(body.prompt, brief_data)
+    selected_template = get_template(resolved_template_id)
+    if not selected_template:
+        raise HTTPException(422, 'Unknown professional starter template')
+    if selected_template.get('collection') != 'getszy':
+        raise HTTPException(422, 'This starter is still being prepared for customer delivery. Choose a Getszy curated professional starter.')
 
-    name = (body.name or selected_template['name'] if selected_template else body.name or _derive_name(body.prompt))[:80]
+    # Launch rule: every initial customer landing-page project starts from a curated,
+    # licensed professional visual foundation. Open-ended AI HTML previously produced
+    # generic and unsupported outputs, so it is not an initial-delivery path.
+    # Future paid refinements operate on this explicit, reviewable project instead.
+    html = _sanitize(render_customer_template(
+        resolved_template_id,
+        project_name=body.name,
+        prompt=body.prompt,
+        brief=brief_data,
+    ))
+    build_note = f"Professional starter loaded: {selected_template['name']}"
+
+    name = (body.name or selected_template['name'] or _derive_name(body.prompt))[:80]
     history = [
         BuilderHistoryItem(timestamp=_now(), prompt=body.prompt, role='user'),
         BuilderHistoryItem(timestamp=_now(), prompt=build_note, role='assistant', snapshot=html),
     ]
     quality_report = evaluate_landing_page_quality(html, brief_data)
     project = BuilderProject(
-        user_id=user['id'], name=name, prompt=body.prompt, template_id=body.template_id, brief=body.brief,
+        user_id=user['id'], name=name, prompt=body.prompt, template_id=resolved_template_id, brief=body.brief,
         quality_report=quality_report, html_content=html, history=history,
     )
     await db.builder_projects.insert_one(project.model_dump())
