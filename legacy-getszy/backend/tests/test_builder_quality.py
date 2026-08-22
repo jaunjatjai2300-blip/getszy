@@ -4,6 +4,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from builder_quality import evaluate_landing_page_quality
+from template_catalog import render_customer_template
 
 
 PROFESSIONAL_PAGE = """<!DOCTYPE html>
@@ -51,6 +52,33 @@ def test_quality_preflight_identifies_missing_mobile_and_conversion_foundations(
     assert report["status"] == "needs_work"
     assert {"document_shell", "mobile_viewport", "page_title", "primary_cta", "responsive_rules"} <= failed
     assert report["next_actions"]
+
+
+def test_curated_dance_starter_meets_customer_quality_foundations():
+    html = render_customer_template(
+        "dance-academy",
+        project_name="Solaour Dance Academy",
+        prompt="Build a premium dance academy landing page",
+        brief={"primary_goal": "Collect qualified leads", "primary_cta": "Plan a visit", "offer": "Kathak and contemporary classes in Jaipur"},
+    )
+    report = evaluate_landing_page_quality(html, {"primary_goal": "Collect qualified leads", "primary_cta": "Plan a visit"})
+
+    assert report["status"] == "ready_for_human_review"
+    assert report["required_checks_passed"] == report["required_checks_total"]
+
+
+def test_quality_preflight_blocks_generic_placeholder_claims_and_fake_contacts():
+    generic = PROFESSIONAL_PAGE.replace(
+        "<section id=\"cta\"><button>Book a demo</button></section>",
+        "<section>What Our Students Say<br>Student Name<br>“[Add authentic testimonial here.]”</section><section id=\"cta\"><button>Book a demo</button></section>"
+    ).replace("Privacy policy", "Free Trial Guarantee · 123 Rhythm Street · +1 234 567 890 · info@example.com")
+    report = evaluate_landing_page_quality(generic, {"primary_cta": "Book a demo"})
+    checks = {check["key"]: check for check in report["checks"]}
+
+    assert report["status"] == "needs_work"
+    assert not checks["no_placeholder_content"]["passed"]
+    assert not checks["no_fake_contacts"]["passed"]
+    assert not checks["no_unsupported_promises"]["passed"]
 
 
 def test_quality_preflight_requires_privacy_for_lead_capture_forms():

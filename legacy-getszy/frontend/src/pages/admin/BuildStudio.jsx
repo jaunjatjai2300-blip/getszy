@@ -14,6 +14,8 @@ import { toast } from "sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 const PREVIEW_TEMPLATE_FALLBACK = [
+  { id: "dance-academy", name: "Dance Academy", industry: "Dance & Performing Arts", source: "Getszy curated" },
+  { id: "brand-foundation", name: "Professional Brand Foundation", industry: "General Business", source: "Getszy curated" },
   { id: "saas-app", name: "SaaS App Launch", industry: "Technology & SaaS" },
   { id: "agency-digital", name: "Digital Agency", industry: "Professional Services" },
   { id: "business-startup", name: "Startup Launch", industry: "Business" },
@@ -126,6 +128,10 @@ function BuilderDialog({ category, onClose }) {
 // ============================================================
 // 1) Web App Builder
 // ============================================================
+function recommendedStarterId(value) {
+  return /\bdance\b/i.test(String(value || "")) ? "dance-academy" : "brand-foundation";
+}
+
 function WebAppBuilder({ color }) {
   const navigate = useNavigate();
   const [prompt, setPrompt] = useState("");
@@ -138,8 +144,9 @@ function WebAppBuilder({ color }) {
   const [showBrief, setShowBrief] = useState(false);
   const [proofPoints, setProofPoints] = useState("");
   const [brief, setBrief] = useState({ audience: "", primary_goal: "", primary_cta: "", brand_name: "", visual_style: "", offer: "" });
-  const [templateId, setTemplateId] = useState("");
+  const [templateId, setTemplateId] = useState("brand-foundation");
   const [templates, setTemplates] = useState(PREVIEW_TEMPLATE_FALLBACK);
+  const [templateChosen, setTemplateChosen] = useState(false);
   const [creditInfo, setCreditInfo] = useState({ credits: null, costs: {} });
   const [createdProject, setCreatedProject] = useState(null);
   const isReadOnlyPreview = typeof window !== "undefined" && window.location.hostname.startsWith("preview.");
@@ -152,20 +159,18 @@ function WebAppBuilder({ color }) {
   useEffect(() => {
     try {
       const draft = JSON.parse(sessionStorage.getItem("getszy_mission_draft") || "null");
-      if (draft?.prompt) setPrompt((current) => current || draft.prompt);
+      if (draft?.prompt) { setPrompt((current) => current || draft.prompt); setTemplateId(recommendedStarterId(draft.prompt)); }
     } catch { /* An invalid local mission draft must never block a customer build. */ }
   }, []);
 
-  const isStarter = Boolean(templateId);
-  const buildCost = isStarter ? 0 : Number(creditInfo.costs?.builder_website ?? 0);
-  const hasEnoughCredits = creditInfo.credits === null || isStarter || creditInfo.credits >= buildCost;
+  const curatedTemplates = templates.filter((template) => template.source === "Getszy curated");
+  const isStarter = true;
+  const buildCost = 0;
+  const hasEnoughCredits = true;
 
   const build = async () => {
     if (prompt.trim().length < 4) return toast.error("Prompt too short");
-    if (!isStarter && creditInfo.credits !== null && !hasEnoughCredits) return toast.error(`Not enough credits. This custom build needs ${buildCost} credits; you have ${creditInfo.credits}.`);
-    const confirmation = isStarter
-      ? "Load this professional starter? It does not consume AI generation credits."
-      : `Start this custom build? Getszy will ask the server to deduct ${buildCost} credits only if the build request is accepted.`;
+    const confirmation = "Create this curated professional private draft? It does not consume AI generation credits. Any later AI refinement or visual action will show its prepaid cost before you confirm.";
     if (!window.confirm(confirmation)) return;
     setCreatedProject(null);
     setBusy(true); toast.loading("Creating your private project draft…", { id: "wa", duration: 60000 });
@@ -176,7 +181,7 @@ function WebAppBuilder({ color }) {
       };
       const r = await api.post("/builder/projects", { prompt, name, template_id: templateId || null, brief: normalizedBrief });
       toast.success(`Built: ${r.data.name} ✅`, { id: "wa" });
-      setPrompt(""); setName(""); setProofPoints(""); setTemplateId("");
+      setPrompt(""); setName(""); setProofPoints(""); setTemplateId("brand-foundation"); setTemplateChosen(false);
       setBrief({ audience: "", primary_goal: "", primary_cta: "", brand_name: "", visual_style: "", offer: "" });
       setPreviewId(r.data.id); setPreviewQuality(r.data.quality_report || null); setCreatedProject(r.data); sessionStorage.setItem("getszy_last_project_id", r.data.id); await Promise.all([load(), loadCredits()]);
     } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "wa" }); }
@@ -188,12 +193,12 @@ function WebAppBuilder({ color }) {
   return (
     <div className="space-y-4 mt-4">
       <div className="rounded-xl border p-3" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface)" }}>
-        <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gs-teal)]" /><div><div className="text-sm font-semibold">Start from a professional industry layout</div><p className="mt-0.5 text-xs text-[var(--gs-muted)]">Choose an MIT-licensed starter for a stronger visual foundation, then personalize it with your brief. A starter does not consume generation credits; AI custom builds do.</p></div></div>
-        <div className="mt-3"><label className="text-xs text-[var(--gs-muted)]">Professional starter</label><Select value={templateId || "custom"} onValueChange={(value) => setTemplateId(value === "custom" ? "" : value)}><SelectTrigger data-testid="wa-template"><SelectValue placeholder="Start from a custom AI build" /></SelectTrigger><SelectContent className="max-h-72"><SelectItem value="custom">Custom AI build — no starter</SelectItem>{templates.map((template) => <SelectItem key={template.id} value={template.id}>{template.name} · {template.industry}</SelectItem>)}</SelectContent></Select></div>
+        <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gs-teal)]" /><div><div className="text-sm font-semibold">Start from a curated professional visual system</div><p className="mt-0.5 text-xs text-[var(--gs-muted)]">Getszy no longer sends initial customer projects to a generic open-ended AI page generator. Start from an image-led curated foundation, then add verified business details and paid refinements only when you choose them.</p></div></div>
+        <div className="mt-3"><label className="text-xs text-[var(--gs-muted)]">Curated professional starter</label><Select value={templateId} onValueChange={(value) => { setTemplateId(value); setTemplateChosen(true); }}><SelectTrigger data-testid="wa-template"><SelectValue /></SelectTrigger><SelectContent className="max-h-72">{curatedTemplates.map((template) => <SelectItem key={template.id} value={template.id}>{template.name} · {template.industry}</SelectItem>)}</SelectContent></Select></div>
       </div>
       <div>
         <label className="text-xs text-[var(--gs-muted)]">What should this page achieve? *</label>
-        <Textarea rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Build a modern landing page for a Kathak dance academy in Jaipur…" data-testid="wa-prompt"/>
+        <Textarea rows={3} value={prompt} onChange={(e) => { const value = e.target.value; setPrompt(value); if (!templateChosen) setTemplateId(recommendedStarterId(value)); }} placeholder="Build a premium landing page for a Kathak dance academy in Jaipur…" data-testid="wa-prompt"/>
       </div>
       <div>
         <label className="text-xs text-[var(--gs-muted)]">Name (optional)</label>
@@ -220,14 +225,13 @@ function WebAppBuilder({ color }) {
         )}
       </div>
       <div className="rounded-xl border px-3 py-3 text-sm" style={{ borderColor: hasEnoughCredits ? "var(--gs-border)" : "#f5b6b6", background: hasEnoughCredits ? "var(--gs-surface-2)" : "#fff4f4" }}>
-        <div className="flex flex-wrap items-center justify-between gap-2"><div className="font-semibold">{isStarter ? "Professional starter" : "Custom AI build"}</div><div className="rounded-full bg-white px-2.5 py-1 text-xs font-bold">{isStarter ? "0 credits" : `${buildCost || "—"} credits`}</div></div>
-        <p className="mt-1 text-xs text-[var(--gs-muted)]">{isStarter ? "A starter loads an editable licensed layout without AI generation charges." : `Available balance: ${creditInfo.credits === null ? "loading…" : `${creditInfo.credits} credits`}. The server performs the final balance check and atomic deduction when you confirm.`}</p>
-        {!hasEnoughCredits && <p className="mt-2 text-xs font-semibold text-rose-700">You need more credits before this custom build can start.</p>}
+        <div className="flex flex-wrap items-center justify-between gap-2"><div className="font-semibold">Curated professional starter</div><div className="rounded-full bg-white px-2.5 py-1 text-xs font-bold">0 credits</div></div>
+        <p className="mt-1 text-xs text-[var(--gs-muted)]">The first private visual foundation is included. Any later AI refinement or visual-generation action must show its prepaid credit cost before you confirm it.</p>
       </div>
       {isReadOnlyPreview && <div className="rounded-lg border px-3 py-2 text-xs text-[var(--gs-muted)]" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}>Preview mode is read-only: you can inspect the professional brief, cost and starter options, but creation remains disabled until this feature is approved and promoted through the release process.</div>}
       <Button onClick={build} disabled={busy || isReadOnlyPreview || !hasEnoughCredits} className="w-full text-white" style={{ background: color }} data-testid="wa-build-btn">
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
-        {busy ? "Preparing…" : isReadOnlyPreview ? "Preview mode — creation disabled" : templateId ? "Create Professional Starter" : "Build Custom Web App"}
+        {busy ? "Preparing…" : isReadOnlyPreview ? "Preview mode — creation disabled" : "Create Professional Private Draft"}
       </Button>
 
       <div className="rounded-xl border p-3 text-sm" style={{ borderColor: busy ? "#9dc9ee" : "var(--gs-border)", background: busy ? "#f0f8ff" : "var(--gs-surface-2)" }} aria-live="polite" data-testid="wa-build-status">

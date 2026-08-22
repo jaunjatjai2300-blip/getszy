@@ -9,9 +9,12 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List
+from html import escape
+import re
 
 
 _TEMPLATE_ROOT = Path(__file__).parent / "starter_templates" / "jaks"
+_GETSZY_TEMPLATE_ROOT = Path(__file__).parent / "starter_templates" / "getszy"
 
 
 def _template(
@@ -21,6 +24,9 @@ def _template(
     industry: str,
     outcome: str,
     description: str,
+    collection: str = "jaks",
+    source: str = "JAKS.dev Vault",
+    license_name: str = "MIT",
 ) -> Dict[str, str]:
     return {
         "id": template_id,
@@ -29,12 +35,15 @@ def _template(
         "industry": industry,
         "outcome": outcome,
         "description": description,
-        "source": "JAKS.dev Vault",
-        "license": "MIT",
+        "source": source,
+        "license": license_name,
+        "collection": collection,
     }
 
 
 TEMPLATE_CATALOG: List[Dict[str, str]] = [
+    _template("dance-academy", "dance-academy-premium.html", "Dance Academy", "Dance & Performing Arts", "Capture class enquiries", "A Getszy-curated, image-led dance-academy landing-page starter with private-review safeguards.", "getszy", "Getszy curated", "Getszy customer starter"),
+    _template("brand-foundation", "brand-foundation-premium.html", "Professional Brand Foundation", "General Business", "Present a confirmed offer professionally", "A Getszy-curated, image-led first professional landing-page foundation for any business category.", "getszy", "Getszy curated", "Getszy customer starter"),
     _template("saas-app", "saas-app-landing.html", "SaaS App Launch", "Technology & SaaS", "Start trials or book demos", "A conversion-focused product landing page with a clear software offer."),
     _template("saas-dashboard", "saas-cloud-dashboard.html", "Cloud Dashboard", "Technology & SaaS", "Explain a platform or portal", "A product-led starter for cloud, analytics and AI platforms."),
     _template("agency-digital", "agency-digital.html", "Digital Agency", "Professional Services", "Generate qualified enquiries", "A services-first agency site with capability and project sections."),
@@ -78,11 +87,62 @@ def get_template(template_id: str | None) -> Dict[str, str] | None:
     return next((entry for entry in TEMPLATE_CATALOG if entry["id"] == template_id), None)
 
 
+def recommend_template_id(prompt: str, brief: Dict[str, Any] | None = None) -> str:
+    """Choose a conservative visual starter for a first landing-page draft.
+
+    The recommendation is deterministic and intentionally avoids a generic AI layout as
+    the default launch path. Customers can choose a different licensed starter in the
+    workspace, but direct API callers receive the same professional baseline.
+    """
+    brief = brief or {}
+    text = " ".join([
+        str(prompt or ""), str(brief.get("offer") or ""),
+        str(brief.get("audience") or ""), str(brief.get("visual_style") or ""),
+    ]).lower()
+    rules = [
+        (("dance",), "dance-academy"),
+
+    ]
+    for keywords, template_id in rules:
+        if any(keyword in text for keyword in keywords):
+            return template_id
+    return "brand-foundation"
+
+
 def load_template_html(template_id: str) -> str:
     entry = get_template(template_id)
     if not entry:
         raise KeyError(template_id)
-    template_path = (_TEMPLATE_ROOT / entry["filename"]).resolve()
-    if template_path.parent != _TEMPLATE_ROOT.resolve() or not template_path.is_file():
+    root = _GETSZY_TEMPLATE_ROOT if entry.get("collection") == "getszy" else _TEMPLATE_ROOT
+    template_path = (root / entry["filename"]).resolve()
+    if template_path.parent != root.resolve() or not template_path.is_file():
         raise FileNotFoundError(entry["filename"])
     return template_path.read_text(encoding="utf-8")
+
+
+def _safe_brand_name(value: str | None, fallback: str) -> str:
+    cleaned = re.sub(r"\s+", " ", str(value or "").strip())
+    return cleaned[:80] or fallback
+
+
+def render_customer_template(template_id: str, *, project_name: str | None, prompt: str, brief: Dict[str, Any] | None = None) -> str:
+    """Render a customer-safe starter without demo identity or invented facts."""
+    brief = brief or {}
+    html = load_template_html(template_id)
+    if template_id not in {"dance-academy", "brand-foundation"}:
+        return html
+
+    fallback_brand = "Your Dance Academy" if template_id == "dance-academy" else "Your Brand"
+    brand = _safe_brand_name(brief.get("brand_name") or project_name, fallback_brand)
+    offer = _safe_brand_name(brief.get("offer"), "Explore your real dance classes, workshops and studio experience." if template_id == "dance-academy" else "Present your confirmed offer with a considered visual first impression.")
+    cta = _safe_brand_name(brief.get("primary_cta"), "Plan your first visit" if template_id == "dance-academy" else "Start a conversation")
+    goal = _safe_brand_name(brief.get("primary_goal"), "Professional landing page")
+    replacements = {
+        "{{BRAND_NAME}}": escape(brand),
+        "{{OFFER}}": escape(offer),
+        "{{PRIMARY_CTA}}": escape(cta),
+        "{{PRIMARY_GOAL}}": escape(goal),
+    }
+    for token, value in replacements.items():
+        html = html.replace(token, value)
+    return html
