@@ -4,17 +4,22 @@ import re
 import json
 import zipfile
 import logging
+import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import HTMLResponse, StreamingResponse, Response
 from db import db
-from models import BuilderProject, BuilderProjectIn, BuilderRefineIn, BuilderHistoryItem
+from models import (
+    BuilderProject, BuilderProjectIn, BuilderRefineIn, BuilderHistoryItem,
+    BuilderEvidenceUpdateIn, BuilderVersionIn, BuilderReleaseReviewIn,
+)
 from auth import get_current_user, get_optional_user
 from llm_provider import chat_completion
 from subscription import can_use_studio, increment_studio_builds
 from credits import deduct, refund
 from builder_agents import build_site, refine_element, plan_site, design_site
 from builder_quality import evaluate_landing_page_quality
+from builder_controls import mission_control_state
 from template_catalog import public_template_catalog, get_template, load_template_html
 
 logger = logging.getLogger('getszy.builder')
@@ -226,6 +231,130 @@ async def get_project_quality(pid: str, user=Depends(get_current_user)):
         'brief': project.get('brief') or {},
         'updated_at': project.get('updated_at'),
     }
+
+
+@router.get('/projects/{pid}/controls')
+async def get_project_controls(pid: str, user=Depends(get_current_user)):
+    """Return only customer-owned project controls and transparent review eligibility."""
+    project = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
+    if not project:
+        raise HTTPException(404, 'Project not found')
+    versions = project.get('control_versions') or []
+    control_input = dict(project)
+    control_input['version_count'] = len(versions)
+    state = mission_control_state(control_input)
+    return {
+        'project_id': pid,
+        'state': state,
+        'evidence_items': project.get('evidence_items') or [],
+        'versions': [
+            {'id': item.get('id'), 'label': item.get('label'), 'created_at': item.get('created_at')}
+            for item in versions
+        ],
+        'release_reviews': project.get('release_reviews') or [],
+    }
+
+
+@router.put('/projects/{pid}/evidence')
+async def replace_project_evidence(pid: str, body: BuilderEvidenceUpdateIn, user=Depends(get_current_user)):
+    """Store customer-reviewed evidence; it never publishes or validates a legal claim."""
+    project = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0, 'brief': 1})
+    if not project:
+        raise HTTPException(404, 'Project not found')
+    items = [item.model_dump() for item in body.items]
+    await db.builder_projects.update_one(
+        {'id': pid, 'user_id': user['id']},
+        {'$set': {'evidence_items': items, 'updated_at': _now()}},
+    )
+    refreshed = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
+    control_input = dict(refreshed)
+    control_input['version_count'] = len(refreshed.get('control_versions') or [])
+    return {'ok': True, 'evidence_items': items, 'state': mission_control_state(control_input)}
+
+
+@router.post('/projects/{pid}/versions')
+async def create_project_version(pid: str, body: BuilderVersionIn, user=Depends(get_current_user)):
+    """Create a named customer restore point for builder state. No external deployment is affected."""
+    project = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
+    if not project:
+        raise HTTPException(404, 'Project not found')
+    versions = project.get('control_versions') or []
+    version = {
+        'id': str(uuid.uuid4()),
+        'label': (body.label or '').strip()[:120] or f'Version {len(versions) + 1}',
+        'created_at': _now(),
+        'state': {
+            'html_content': project.get('html_content') or '',
+            'brief': project.get('brief') or {},
+            'evidence_items': project.get('evidence_items') or [],
+            'quality_report': project.get('quality_report') or {},
+            'prompt': project.get('prompt') or '',
+        },
+    }
+    versions.append(version)
+    await db.builder_projects.update_one(
+        {'id': pid, 'user_id': user['id']},
+        {'$set': {'control_versions': versions, 'updated_at': _now()}},
+    )
+    return {'ok': True, 'version': {'id': version['id'], 'label': version['label'], 'created_at': version['created_at']}}
+
+
+@router.post('/projects/{pid}/versions/{version_id}/restore')
+async def restore_project_version(pid: str, version_id: str, user=Depends(get_current_user)):
+    """Restore a customer-owned named builder version. This cannot publish or mutate another project."""
+    project = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
+    if not project:
+        raise HTTPException(404, 'Project not found')
+    version = next((item for item in (project.get('control_versions') or []) if item.get('id') == version_id), None)
+    if not version or not isinstance(version.get('state'), dict):
+        raise HTTPException(404, 'Version not found')
+    state = version['state']
+    html = state.get('html_content') or ''
+    quality_report = evaluate_landing_page_quality(html, state.get('brief') or {})
+    history = project.get('history') or []
+    history.extend([
+        {'timestamp': _now(), 'prompt': f'Restored named version: {version.get("label")}', 'role': 'user', 'snapshot': None},
+        {'timestamp': _now(), 'prompt': 'Named version restored', 'role': 'assistant', 'snapshot': html},
+    ])
+    await db.builder_projects.update_one(
+        {'id': pid, 'user_id': user['id']},
+        {'$set': {
+            'html_content': html,
+            'brief': state.get('brief') or {},
+            'evidence_items': state.get('evidence_items') or [],
+            'quality_report': quality_report,
+            'prompt': state.get('prompt') or project.get('prompt') or '',
+            'history': history,
+            'updated_at': _now(),
+        }},
+    )
+    return {'ok': True, 'restored_version_id': version_id, 'quality_report': quality_report}
+
+
+@router.post('/projects/{pid}/release-review')
+async def request_customer_release_review(pid: str, body: BuilderReleaseReviewIn, user=Depends(get_current_user)):
+    """Record a request for customer review, never a publication or production deployment."""
+    project = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
+    if not project:
+        raise HTTPException(404, 'Project not found')
+    control_input = dict(project)
+    control_input['version_count'] = len(project.get('control_versions') or [])
+    state = mission_control_state(control_input)
+    if not body.confirm_evidence_review:
+        raise HTTPException(422, 'Customer confirmation of evidence review is required')
+    if not state['eligible_for_customer_review']:
+        raise HTTPException(409, 'Project is not eligible for customer review; complete the brief, resolve evidence blockers and run the required quality checks.')
+    review = {
+        'id': str(uuid.uuid4()),
+        'requested_at': _now(),
+        'status': 'ready_for_customer_review',
+        'note': 'This status is not production-ready and does not publish the project.',
+    }
+    await db.builder_projects.update_one(
+        {'id': pid, 'user_id': user['id']},
+        {'$push': {'release_reviews': review}, '$set': {'updated_at': _now()}},
+    )
+    return {'ok': True, 'review': review, 'state': state}
 
 
 @router.get('/projects/{pid}')
