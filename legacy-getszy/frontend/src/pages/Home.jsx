@@ -372,29 +372,23 @@ function Hero({ onAskNeo }) {
               <button onClick={() => navigate("/shop")} className="gs-btn-primary inline-flex items-center gap-2">Shop the Edit <ArrowRight className="h-4 w-4" /></button>
               <button onClick={() => onAskNeo && onAskNeo("What can you do for me?")} className="inline-flex items-center gap-2 font-semibold text-[#A86B5B] hover:gap-3 transition-all">Explore Neo <Sparkles className="h-4 w-4" /></button>
             </div>
-            <p className="mt-7 text-sm text-[#6B625B]">Trusted by 12,000+ women creators · 4.8★ · Made by women, for women</p>
+            <p className="mt-7 text-sm text-[#6B625B]">Made by women, for women — shopping, building & growing under one rooftop.</p>
           </div>
           <div className="lg:col-span-5 relative">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }} className="gs-card relative rounded-[28px] p-5 shadow-[0_30px_80px_rgba(27,26,24,0.18)]">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }} className="gs-card relative rounded-[28px] p-6 shadow-[0_30px_80px_rgba(27,26,24,0.18)]">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#9A8E82]">Today on Getszy</span>
-                <span className="gs-pill bg-[#F3E2C7] text-[#A86B5B]"><Sparkles className="h-3 w-3" /> Neo pick</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#9A8E82]">The Getszy Edit</span>
+                <span className="gs-pill bg-[#F3E2C7] text-[#A86B5B]"><Sparkles className="h-3 w-3" /> Curated</span>
               </div>
-              <div className="mt-4 flex items-start gap-3 rounded-2xl bg-gradient-to-br from-[#F3E2C7] to-[#F6C9B8] p-3">
+              <div className="mt-5 font-display text-3xl text-[#1B1A18] leading-tight">Shop what you love.<br/><span className="text-[#C58B7A] italic">Build what you need.</span></div>
+              <div className="mt-5 flex items-start gap-3 rounded-2xl bg-gradient-to-br from-[#F3E2C7] to-[#F6C9B8] p-3">
                 <div className="h-9 w-9 rounded-full bg-white/70 grid place-items-center"><Bot className="h-5 w-5 text-[#A86B5B]" /></div>
                 <div className="text-sm text-[#5F4535]">Tell me what you're building — I'll plan the brand, site & launch.</div>
               </div>
-              <div className="mt-4 grid grid-cols-3 gap-3">
-                {[{ n: "Linen Co-ord", g: "from-[#D7F0EE] to-[#F3E2C7]" }, { n: "Ceramic Mug", g: "from-[#F6C9B8] to-[#E79C86]" }, { n: "Gold Hoops", g: "from-[#F4DDE6] to-[#F3E2C7]" }].map((t) => (
-                  <div key={t.n} className={"aspect-square rounded-2xl bg-gradient-to-br " + t.g + " flex items-end p-2"}><span className="text-[11px] font-semibold text-[#5F4535] leading-tight">{t.n}</span></div>
-                ))}
+              <div className="mt-5 grid grid-cols-3 gap-3">
+                {["from-[#D7F0EE] to-[#FBF7F2]", "from-[#F6C9B8] to-[#FBF7F2]", "from-[#F4DDE6] to-[#FBF7F2]"].map((g, i) => (<div key={i} className={"aspect-[3/4] rounded-2xl bg-gradient-to-br " + g} />))}
               </div>
             </motion.div>
-            <div className="absolute -bottom-6 -left-6 hidden lg:block">
-              <div className="gs-card rounded-2xl px-4 py-3 shadow-[0_20px_50px_rgba(27,26,24,0.14)] flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-[#2F7E7A]" /> <span className="text-sm font-medium text-[#1B1A18]">12,000+ women earning</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>
