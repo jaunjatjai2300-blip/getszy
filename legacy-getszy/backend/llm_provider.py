@@ -22,11 +22,15 @@ logger = logging.getLogger('getszy.llm')
 # ── Config ────────────────────────────────────────────────────────────────────
 FREE_ONLY        = os.environ.get('FREE_ONLY', 'true').lower() != 'false'
 GROQ_API_KEY     = os.environ.get('GROQ_API_KEY', '').strip()
-# Default to a strong *free* Groq model. The 8B instant model produces weak,
-# "basic" landing pages/scripts; llama-3.3-70b is far higher quality and still
-# free on Groq's tier. The RPM/TPM pacer in this module keeps it within limits.
-GROQ_MODEL       = os.environ.get('GROQ_MODEL', 'llama-3.3-70b-versatile').strip()
+# Live model availability varies by Groq account. The former Llama 3.3 70B
+# default was not available to Getszy's account and caused HTTP 404. Qwen 3.6
+# 27B is confirmed by the account model list and supports long-context, JSON and
+# reasoning workflows used by the professional builder.
+GROQ_MODEL       = os.environ.get('GROQ_MODEL', 'qwen/qwen3.6-27b').strip()
 GEMINI_API_KEY   = os.environ.get('GEMINI_API_KEY', '').strip()
+# Gemini 1.5 Flash is no longer available to this configured key. Keep the model
+# configurable, but default to the confirmed stable 2.5 Flash identifier.
+GEMINI_MODEL     = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash').strip()
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '').strip()
 OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'qwen/qwen-2.5-72b-instruct').strip()
 OLLAMA_BASE_URL  = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
@@ -224,7 +228,8 @@ async def _groq(system: str, user: str, temperature: float, max_tokens: int | No
 async def _gemini(system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
     async with httpx.AsyncClient(timeout=60.0) as client:
         r = await client.post(
-            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}',
+            f'https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent',
+            headers={'x-goog-api-key': GEMINI_API_KEY},
             json={
                 'system_instruction': {'parts': [{'text': system}]},
                 'contents': [{'parts': [{'text': user}]}],
@@ -620,8 +625,8 @@ def provider_info() -> dict:
     return {
         'free_only': FREE_ONLY,
         'providers': {
-            'groq':    {'available': bool(GROQ_API_KEY),   'used_today': groq_used,   'limit': GROQ_DAILY_LIMIT,   'remaining': max(0, GROQ_DAILY_LIMIT - groq_used)},
-            'gemini':  {'available': bool(GEMINI_API_KEY), 'used_today': gemini_used, 'limit': GEMINI_DAILY_LIMIT, 'remaining': max(0, GEMINI_DAILY_LIMIT - gemini_used)},
+            'groq':    {'available': bool(GROQ_API_KEY), 'model': GROQ_MODEL, 'used_today': groq_used, 'limit': GROQ_DAILY_LIMIT, 'remaining': max(0, GROQ_DAILY_LIMIT - groq_used)},
+            'gemini':  {'available': bool(GEMINI_API_KEY), 'model': GEMINI_MODEL, 'used_today': gemini_used, 'limit': GEMINI_DAILY_LIMIT, 'remaining': max(0, GEMINI_DAILY_LIMIT - gemini_used)},
             'ollama':  {'available': True, 'models': OLLAMA_MODELS, 'active_model': OLLAMA_MODELS[0] if OLLAMA_MODELS else None, 'description': '100% free, runs on VPS'},
             'lmstudio':{'available': True, 'model': LMSTUDIO_MODEL, 'base_url': LMSTUDIO_BASE_URL, 'description': '100% free, local OpenAI-compatible'},
             'emergent':{'available': bool(EMERGENT_LLM_KEY) and not FREE_ONLY, 'blocked_by_free_only': FREE_ONLY},
