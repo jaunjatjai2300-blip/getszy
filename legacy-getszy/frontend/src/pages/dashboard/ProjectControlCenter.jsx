@@ -21,8 +21,31 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function stepLabel(value) {
-  return String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+function previewFallbackControls(project) {
+  const quality = project?.quality_report || {};
+  return {
+    previewOnly: true,
+    state: {
+      quality: {
+        status: quality.status || "not_run",
+        score: quality.score,
+        required_checks_passed: quality.required_checks_passed,
+        required_checks_total: quality.required_checks_total,
+      },
+      evidence: { total: 0, approved: 0, needs_confirmation: 0, blocked: 0, expired: 0, has_blockers: false, has_pending: false },
+      eligible_for_customer_review: false,
+      current_step: "controls",
+      steps: [
+        { key: "founder_brief", label: "Founder brief", status: project?.brief ? "done" : "not_started", detail: project?.brief ? "Saved project brief available" : "No saved structured brief available" },
+        { key: "build", label: "Build", status: project?.html_content ? "done" : "not_started", detail: project?.html_content ? "Private output exists" : "No private output exists" },
+        { key: "quality", label: "Quality gate", status: quality.status === "ready_for_human_review" ? "done" : "not_started", detail: quality.status ? String(quality.status).replaceAll("_", " ") : "Quality details are not available" },
+        { key: "controls", label: "Project controls", status: "current", detail: "This preview is read-only; evidence, versions and approvals need the approved backend release" },
+      ],
+    },
+    evidence_items: [],
+    versions: [],
+    release_reviews: [],
+  };
 }
 
 export default function ProjectControlCenter() {
@@ -39,13 +62,15 @@ export default function ProjectControlCenter() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [projectResponse, controlsResponse] = await Promise.all([
-        api.get(`/builder/projects/${projectId}`),
-        api.get(`/builder/projects/${projectId}/controls`),
-      ]);
+      const projectResponse = await api.get(`/builder/projects/${projectId}`);
+      const controlsResponse = await api.get(`/builder/projects/${projectId}/controls`).catch((error) => {
+        if (error?.response?.status === 404) return null;
+        throw error;
+      });
+      const nextControls = controlsResponse?.data || previewFallbackControls(projectResponse.data);
       setProject(projectResponse.data);
-      setControls(controlsResponse.data);
-      setEvidenceItems(controlsResponse.data?.evidence_items || []);
+      setControls(nextControls);
+      setEvidenceItems(nextControls.evidence_items || []);
     } catch (error) {
       toast.error(error?.response?.data?.detail || "Could not load this project");
       setProject(null);
@@ -136,6 +161,7 @@ export default function ProjectControlCenter() {
       </div>
 
       <section className="rounded-3xl border bg-white p-6 sm:p-8" style={{ borderColor: "var(--gs-border)" }}>
+        {controls.previewOnly && <div className="mb-5 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" /><p><strong>Read-only preview.</strong> You can inspect this project’s interface and available quality data here. Evidence saving, named versions, restores and review requests remain disabled until the corresponding backend release is approved and deployed.</p></div>}
         <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[.16em] text-[var(--gs-teal)]">Digital project control centre</div>
