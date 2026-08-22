@@ -11,6 +11,7 @@ import {
   Download, RefreshCw, CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
+import DashboardPageFrame from "@/components/dashboard/DashboardPageFrame";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 const resolveMediaUrl = (url) => url?.startsWith("/") ? `${BACKEND_URL}${url}` : url;
@@ -108,15 +109,14 @@ export default function AITools() {
   const filtered = cat === "all" ? TOOLS : TOOLS.filter(t => t.category === cat);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl flex items-center gap-2">
-          <Wand2 className="h-7 w-7 text-[var(--gs-teal)]"/> AI Tools
-        </h1>
-        <p className="text-sm text-[var(--gs-muted)] mt-1">
-          10 AI-powered tools to design, write, generate, and validate — all in one place.
-        </p>
-      </div>
+    <DashboardPageFrame
+      eyebrow="Create"
+      title="A focused toolkit for your next business move"
+      description="Use specialist AI tools for content, design, media, marketing, and validation. Start with the outcome you need, not a blank prompt."
+      icon={Wand2}
+      metrics={[{ label: "tools", value: TOOLS.length }, { label: "active category", value: cat === "all" ? "All" : CATEGORIES.find((item) => item.id === cat)?.label }]}
+      hint="Choose a category, then use the guided tool form to create an output you can copy, download, or refine."
+    >
 
       <div className="flex flex-wrap gap-1.5">
         {CATEGORIES.map(c => (
@@ -149,7 +149,7 @@ export default function AITools() {
       </div>
 
       {active && <ToolDialog tool={active} onClose={() => setActive(null)}/>}
-    </div>
+    </DashboardPageFrame>
   );
 }
 

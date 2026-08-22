@@ -36,3 +36,45 @@
         level INFO
     }
 }
+
+# Isolated customer-dashboard UI preview. This hostname is intentionally
+# read-only: only sign-in is allowed as a POST so a real customer can inspect
+# their workspace, while all other mutations are rejected before reaching APIs.
+preview.{$DOMAIN} {
+    encode gzip
+
+    header {
+        Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://assets.emergent.sh; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.{$DOMAIN} https://assets.emergent.sh; frame-ancestors 'none'"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    @preview_docs path /docs /docs/* /redoc /redoc/* /openapi.json /api/docs /api/docs/* /api/redoc /api/redoc/* /api/openapi.json
+    handle @preview_docs {
+        respond "Not Found" 404
+    }
+
+    @preview_mutation {
+        method POST PUT PATCH DELETE
+        not path /api/auth/login
+    }
+    handle @preview_mutation {
+        respond "Dashboard preview is read-only. Review the UI here; create, publish, and other write actions are disabled." 405
+    }
+
+    handle /api/* {
+        reverse_proxy backend:8001
+    }
+
+    handle {
+        reverse_proxy getszy-dashboard-preview:80
+    }
+
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+}

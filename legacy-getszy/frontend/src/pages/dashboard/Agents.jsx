@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import PageState from "@/components/dashboard/PageState";
+import DashboardPageFrame from "@/components/dashboard/DashboardPageFrame";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -57,15 +58,14 @@ export default function Agents() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl flex items-center gap-2">
-          <Sparkle className="h-7 w-7 text-[var(--gs-teal)]" /> Expert Agents
-        </h1>
-        <p className="text-sm text-[var(--gs-muted)] mt-1">
-          7 AI specialists ready to help with business, marketing, legal, and more.
-        </p>
-      </div>
+    <DashboardPageFrame
+      eyebrow="Guidance"
+      title="Your expert bench, ready when you are"
+      description="Choose a specialist for business strategy, content, growth, compliance, or customer conversations. Every chat remains in your workspace history."
+      icon={Sparkle}
+      metrics={[{ label: "specialists", value: agents.length || 7 }, { label: "recent threads", value: sessions.length }]}
+      hint="Choose the specialist closest to your current outcome, then start with a concrete business question or draft."
+    >
 
       {error ? (
         <PageState kind="error" title="Couldn't load agents" message={error} onRetry={loadData} />
@@ -149,7 +149,7 @@ export default function Agents() {
           </div>
         </div>
       )}
-    </div>
+    </DashboardPageFrame>
   );
 }
 

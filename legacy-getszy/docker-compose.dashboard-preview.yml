@@ -1,0 +1,25 @@
+# Read-only customer-dashboard preview. This uses a dedicated Compose project and
+# container. It may read through Caddy's preview route, but Caddy rejects all
+# state-changing API methods at the preview hostname.
+#
+# Run with:
+#   docker compose -p getszy-dashboard-preview -f docker-compose.dashboard-preview.yml up -d --build
+services:
+  dashboard-preview:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        # The preview frontend uses same-origin /api paths. Caddy enforces
+        # read-only access at preview.<DOMAIN> before proxying any GET/HEAD.
+        REACT_APP_BACKEND_URL: ""
+    container_name: getszy-dashboard-preview
+    restart: unless-stopped
+    networks: [getszy]
+    labels:
+      getszy.environment: dashboard-preview
+      getszy.access: read-only
+
+networks:
+  getszy:
+    external: true

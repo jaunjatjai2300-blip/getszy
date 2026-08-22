@@ -74,9 +74,9 @@ export default function ChatHome() {
   };
 
   return (
-    <div className="grid grid-cols-12 gap-4 h-[calc(100vh-88px)]" data-testid="admin-chat-home">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-12 xl:h-[calc(100vh-88px)]" data-testid="admin-chat-home">
       {/* Sessions sidebar */}
-      <div className="col-span-12 md:col-span-3 lg:col-span-2">
+      <div className="max-h-64 xl:col-span-3 xl:max-h-none">
         <Card className="p-3 h-full flex flex-col">
           <Button className="w-full bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]/90" onClick={() => startNew()} data-testid="new-chat-btn">
             <Plus className="h-4 w-4 mr-2"/>New chat
@@ -96,7 +96,7 @@ export default function ChatHome() {
       </div>
 
       {/* Main workspace */}
-      <div className="col-span-12 md:col-span-9 lg:col-span-10">
+      <div className="min-h-[68vh] xl:col-span-9 xl:min-h-0">
         {activeId ? (
           <ChatWorkspace key={activeId} sessionId={activeId} onProjectUpdate={loadSessions}/>
         ) : (

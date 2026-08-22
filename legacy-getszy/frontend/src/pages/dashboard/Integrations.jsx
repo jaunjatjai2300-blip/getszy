@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import PageState from "@/components/dashboard/PageState";
+import DashboardPageFrame from "@/components/dashboard/DashboardPageFrame";
 
 export default function Integrations() {
   const [integrations, setIntegrations] = useState([]);
@@ -82,26 +83,22 @@ export default function Integrations() {
   const connectedIds = new Set(connected.map((c) => c.integration_id));
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="font-display text-3xl flex items-center gap-2">
-            <Plug className="h-7 w-7 text-[var(--gs-teal)]" /> Integrations
-          </h1>
-          <p className="text-sm text-[var(--gs-muted)] mt-1">
-            Connect your favorite tools. {integrations.length} integrations available.
-          </p>
-        </div>
+    <DashboardPageFrame
+      eyebrow="Connect"
+      title="Bring your tools into one operating system"
+      description="Find the integrations that fit your workflow, understand their readiness, and join the launch queue for features still in controlled rollout."
+      icon={Plug}
+      metrics={[{ label: "in catalog", value: integrations.length }, { label: "connected", value: connectedIds.size }]}
+      hint="Use search to find your tool, then review its readiness before connecting or joining its launch waitlist."
+      actions={
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-xs">
-            {connectedIds.size} connected
-          </Badge>
-          <button onClick={() => setView(view === "grid" ? "list" : "grid")}
-            className="p-2 rounded-lg hover:bg-[var(--gs-surface-2)]">
+          <Badge variant="outline" className="border-[var(--gs-teal)]/30 bg-[var(--gs-teal)]/10 text-xs text-[var(--gs-teal)]">{connectedIds.size} connected</Badge>
+          <Button variant="outline" size="icon" onClick={() => setView(view === "grid" ? "list" : "grid")} aria-label={view === "grid" ? "Use list view" : "Use grid view"}>
             {view === "grid" ? <List className="h-4 w-4" /> : <Grid3X3 className="h-4 w-4" />}
-          </button>
+          </Button>
         </div>
-      </div>
+      }
+    >
 
       <div className="flex gap-3 items-center">
         <div className="relative flex-1 max-w-md">
@@ -180,7 +177,7 @@ export default function Integrations() {
           </div>
         )}
       </div>
-    </div>
+    </DashboardPageFrame>
   );
 }
 
