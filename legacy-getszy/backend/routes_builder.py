@@ -22,6 +22,7 @@ from builder_agents import (
     plan_site, design_site, review_site,
 )
 from builder_quality import evaluate_landing_page_quality
+from brief_intelligence import BriefIntelligenceError, composition_context, extract_brief_v3
 from builder_controls import mission_control_state
 from template_catalog import public_template_catalog, get_template, recommend_template_id, render_customer_template
 
@@ -197,8 +198,20 @@ async def create_project(body: BuilderProjectIn, user=Depends(get_current_user))
     if not body.prompt.strip():
         raise HTTPException(400, 'Prompt required')
 
-    brief_data = body.brief.model_dump(exclude_none=True) if body.brief else {}
+    customer_brief = body.brief.model_dump(exclude_none=True) if body.brief else {}
     project_id = str(uuid.uuid4())
+
+    # Brief Intelligence runs before any credit deduction. Its strict schema and
+    # conservative support filter ensure only explicit customer facts reach the
+    # page composer; failed extraction never creates a draft or charge.
+    try:
+        extracted_brief = await extract_brief_v3(body.prompt, session_id=f'professional-{project_id}')
+    except BriefIntelligenceError as exc:
+        raise HTTPException(
+            422,
+            'Getszy could not verify a structured brief from this request. Add clear business details and try again; no credit has been consumed.',
+        ) from exc
+    brief_data = composition_context(extracted_brief, customer_brief)
     charged = user.get('role') not in ('admin', 'founder')
     ok, message, _balance_after = await deduct(
         user['id'],
@@ -247,6 +260,7 @@ async def create_project(body: BuilderProjectIn, user=Depends(get_current_user))
             prompt=body.prompt,
             template_id=None,
             brief=body.brief,
+            brief_intelligence=extracted_brief.model_dump(),
             quality_report=quality_report,
             html_content=html,
             history=history,
