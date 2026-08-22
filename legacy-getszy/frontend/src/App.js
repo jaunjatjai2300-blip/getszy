@@ -21,6 +21,9 @@ import AdminLayout from "@/components/AdminLayout";
 import VideoStudio from "@/pages/dashboard/VideoStudio";
 import DashboardBuild from "@/pages/dashboard/BuildStudio";
 import DashboardLayout from "@/components/DashboardLayout";
+import MissionWorkspace from "@/pages/dashboard/MissionWorkspace";
+import MyGetszy from "@/pages/dashboard/MyGetszy";
+import ProjectControlCenter from "@/pages/dashboard/ProjectControlCenter";
 import LabsHome from "@/pages/labs/LabsHome";
 import CommandPalette from "@/components/ux/CommandPalette";
 import OnboardingTour from "@/components/onboarding/OnboardingTour";
@@ -255,7 +258,9 @@ export default function App() {
           </Route>
 
           <Route path="/dashboard" element={<DashboardLayout />}>
-            <Route index element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />
+            <Route index element={<MissionWorkspace />} />
+            <Route path="my-getszy" element={<MyGetszy />} />
+            <Route path="projects/:projectId" element={<ProjectControlCenter />} />
             <Route path="chat" element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />
             <Route path="chat/:sessionId" element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />
             <Route path="projects" element={<Suspense fallback={<AdminFallback />}><AdminChatHome /></Suspense>} />

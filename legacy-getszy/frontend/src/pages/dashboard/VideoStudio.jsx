@@ -148,9 +148,9 @@ export default function VideoStudio() {
   const selectedScript = (stages.script_variants || []).find(v => v.id === project?.selected_script_id) || (stages.script_variants || [])[0];
 
   return (
-    <div className="grid grid-cols-12 gap-4 h-[calc(100vh-120px)]" data-testid="video-studio-page">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-12 xl:h-[calc(100vh-120px)]" data-testid="video-studio-page">
       {/* Sidebar: Projects list + new project */}
-      <Card className="col-span-3 flex flex-col overflow-hidden">
+      <Card className="flex max-h-[560px] flex-col overflow-hidden xl:col-span-3 xl:max-h-none">
         <div className="p-3 border-b" style={{ borderColor: "var(--gs-border)" }}>
           <div className="flex items-center gap-2 mb-2">
             <Film className="h-4 w-4 text-[var(--gs-teal)]"/>
@@ -158,13 +158,17 @@ export default function VideoStudio() {
             <Badge className="ml-auto text-[9px] bg-[var(--gs-teal)]">v2</Badge>
           </div>
           <Textarea
-            placeholder="Video idea (e.g. 'Explain AI agents in 5 min Hinglish for students')"
+            placeholder="Describe the platform, audience, outcome, duration and CTA — e.g. '45-second Hindi Instagram reel for D2C skincare buyers explaining SPF 50, ending with Shop the sunscreen'"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            rows={3}
+            rows={4}
             className="text-xs mb-2"
             data-testid="video-prompt-input"
           />
+          <div className="mb-2 rounded-lg border px-2.5 py-2" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}>
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[var(--gs-ink)]"><ListChecks className="h-3.5 w-3.5 text-[var(--gs-teal)]" />Professional video brief</div>
+            <p className="mt-1 text-[10px] leading-relaxed text-[var(--gs-muted)]">For stronger output, include the platform, viewer, single takeaway, format/duration, brand constraints, real product facts, and one CTA. Review facts, claims, music rights, and people depicted before rendering or publishing.</p>
+          </div>
           <div className="mb-2">
             <div className="text-[10px] uppercase text-[var(--gs-muted)] mb-1 tracking-wider">Templates (1-click)</div>
             <div className="flex flex-wrap gap-1.5">
@@ -183,7 +187,7 @@ export default function VideoStudio() {
             </div>
           </div>
           <div className="mb-2">
-            <div className="text-[10px] uppercase text-[var(--gs-muted)] mb-1 tracking-wider">Trending angles 🔥</div>
+            <div className="text-[10px] uppercase text-[var(--gs-muted)] mb-1 tracking-wider">Starter angles</div>
             <div className="flex flex-wrap gap-1.5">
               {TRENDING.map(t => (
                 <button key={t.id} type="button" onClick={() => setPrompt(t.angle)} className="text-[10px] px-2 py-1 rounded-full border bg-white hover:bg-[var(--gs-teal)]/10" style={{ borderColor: "var(--gs-border)" }} data-testid={`vf-trend-${t.id}`}>
@@ -199,8 +203,9 @@ export default function VideoStudio() {
             data-testid="video-create-btn"
           >
             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin"/> : <Sparkle className="h-3.5 w-3.5"/>}
-            Start factory
+            Create private draft
           </Button>
+          <p className="mt-2 text-center text-[10px] text-[var(--gs-muted)]">Private draft first: review research, scripts, hooks, storyboard and visual plan before render.</p>
         </div>
         <div className="flex-1 overflow-y-auto p-2">
           <div className="text-[10px] uppercase text-[var(--gs-muted)] px-2 mb-1 tracking-wider">Projects ({projects.length})</div>
@@ -230,7 +235,7 @@ export default function VideoStudio() {
       </Card>
 
       {/* Main workspace */}
-      <div className="col-span-9 overflow-hidden flex flex-col">
+      <div className="flex min-h-[65vh] flex-col overflow-hidden xl:col-span-9 xl:min-h-0">
         {!project ? (
           <Card className="flex-1 grid place-items-center text-center p-12">
             <div>
