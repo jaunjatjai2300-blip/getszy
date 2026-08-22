@@ -233,7 +233,7 @@ function HooksMemes() {
             <label className="text-xs font-medium">Hooks</label>
             <Input type="number" min={1} max={10} value={count} onChange={(e) => setCount(Number(e.target.value) || 5)} className="w-20" />
             <label className="flex items-center gap-1.5 text-xs ml-auto cursor-pointer">
-              <input type="checkbox" checked={blend} onChange={(e) => setBlend(e.target.checked)} /> Blend live trends
+              <input type="checkbox" checked={blend} onChange={(e) => setBlend(e.target.checked)} /> Blend trend-inspired patterns
             </label>
           </div>
           <Button onClick={genHooks} disabled={busy} className="w-full bg-rose-600 hover:bg-rose-700" data-testid="hook-generate">
@@ -283,10 +283,13 @@ function Avatars() {
   const [twinScript, setTwinScript] = useState("");
   const [photoRes, setPhotoRes] = useState(null);
   const [twinRes, setTwinRes] = useState(null);
+  const [avatarConsent, setAvatarConsent] = useState(false);
+  const [twinConsent, setTwinConsent] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const photoToAvatar = async () => {
     if (!portrait || !voice || script.trim().length < 2) return toast.error("Need photo, voice sample & script");
+    if (!avatarConsent) return toast.error("Confirm that you have permission to use this person’s portrait and voice");
     setBusy(true); setPhotoRes({ status: "queued" });
     try {
       const fd = new FormData();
@@ -298,6 +301,7 @@ function Avatars() {
   };
   const digitalTwin = async () => {
     if (!twinVideo || !twinPortrait || twinScript.trim().length < 2) return toast.error("Need video, portrait & script");
+    if (!twinConsent) return toast.error("Confirm that you have permission to create this digital twin");
     setBusy(true); setTwinRes({ status: "queued" });
     try {
       const fd = new FormData();
@@ -320,7 +324,8 @@ function Avatars() {
           <select value={expr} onChange={(e) => setExpr(e.target.value)} className="rounded-lg border bg-white px-2 py-1 text-sm">
             {["neutral", "happy", "excited", "urgent", "calm"].map((x) => <option key={x} value={x}>{x}</option>)}
           </select>
-          <Button onClick={photoToAvatar} disabled={busy} className="w-full" data-testid="photo-to-avatar">
+          <label className="flex items-start gap-2 rounded-lg border p-2 text-xs" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}><input type="checkbox" checked={avatarConsent} onChange={(e) => setAvatarConsent(e.target.checked)} className="mt-0.5" /><span>I confirm that I have permission to use this person’s portrait and voice for this output. I will review the final video, claims, disclosures, and platform rules before publishing.</span></label>
+          <Button onClick={photoToAvatar} disabled={busy || !avatarConsent} className="w-full" data-testid="photo-to-avatar">
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />} Create Talking Avatar
           </Button>
           <ResultView data={photoRes} kind="video" />
@@ -332,8 +337,9 @@ function Avatars() {
           <FileField label="Short video of you speaking" accept="video/*" onChange={setTwinVideo} file={twinVideo} />
           <FileField label="Clear portrait photo" accept="image/*" onChange={setTwinPortrait} file={twinPortrait} />
           <label className="text-xs font-medium">Script</label>
-          <Textarea value={twinScript} onChange={(e) => setTwinScript(e.target.value)} rows={2} placeholder="Your cloned voice will say this." />
-          <Button onClick={digitalTwin} disabled={busy} className="w-full" data-testid="digital-twin">
+          <Textarea value={twinScript} onChange={(e) => setTwinScript(e.target.value)} rows={2} placeholder="What should the presenter say? Include only approved claims and product facts." />
+          <label className="flex items-start gap-2 rounded-lg border p-2 text-xs" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}><input type="checkbox" checked={twinConsent} onChange={(e) => setTwinConsent(e.target.checked)} className="mt-0.5" /><span>I confirm I have explicit permission from the person depicted to create and use this digital twin. I will not use it to mislead viewers or impersonate someone without consent.</span></label>
+          <Button onClick={digitalTwin} disabled={busy || !twinConsent} className="w-full" data-testid="digital-twin">
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mic className="mr-2 h-4 w-4" />} Build Digital Twin
           </Button>
           <ResultView data={twinRes} kind="video" />

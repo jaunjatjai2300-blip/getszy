@@ -23,6 +23,16 @@ const AGENT_ICONS = {
   'sales-outreach': Handshake,
 };
 
+const AGENT_STARTERS = {
+  'business-advisor': ["Help me validate this offer. Give me the target customer, problem, positioning, risks, and next 3 tests: ", "Create a practical 30-day growth plan for this business. Ask only the missing questions first: "],
+  'creative-writer': ["Write three distinct landing-page headline and CTA directions for this offer. Explain the audience and promise behind each: ", "Turn this rough idea into a reel script with hook, beats, on-screen text, CTA, and platform caption: "],
+  'seo-consultant': ["Build an SEO brief for this page: audience intent, primary keyword, supporting keywords, title, meta description, headings, and internal-link ideas: "],
+  'marketing-planner': ["Create a focused campaign plan for this offer: objective, audience, message, channel mix, budget assumptions, metrics, and weekly actions: "],
+  'legal-advisor': ["List the compliance questions and documents I should review before launching this business idea in India. Flag what needs a qualified legal professional: "],
+  'customer-comms': ["Create a customer-support pack for this situation: empathetic reply, FAQ answer, escalation rule, and follow-up message: "],
+  'sales-outreach': ["Create a respectful outreach sequence for this target customer. Include research angle, first message, follow-up, objection response, and opt-out-safe wording: "],
+};
+
 export default function Agents() {
   const [agents, setAgents] = useState([]);
   const [activeAgent, setActiveAgent] = useState(null);
@@ -234,9 +244,17 @@ function AgentChat({ agent, initialSessionId, onBack }) {
 
       <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pb-4">
         {messages.length === 0 && (
-          <div className="text-center py-12 text-[var(--gs-muted)]">
+          <div className="mx-auto max-w-2xl py-8 text-center text-[var(--gs-muted)]">
             <div className="text-4xl mb-3">{agent.avatar}</div>
-            <p className="text-sm">Ask {agent.name} anything...</p>
+            <p className="text-sm font-medium text-[var(--gs-ink)]">Start with an outcome, not a vague question</p>
+            <p className="mx-auto mt-1 max-w-lg text-xs">Include the customer, offer, goal, constraints, and any real facts you already have. Review important business, legal, financial, or customer-facing claims before acting on them.</p>
+            <div className="mx-auto mt-4 grid max-w-xl gap-2 text-left">
+              {(AGENT_STARTERS[agent.id] || ["Help me create a clear action plan for this goal: "]).map((starter) => (
+                <button key={starter} type="button" onClick={() => setInput(starter)} className="rounded-xl border px-3 py-3 text-left text-xs hover:bg-[var(--gs-surface-2)]" style={{ borderColor: "var(--gs-border)" }}>
+                  <span className="font-medium text-[var(--gs-ink)]">Use a structured brief</span><span className="block mt-1 line-clamp-2">{starter}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {messages.map((m, i) => (
@@ -285,7 +303,7 @@ function AgentChat({ agent, initialSessionId, onBack }) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
-          placeholder={`Ask ${agent.name}...`}
+          placeholder={`Give ${agent.name} the customer, goal and context…`}
           disabled={busy}
           className="flex-1"
         />
