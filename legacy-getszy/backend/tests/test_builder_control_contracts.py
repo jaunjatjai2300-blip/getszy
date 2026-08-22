@@ -8,6 +8,7 @@ os.environ.setdefault('MONGO_URL', 'mongodb://127.0.0.1:27017')
 os.environ.setdefault('JWT_SECRET', 'test-only-builder-control-contract-secret')
 
 from models import BuilderEvidenceItem, BuilderEvidenceUpdateIn, BuilderReleaseReviewIn, BuilderVersionIn, BuilderProjectIn
+from brief_intelligence import BriefIntelligenceV3
 import routes_builder as builder_routes
 from routes_builder import router, create_project
 
@@ -46,7 +47,11 @@ async def test_new_page_uses_managed_composition_and_saves_private_draft(monkeyp
     async def fake_compose(*args, **kwargs):
         return "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width'><title>Beauty Studio</title><meta name='description' content='Beauty appointments'></head><body><header><a>Book now</a></header><main><section><h1>Beauty Studio</h1></section><section><p>How it works</p></section><section><button>Book now</button></section></main><footer></footer><style>@media (max-width:600px){body{padding:1rem}} .hero{background:linear-gradient(#123,#456)}</style></body></html>"
 
+    async def fake_extract(*args, **kwargs):
+        return BriefIntelligenceV3(business_name='Beauty Studio', primary_goal='Bookings', cta='Book now')
+
     monkeypatch.setattr(builder_routes, 'db', fake_db)
+    monkeypatch.setattr(builder_routes, 'extract_brief_v3', fake_extract)
     monkeypatch.setattr(builder_routes, 'deduct', fake_deduct)
     monkeypatch.setattr(builder_routes, 'compose_site_fast', fake_compose)
     result = await create_project(
@@ -73,6 +78,10 @@ async def test_failed_composition_refunds_customer_credit(monkeypatch):
         refunds.append((args, kwargs))
         return 100
 
+    async def fake_extract(*args, **kwargs):
+        return BriefIntelligenceV3(business_name='Beauty Studio')
+
+    monkeypatch.setattr(builder_routes, 'extract_brief_v3', fake_extract)
     monkeypatch.setattr(builder_routes, 'deduct', fake_deduct)
     monkeypatch.setattr(builder_routes, 'compose_site_fast', fail_compose)
     monkeypatch.setattr(builder_routes, 'refund', fake_refund)

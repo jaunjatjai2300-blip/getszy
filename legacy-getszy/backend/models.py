@@ -331,6 +331,7 @@ class BuilderProject(BaseModel):
     template_id: Optional[str] = None
     brief: Optional[BuilderQualityBrief] = None
     quality_report: Optional[Dict[str, Any]] = None
+    brief_intelligence: Optional[Dict[str, Any]] = None
     evidence_items: List[BuilderEvidenceItem] = []
     release_reviews: List[Dict[str, Any]] = []
     html_content: str = ''
