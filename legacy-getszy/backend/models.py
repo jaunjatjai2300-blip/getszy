@@ -284,6 +284,27 @@ class BuilderQualityBrief(BaseModel):
     proof_points: List[str] = Field(default_factory=list, max_length=6)
 
 
+class BuilderEvidenceItem(BaseModel):
+    id: str = Field(default_factory=_id)
+    claim: str = Field(..., min_length=1, max_length=500)
+    source: str = Field(..., min_length=1, max_length=500)
+    status: str = Field(default='needs_confirmation', pattern='^(approved|needs_confirmation|blocked|expired)$')
+    notes: Optional[str] = Field(None, max_length=1000)
+    updated_at: str = Field(default_factory=_now)
+
+
+class BuilderEvidenceUpdateIn(BaseModel):
+    items: List[BuilderEvidenceItem] = Field(default_factory=list, max_length=100)
+
+
+class BuilderVersionIn(BaseModel):
+    label: Optional[str] = Field(None, max_length=120)
+
+
+class BuilderReleaseReviewIn(BaseModel):
+    confirm_evidence_review: bool = False
+
+
 class BuilderProjectIn(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=4000)
     name: Optional[str] = Field(None, max_length=120)
@@ -310,6 +331,8 @@ class BuilderProject(BaseModel):
     template_id: Optional[str] = None
     brief: Optional[BuilderQualityBrief] = None
     quality_report: Optional[Dict[str, Any]] = None
+    evidence_items: List[BuilderEvidenceItem] = []
+    release_reviews: List[Dict[str, Any]] = []
     html_content: str = ''
     history: List[BuilderHistoryItem] = []
     created_at: str = Field(default_factory=_now)
