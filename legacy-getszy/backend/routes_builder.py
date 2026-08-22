@@ -15,7 +15,6 @@ from models import (
 )
 from auth import get_current_user, get_optional_user
 from llm_provider import chat_completion
-from subscription import can_use_studio, increment_studio_builds
 from credits import deduct, refund
 from builder_agents import build_site, refine_element, plan_site, design_site
 from builder_quality import evaluate_landing_page_quality
@@ -208,7 +207,6 @@ async def create_project(body: BuilderProjectIn, user=Depends(get_current_user))
         quality_report=quality_report, html_content=html, history=history,
     )
     await db.builder_projects.insert_one(project.model_dump())
-    await increment_studio_builds(user['id'])
     return project.model_dump()
 
 
@@ -392,7 +390,6 @@ async def refine_project(pid: str, body: BuilderRefineIn, user=Depends(get_curre
             'prompt': body.prompt, 'quality_report': quality_report,
         }},
     )
-    await increment_studio_builds(user['id'])
     return await db.builder_projects.find_one({'id': pid}, {'_id': 0})
 
 
@@ -515,7 +512,6 @@ async def refine_project_element(pid: str, body: dict, user=Depends(get_current_
             'quality_report': quality_report,
         }},
     )
-    await increment_studio_builds(user['id'])
     return await db.builder_projects.find_one({'id': pid}, {'_id': 0})
 
 

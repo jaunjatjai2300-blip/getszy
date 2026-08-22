@@ -9,15 +9,46 @@ from pydantic import BaseModel, Field
 
 from auth import get_current_user, get_current_admin
 from db import db
-from credits import CREDIT_COSTS, get_balance, add_credits
+from credits import CREDIT_COSTS, CREDIT_PACKS, CREATOR_PACKS, add_credits, get_balance
 
 router = APIRouter(prefix='/credits', tags=['credits'])
+
+# The threshold belongs to the server response, not a browser-only rule, so every
+# customer surface receives the same warning policy. It is intentionally separate
+# from the free video allowance: paid-credit actions still require paid credits.
+LOW_CREDIT_THRESHOLD = 20
+CRITICAL_CREDIT_THRESHOLD = 5
+
+
+def _credit_status(balance: int, billing_exempt: bool) -> str:
+    if billing_exempt:
+        return 'exempt'
+    if balance <= 0:
+        return 'empty'
+    if balance <= CRITICAL_CREDIT_THRESHOLD:
+        return 'critical'
+    if balance <= LOW_CREDIT_THRESHOLD:
+        return 'low'
+    return 'healthy'
 
 
 @router.get('/me')
 async def my_credits(user=Depends(get_current_user)):
     balance = await get_balance(user['id'])
-    return {'credits': balance, 'costs': CREDIT_COSTS}
+    billing_exempt = user.get('role') in ('admin', 'founder')
+    return {
+        'credits': balance,
+        'costs': CREDIT_COSTS,
+        'billing_exempt': billing_exempt,
+        'credit_status': _credit_status(balance, billing_exempt),
+        'low_credit_threshold': LOW_CREDIT_THRESHOLD,
+        'critical_credit_threshold': CRITICAL_CREDIT_THRESHOLD,
+        'access_model': 'prepaid_credits_only',
+        'packs': {
+            **CREDIT_PACKS,
+            **CREATOR_PACKS,
+        },
+    }
 
 
 @router.get('/costs')
