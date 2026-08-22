@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,6 +127,7 @@ function BuilderDialog({ category, onClose }) {
 // 1) Web App Builder
 // ============================================================
 function WebAppBuilder({ color }) {
+  const navigate = useNavigate();
   const [prompt, setPrompt] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -139,6 +141,7 @@ function WebAppBuilder({ color }) {
   const [templateId, setTemplateId] = useState("");
   const [templates, setTemplates] = useState(PREVIEW_TEMPLATE_FALLBACK);
   const [creditInfo, setCreditInfo] = useState({ credits: null, costs: {} });
+  const [createdProject, setCreatedProject] = useState(null);
   const isReadOnlyPreview = typeof window !== "undefined" && window.location.hostname.startsWith("preview.");
 
   const updateBrief = (field, value) => setBrief((current) => ({ ...current, [field]: value }));
@@ -146,6 +149,12 @@ function WebAppBuilder({ color }) {
   const loadTemplates = async () => { try { const r = await api.get("/builder/templates"); setTemplates(r.data.templates || PREVIEW_TEMPLATE_FALLBACK); } catch { setTemplates(PREVIEW_TEMPLATE_FALLBACK); } };
   const loadCredits = async () => { try { const r = await api.get("/credits/me"); setCreditInfo({ credits: Number(r.data?.credits ?? 0), costs: r.data?.costs || {} }); } catch { setCreditInfo({ credits: null, costs: {} }); } };
   useEffect(() => { load(); loadTemplates(); loadCredits(); }, []);
+  useEffect(() => {
+    try {
+      const draft = JSON.parse(sessionStorage.getItem("getszy_mission_draft") || "null");
+      if (draft?.prompt) setPrompt((current) => current || draft.prompt);
+    } catch { /* An invalid local mission draft must never block a customer build. */ }
+  }, []);
 
   const isStarter = Boolean(templateId);
   const buildCost = isStarter ? 0 : Number(creditInfo.costs?.builder_website ?? 0);
@@ -158,7 +167,8 @@ function WebAppBuilder({ color }) {
       ? "Load this professional starter? It does not consume AI generation credits."
       : `Start this custom build? Getszy will ask the server to deduct ${buildCost} credits only if the build request is accepted.`;
     if (!window.confirm(confirmation)) return;
-    setBusy(true); toast.loading("Building your web app…", { id: "wa", duration: 60000 });
+    setCreatedProject(null);
+    setBusy(true); toast.loading("Creating your private project draft…", { id: "wa", duration: 60000 });
     try {
       const normalizedBrief = {
         ...brief,
@@ -168,7 +178,7 @@ function WebAppBuilder({ color }) {
       toast.success(`Built: ${r.data.name} ✅`, { id: "wa" });
       setPrompt(""); setName(""); setProofPoints(""); setTemplateId("");
       setBrief({ audience: "", primary_goal: "", primary_cta: "", brand_name: "", visual_style: "", offer: "" });
-      setPreviewId(r.data.id); setPreviewQuality(r.data.quality_report || null); await Promise.all([load(), loadCredits()]);
+      setPreviewId(r.data.id); setPreviewQuality(r.data.quality_report || null); setCreatedProject(r.data); sessionStorage.setItem("getszy_last_project_id", r.data.id); await Promise.all([load(), loadCredits()]);
     } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "wa" }); }
     finally { setBusy(false); }
   };
@@ -219,6 +229,12 @@ function WebAppBuilder({ color }) {
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
         {busy ? "Preparing…" : isReadOnlyPreview ? "Preview mode — creation disabled" : templateId ? "Create Professional Starter" : "Build Custom Web App"}
       </Button>
+
+      <div className="rounded-xl border p-3 text-sm" style={{ borderColor: busy ? "#9dc9ee" : "var(--gs-border)", background: busy ? "#f0f8ff" : "var(--gs-surface-2)" }} aria-live="polite" data-testid="wa-build-status">
+        {busy ? <div className="flex items-start gap-2"><Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-sky-700" /><div><strong>Creating your private draft.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">Neo is using your request and brief. This page will show either the real finished project or a clear error; Getszy does not display a made-up progress percentage.</p></div></div> : <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gs-teal)]" /><div><strong>Build status stays visible.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">Every finished website is saved as a project. You can open its project workspace, inspect the private preview, review quality checks, and see the next action.</p></div></div>}
+      </div>
+
+      {createdProject && <div className="rounded-xl border border-[#9ed2c3] bg-[#f0f8f5] p-4" data-testid="wa-created-project"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-sm font-semibold text-[#183c3c]"><CheckCircle2 className="h-4 w-4 text-emerald-700" />Private draft created</div><p className="mt-1 text-xs leading-5 text-[#39685f]">{createdProject.name} is ready for your private review. It has not been published or deployed.</p></div><Button type="button" onClick={() => navigate(`/dashboard/projects/${createdProject.id}`)} className="bg-[#183c3c] text-white hover:bg-[#102f2f]">Review finished project <ExternalLink className="ml-2 h-4 w-4" /></Button></div></div>}
 
       <div className="grid md:grid-cols-2 gap-2 max-h-80 overflow-y-auto" data-testid="wa-projects">
         {projects.map((p) => (

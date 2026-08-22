@@ -61,13 +61,17 @@ export default function MissionWorkspace() {
   const displayName = useMemo(() => firstName(user?.name), [user?.name]);
 
   const begin = (choice) => {
+    const prompt = (mission || choice?.prompt || "").trim();
+    const websiteRequest = /\b(landing\s*page|website|web\s*app|storefront|site)\b/i.test(prompt);
+    const destination = choice?.to || (websiteRequest ? "/dashboard/build" : "/dashboard/chat");
     const draft = {
-      prompt: (mission || choice?.prompt || "").trim(),
-      intention: choice?.id || "guided",
+      prompt,
+      intention: choice?.id || (websiteRequest ? "website" : "guided"),
+      destination,
       createdAt: new Date().toISOString(),
     };
     if (draft.prompt) sessionStorage.setItem("getszy_mission_draft", JSON.stringify(draft));
-    navigate(choice?.to || "/dashboard/chat");
+    navigate(destination);
   };
 
   return (
@@ -87,7 +91,7 @@ export default function MissionWorkspace() {
               What would you like to build or grow today?
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-white/75 sm:text-base">
-              Start with your goal. Neo will help you create an editable brief, identify what is missing, and keep every important decision visible before work begins.
+              Start with your goal. A landing-page or website request opens Build with Neo with your brief already visible; every finished build then has its own private project workspace and preview.
             </p>
 
             <div className="mt-6 rounded-2xl border border-white/20 bg-white p-2 shadow-xl shadow-black/10">
