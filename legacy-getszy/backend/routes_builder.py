@@ -15,7 +15,7 @@ from models import (
     BuilderEvidenceUpdateIn, BuilderVersionIn, BuilderReleaseReviewIn,
 )
 from auth import get_current_user, get_optional_user
-from llm_provider import chat_completion
+from llm_provider import chat_completion, professional_builder_completion
 from credits import deduct, refund
 from builder_agents import build_site, refine_element, plan_site, design_site
 from builder_quality import evaluate_landing_page_quality
@@ -89,7 +89,13 @@ async def _generate_site(prompt: str, current_html: str | None = None, session_i
             f"REFINEMENT REQUEST:\n{prompt}\n\n"
             "Now output the complete updated HTML document only."
         )
-        raw = await chat_completion(system=SYSTEM_PROMPT_REFINE, user=user_msg, session_id=session_id, temperature=0.6, max_tokens=8000)
+        raw = await professional_builder_completion(
+            system=SYSTEM_PROMPT_REFINE,
+            user=user_msg,
+            session_id=session_id,
+            temperature=0.45,
+            max_tokens=8000,
+        )
         html = _sanitize(_extract_html(raw))
         if not html.lower().startswith('<!doctype html'):
             html = current_html  # Fallback: keep original

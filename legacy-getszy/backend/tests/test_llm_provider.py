@@ -56,6 +56,37 @@ class TestLLMProviderChainOrdering:
         assert 'emergent' not in names
 
 
+class TestProfessionalBuilderProviderLadder:
+    @pytest.mark.asyncio
+    async def test_professional_builder_ladder_prioritizes_groq_then_gemini_then_ollama(self, monkeypatch):
+        import llm_provider as lp
+        calls = []
+
+        async def groq(*args, **kwargs):
+            calls.append('groq')
+            raise RuntimeError('planned Groq outage')
+
+        async def gemini(*args, **kwargs):
+            calls.append('gemini')
+            return 'premium refinement complete'
+
+        async def ollama(*args, **kwargs):
+            calls.append('ollama')
+            return 'should not be used'
+
+        monkeypatch.setattr(lp, 'GROQ_API_KEY', 'configured')
+        monkeypatch.setattr(lp, 'GEMINI_API_KEY', 'configured')
+        monkeypatch.setattr(lp, 'OLLAMA_MODELS', ['qwen2.5-coder:7b'])
+        monkeypatch.setattr(lp, '_groq', groq)
+        monkeypatch.setattr(lp, '_gemini', gemini)
+        monkeypatch.setattr(lp, '_ollama_chain', ollama)
+
+        result = await lp.professional_builder_completion('system', 'refine this page', session_id='quality-test')
+
+        assert result == 'premium refinement complete'
+        assert calls == ['groq', 'gemini']
+
+
 class TestLLMProviderChatCompletion:
     @pytest.mark.asyncio
     async def test_chat_completion_returns_string(self):
