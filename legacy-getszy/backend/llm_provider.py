@@ -1,11 +1,14 @@
-"""LLM Provider — Cost Guard with Multi-Provider Fallback
+"""Managed LLM provider policy for Getszy customer workflows.
 
-Priority chain (local free providers first):
-  1. Ollama     — local, free, unlimited (3 models on VPS)
-  2. LM Studio  — local, free, OpenAI-compatible (longcat2.0, etc.)
-  3. Groq       — free tier, 11K req/day
-  4. Gemini     — free tier, 1500 req/day
-  5. OpenRouter — paid (your credits, many models available)
+Customer-facing quality ladder:
+  1. Groq       — primary managed model
+  2. Gemini     — verified cloud quality fallback
+  3. OpenRouter — explicitly enabled fixed-model fallback only
+  4. Ollama/LM Studio — local resilience fallback
+
+Hugging Face belongs to media generation and is intentionally not in this
+text/website-composition ladder. Optional OpenAI and Tavily integrations remain
+isolated to their dedicated workflows and are never auto-selected here.
 """
 import os
 import json
@@ -32,7 +35,12 @@ GEMINI_API_KEY   = os.environ.get('GEMINI_API_KEY', '').strip()
 # configurable, but default to the confirmed stable 2.5 Flash identifier.
 GEMINI_MODEL     = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash').strip()
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '').strip()
+# Never use an auto-routing or "best free" OpenRouter selector for paid customer
+# output. Operators must explicitly enable one known model as a final fallback.
 OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'qwen/qwen-2.5-72b-instruct').strip()
+OPENROUTER_CUSTOMER_FALLBACK = os.environ.get(
+    'OPENROUTER_CUSTOMER_FALLBACK', 'false'
+).strip().lower() in ('1', 'true', 'yes')
 OLLAMA_BASE_URL  = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
 OLLAMA_SECRET    = os.environ.get('OLLAMA_SECRET', '')
 LMSTUDIO_BASE_URL = os.environ.get('LMSTUDIO_BASE_URL', 'http://localhost:1234/v1')
@@ -336,37 +344,49 @@ async def _openrouter(system: str, user: str, temperature: float, max_tokens: in
         return r.json()['choices'][0]['message']['content']
 
 
+def _openrouter_customer_allowed() -> bool:
+    """Allow only an explicitly enabled, prepaid-safe OpenRouter fallback.
+
+    Under FREE_ONLY, an operator must deliberately select an OpenRouter model
+    with the explicit `:free` suffix. This prevents a model-name change from
+    silently spending provider credits on a customer request.
+    """
+    if not (OPENROUTER_API_KEY and OPENROUTER_CUSTOMER_FALLBACK and OPENROUTER_MODEL):
+        return False
+    return not FREE_ONLY or OPENROUTER_MODEL.endswith(':free')
+
+
 # ── Provider ordering ─────────────────────────────────────────────────────────
-# LLM_PROVIDER lets ops pin a primary provider (e.g. groq). Local providers are
-# still attempted first when available because they are 100% free & unlimited.
-LLM_PROVIDER = os.environ.get('LLM_PROVIDER', '').strip().lower()
+# Managed cloud providers lead normal customer work. LLM_PROVIDER is retained as
+# an operational setting but cannot move a local model ahead of Groq/Gemini.
+LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'groq').strip().lower()
+
 
 def _build_chain(system, user, temperature, session_id, max_tokens: int | None = None) -> list:
-    """Return an ordered list of (name, coroutine-factory) to try."""
+    """Return the deterministic managed customer provider ladder.
+
+    A fixed model name is required for every external fallback. This prevents
+    model roulette and keeps quality/cost behaviour predictable for customers.
+    """
     chain = []
 
-    # Always offer local free providers first when configured
-    if OLLAMA_MODELS:
-        chain.append(('ollama', lambda: _ollama_chain(system, user, temperature, max_tokens)))
-    chain.append(('lmstudio', lambda: _lmstudio(system, user, temperature, max_tokens)))
-
-    # Cloud free providers
     if GROQ_API_KEY and _under_limit('groq'):
         chain.append(('groq', lambda: _groq(system, user, temperature, max_tokens)))
     if GEMINI_API_KEY and _under_limit('gemini'):
         chain.append(('gemini', lambda: _gemini(system, user, temperature, max_tokens)))
-
-    # Paid providers (only when not in FREE_ONLY mode)
-    if OPENROUTER_API_KEY and not FREE_ONLY:
+    if _openrouter_customer_allowed():
         chain.append(('openrouter', lambda: _openrouter(system, user, temperature, max_tokens)))
+
+    # Local providers are resilience fallbacks, never the default customer model.
+    if OLLAMA_MODELS:
+        chain.append(('ollama', lambda: _ollama_chain(system, user, temperature, max_tokens)))
+    chain.append(('lmstudio', lambda: _lmstudio(system, user, temperature, max_tokens)))
+
+    # Keep optional Emergent/OpenAI-compatible use isolated and opt-in. It is not
+    # included in customer composition unless operators explicitly disable the
+    # prepaid-only guard for a separate approved workflow.
     if EMERGENT_LLM_KEY and not FREE_ONLY:
         chain.append(('emergent', lambda: _emergent(system, user, session_id)))
-
-    # Honor explicit LLM_PROVIDER pin: move it to the front of the chain
-    if LLM_PROVIDER:
-        pinned = [c for c in chain if c[0] == LLM_PROVIDER]
-        rest = [c for c in chain if c[0] != LLM_PROVIDER]
-        chain = pinned + rest
 
     return chain
 
@@ -464,7 +484,7 @@ async def professional_builder_completion(
     system = _truncate(system)
     user = _truncate(user)
     available = _build_chain(system, user, temperature, session_id, max_tokens)
-    rank = {'groq': 0, 'gemini': 1, 'ollama': 2, 'openrouter': 3, 'lmstudio': 4, 'emergent': 5}
+    rank = {'groq': 0, 'gemini': 1, 'openrouter': 2, 'ollama': 3, 'lmstudio': 4, 'emergent': 5}
     chain = sorted(available, key=lambda item: rank.get(item[0], 99))
     logger.info('LLM professional builder ladder: %s', [name for name, _ in chain])
     return await _run_provider_chain(chain, session_id=session_id)
@@ -629,13 +649,15 @@ def provider_info() -> dict:
             'gemini':  {'available': bool(GEMINI_API_KEY), 'model': GEMINI_MODEL, 'used_today': gemini_used, 'limit': GEMINI_DAILY_LIMIT, 'remaining': max(0, GEMINI_DAILY_LIMIT - gemini_used)},
             'ollama':  {'available': True, 'models': OLLAMA_MODELS, 'active_model': OLLAMA_MODELS[0] if OLLAMA_MODELS else None, 'description': '100% free, runs on VPS'},
             'lmstudio':{'available': True, 'model': LMSTUDIO_MODEL, 'base_url': LMSTUDIO_BASE_URL, 'description': '100% free, local OpenAI-compatible'},
+            'openrouter': {
+                'available': _openrouter_customer_allowed(),
+                'model': OPENROUTER_MODEL,
+                'customer_fallback_enabled': OPENROUTER_CUSTOMER_FALLBACK,
+                'blocked_by_free_only': bool(OPENROUTER_API_KEY) and OPENROUTER_CUSTOMER_FALLBACK and not _openrouter_customer_allowed(),
+            },
             'emergent':{'available': bool(EMERGENT_LLM_KEY) and not FREE_ONLY, 'blocked_by_free_only': FREE_ONLY},
         },
-        'active_chain': (
-            f'ollama ({OLLAMA_MODELS[0]})' if OLLAMA_MODELS else
-            f'lmstudio ({LMSTUDIO_MODEL})' if LMSTUDIO_BASE_URL else
-            'groq' if GROQ_API_KEY and _under_limit('groq') else
-            'gemini' if GEMINI_API_KEY and _under_limit('gemini') else
-            'none'
-        ),
+        'active_chain': ' -> '.join(
+            name for name, _ in _build_chain('', '', 0.0, 'provider-info')
+        ) or 'none',
     }

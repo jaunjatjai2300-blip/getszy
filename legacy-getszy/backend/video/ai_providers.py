@@ -1,16 +1,17 @@
 """
-Open Source AI Providers — ALL FREE via HuggingFace
+Managed media providers for Getszy.
 
-Tools integrated:
-  1. FLUX.1-schnell  → HD Images (replaces Pollinations, 10x quality)
-  2. Coqui XTTS-v2  → Voice Cloning (user uploads 30s audio)
-  3. SadTalker       → AI Avatar (photo → talking head video)
-  4. CogVideoX-5b    → AI Video Clips (text → cinematic video)
-  5. OpenRouter      → 92 free LLMs (fallback after Groq/Gemini)
+Responsibilities:
+  1. Hugging Face routed inference → still-image generation only
+  2. Coqui XTTS-v2 → user-authorized voice cloning
+  3. SadTalker → talking-avatar generation
+  4. CogVideoX → video-clip generation
+  5. OpenRouter → optional fixed-model text helper only
 
 Env vars:
-  HF_TOKEN        — huggingface.co/settings/tokens (free account)
-  OPENROUTER_KEY  — openrouter.ai (free account)
+  HF_TOKEN                 — Hugging Face Inference Provider token
+  OPENROUTER_API_KEY       — shared Getszy OpenRouter key
+  OPENROUTER_MEDIA_MODEL   — explicit OpenRouter model; leave blank to disable
 """
 import asyncio
 import base64
@@ -23,8 +24,14 @@ from typing import Optional
 
 logger = logging.getLogger('getszy.ai_providers')
 
-HF_TOKEN       = os.environ.get('HF_TOKEN', '').strip()
-OPENROUTER_KEY = os.environ.get('OPENROUTER_KEY', '').strip()
+HF_TOKEN = os.environ.get('HF_TOKEN', '').strip()
+# Accept the legacy variable only for backwards compatibility. New deployments
+# use the shared OpenRouter key, with an explicit fixed model for media helpers.
+OPENROUTER_KEY = (
+    os.environ.get('OPENROUTER_API_KEY', '').strip()
+    or os.environ.get('OPENROUTER_KEY', '').strip()
+)
+OPENROUTER_MEDIA_MODEL = os.environ.get('OPENROUTER_MEDIA_MODEL', '').strip()
 
 CACHE_DIR      = Path(__file__).parent.parent / 'media_cache'
 IMG_DIR        = CACHE_DIR / 'images'
@@ -65,7 +72,7 @@ async def flux_image(prompt: str, seed: int = 42) -> Optional[str]:
             if r.status_code == 503:
                 # Model loading — wait 15s and retry once
                 await asyncio.sleep(15)
-                r2 = await c.post(_FLUX_URL, headers=_HF_HDR(), json=payload)
+                r2 = await c.post(_HF_IMAGE_URL, headers=_HF_HDR(), json=payload)
                 if r2.status_code == 200:
                     path = IMG_DIR / f'flux_{uuid.uuid4().hex[:10]}.jpg'
                     path.write_bytes(r2.content)
@@ -193,48 +200,43 @@ async def cogvideo_clip(prompt: str, seed: int = 42, duration: int = 6) -> Optio
     return None
 
 
-# ─── 5. OpenRouter — 92 Free LLMs ────────────────────────────────────────────
-
-_OPENROUTER_FREE_MODELS = [
-    'meta-llama/llama-3.1-8b-instruct:free',
-    'mistralai/mistral-7b-instruct:free',
-    'google/gemma-2-9b-it:free',
-    'qwen/qwen-2-7b-instruct:free',
-    'microsoft/phi-3-mini-128k-instruct:free',
-]
+# ─── 5. OpenRouter — explicit fixed model only ───────────────────────────────
 
 
 async def openrouter_chat(system: str, user_msg: str, temperature: float = 0.7) -> Optional[str]:
-    """Call OpenRouter free models (92 available). Returns text or None."""
-    if not OPENROUTER_KEY:
+    """Use the one explicitly approved OpenRouter model for media text helpers.
+
+    This intentionally does not try a rotating list of free models. A customer
+    should receive predictable model behaviour, or a clear fallback—not model
+    roulette based on momentary third-party availability.
+    """
+    if not OPENROUTER_KEY or not OPENROUTER_MEDIA_MODEL:
         return None
-    for model in _OPENROUTER_FREE_MODELS:
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as c:
-                r = await c.post(
-                    'https://openrouter.ai/api/v1/chat/completions',
-                    headers={
-                        'Authorization': f'Bearer {OPENROUTER_KEY}',
-                        'HTTP-Referer': 'https://getszy.com',
-                        'X-Title': 'Getszy',
-                    },
-                    json={
-                        'model': model,
-                        'messages': [
-                            {'role': 'system', 'content': system},
-                            {'role': 'user', 'content': user_msg},
-                        ],
-                        'temperature': temperature,
-                    },
-                )
-                if r.status_code == 200:
-                    text = r.json()['choices'][0]['message']['content']
-                    logger.info('OpenRouter ok model=%s', model)
-                    return text
-                logger.warning('OpenRouter model=%s status=%s', model, r.status_code)
-        except Exception as exc:
-            logger.warning('OpenRouter model=%s error: %s', model, exc)
-    return None
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as c:
+            r = await c.post(
+                'https://openrouter.ai/api/v1/chat/completions',
+                headers={
+                    'Authorization': f'Bearer {OPENROUTER_KEY}',
+                    'HTTP-Referer': 'https://getszy.com',
+                    'X-Title': 'Getszy',
+                },
+                json={
+                    'model': OPENROUTER_MEDIA_MODEL,
+                    'messages': [
+                        {'role': 'system', 'content': system},
+                        {'role': 'user', 'content': user_msg},
+                    ],
+                    'temperature': temperature,
+                },
+            )
+            r.raise_for_status()
+            text = r.json()['choices'][0]['message']['content']
+            logger.info('OpenRouter media helper ok model=%s', OPENROUTER_MEDIA_MODEL)
+            return text
+    except Exception as exc:
+        logger.warning('OpenRouter media helper failed model=%s error=%s', OPENROUTER_MEDIA_MODEL, exc)
+        return None
 
 
 # ─── Status / health check ────────────────────────────────────────────────────
