@@ -15,7 +15,10 @@ services:
         REACT_APP_BACKEND_URL: ""
     container_name: getszy-dashboard-preview
     restart: unless-stopped
-    networks: [getszy]
+    networks:
+      getszy:
+        aliases:
+          - getszy-dashboard-preview
     labels:
       getszy.environment: dashboard-preview
       getszy.access: read-only
