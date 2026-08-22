@@ -16,8 +16,18 @@ function firstName(name) {
   return String(name || "").trim().split(/\s+/)[0] || "Customer";
 }
 
-function creditMessage(credit) {
-  const status = credit?.credit_status;
+function effectiveCreditStatus(credit, role) {
+  if (credit?.billing_exempt || role === "admin" || role === "founder") return "exempt";
+  if (credit?.credit_status) return credit.credit_status;
+  const balance = Number(credit?.credits ?? 0);
+  if (balance <= 0) return "empty";
+  if (balance <= 5) return "critical";
+  if (balance <= 20) return "low";
+  return "healthy";
+}
+
+function creditMessage(credit, role) {
+  const status = effectiveCreditStatus(credit, role);
   if (status === "empty") return "No paid credits left — choose a prepaid top-up to continue digital work.";
   if (status === "critical") return `Only ${credit.credits} paid credits remain. Top up soon.`;
   if (status === "low") return `${credit.credits} paid credits remain. Consider topping up.`;
@@ -38,6 +48,8 @@ export default function DashboardLayout() {
     return () => { active = false; };
   }, [user]);
   if (loading || !user) return <div className="p-10 text-center">Loading…</div>;
+  const creditStatus = effectiveCreditStatus(credit, user.role);
+  const billingExempt = creditStatus === "exempt";
 
   const closeAndNavigate = (to) => {
     setMobileNavOpen(false);
@@ -69,7 +81,7 @@ export default function DashboardLayout() {
           );
         })}
 
-        {credit && <button type="button" onClick={() => { onNavigate?.(); navigate("/dashboard/my-getszy"); }} className="mx-2 mt-3 w-[calc(100%-1rem)] rounded-xl border p-3 text-left transition-colors hover:bg-[#fffdf7]" style={{ borderColor: credit.credit_status === "healthy" || credit.credit_status === "exempt" ? "var(--gs-border)" : "#efc777", background: credit.credit_status === "healthy" || credit.credit_status === "exempt" ? "var(--gs-surface-2)" : "#fff7df" }}><div className="flex items-center justify-between gap-2"><span className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--gs-ink)]"><Coins className="h-4 w-4 text-[#a66a00]" />Paid credits</span><span className="text-sm font-bold text-[var(--gs-ink)]">{credit.billing_exempt ? "Included" : credit.credits}</span></div>{!credit.billing_exempt && <div className="mt-1.5 text-[11px] leading-4 text-[var(--gs-muted)]">{creditMessage(credit)}</div>}{credit.access_model === "prepaid_credits_only" && <div className="mt-1 text-[11px] text-[var(--gs-muted)]">Prepaid access · Digital work requires credits</div>}</button>}
+        {credit && <button type="button" onClick={() => { onNavigate?.(); navigate("/dashboard/my-getszy"); }} className="mx-2 mt-3 w-[calc(100%-1rem)] rounded-xl border p-3 text-left transition-colors hover:bg-[#fffdf7]" style={{ borderColor: creditStatus === "healthy" || billingExempt ? "var(--gs-border)" : "#efc777", background: creditStatus === "healthy" || billingExempt ? "var(--gs-surface-2)" : "#fff7df" }}><div className="flex items-center justify-between gap-2"><span className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--gs-ink)]"><Coins className="h-4 w-4 text-[#a66a00]" />Paid credits</span><span className="text-sm font-bold text-[var(--gs-ink)]">{billingExempt ? "Included" : credit.credits}</span></div>{!billingExempt && <div className="mt-1.5 text-[11px] leading-4 text-[var(--gs-muted)]">{creditMessage(credit, user.role)}</div>}<div className="mt-1 text-[11px] text-[var(--gs-muted)]">Prepaid access · Digital work requires credits</div></button>}
         <div className="my-4 border-t" style={{ borderColor: "var(--gs-border)" }} />
         <button type="button" onClick={() => { onNavigate?.(); navigate("/support"); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-[var(--gs-ink)] transition-colors hover:bg-[var(--gs-surface-2)]">
           <CircleHelp className="h-4 w-4" />Help & support
@@ -119,7 +131,7 @@ export default function DashboardLayout() {
           <button type="button" onClick={() => closeAndNavigate("/dashboard/my-getszy")} className="rounded-full bg-[#e7f4ef] px-3 py-1.5 text-xs font-semibold text-[#183c3c]">My Getszy</button>
         </header>
         <main id="main-content" className="min-w-0 overflow-x-hidden p-4 md:p-6 lg:p-8" tabIndex={-1}>
-          {credit && !credit.billing_exempt && ["empty", "critical", "low"].includes(credit.credit_status) && <button type="button" onClick={() => navigate("/dashboard/my-getszy")} className={`mb-5 flex w-full items-start gap-3 rounded-2xl border p-4 text-left ${credit.credit_status === "empty" || credit.credit_status === "critical" ? "border-rose-200 bg-rose-50 text-rose-950" : "border-amber-200 bg-amber-50 text-amber-950"}`}><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" /><span><strong>{credit.credit_status === "empty" ? "Paid credits are empty." : "Low paid-credit balance."}</strong><span className="mt-0.5 block text-sm">{creditMessage(credit)} Open My Getszy to see your balance, usage and available plan options.</span></span></button>}
+          {credit && !billingExempt && ["empty", "critical", "low"].includes(creditStatus) && <button type="button" onClick={() => navigate("/dashboard/my-getszy")} className={`mb-5 flex w-full items-start gap-3 rounded-2xl border p-4 text-left ${creditStatus === "empty" || creditStatus === "critical" ? "border-rose-200 bg-rose-50 text-rose-950" : "border-amber-200 bg-amber-50 text-amber-950"}`}><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" /><span><strong>{creditStatus === "empty" ? "Paid credits are empty." : "Low paid-credit balance."}</strong><span className="mt-0.5 block text-sm">{creditMessage(credit, user.role)} Open My Getszy to see your balance, usage and available top-up options.</span></span></button>}
           <Outlet />
         </main>
       </div>
