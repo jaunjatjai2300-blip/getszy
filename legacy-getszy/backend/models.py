@@ -273,9 +273,22 @@ class LessonIn(BaseModel):
 
 
 # ===== Talk-to-Build Studio =====
+class BuilderQualityBrief(BaseModel):
+    """Optional context that turns a generic prompt into a professional page brief."""
+    audience: Optional[str] = Field(None, max_length=240)
+    primary_goal: Optional[str] = Field(None, max_length=120)
+    primary_cta: Optional[str] = Field(None, max_length=80)
+    brand_name: Optional[str] = Field(None, max_length=120)
+    visual_style: Optional[str] = Field(None, max_length=120)
+    offer: Optional[str] = Field(None, max_length=500)
+    proof_points: List[str] = Field(default_factory=list, max_length=6)
+
+
 class BuilderProjectIn(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=4000)
     name: Optional[str] = Field(None, max_length=120)
+    template_id: Optional[str] = Field(None, max_length=80)
+    brief: Optional[BuilderQualityBrief] = None
 
 
 class BuilderRefineIn(BaseModel):
@@ -294,6 +307,9 @@ class BuilderProject(BaseModel):
     user_id: str
     name: str
     prompt: str  # latest / initial
+    template_id: Optional[str] = None
+    brief: Optional[BuilderQualityBrief] = None
+    quality_report: Optional[Dict[str, Any]] = None
     html_content: str = ''
     history: List[BuilderHistoryItem] = []
     created_at: str = Field(default_factory=_now)

@@ -14,6 +14,8 @@ from llm_provider import chat_completion
 from subscription import can_use_studio, increment_studio_builds
 from credits import deduct, refund
 from builder_agents import build_site, refine_element, plan_site, design_site
+from builder_quality import evaluate_landing_page_quality
+from template_catalog import public_template_catalog, get_template, load_template_html
 
 logger = logging.getLogger('getszy.builder')
 router = APIRouter(prefix='/builder', tags=['builder'])
@@ -127,26 +129,79 @@ def _derive_name(prompt: str) -> str:
     return ' '.join(words).title() or 'Untitled Project'
 
 
+def _brief_to_generation_context(brief: dict | None) -> str:
+    """Give the multi-agent builder concrete professional-output constraints."""
+    brief = brief or {}
+    entries = [
+        ('Brand name', brief.get('brand_name')),
+        ('Target audience', brief.get('audience')),
+        ('Primary conversion goal', brief.get('primary_goal')),
+        ('Primary CTA', brief.get('primary_cta')),
+        ('Offer', brief.get('offer')),
+        ('Visual direction', brief.get('visual_style')),
+    ]
+    proof_points = [str(item).strip() for item in brief.get('proof_points', []) if str(item).strip()]
+    lines = [f'- {label}: {value}' for label, value in entries if str(value or '').strip()]
+    if proof_points:
+        lines.append('- Verified proof points supplied by the customer: ' + '; '.join(proof_points))
+    if not lines:
+        return ''
+    return (
+        '\n\nPROFESSIONAL PAGE BRIEF (follow this as product context):\n'
+        + '\n'.join(lines)
+        + '\nDo not invent testimonials, company logos, customer counts, prices, guarantees, legal claims, or product capabilities. '
+          'Where proof is not supplied, use an honest proof-plan placeholder for the customer to complete before publishing.'
+    )
+
+
+@router.get('/templates')
+async def list_professional_templates(user=Depends(get_current_user)):
+    """List licensed customer-safe starter templates for professional outputs."""
+    return {
+        'templates': public_template_catalog(),
+        'notice': 'Templates are editable starting points. Review all generated copy, claims, images, privacy content and legal requirements before publishing.',
+    }
+
+
 @router.post('/projects')
 async def create_project(body: BuilderProjectIn, user=Depends(get_current_user)):
     if not body.prompt.strip():
         raise HTTPException(400, 'Prompt required')
-    ok, msg, _ = await deduct(user['id'], 'builder_website')
-    if not ok:
-        raise HTTPException(402, msg)
-    try:
-        html = await _generate_site(body.prompt)
-    except Exception as e:
-        logger.exception('generate failed')
-        # P1-3: pass ref_id so a retried failure cannot double-refund.
-        await refund(user['id'], 'builder_website', reason='generation_failed', ref_id=body.name or body.prompt[:64])
-        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
-    name = (body.name or _derive_name(body.prompt))[:80]
+
+    selected_template = get_template(body.template_id)
+    if body.template_id and not selected_template:
+        raise HTTPException(422, 'Unknown professional starter template')
+
+    brief_data = body.brief.model_dump(exclude_none=True) if body.brief else {}
+    if selected_template:
+        # A starter is a licensed, editable layout. It is not an AI claim or paid
+        # generation, so no customer credits are deducted at this step.
+        html = _sanitize(load_template_html(body.template_id))
+        build_note = f"Professional starter loaded: {selected_template['name']}"
+    else:
+        ok, msg, _ = await deduct(user['id'], 'builder_website')
+        if not ok:
+            raise HTTPException(402, msg)
+        generation_prompt = body.prompt + _brief_to_generation_context(brief_data)
+        try:
+            html = await _generate_site(generation_prompt)
+        except Exception as e:
+            logger.exception('generate failed')
+            # P1-3: pass ref_id so a retried failure cannot double-refund.
+            await refund(user['id'], 'builder_website', reason='generation_failed', ref_id=body.name or body.prompt[:64])
+            raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
+        build_note = 'Initial AI build complete'
+
+    name = (body.name or selected_template['name'] if selected_template else body.name or _derive_name(body.prompt))[:80]
     history = [
         BuilderHistoryItem(timestamp=_now(), prompt=body.prompt, role='user'),
-        BuilderHistoryItem(timestamp=_now(), prompt='Initial build complete', role='assistant', snapshot=html),
+        BuilderHistoryItem(timestamp=_now(), prompt=build_note, role='assistant', snapshot=html),
     ]
-    project = BuilderProject(user_id=user['id'], name=name, prompt=body.prompt, html_content=html, history=history)
+    quality_report = evaluate_landing_page_quality(html, brief_data)
+    project = BuilderProject(
+        user_id=user['id'], name=name, prompt=body.prompt, template_id=body.template_id, brief=body.brief,
+        quality_report=quality_report, html_content=html, history=history,
+    )
     await db.builder_projects.insert_one(project.model_dump())
     await increment_studio_builds(user['id'])
     return project.model_dump()
@@ -156,6 +211,21 @@ async def create_project(body: BuilderProjectIn, user=Depends(get_current_user))
 async def list_projects(user=Depends(get_current_user)):
     items = await db.builder_projects.find({'user_id': user['id']}, {'_id': 0, 'html_content': 0, 'history': 0}).sort('updated_at', -1).to_list(100)
     return items
+
+
+@router.get('/projects/{pid}/quality')
+async def get_project_quality(pid: str, user=Depends(get_current_user)):
+    project = await db.builder_projects.find_one(
+        {'id': pid, 'user_id': user['id']},
+        {'_id': 0, 'quality_report': 1, 'brief': 1, 'updated_at': 1},
+    )
+    if not project:
+        raise HTTPException(404, 'Project not found')
+    return {
+        'quality_report': project.get('quality_report') or evaluate_landing_page_quality('', project.get('brief') or {}),
+        'brief': project.get('brief') or {},
+        'updated_at': project.get('updated_at'),
+    }
 
 
 @router.get('/projects/{pid}')
@@ -185,9 +255,13 @@ async def refine_project(pid: str, body: BuilderRefineIn, user=Depends(get_curre
         {'timestamp': _now(), 'prompt': body.prompt, 'role': 'user', 'snapshot': None},
         {'timestamp': _now(), 'prompt': 'Refinement applied', 'role': 'assistant', 'snapshot': new_html},
     ]
+    quality_report = evaluate_landing_page_quality(new_html, p.get('brief') or {})
     await db.builder_projects.update_one(
         {'id': pid},
-        {'$set': {'html_content': new_html, 'history': new_history, 'updated_at': _now(), 'prompt': body.prompt}},
+        {'$set': {
+            'html_content': new_html, 'history': new_history, 'updated_at': _now(),
+            'prompt': body.prompt, 'quality_report': quality_report,
+        }},
     )
     await increment_studio_builds(user['id'])
     return await db.builder_projects.find_one({'id': pid}, {'_id': 0})
@@ -304,9 +378,13 @@ async def refine_project_element(pid: str, body: dict, user=Depends(get_current_
         {'timestamp': _now(), 'prompt': f'[{selector}] {instruction}', 'role': 'user', 'snapshot': None},
         {'timestamp': _now(), 'prompt': 'Element refined', 'role': 'assistant', 'snapshot': new_html},
     ]
+    quality_report = evaluate_landing_page_quality(new_html, p.get('brief') or {})
     await db.builder_projects.update_one(
         {'id': pid},
-        {'$set': {'html_content': new_html, 'history': new_history, 'updated_at': _now()}},
+        {'$set': {
+            'html_content': new_html, 'history': new_history, 'updated_at': _now(),
+            'quality_report': quality_report,
+        }},
     )
     await increment_studio_builds(user['id'])
     return await db.builder_projects.find_one({'id': pid}, {'_id': 0})
