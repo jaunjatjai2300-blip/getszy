@@ -15,7 +15,11 @@ from models import (
     BuilderProject, BuilderProjectIn, BuilderRefineIn, BuilderHistoryItem,
     BuilderEvidenceUpdateIn, BuilderVersionIn, BuilderReleaseReviewIn,
 )
+<<<<<<< HEAD
 from auth import create_preview_token, get_current_user, get_optional_user, verify_preview_token
+=======
+from auth import get_current_user, get_optional_user
+>>>>>>> origin/feature/professional-landing-gates
 from llm_provider import chat_completion, professional_builder_completion
 from credits import deduct, refund
 from paid_operations import (
