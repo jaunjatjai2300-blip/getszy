@@ -35,10 +35,31 @@ def payload(**overrides):
     return base
 
 
-def test_schema_rejects_unknown_keys():
-    bad = payload(unapproved_claim='India\'s best salon')
-    with pytest.raises(Exception):
-        validate_and_sanitize_brief(bad, 'Build a salon website')
+def test_schema_ignores_unknown_keys():
+    """extra='ignore': an unmodeled key (e.g. a field the LLM invented) is
+    dropped, not treated as a reason to reject the entire brief — a brief
+    that's otherwise valid should not be thrown away over one extra key."""
+    raw = 'Build a salon website. Admission ke liye website banao.'
+    result = validate_and_sanitize_brief(payload(
+        unapproved_claim='India\'s best salon',
+        business_type='salon',
+        primary_goal='Admissions',
+    ), raw)
+
+    assert not hasattr(result, 'unapproved_claim')
+    assert result.business_type == 'salon'
+    assert result.primary_goal == 'Admissions'
+
+
+def test_tone_and_shipping_terms_are_supported_fields():
+    raw = 'Build a friendly, warm website for my bakery. Free shipping over Rs 999, COD available.'
+    result = validate_and_sanitize_brief(payload(
+        tone='friendly, warm',
+        shipping_terms='Free shipping over Rs 999, COD available',
+    ), raw)
+
+    assert result.tone == 'friendly, warm'
+    assert result.shipping_terms == 'Free shipping over Rs 999, COD available'
 
 
 def test_beauty_salon_does_not_infer_target_audience_or_goal():
