@@ -34,6 +34,7 @@ jobs:
       MONGO_URL: mongodb://localhost:27017
       DB_NAME: getszy_test
       JWT_SECRET: test-secret-key-for-ci-use-only-32chars!!
+      INTEGRATION_ENCRYPTION_KEY: test-integration-encryption-key-32chars!!
       SEED_ADMIN_EMAIL: admin@getszy.com
       SEED_ADMIN_PASSWORD: testpassword123
       ADMIN_EMAIL: admin@getszy.com

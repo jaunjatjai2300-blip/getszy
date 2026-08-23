@@ -22,6 +22,7 @@ jobs:
       MONGO_URL: mongodb://localhost:27017
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: test-secret-key-for-ci-use-only-32chars!!
+      INTEGRATION_ENCRYPTION_KEY: test-integration-encryption-key-32chars!!
       LLM_PROVIDER: groq
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       FREE_ONLY: 'true'
