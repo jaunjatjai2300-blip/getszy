@@ -137,6 +137,8 @@ function WebAppBuilder({ color }) {
   const [previewId, setPreviewId] = useState(null);
   const [previewDevice, setPreviewDevice] = useState("desktop");
   const [previewQuality, setPreviewQuality] = useState(null);
+  const [previewToken, setPreviewToken] = useState(null);
+  const [previewTokenError, setPreviewTokenError] = useState(false);
   const [showBrief, setShowBrief] = useState(false);
   const [proofPoints, setProofPoints] = useState("");
   const [brief, setBrief] = useState({ audience: "", primary_goal: "", primary_cta: "", brand_name: "", visual_style: "", offer: "" });
@@ -154,9 +156,20 @@ function WebAppBuilder({ color }) {
       if (draft?.prompt) setPrompt((current) => current || draft.prompt);
     } catch { /* An invalid local mission draft must never block a customer build. */ }
   }, []);
+  useEffect(() => {
+    if (!previewId) { setPreviewToken(null); setPreviewTokenError(false); return; }
+    let cancelled = false;
+    setPreviewToken(null);
+    setPreviewTokenError(false);
+    api.get(`/builder/projects/${previewId}/preview-token`)
+      .then((response) => { if (!cancelled) setPreviewToken(response.data?.token || null); })
+      .catch(() => { if (!cancelled) setPreviewTokenError(true); });
+    return () => { cancelled = true; };
+  }, [previewId]);
 
   const buildCost = Number(creditInfo.costs?.builder_website ?? 0);
   const hasEnoughCredits = creditInfo.credits === null || creditInfo.credits >= buildCost;
+  const previewUrl = previewId && previewToken ? `${BACKEND_URL}/api/builder/projects/${previewId}/preview?token=${encodeURIComponent(previewToken)}` : null;
 
   const build = async () => {
     if (prompt.trim().length < 4) return toast.error("Tell Neo a little more about your goal first");
@@ -272,7 +285,7 @@ function WebAppBuilder({ color }) {
                 </Button>
               ))}
               <Button type="button" size="icon" variant="outline" onClick={() => setPreviewId(null)} aria-label="Close preview"><RotateCcw className="h-3.5 w-3.5" /></Button>
-              <a href={`${BACKEND_URL}/api/builder/projects/${previewId}/preview`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium hover:bg-[var(--gs-surface-2)]" style={{ borderColor: "var(--gs-border)" }}><ExternalLink className="h-3.5 w-3.5" />Open</a>
+              {previewUrl ? <a href={previewUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium hover:bg-[var(--gs-surface-2)]" style={{ borderColor: "var(--gs-border)" }}><ExternalLink className="h-3.5 w-3.5" />Open</a> : previewTokenError ? <span className="inline-flex h-8 items-center text-xs font-medium text-rose-600">Preview link unavailable</span> : null}
             </div>
           </div>
           {previewQuality && (
@@ -283,7 +296,7 @@ function WebAppBuilder({ color }) {
           )}
           <div className="overflow-auto p-4">
             <div className={`mx-auto overflow-hidden rounded-xl border bg-white shadow-sm ${previewDevice === "mobile" ? "h-[680px] max-w-[390px]" : previewDevice === "tablet" ? "h-[620px] max-w-[768px]" : "h-[560px] w-full"}`} style={{ borderColor: "var(--gs-border)" }}>
-              <iframe src={`${BACKEND_URL}/api/builder/projects/${previewId}/preview`} className="h-full w-full" title="Private project preview" data-testid="wa-preview-iframe"/>
+              {previewUrl ? <iframe src={previewUrl} className="h-full w-full" title="Private project preview" data-testid="wa-preview-iframe"/> : previewTokenError ? <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[var(--gs-muted)]">The secure preview link could not be prepared. Reload the project to retry.</div> : <div className="flex h-full items-center justify-center gap-2 text-sm text-[var(--gs-muted)]"><Loader2 className="h-4 w-4 animate-spin" />Preparing secure preview…</div>}
             </div>
           </div>
           <div className="flex items-center gap-2 border-t px-4 py-3 text-xs text-[var(--gs-muted)]" style={{ borderColor: "var(--gs-border)" }}><ShieldCheck className="h-4 w-4 text-emerald-600" />This draft is private. Preview does not publish it to a public domain.</div>
