@@ -211,3 +211,32 @@ async def test_per_request_max_tokens_is_capped(monkeypatch):
 
     await lp.chat_completion('s', 'u', max_tokens=1_000_000)
     assert captured['max_tokens'] <= lp.PER_PROVIDER_MAX_TOKENS['groq']
+
+
+# ── Premium template variety ───────────────────────────────────────────────
+def test_premium_template_selects_vertical():
+    from builder_agents import _vertical_for, _premium_template
+    assert _vertical_for({}, 'a family pizza restaurant in Brooklyn') == 'restaurant'
+    assert _vertical_for({}, 'a B2B SaaS analytics dashboard') == 'saas'
+    assert _vertical_for({}, 'freelance photographer portfolio') == 'portfolio'
+    assert _vertical_for({}, 'online store selling sneakers') == 'ecommerce'
+    assert _vertical_for({}, 'a yoga and wellness clinic') == 'health'
+    assert _vertical_for({}, 'a generic consultancy') == 'default'
+
+
+def test_premium_template_vertical_sections_render():
+    from builder_agents import _premium_template
+    html = _premium_template('a family pizza restaurant', {'brand_name': 'Forno', 'vertical': 'restaurant'})
+    assert 'Menu' in html
+    assert 'Visit' in html
+    # still exactly one H1, valid, premium
+    assert html.lower().count('<h1') == 1
+    assert 'cdn.tailwindcss.com' in html
+    assert 'guarantee' not in html.lower()
+
+
+def test_premium_template_vertical_default_fallback():
+    from builder_agents import _premium_template
+    html = _premium_template('a consultancy', {'brand_name': 'Northwind'})
+    assert 'Why it works' in html
+    assert html.lower().startswith('<!doctype html')

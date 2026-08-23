@@ -219,8 +219,129 @@ _PREMIUM_PALETTES = [
     {'primary': '4f46e5', 'accent': '06b6d4', 'bg': 'ffffff', 'text': '0f172a', 'surface': 'f8fafc'},
     {'primary': '059669', 'accent': 'f59e0b', 'bg': 'ffffff', 'text': '111827', 'surface': 'ecfdf5'},
     {'primary': 'e11d48', 'accent': 'f43f5e', 'bg': '0f172a', 'text': 'f8fafc', 'surface': '1e293b'},
-    {'primary': '0ea5e9', 'accent': '8b5cf6', 'bg': 'ffffff', 'text': '0f172a', 'surface': 'f0f9ff'},
+    {'primary': '0ea5e9', 'accent': '8b5cf6', 'bg': 'ffffff', 'text': '0f172a', 'surface': 'f0ffff'},
 ]
+
+# Vertical families give the deterministic fallback real variety so a customer
+# whose LLM call fails still gets a page tuned to their business type — not a
+# one-size-fits-all shell. Copy stays honest (no invented testimonials/promises).
+_VERTICAL_LABELS = {
+    'saas': 'Software', 'restaurant': 'Hospitality', 'portfolio': 'Studio',
+    'ecommerce': 'Retail', 'health': 'Wellness', 'default': 'Business',
+}
+_VERTICAL_RULES = [
+    ('restaurant', ('restaurant', 'cafe', 'coffee', 'bakery', 'bar', 'food', 'pizza', 'dining', 'menu', 'kitchen', 'bistro')),
+    ('ecommerce', ('shop', 'store', 'ecommerce', 'e-commerce', 'retail', 'product', 'fashion', 'boutique', 'sell', 'marketplace')),
+    ('portfolio', ('portfolio', 'agency', 'freelance', 'designer', 'photographer', 'artist', 'studio', 'creative', 'illustrator')),
+    ('health', ('health', 'wellness', 'clinic', 'fitness', 'yoga', 'therapy', 'medical', 'spa', 'coach', 'nutrition')),
+    ('saas', ('saas', 'software', 'platform', 'app', 'tool', 'startup', 'ai', 'api', 'tech', 'automation', 'dashboard')),
+]
+_VERTICAL_SECTIONS = {
+    'saas': [
+        ('Product', 'What you ship', [
+            ('Onboarding', 'A guided first run that delivers value in minutes, not weeks.'),
+            ('Automation', 'Repeatable workflows that remove the busywork your team dislikes.'),
+            ('Insights', 'Clear dashboards so the next decision is obvious.'),
+        ]),
+        ('Integrations', 'Works where you already work', [
+            ('API', 'A clean, documented API for the systems you rely on.'),
+            ('Webhooks', 'Real-time events keep every connected tool in sync.'),
+            ('Teams', 'Roles and permissions that scale with you.'),
+        ]),
+    ],
+    'restaurant': [
+        ('Menu', 'Tastes worth the trip', [
+            ('Starters', 'Small plates designed to share and surprise.'),
+            ('Mains', 'Considered dishes built from local, seasonal ingredients.'),
+            ('Desserts', 'A short, confident list worth saving room for.'),
+        ]),
+        ('Visit', 'Find us and book', [
+            ('Hours', 'Open daily for lunch and dinner service.'),
+            ('Location', 'A calm, easy-to-reach room with seating inside and out.'),
+            ('Reserve', 'Book a table online in a few taps.'),
+        ]),
+    ],
+    'portfolio': [
+        ('Work', 'Selected projects', [
+            ('Brand', 'Identity systems with a clear point of view.'),
+            ('Product', 'Interfaces that feel effortless to use.'),
+            ('Motion', 'Detail-oriented motion that earns attention.'),
+        ]),
+        ('About', 'The person behind it', [
+            ('Approach', 'Strategy first, then craft.'),
+            ('Clients', 'Founders, teams and labels who trusted the work.'),
+            ('Recognition', 'Awards and features worth mentioning.'),
+        ]),
+    ],
+    'ecommerce': [
+        ('Shop', 'Collections', [
+            ('New', 'The latest drop, curated and in stock.'),
+            ('Bestsellers', 'The pieces customers return for.'),
+            ('Essentials', 'Quiet staples that complete the look.'),
+        ]),
+        ('Why us', 'Reasons to choose us', [
+            ('Quality', 'Materials and construction we stand behind.'),
+            ('Shipping', 'Fast, tracked delivery with clear updates.'),
+            ('Support', 'Real help from people who know the product.'),
+        ]),
+    ],
+    'health': [
+        ('Approach', 'How we help', [
+            ('Assessment', 'We start with where you are, not a template.'),
+            ('Plan', 'A realistic path you can actually follow.'),
+            ('Progress', 'Honest check-ins that keep momentum.'),
+        ]),
+        ('Care', 'What to expect', [
+            ('Sessions', 'Focused time with someone who listens.'),
+            ('Resources', 'Practical tools to use between visits.'),
+            ('Community', 'People walking the same path.'),
+        ]),
+    ],
+}
+
+
+def _vertical_for(brief: dict, prompt: str) -> str:
+    text = ' '.join([
+        str(brief.get('vertical', '') or ''),
+        str(brief.get('industry', '') or ''),
+        str(brief.get('business_type', '') or ''),
+        str(brief.get('category', '') or ''),
+        prompt,
+    ]).lower()
+    for vertical, keywords in _VERTICAL_RULES:
+        if any(k in text for k in keywords):
+            return vertical
+    return 'default'
+
+
+def _render_vertical_sections(vertical: str, cta_lower: str) -> str:
+    """Return vertical-specific <section> blocks (h2 + card grids)."""
+    blocks = _VERTICAL_SECTIONS.get(vertical)
+    if not blocks:
+        # default: the generic outcome block
+        return (
+            '<section class="wrap">'
+            '<span class="eyebrow">Why it works</span>'
+            '<h2>Built around one outcome</h2>'
+            '<div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:24px">'
+            '<div class="card"><h3 class="display" style="font-size:20px;margin-bottom:8px">Clarity</h3><p class="muted">One message, one audience, one goal — no competing calls to action.</p></div>'
+            f'<div class="card"><h3 class="display" style="font-size:20px;margin-bottom:8px">Trust</h3><p class="muted">Honest proof and a clean, professional presentation your visitors recognise.</p></div>'
+            f'<div class="card"><h3 class="display" style="font-size:20px;margin-bottom:8px">Momentum</h3><p class="muted">A single high-contrast path from first glance to {_esc(cta_lower)}.</p></div>'
+            '</div></section>'
+        )
+    out = []
+    for eyebrow, heading, items in blocks:
+        cards = "".join(
+            f'<div class="card"><h3 class="display" style="font-size:20px;margin-bottom:8px">{_esc(t)}</h3>'
+            f'<p class="muted">{_esc(d)}</p></div>'
+            for t, d in items
+        )
+        out.append(
+            f'<section class="wrap"><span class="eyebrow">{_esc(eyebrow)}</span>'
+            f'<h2>{_esc(heading)}</h2>'
+            f'<div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:24px">{cards}</div></section>'
+        )
+    return "".join(out)
 
 
 def _premium_template(prompt: str, brief: dict | None = None) -> str:
@@ -229,6 +350,8 @@ def _premium_template(prompt: str, brief: dict | None = None) -> str:
     FINAL GUARANTEE: if every LLM provider is unavailable we still return a
     complete, responsive, on-brand, conversion-focused page so the customer
     never sees an error or a blank draft. No external calls, no randomness.
+    Picks a vertical family (SaaS / hospitality / studio / retail / wellness /
+    default) so the fallback is tuned to the business, not generic.
     """
     brief = brief or {}
     confirmed = {k: v for k, v in brief.items() if v not in (None, '', [])}
@@ -238,6 +361,8 @@ def _premium_template(prompt: str, brief: dict | None = None) -> str:
     audience = str(confirmed.get('audience') or 'your customers')
     proof_points = confirmed.get('proof_points') or []
     cta_lower = (cta or 'get started').lower()
+    vertical = _vertical_for(brief, prompt)
+    vlabel = _VERTICAL_LABELS.get(vertical, 'Business')
 
     palette = _PREMIUM_PALETTES[sum(ord(c) for c in brand) % len(_PREMIUM_PALETTES)]
     p, a, bg, tx, sf = palette['primary'], palette['accent'], palette['bg'], palette['text'], palette['surface']
@@ -283,6 +408,8 @@ def _premium_template(prompt: str, brief: dict | None = None) -> str:
             'We never invent testimonials or statistics, so the published page stays truthful and review-ready.</p></section>'
         )
 
+    vertical_sections = _render_vertical_sections(vertical, cta_lower)
+
     script = (
         "<script>document.addEventListener('click',function(e){"
         "var t=e.target.closest('a[href^=\"#\"]');if(t){"
@@ -313,21 +440,13 @@ def _premium_template(prompt: str, brief: dict | None = None) -> str:
 <main>
   <section class="hero">
     <div class="wrap" style="padding:96px 24px">
-      <span class="eyebrow">For {_esc(audience)}</span>
+      <span class="eyebrow">For {_esc(audience)} · {_esc(vlabel)}</span>
       <h1 class="display" style="font-size:clamp(40px,7vw,72px);max-width:16ch;margin:14px 0">{_esc(brand)} helps {_esc(audience)} {_esc(goal)}</h1>
       <p class="muted" style="max-width:56ch;font-size:19px;margin-bottom:28px">{_esc(brand)} turns attention into action with a clear, honest offer and a single focused next step.</p>
       <a class="btn" href="#cta">{_esc(cta)}</a>
     </div>
   </section>
-  <section class="wrap">
-    <span class="eyebrow">Why it works</span>
-    <h2>Built around one outcome</h2>
-    <div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:24px">
-      <div class="card"><h3 class="display" style="font-size:20px;margin-bottom:8px">Clarity</h3><p class="muted">One message, one audience, one goal — no competing calls to action.</p></div>
-      <div class="card"><h3 class="display" style="font-size:20px;margin-bottom:8px">Trust</h3><p class="muted">Honest proof and a clean, professional presentation your visitors recognise.</p></div>
-      <div class="card"><h3 class="display" style="font-size:20px;margin-bottom:8px">Momentum</h3><p class="muted">A single high-contrast path from first glance to {_esc(cta_lower)}.</p></div>
-    </div>
-  </section>
+  {vertical_sections}
   {proof_block}
   <section id="cta" class="wrap" style="text-align:center;background:#{sf};border-radius:28px;padding:64px 24px;margin:40px auto">
     <h2>Ready to begin?</h2>
