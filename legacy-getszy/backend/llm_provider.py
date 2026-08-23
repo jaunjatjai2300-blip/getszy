@@ -484,11 +484,7 @@ async def professional_builder_completion(
     system = _truncate(system)
     user = _truncate(user)
     available = _build_chain(system, user, temperature, session_id, max_tokens)
-<<<<<<< HEAD
     rank = {'groq': 0, 'gemini': 1, 'openrouter': 2, 'ollama': 3, 'lmstudio': 4, 'emergent': 5}
-=======
-    rank = {'groq': 0, 'gemini': 1, 'ollama': 2, 'openrouter': 3, 'lmstudio': 4, 'emergent': 5}
->>>>>>> origin/feature/professional-landing-gates
     chain = sorted(available, key=lambda item: rank.get(item[0], 99))
     logger.info('LLM professional builder ladder: %s', [name for name, _ in chain])
     return await _run_provider_chain(chain, session_id=session_id)
