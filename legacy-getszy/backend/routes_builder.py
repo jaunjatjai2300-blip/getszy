@@ -75,10 +75,30 @@ def _extract_html(raw: str) -> str:
     return raw
 
 
+# Only this exact script origin is trusted to run inside previews: the Tailwind
+# Play CDN is required for page styling and is served (and CSP-gated) from here.
+_SAFE_SCRIPT_SRC = re.compile(r'^https://cdn\.tailwindcss\.com(/.*)?$', re.IGNORECASE)
+
+
 def _sanitize(html: str) -> str:
-    """Strip dangerous patterns from LLM-generated HTML."""
-    # Remove script tags and event handlers
-    html = re.sub(r'<script[\s\S]*?</script>', '', html, flags=re.IGNORECASE)
+    """Strip dangerous patterns from LLM-generated HTML.
+
+    The model is asked for self-contained HTML; this is a safety net that
+    removes script execution vectors while preserving layout/markup. The
+    trusted Tailwind Play CDN script is the single allowed <script> because
+    the rendered pages depend on it for styling.
+    """
+    def _filter_script(match: re.Match) -> str:
+        tag = match.group(0)
+        src = re.search(r'src=["\']([^"\']+)["\']', tag, re.IGNORECASE)
+        if src and _SAFE_SCRIPT_SRC.match(src.group(1)):
+            return tag
+        return ''
+
+    # Remove every <script> except the trusted Tailwind Play CDN one.
+    html = re.sub(r'<script[\s\S]*?</script>', _filter_script, html, flags=re.IGNORECASE)
+    # Self-closing / malformed script tags.
+    html = re.sub(r'<script[^>]*/>', '', html, flags=re.IGNORECASE)
     html = re.sub(r'\bon\w+\s*=', '', html, flags=re.IGNORECASE)
     # Remove dangerous URIs
     html = re.sub(r'(file://|javascript:|data:text/html)', '', html, flags=re.IGNORECASE)
@@ -241,6 +261,10 @@ async def _run_website_operation(operation_id: str) -> None:
             quality_report = evaluate_landing_page_quality(html, brief_data)
         if quality_report.get('status') == 'needs_work':
             raise ProfessionalCompositionError('professional quality baseline not met after repair')
+
+        # Always sanitize before persisting so stored HTML can never carry
+        # injected scripts/handlers (preview sandbox + download stay safe).
+        html = _sanitize(html)
 
         name = (payload.get('name') or brief_data.get('brand_name') or _derive_name(payload['prompt']))[:80]
         history = [
@@ -622,7 +646,7 @@ async def refine_project(pid: str, body: BuilderRefineIn, user=Depends(get_curre
     p = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
     if not p:
         raise HTTPException(404, 'Project not found')
-    ok, msg, _ = await deduct(user['id'], 'builder_refine')
+    ok, msg, _ = await deduct(user['id'], 'builder_refine', ref_id=f'refine:{pid}')
     if not ok:
         raise HTTPException(402, msg)
     try:
@@ -692,7 +716,14 @@ async def preview_project(pid: str, token: str = ''):
         raise HTTPException(404, 'Project not found')
     return HTMLResponse(
         content=project.get('html_content', '<h1>Empty</h1>'),
-        headers={'Content-Security-Policy': "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'"},
+        headers={'Content-Security-Policy': (
+            "sandbox allow-scripts; default-src 'none'; "
+            "script-src https://cdn.tailwindcss.com; "
+            "style-src 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; "
+            "font-src https://fonts.gstatic.com; "
+            "img-src https: data:; "
+            "connect-src 'none'; base-uri 'none'; form-action 'none'"
+        )},
     )
 
 
@@ -702,22 +733,63 @@ async def preview_project(pid: str, token: str = ''):
 
 @router.post('/build/stream')
 async def build_stream(body: BuilderProjectIn, user=Depends(get_current_user)):
-    """Stream multi-agent pipeline steps via SSE."""
+    """Stream multi-agent pipeline steps via SSE and persist the result.
+
+    The build is debited once (idempotent per generated project id) and the
+    generated HTML is saved to a BuilderProject so the customer's work is never
+    lost, even if the SSE connection drops. A failed generation refunds the
+    single debit (idempotent by project id).
+    """
     if not body.prompt.strip():
         raise HTTPException(400, 'Prompt required')
-    ok, msg, _ = await deduct(user['id'], 'builder_website')
+
+    project_id = str(uuid.uuid4())
+    project = BuilderProject(
+        id=project_id,
+        user_id=user['id'],
+        name=(body.name or _derive_name(body.prompt))[:80],
+        prompt=body.prompt,
+        brief=body.brief,
+        template_id=body.template_id,
+        html_content='<!DOCTYPE html><html><body><h1>Building your site…</h1></body></html>',
+        history=[{'timestamp': _now(), 'prompt': body.prompt, 'role': 'user', 'snapshot': None}],
+    )
+    await db.builder_projects.update_one(
+        {'id': project_id, 'user_id': user['id']},
+        {'$setOnInsert': project.model_dump()},
+        upsert=True,
+    )
+
+    ok, msg, _ = await deduct(user['id'], 'builder_website', meta={'project_id': project_id}, ref_id=project_id)
     if not ok:
         raise HTTPException(402, msg)
 
-    session_id = f'builder-stream-{user["id"]}'
+    session_id = f'builder-stream-{project_id}'
+    final_html = None
 
     async def event_generator():
+        nonlocal final_html
         try:
             async for chunk in _stream_build_steps(body.prompt, session_id):
+                # The pipeline emits the finished HTML in a `complete` event.
+                if 'event: complete' in chunk:
+                    try:
+                        payload = json.loads(chunk.split('data: ', 1)[1].split('\n\n', 1)[0])
+                        final_html = payload.get('html')
+                    except Exception:
+                        pass
                 yield chunk
         except Exception as e:
             logger.exception('stream build failed')
+            await refund(user['id'], 'builder_website', reason='generation_failed', ref_id=project_id)
             yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
+        finally:
+            # Persist whatever was produced so the customer never loses work.
+            if final_html:
+                await db.builder_projects.update_one(
+                    {'id': project_id, 'user_id': user['id']},
+                    {'$set': {'html_content': _sanitize(final_html), 'updated_at': _now()}},
+                )
 
     return StreamingResponse(
         event_generator(),
@@ -741,7 +813,7 @@ async def refine_project_element(pid: str, body: dict, user=Depends(get_current_
     if not selector or not instruction:
         raise HTTPException(400, 'selector and instruction required')
 
-    ok, msg, _ = await deduct(user['id'], 'builder_refine')
+    ok, msg, _ = await deduct(user['id'], 'builder_refine', ref_id=f'refine-elem:{pid}:{selector[:64]}')
     if not ok:
         raise HTTPException(402, msg)
 
