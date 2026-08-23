@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from db import db
 from models import (
     BuilderProject, BuilderProjectIn, BuilderRefineIn, BuilderHistoryItem,
@@ -495,20 +495,15 @@ async def download_project(pid: str, user=Depends(get_current_user)):
 
 
 @router.get('/projects/{pid}/preview', response_class=HTMLResponse)
-async def preview_project(pid: str):
-    """Public preview (no auth).
-
-    Served with a strict CSP `sandbox` so any user-injected <script> in the
-    generated HTML cannot execute or access the origin — prevents stored XSS via
-    the public preview link.
-    """
-    p = await db.builder_projects.find_one({'id': pid}, {'_id': 0, 'html_content': 1})
+async def preview_project(pid: str, user=Depends(get_current_user)):
+    """Owner-scoped preview. Private drafts must never be viewable without
+    authentication — this endpoint is intentionally NOT public."""
+    p = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0, 'html_content': 1})
     if not p:
-        return Response(content='<h1>Not found</h1>', media_type='text/html', status_code=404,
-                        headers={'Content-Security-Policy': "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
+        raise HTTPException(404, 'Project not found')
     return HTMLResponse(
         content=p.get('html_content', '<h1>Empty</h1>'),
-        headers={'Content-Security-Policy': "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'"},
+        headers={'Content-Security-Policy': "sandbox; default-src 'none'; img-src data: https:; style-src 'unsafe-inline'"},
     )
 
 
