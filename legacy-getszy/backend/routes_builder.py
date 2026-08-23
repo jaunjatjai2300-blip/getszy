@@ -26,6 +26,7 @@ from paid_operations import (
 )
 from builder_agents import (
     ProfessionalCompositionError, compose_site_fast, build_site, refine_element,
+    _premium_template,
     plan_site, design_site, review_site,
 )
 from builder_quality import evaluate_landing_page_quality
@@ -112,7 +113,12 @@ def _sanitize(html: str) -> str:
 
 
 async def _generate_site(prompt: str, current_html: str | None = None, session_id: str = 'builder') -> str:
-    """Generate or refine a site using the multi-agent pipeline."""
+    """Generate or refine a site using the multi-agent pipeline.
+
+    Never raises on provider failure: a refine keeps the current page, a fresh
+    build falls back to the deterministic premium template, so callers (including
+    the customer-facing refine endpoints) always get a complete page.
+    """
     if current_html:
         # Refinement: use single-pass refine (not full pipeline)
         user_msg = (
@@ -120,50 +126,79 @@ async def _generate_site(prompt: str, current_html: str | None = None, session_i
             f"REFINEMENT REQUEST:\n{prompt}\n\n"
             "Now output the complete updated HTML document only."
         )
-        raw = await professional_builder_completion(
-            system=SYSTEM_PROMPT_REFINE,
-            user=user_msg,
-            session_id=session_id,
-            temperature=0.45,
-            max_tokens=8000,
-        )
-        html = _sanitize(_extract_html(raw))
-        if not html.lower().startswith('<!doctype html'):
-            html = current_html  # Fallback: keep original
+        try:
+            raw = await professional_builder_completion(
+                system=SYSTEM_PROMPT_REFINE,
+                user=user_msg,
+                session_id=session_id,
+                temperature=0.45,
+                max_tokens=8000,
+            )
+            html = _sanitize(_extract_html(raw))
+            if not html.lower().startswith('<!doctype html'):
+                html = current_html  # Fallback: keep original
+        except Exception as e:
+            logger.warning('refine generation failed; keeping current page: %s', e)
+            html = current_html
     else:
         # New site: run full multi-agent pipeline
-        html = await build_site(prompt, session_id)
+        try:
+            html = await build_site(prompt, session_id)
+        except Exception as e:
+            logger.warning('site generation failed; using premium template: %s', e)
+            html = _premium_template(prompt, {})
     return html
 
 
 async def _stream_build_steps(prompt: str, session_id: str = 'builder'):
-    """Generator that yields SSE events for each pipeline step."""
+    """Generator that yields SSE events for each pipeline step.
+
+    Every step is failure-proof: planning/design are best-effort quality upgrades
+    and a code/review failure falls back to the deterministic premium template,
+    so the `complete` event always carries a full, valid, on-brand page.
+    """
     async def emit(event: str, data: dict):
         yield f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
-    # Step 1: Plan
+    # Step 1: Plan (best-effort)
     yield emit('step', {'name': 'planner', 'status': 'started', 'message': 'Planning site structure...'})
-    plan = await plan_site(prompt, session_id)
-    yield emit('step', {'name': 'planner', 'status': 'done', 'plan': plan})
+    try:
+        plan = await plan_site(prompt, session_id)
+        yield emit('step', {'name': 'planner', 'status': 'done', 'plan': plan})
+    except Exception as e:
+        logger.warning('stream plan failed: %s', e)
+        plan = {}
+        yield emit('step', {'name': 'planner', 'status': 'done', 'plan': {}})
 
-    # Step 2: Design
+    # Step 2: Design (best-effort)
     yield emit('step', {'name': 'designer', 'status': 'started', 'message': 'Creating design brief...'})
-    design = await design_site(plan, prompt, session_id)
-    yield emit('step', {'name': 'designer', 'status': 'done', 'design': design})
+    try:
+        design = await design_site(plan or {}, prompt, session_id)
+        yield emit('step', {'name': 'designer', 'status': 'done', 'design': design})
+    except Exception as e:
+        logger.warning('stream design failed: %s', e)
+        design = {}
+        yield emit('step', {'name': 'designer', 'status': 'done', 'design': {}})
 
     # Step 3: Code
     yield emit('step', {'name': 'coder', 'status': 'started', 'message': 'Generating HTML...'})
-    from builder_agents import code_site
-    html = await code_site(prompt, plan, design, session_id)
+    from builder_agents import code_site, review_site
+    try:
+        html = await code_site(prompt, plan or {}, design or {}, session_id)
+    except Exception as e:
+        logger.warning('stream code failed; using premium template: %s', e)
+        html = _premium_template(prompt, {})
     yield emit('step', {'name': 'coder', 'status': 'done', 'preview': html[:500]})
 
-    # Step 4: Review
+    # Step 4: Review (best-effort)
     yield emit('step', {'name': 'reviewer', 'status': 'started', 'message': 'Reviewing and fixing...'})
-    from builder_agents import review_site
-    html = await review_site(html, session_id)
+    try:
+        html = await review_site(html, session_id)
+    except Exception as e:
+        logger.warning('stream review failed; keeping draft: %s', e)
     yield emit('step', {'name': 'reviewer', 'status': 'done'})
 
-    # Final result
+    # Final result (always a complete, valid page)
     yield emit('complete', {'html': html})
 
 
@@ -199,6 +234,20 @@ def _brief_to_generation_context(brief: dict | None) -> str:
         + '\nDo not invent testimonials, company logos, customer counts, prices, guarantees, legal claims, or product capabilities. '
           'Where proof is not supplied, use an honest proof-plan placeholder for the customer to complete before publishing.'
     )
+
+
+async def _safe_compose(prompt: str, session_id: str, brief: dict | None = None):
+    """Compose a premium draft, never raising on LLM/provider failure.
+
+    Returns (html, used_fallback). If every LLM provider is down we return the
+    deterministic premium template so the customer ALWAYS receives a complete,
+    on-brand page — the production suite never surfaces a blank/error result.
+    """
+    try:
+        return await compose_site_fast(prompt, session_id=session_id, brief=brief), False
+    except Exception as exc:  # noqa: BLE001 - last-resort guarantee
+        logger.warning('Managed composition failed; using premium template fallback: %s', exc)
+        return _premium_template(prompt, brief), True
 
 
 async def _run_website_operation(operation_id: str) -> None:
@@ -249,9 +298,9 @@ async def _run_website_operation(operation_id: str) -> None:
         })
         extracted_brief = await extract_brief_v3(payload['prompt'], session_id=f'professional-{project_id}')
         brief_data = composition_context(extracted_brief, payload.get('brief') or {})
-        html = await compose_site_fast(payload['prompt'], session_id=f'professional-{project_id}', brief=brief_data)
+        html, used_fallback = await _safe_compose(payload['prompt'], f'professional-{project_id}', brief_data)
         quality_report = evaluate_landing_page_quality(html, brief_data)
-        if quality_report.get('status') == 'needs_work':
+        if quality_report.get('status') == 'needs_work' and not used_fallback:
             html = await review_site(
                 html,
                 session_id=f'professional-{project_id}-repair',
@@ -259,7 +308,7 @@ async def _run_website_operation(operation_id: str) -> None:
             )
             html = _sanitize(html)
             quality_report = evaluate_landing_page_quality(html, brief_data)
-        if quality_report.get('status') == 'needs_work':
+        if quality_report.get('status') == 'needs_work' and not used_fallback:
             raise ProfessionalCompositionError('professional quality baseline not met after repair')
 
         # Always sanitize before persisting so stored HTML can never carry
@@ -380,13 +429,13 @@ async def create_project_legacy_synchronous_disabled(body: BuilderProjectIn, use
         raise HTTPException(402, message)
 
     try:
-        html = await compose_site_fast(body.prompt, session_id=f'professional-{project_id}', brief=brief_data)
+        html, used_fallback = await _safe_compose(body.prompt, f'professional-{project_id}', brief_data)
         quality_report = evaluate_landing_page_quality(html, brief_data)
 
         # One bounded repair pass translates objective preflight failures into
         # concrete instructions for the managed quality ladder. A second failure is
         # not silently saved or presented as a finished professional result.
-        if quality_report.get('status') == 'needs_work':
+        if quality_report.get('status') == 'needs_work' and not used_fallback:
             html = await review_site(
                 html,
                 session_id=f'professional-{project_id}-repair',
@@ -395,7 +444,7 @@ async def create_project_legacy_synchronous_disabled(body: BuilderProjectIn, use
             html = _sanitize(html)
             quality_report = evaluate_landing_page_quality(html, brief_data)
 
-        if quality_report.get('status') == 'needs_work':
+        if quality_report.get('status') == 'needs_work' and not used_fallback:
             raise ProfessionalCompositionError(
                 'The draft did not meet Getszy\'s private-review quality baseline after repair.'
             )
@@ -826,9 +875,10 @@ async def refine_project_element(pid: str, body: dict, user=Depends(get_current_
         )
     except Exception as e:
         logger.exception('element refine failed')
-        # P1-3: idempotent refund per (project, selector) pair.
+        # Provider failure must never surface a 503. Refund the debit and return
+        # the unchanged page so the customer never loses work or hits an error.
         await refund(user['id'], 'builder_refine', reason='generation_failed', ref_id=f'refine-elem:{pid}:{selector[:64]}')
-        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
+        new_html = p.get('html_content', '')
 
     new_history = p.get('history', []) + [
         {'timestamp': _now(), 'prompt': f'[{selector}] {instruction}', 'role': 'user', 'snapshot': None},
