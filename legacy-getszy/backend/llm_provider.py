@@ -24,6 +24,10 @@ logger = logging.getLogger('getszy.llm')
 
 # ── Config ────────────────────────────────────────────────────────────────────
 FREE_ONLY        = os.environ.get('FREE_ONLY', 'true').lower() != 'false'
+# Race mode fires every configured provider concurrently and returns the first
+# valid success. This is the "instant output" guarantee for free/open models:
+# whichever model answers first wins, and a single working provider is enough.
+LLM_RACE         = os.environ.get('LLM_RACE', 'true').lower() != 'false'
 GROQ_API_KEY     = os.environ.get('GROQ_API_KEY', '').strip()
 # Live model availability varies by Groq account. The former Llama 3.3 70B
 # default was not available to Getszy's account and caused HTTP 404. Qwen 3.6
@@ -106,6 +110,15 @@ def _retry_after(e: Exception, base: float) -> float:
     except Exception:
         pass
     return base
+
+
+def _default_validate(text: str | None) -> bool:
+    """A provider "succeeded" only if it returned non-empty content.
+
+    We never accept an empty 200 as success — that would surface a blank page
+    to the customer. Callers may pass a stricter validator (e.g. HTML shape).
+    """
+    return bool(text and str(text).strip())
 
 
 # ── Groq rate limiting (RPM + TPM pacer with adaptive backoff) ──────────────
@@ -398,36 +411,69 @@ class LLMServiceUnavailable(Exception):
     FastAPI converts this to a clean 503 (see server.py) so users never see a raw 500."""
 
 
-async def _run_provider_chain(chain: list, *, session_id: str) -> str:
-    """Run a prepared provider chain with the shared rate-limit/retry discipline."""
-    last_error = None
-    for name, fn in chain:
-        # Retry one 429 before dropping to the next provider. The provider-specific
-        # pacer controls normal concurrency; this is only a transient recovery path.
-        for _attempt in range(4):
-            try:
-                result = await fn()
-                if name == 'groq':
-                    _increment('groq')
-                    _groq_relax()
-                    logger.info(f'LLM: groq ({_count("groq")}/{GROQ_DAILY_LIMIT} today)')
-                elif name == 'gemini':
-                    _increment('gemini')
-                    logger.info(f'LLM: gemini ({_count("gemini")}/{GEMINI_DAILY_LIMIT} today)')
-                else:
-                    logger.info(f'LLM: {name}')
-                return result
-            except Exception as e:
-                if _is_rate_limited(e) and _attempt == 0:
-                    wait = _retry_after(e, 2.0)
-                    logger.warning(f'LLM {name} rate-limited (429); one retry in {wait:.1f}s')
-                    await asyncio.sleep(wait)
-                    last_error = e
-                    continue
-                logger.warning(f'LLM {name} failed: {e}')
-                last_error = e
-                break
+def _record_success(name: str):
+    """Bookkeeping shared by both the race and sequential paths."""
+    if name == 'groq':
+        _increment('groq')
+        _groq_relax()
+        logger.info(f'LLM: groq ({_count("groq")}/{GROQ_DAILY_LIMIT} today)')
+    elif name == 'gemini':
+        _increment('gemini')
+        logger.info(f'LLM: gemini ({_count("gemini")}/{GEMINI_DAILY_LIMIT} today)')
+    else:
+        logger.info(f'LLM: {name}')
 
+
+async def _run_provider_race(chain: list, *, session_id: str, validate) -> str:
+    """Fire every provider at once; return the first valid success.
+
+    This is what makes free/open models feel instant: we don't wait for Groq to
+    fail before trying Gemini — whichever answers first (and passes `validate`)
+    wins. A provider returning garbage (empty/invalid 200) is treated as a
+    failure so the race continues to a real answer.
+    """
+    last_error = None
+
+    async def run_one(name, fn):
+        try:
+            result = await fn()
+            if not validate(result):
+                logger.warning(f'LLM {name} returned invalid content')
+                return (name, None, RuntimeError(f'{name} returned invalid content'))
+            return (name, result, None)
+        except Exception as e:  # noqa: BLE001 - any provider error is a race loss
+            logger.warning(f'LLM {name} failed: {e}')
+            return (name, None, e)
+
+    tasks = [asyncio.create_task(run_one(n, f)) for n, f in chain]
+    pending = set(tasks)
+    try:
+        while pending:
+            done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+            for t in done:
+                name, result, err = t.result()
+                if err is not None:
+                    last_error = err
+                    continue
+                # First valid success wins — cancel the rest to save quota.
+                for p in list(pending):
+                    p.cancel()
+                _record_success(name)
+                logger.info(f'LLM (race winner): {name}')
+                return result
+        # Every provider failed.
+        _report_chain_failure(chain, session_id, last_error)
+        raise LLMServiceUnavailable(
+            'All LLM providers failed. '
+            'Set LLM_PROVIDER appropriately and ensure at least one of '
+            'GROQ_API_KEY/GEMINI_API_KEY/OPENROUTER_API_KEY is configured.'
+        )
+    finally:
+        for t in pending:
+            t.cancel()
+
+
+def _report_chain_failure(chain, session_id, last_error):
     try:
         import sentry_sdk
         sentry_sdk.capture_exception(
@@ -441,6 +487,47 @@ async def _run_provider_chain(chain: list, *, session_id: str) -> str:
         inc_ollama_failure()
     except Exception:
         pass
+
+
+async def _run_provider_chain(chain: list, *, session_id: str, validate=_default_validate) -> str:
+    """Run a prepared provider chain with the shared rate-limit/retry discipline.
+
+    With LLM_RACE enabled (default), providers are fired concurrently and the
+    first valid answer wins. Otherwise they are tried in order with a single
+    429 retry, which keeps deterministic behaviour for callers/tests that pin a
+    provider.
+    """
+    if not chain:
+        raise LLMServiceUnavailable('No LLM providers are configured.')
+
+    if LLM_RACE and len(chain) > 1:
+        return await _run_provider_race(chain, session_id=session_id, validate=validate)
+
+    last_error = None
+    for name, fn in chain:
+        # Retry one 429 before dropping to the next provider. The provider-specific
+        # pacer controls normal concurrency; this is only a transient recovery path.
+        for _attempt in range(4):
+            try:
+                result = await fn()
+                if not validate(result):
+                    logger.warning(f'LLM {name} returned invalid content; trying next provider')
+                    last_error = RuntimeError(f'{name} returned invalid content')
+                    break
+                _record_success(name)
+                return result
+            except Exception as e:
+                if _is_rate_limited(e) and _attempt == 0:
+                    wait = _retry_after(e, 2.0)
+                    logger.warning(f'LLM {name} rate-limited (429); one retry in {wait:.1f}s')
+                    await asyncio.sleep(wait)
+                    last_error = e
+                    continue
+                logger.warning(f'LLM {name} failed: {e}')
+                last_error = e
+                break
+
+    _report_chain_failure(chain, session_id, last_error)
     raise LLMServiceUnavailable(
         'All LLM providers failed. '
         'Set LLM_PROVIDER appropriately and ensure at least one of '
@@ -454,6 +541,7 @@ async def chat_completion(
     session_id: str | None = None,
     temperature: float = 0.4,
     max_tokens: int | None = None,
+    validate=None,
 ) -> str:
     session_id = session_id or str(uuid.uuid4())
 
@@ -464,7 +552,7 @@ async def chat_completion(
     user = _truncate(user)
 
     chain = _build_chain(system, user, temperature, session_id, max_tokens)
-    return await _run_provider_chain(chain, session_id=session_id)
+    return await _run_provider_chain(chain, session_id=session_id, validate=validate or _default_validate)
 
 
 async def professional_builder_completion(
@@ -473,6 +561,7 @@ async def professional_builder_completion(
     session_id: str | None = None,
     temperature: float = 0.4,
     max_tokens: int | None = None,
+    validate=None,
 ) -> str:
     """Quality-first customer builder ladder: Groq 70B -> Gemini -> Qwen/Ollama.
 
@@ -487,7 +576,7 @@ async def professional_builder_completion(
     rank = {'groq': 0, 'gemini': 1, 'openrouter': 2, 'ollama': 3, 'lmstudio': 4, 'emergent': 5}
     chain = sorted(available, key=lambda item: rank.get(item[0], 99))
     logger.info('LLM professional builder ladder: %s', [name for name, _ in chain])
-    return await _run_provider_chain(chain, session_id=session_id)
+    return await _run_provider_chain(chain, session_id=session_id, validate=validate or _default_validate)
 
 
 # ── Tool-calling (agentic) providers ────────────────────────────────────────────
