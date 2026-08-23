@@ -344,6 +344,12 @@ async def create_project_legacy_synchronous_disabled(body: BuilderProjectIn, use
     try:
         extracted_brief = await extract_brief_v3(body.prompt, session_id=f'professional-{project_id}')
     except BriefIntelligenceError as exc:
+        # brief_intelligence already logs the raw completion / validation errors
+        # at the point of failure; log here too so a 422 on this route is
+        # traceable to that log line via project_id, not silently invisible.
+        logger.warning(
+            'brief_intelligence rejected project %s: %s', project_id, exc,
+        )
         raise HTTPException(
             422,
             'Getszy could not verify a structured brief from this request. Add clear business details and try again; no credit has been consumed.',

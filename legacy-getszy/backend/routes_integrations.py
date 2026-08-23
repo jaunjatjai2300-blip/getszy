@@ -13,7 +13,7 @@ from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from auth import get_current_user, get_current_admin
+from auth import get_current_user, get_current_admin, require_strong_secret
 from db import db
 
 router = APIRouter(tags=['integrations'])
@@ -22,9 +22,7 @@ router = APIRouter(tags=['integrations'])
 def _credential_cipher():
     """Build the dedicated Fernet cipher required before any live provider stores credentials."""
     from cryptography.fernet import Fernet
-    secret = os.environ.get('INTEGRATION_ENCRYPTION_KEY')
-    if not secret or secret in {'change-me', 'secret', 'dev-secret'}:
-        raise RuntimeError('INTEGRATION_ENCRYPTION_KEY is not configured')
+    secret = require_strong_secret('INTEGRATION_ENCRYPTION_KEY', os.environ.get('INTEGRATION_ENCRYPTION_KEY'))
     return Fernet(base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest()))
 
 

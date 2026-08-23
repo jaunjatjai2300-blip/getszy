@@ -7,6 +7,7 @@ are not directly supported by the customer's natural-language command.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import Literal
 
@@ -14,9 +15,18 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from llm_provider import professional_builder_completion
 
+logger = logging.getLogger('getszy.brief_intelligence')
+
 
 class _StrictModel(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    # NOTE: 'ignore', not 'forbid'. A brief is produced by an LLM, not a fixed
+    # client — it will occasionally emit a field this schema doesn't model yet
+    # (e.g. a customer mentions "EMI available" and the model invents a key for
+    # it). Rejecting the entire brief over one unrecognized key throws away
+    # every other field the model got right. Extra keys are silently dropped
+    # instead; if a key shows up often enough to matter, add it as a real
+    # field (see `tone` / `shipping_terms` below) rather than widening this.
+    model_config = ConfigDict(extra='ignore')
 
 
 class Contact(_StrictModel):
@@ -47,6 +57,8 @@ class BriefIntelligenceV3(_StrictModel):
     design_direction: DesignDirection = Field(default_factory=DesignDirection)
     primary_goal: str | None = None
     cta: str | None = None
+    tone: str | None = None
+    shipping_terms: str | None = None
     languages: list[str] = Field(default_factory=list, max_length=8)
     contact: Contact = Field(default_factory=Contact)
     social_links: SocialLinks = Field(default_factory=SocialLinks)
@@ -72,6 +84,8 @@ Rules:
 - target_audience only when explicitly mentioned. Beauty salon alone has no target audience; "women ke liye salon" may include Women.
 - primary_goal only when explicit intent supports it: admission/admissions supports Admissions; booking supports Bookings; sale/shop/buy supports Sales; lead/enquiry supports Leads; branding/design/style alone does not imply Branding.
 - cta only when explicitly requested. Never invent it from a goal.
+- tone only when the customer describes how the site should sound/feel (e.g. "friendly", "professional", "premium and minimal"). Do not infer tone from business type alone.
+- shipping_terms only when the customer explicitly states a shipping/delivery/payment policy (e.g. "free shipping over ₹999", "COD available", "EMI available", "same-day delivery"). Keep it as the customer stated it; do not merge it into approved_facts or invent a different key for it.
 - requested_pages and functional_requirements only contain explicitly requested pages or functionality.
 - If a customer corrects a value, use the latest explicit value.
 - Empty values must be null or []. request_type is always create.
@@ -87,6 +101,8 @@ Output only JSON with exactly these keys:
   "design_direction":{"style":null,"colors":[]},
   "primary_goal":null,
   "cta":null,
+  "tone":null,
+  "shipping_terms":null,
   "languages":[],
   "contact":{"phone":null,"email":null,"whatsapp":null,"website":null},
   "social_links":{"instagram":null,"facebook":null,"youtube":null},
@@ -102,10 +118,18 @@ def _extract_json(raw: str) -> dict:
     raw = (raw or '').strip()
     start, end = raw.find('{'), raw.rfind('}')
     if start < 0 or end <= start:
+        logger.warning(
+            'brief_intelligence: no JSON object found in LLM output (len=%d): %r',
+            len(raw), raw[:2000],
+        )
         raise BriefIntelligenceError('Managed extraction did not return JSON.')
     try:
         return json.loads(raw[start:end + 1])
     except json.JSONDecodeError as exc:
+        logger.warning(
+            'brief_intelligence: JSON decode failed (%s at pos %d): %r',
+            exc.msg, exc.pos, raw[:2000],
+        )
         raise BriefIntelligenceError('Managed extraction returned invalid JSON.') from exc
 
 
@@ -186,10 +210,14 @@ def validate_and_sanitize_brief(payload: dict, raw_command: str) -> BriefIntelli
     try:
         brief = BriefIntelligenceV3.model_validate(payload)
     except ValidationError as exc:
+        logger.warning(
+            'brief_intelligence: schema validation failed: %s | model payload=%r',
+            exc.errors(), payload,
+        )
         raise BriefIntelligenceError('Brief JSON does not match the required schema.') from exc
 
     updates: dict = {}
-    for key in ('business_name', 'business_type', 'location', 'cta'):
+    for key in ('business_name', 'business_type', 'location', 'cta', 'tone', 'shipping_terms'):
         value = getattr(brief, key)
         updates[key] = value if _supported(value, raw_command) else None
 
@@ -250,6 +278,8 @@ def composition_context(brief: BriefIntelligenceV3, customer_brief: dict | None 
         'audience': customer_brief.get('audience') or ', '.join(brief.target_audience),
         'primary_goal': customer_brief.get('primary_goal') or brief.primary_goal,
         'primary_cta': customer_brief.get('primary_cta') or brief.cta,
+        'tone': customer_brief.get('tone') or brief.tone,
+        'shipping_terms': customer_brief.get('shipping_terms') or brief.shipping_terms,
         'visual_style': customer_brief.get('visual_style') or brief.design_direction.style,
         'offer': customer_brief.get('offer') or '; '.join(brief.services_or_products),
         'proof_points': list(customer_brief.get('proof_points') or []) + list(brief.approved_facts),
