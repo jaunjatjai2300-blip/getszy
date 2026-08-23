@@ -116,3 +116,98 @@ async def test_race_still_raises_when_all_fail(monkeypatch):
 
     with pytest.raises(lp.LLMServiceUnavailable):
         await lp.chat_completion('s', 'u')
+
+
+# ── Free-tier guard: no paid models, token budgets ───────────────────────────
+@pytest.mark.asyncio
+async def test_emergent_is_never_in_customer_chain(monkeypatch):
+    """Paid providers (Emergent/gpt-4o-mini) must be excluded from the chain
+    even if a key is configured and FREE_ONLY is off."""
+    monkeypatch.setattr(lp, 'GROQ_API_KEY', 'x')
+    monkeypatch.setattr(lp, 'EMERGENT_LLM_KEY', 'paid-key')
+    monkeypatch.setattr(lp, 'FREE_ONLY', False)
+    monkeypatch.setattr(lp, 'ALLOW_PAID_PROVIDERS', False)
+
+    async def groq(*_a, **_k):
+        return 'ok'
+
+    monkeypatch.setattr(lp, '_groq', groq)
+    monkeypatch.setattr(lp, '_gemini', RuntimeError('down'))
+    monkeypatch.setattr(lp, '_ollama_chain', RuntimeError('down'))
+    monkeypatch.setattr(lp, '_lmstudio', RuntimeError('down'))
+    monkeypatch.setattr(lp, '_openrouter', RuntimeError('down'))
+
+    res = await lp.chat_completion('s', 'u')
+    assert res == 'ok'
+    names = [n for n, _ in lp._build_chain('s', 'u', 0.4, 'sid')]
+    assert 'emergent' not in names
+
+
+@pytest.mark.asyncio
+async def test_openrouter_requires_free_model_under_free_only(monkeypatch):
+    """Under FREE_ONLY, an OpenRouter model without the `:free` suffix is excluded."""
+    monkeypatch.setattr(lp, 'FREE_ONLY', True)
+    monkeypatch.setattr(lp, 'OPENROUTER_API_KEY', 'x')
+    monkeypatch.setattr(lp, 'OPENROUTER_MODEL', 'anthropic/claude-3.5-sonnet')
+    monkeypatch.setattr(lp, 'OPENROUTER_CUSTOMER_FALLBACK', True)
+    monkeypatch.setattr(lp, 'OPENROUTER_FREE_MODELS', [])
+
+    names = [n for n, _ in lp._build_chain('s', 'u', 0.4, 'sid')]
+    assert not any(n.startswith('openrouter') for n in names)
+
+    # A `:free` model is allowed.
+    monkeypatch.setattr(lp, 'OPENROUTER_MODEL', 'meta-llama/llama-3.1-8b-instruct:free')
+    names2 = [n for n, _ in lp._build_chain('s', 'u', 0.4, 'sid')]
+    assert any(n.startswith('openrouter') for n in names2)
+
+
+@pytest.mark.asyncio
+async def test_token_budget_skip_when_exhausted(monkeypatch):
+    """When Groq's rolling token budget is spent, it is skipped and Gemini wins."""
+    monkeypatch.setattr(lp, 'GROQ_API_KEY', 'x')
+    monkeypatch.setattr(lp, 'GEMINI_API_KEY', 'x')
+    monkeypatch.setattr(lp, 'TOKEN_BUDGETS', {'groq': {'tpm': 100, 'daily': 10**9},
+                                              'gemini': {'tpm': 10**9, 'daily': 10**9},
+                                              'openrouter': {'tpm': 10**9, 'daily': 10**9}})
+    monkeypatch.setattr(lp, '_TOK_MIN', {'groq': [(0.0, 10**9)]})  # already over TPM
+    monkeypatch.setattr(lp, '_TOK_DAY', {})
+
+    order = []
+
+    async def groq(*_a, **_k):
+        order.append('groq')
+        return 'groq-ok'
+
+    async def gemini(*_a, **_k):
+        order.append('gemini')
+        return 'gemini-ok'
+
+    monkeypatch.setattr(lp, '_gemini', gemini)
+    monkeypatch.setattr(lp, '_groq', groq)
+    monkeypatch.setattr(lp, '_ollama_chain', RuntimeError('down'))
+    monkeypatch.setattr(lp, '_lmstudio', RuntimeError('down'))
+    monkeypatch.setattr(lp, '_openrouter', RuntimeError('down'))
+
+    res = await lp.chat_completion('s', 'u')
+    assert res == 'gemini-ok'
+    assert 'groq' not in order  # skipped, never attempted
+
+
+@pytest.mark.asyncio
+async def test_per_request_max_tokens_is_capped(monkeypatch):
+    """A caller requesting a huge max_tokens must be capped to the free-tier cap."""
+    monkeypatch.setattr(lp, 'GROQ_API_KEY', 'x')
+    captured = {}
+
+    async def groq(system, user, temperature, max_tokens=None):
+        captured['max_tokens'] = max_tokens
+        return 'ok'
+
+    monkeypatch.setattr(lp, '_groq', groq)
+    monkeypatch.setattr(lp, '_gemini', RuntimeError('down'))
+    monkeypatch.setattr(lp, '_ollama_chain', RuntimeError('down'))
+    monkeypatch.setattr(lp, '_lmstudio', RuntimeError('down'))
+    monkeypatch.setattr(lp, '_openrouter', RuntimeError('down'))
+
+    await lp.chat_completion('s', 'u', max_tokens=1_000_000)
+    assert captured['max_tokens'] <= lp.PER_PROVIDER_MAX_TOKENS['groq']
