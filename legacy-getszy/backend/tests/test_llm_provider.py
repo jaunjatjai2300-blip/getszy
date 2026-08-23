@@ -99,6 +99,7 @@ class TestProfessionalBuilderProviderLadder:
         monkeypatch.setattr(lp, '_groq', groq)
         monkeypatch.setattr(lp, '_gemini', gemini)
         monkeypatch.setattr(lp, '_ollama_chain', ollama)
+        monkeypatch.setattr(lp, 'LLM_RACE', False)  # pin sequential order for this contract test
 
         result = await lp.professional_builder_completion('system', 'refine this page', session_id='quality-test')
 

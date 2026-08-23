@@ -57,8 +57,9 @@ async def test_cloud_primary_starts_with_groq(monkeypatch):
 
 
 async def test_fallback_full_chain_order(monkeypatch):
-    """Each provider fails until the last one succeeds; earlier ones tried once."""
+    """Each provider fails until the last one succeeds; here openrouter wins."""
     _configure(monkeypatch)
+    monkeypatch.setattr(lp, 'LLM_RACE', False)  # pin sequential order for this contract test
     order = []
 
     async def make(name, ok_at_end=False):
