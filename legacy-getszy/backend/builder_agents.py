@@ -3,6 +3,7 @@
 Pipeline: Planner → Designer → Coder → Reviewer
 Each agent specializes in one aspect, producing better output than a single monolithic LLM call.
 """
+import asyncio
 import re
 import json
 import logging
@@ -87,6 +88,7 @@ NON-NEGOTIABLE:
 5. Use 5–7 meaningful sections only. Prefer specific benefit, process and offer sections. Include testimonials/prices/claims only when they appear in the verified brief.
 6. No external form POST, fetch(), trackers, iframes, data:text/html, or unsafe JavaScript. Use a tiny mobile-menu script only if necessary.
 7. Target 250–450 lines with refined typography, generous whitespace, strong hierarchy and clear device responsiveness. Do not narrate your work or output markdown.
+8. If a DESIGN BRIEF (palette, fonts, per-section layout) is supplied below, follow its palette hex codes, font pairing and section layout treatments exactly — do not invent a different color system or ignore the specified layout per section. If no design brief is supplied, choose one yourself per rule 2.
 
 Speed matters. Make the complete professional draft in this one response. A deterministic Getszy quality check will inspect it before the customer sees it."""
 
@@ -270,20 +272,75 @@ async def refine_element(html: str, selector: str, instruction: str, session_id:
 
 # ── Full Pipeline ──────────────────────────────────────────────────────────────
 
-async def compose_site_fast(prompt: str, brief: dict | None = None, session_id: str = 'builder') -> str:
-    """Create a normal customer draft in one managed quality-ladder call.
+# Bound how long the optional design step is allowed to take. It only exists to
+# improve output quality — if it's slow (Groq under 429 pressure, a rate-limited
+# retry, a slow fallback provider) it must not meaningfully add to build latency.
+_DESIGN_BRIEF_TIMEOUT_SEC = 20.0
 
-    This is intentionally the default customer path. The legacy multi-agent path
-    remains available for internal diagnostics and streamed specialist workflows,
-    but customer wait time must not include four serial model calls.
+
+async def design_brief_fast(prompt: str, brief: dict | None = None, session_id: str = 'builder') -> dict | None:
+    """One extra, small LLM call before fast composition: ask for an explicit
+    palette/fonts/section-layout brief so the coder isn't inventing copy AND a
+    color system in the same single shot. Reuses DESIGNER_PROMPT from the full
+    build_site pipeline (adapted to run directly off the prompt/brief, since the
+    fast path deliberately skips the plan_site step that build_site feeds it).
+
+    Never raises. Returns None on any failure, bad JSON, or timeout, so callers
+    can fall back to the pre-existing single-call behavior rather than fail an
+    otherwise-working build over a step that's only a quality upgrade.
+    """
+    brief = brief or {}
+    context = (
+        f"Original request: {prompt}\n\n"
+        f"Verified customer brief:\n{json.dumps(brief, ensure_ascii=False, indent=2)}"
+    )
+    try:
+        raw = await asyncio.wait_for(
+            professional_builder_completion(
+                system=DESIGNER_PROMPT,
+                user=context,
+                session_id=f'{session_id}-design-fast',
+                temperature=0.45,
+                max_tokens=900,
+            ),
+            timeout=_DESIGN_BRIEF_TIMEOUT_SEC,
+        )
+    except Exception as e:
+        logger.warning('Fast design-brief call failed (%s); falling back to single-call composition.', e)
+        return None
+    design = _extract_json(raw)
+    if not design:
+        logger.warning('Fast design-brief call returned no parseable JSON; falling back to single-call composition.')
+    return design
+
+
+async def compose_site_fast(prompt: str, brief: dict | None = None, session_id: str = 'builder') -> str:
+    """Create a normal customer draft in two managed quality-ladder calls: an
+    optional design brief (palette/fonts/layout), then composition.
+
+    This is intentionally the default customer path — not the full four-agent
+    build_site pipeline (plan -> design -> code -> review), which is too slow
+    given Groq is already rate-limiting this app under a single call per build.
+    The design step here is additive and best-effort: composition proceeds
+    with or without it (see design_brief_fast).
     """
     brief = brief or {}
     confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
-    context = (
-        f"CUSTOMER REQUEST:\n{prompt}\n\n"
-        f"VERIFIED CUSTOMER BRIEF:\n{json.dumps(confirmed, ensure_ascii=False, indent=2)}\n\n"
-        "Compose the complete private draft now."
-    )
+
+    design = await design_brief_fast(prompt, confirmed, session_id)
+
+    context_parts = [
+        f"CUSTOMER REQUEST:\n{prompt}",
+        f"VERIFIED CUSTOMER BRIEF:\n{json.dumps(confirmed, ensure_ascii=False, indent=2)}",
+    ]
+    if design:
+        context_parts.append(
+            "DESIGN BRIEF (follow this palette, fonts and section layout exactly):\n"
+            + json.dumps(design, ensure_ascii=False, indent=2)
+        )
+    context_parts.append("Compose the complete private draft now.")
+    context = "\n\n".join(context_parts)
+
     raw = await professional_builder_completion(
         system=FAST_COMPOSITION_PROMPT,
         user=context,
@@ -294,7 +351,10 @@ async def compose_site_fast(prompt: str, brief: dict | None = None, session_id: 
     html = _extract_html(raw)
     if not html.lower().startswith('<!doctype html') or len(html) < 4000:
         raise ProfessionalCompositionError('The fast managed composer did not return a complete reviewable private draft.')
-    logger.info('Fast professional composition completed: %s chars', len(html))
+    logger.info(
+        'Fast professional composition completed: %s chars (design_brief=%s)',
+        len(html), bool(design),
+    )
     return _sanitize(html)
 
 
