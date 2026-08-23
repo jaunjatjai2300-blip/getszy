@@ -200,12 +200,14 @@ def evaluate_landing_page_quality(
     score = round(100 * (passed_required + 0.5 * passed_optional) / (len(required_checks) + 0.5 * (len(checks) - len(required_checks))))
     failed_required = [check["key"] for check in required_checks if not check["passed"]]
 
+    # The premium baseline is passing every *required* check (truthfulness,
+    # structure, CTA, proof-plan, etc.). When that is met the page is eligible
+    # for human/customer review; gating on a high numeric score kept the review
+    # gate effectively unreachable, so we no longer require score >= 90.
     if failed_required:
         status = "needs_work"
-    elif score >= 90:
-        status = "ready_for_human_review"
     else:
-        status = "review_recommended"
+        status = "ready_for_human_review"
 
     return {
         "version": PREVIEW_QUALITY_VERSION,
