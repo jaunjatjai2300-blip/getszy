@@ -102,8 +102,23 @@ jobs:
           # ignored with rationale. Genuinely new CVEs will still fail CI.
           safety check --ignore 64396 --ignore 64459
 
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+      - name: Install Yarn
+        run: npm install -g yarn
+      - name: Install frontend dependencies
+        run: cd legacy-getszy/frontend && yarn install --no-progress
+      - name: Build frontend
+        run: cd legacy-getszy/frontend && CI=false yarn build
+
   deploy:
-    needs: [backend-tests, security]
+    needs: [backend-tests, security, frontend-build]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:

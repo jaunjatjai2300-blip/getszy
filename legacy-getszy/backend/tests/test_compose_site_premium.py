@@ -81,3 +81,15 @@ def test_polish_returns_original_on_provider_failure(monkeypatch):
 def test_extract_html_strips_fences():
     cleaned = _extract_html("```html\n<!DOCTYPE html><p>1</p>\n```")
     assert cleaned.lower().startswith("<!doctype")
+
+
+def test_compose_site_fast_triggers_quality_self_heal(monkeypatch):
+    calls = []
+    async def _cap(system, user, session_id=None, temperature=0.4, max_tokens=None):
+        calls.append((system, temperature))
+        return _fake_html()
+    monkeypatch.setattr('builder_agents.professional_builder_completion', _cap)
+    html = asyncio.run(compose_site_fast('a cafe', brief={}, session_id='t'))
+    assert html.lower().startswith('<!doctype html')
+    compose_calls = sum(1 for s, _ in calls if s == FAST_COMPOSITION_PROMPT)
+    assert compose_calls >= 2  # initial compose + at least one premium-quality self-heal attempt
