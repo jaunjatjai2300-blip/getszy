@@ -48,6 +48,7 @@ MEDIA_ROUTERS = [
     ('video_factory', 'routes_video_factory', 'video-factory'),
     ('publishing', 'routes_publishing', 'publishing'),
     ('avatar', 'routes_avatar', 'avatar'),
+    ('media_suite', 'routes_media_suite', 'media-suite'),
 ]
 
 # ── Creator & Workforce ───────────────────────────────────────────────────────
