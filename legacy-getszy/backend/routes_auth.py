@@ -8,8 +8,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from db import db
 from models import SignupIn, LoginIn, User, UserOut, ProfileUpdate, PasswordChange
 from auth import (
-    hash_password, verify_password, create_token, get_current_user,
-    revoke_token, bearer, jwt, JWT_SECRET, JWT_ALG,
+    hash_password, verify_password, create_token, create_refresh_token,
+    get_current_user, revoke_token, revoke_refresh_token, is_refresh_token_valid,
+    bearer, jwt, JWT_SECRET, JWT_ALG,
 )
 from redis_client import redis
 from live_events import broadcast_admin_event
@@ -120,11 +121,12 @@ async def signup(body: SignupIn):
                     pass
     await db.users.insert_one(user.model_dump())
     token = create_token(user.id, user.role)
+    refresh = create_refresh_token(user.id)
     try:
         broadcast_admin_event('user_signup', {'email': body.email, 'name': body.name})
     except Exception:
         pass
-    return {'token': token, 'user': UserOut(**user.model_dump()).model_dump()}
+    return {'token': token, 'refresh': refresh, 'user': UserOut(**user.model_dump()).model_dump()}
 
 
 @router.get('/referrals')
@@ -196,7 +198,8 @@ async def login(body: LoginIn, request: Request = None):
         raise HTTPException(401, 'Invalid email or password')
     await _reset_login(body.email.lower(), ip)
     token = create_token(user['id'], user['role'])
-    return {'token': token, 'user': UserOut(**user).model_dump()}
+    refresh = create_refresh_token(user['id'])
+    return {'token': token, 'refresh': refresh, 'user': UserOut(**user).model_dump()}
 
 
 @router.post('/logout')
@@ -254,3 +257,32 @@ async def change_password(body: PasswordChange, user=Depends(get_current_user),
         except Exception:
             pass
     return {'ok': True, 'revoked_sessions': True}
+
+
+@router.post('/refresh')
+async def refresh_token(body: dict):
+    from pydantic import BaseModel, Field
+    class RefreshIn(BaseModel):
+        refresh_token: str
+    try:
+        data = RefreshIn(**body)
+    except Exception:
+        raise HTTPException(400, 'refresh_token required')
+    try:
+        payload = jwt.decode(data.refresh_token, JWT_SECRET, algorithms=[JWT_ALG])
+    except Exception:
+        raise HTTPException(401, 'Invalid or expired refresh token')
+    if payload.get('type') != 'refresh':
+        raise HTTPException(401, 'Not a refresh token')
+    user_id = payload['sub']
+    rti = payload.get('jti')
+    if not await is_refresh_token_valid(user_id, rti):
+        raise HTTPException(401, 'Refresh token revoked')
+    user = await db.users.find_one({'id': user_id}, {'_id': 0})
+    if not user:
+        raise HTTPException(401, 'User not found')
+    new_token = create_token(user['id'], user['role'])
+    new_refresh = create_refresh_token(user['id'])
+    if rti:
+        await revoke_refresh_token(user_id, rti)
+    return {'token': new_token, 'refresh': new_refresh}

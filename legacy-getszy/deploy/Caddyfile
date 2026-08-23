@@ -54,6 +54,10 @@
         @internal_docs path /docs /docs/* /redoc /redoc/* /openapi.json /api/docs /api/docs/* /api/redoc /api/redoc/* /api/openapi.json
         respond @internal_docs "Not Found" 404
 
+        # Prometheus metrics must never be public — block at the edge.
+        @metrics path /metrics /metrics/*
+        respond @metrics "Not Found" 404
+
         @production_api path /api/*
         reverse_proxy @production_api backend:8001
 
