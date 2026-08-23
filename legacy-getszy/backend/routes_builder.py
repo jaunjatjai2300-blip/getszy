@@ -16,7 +16,7 @@ from models import (
     BuilderEvidenceUpdateIn, BuilderVersionIn, BuilderReleaseReviewIn,
 )
 from auth import create_preview_token, get_current_user, get_optional_user, verify_preview_token
-from llm_provider import chat_completion, professional_builder_completion
+from llm_provider import chat_completion, professional_builder_completion, provider_info
 from credits import deduct, refund
 from paid_operations import (
     FAILED_REFUNDED, PENDING, REJECTED_NO_CHARGE, RUNNING, SUCCEEDED,
@@ -36,6 +36,29 @@ from template_catalog import public_template_catalog, get_template, recommend_te
 
 logger = logging.getLogger('getszy.builder')
 router = APIRouter(prefix='/builder', tags=['builder'])
+
+
+@router.get('/ai/status')
+async def ai_status():
+    """Cheap, public health surface for the customer dashboard and monitoring.
+
+    Returns which providers are actually usable (available and not blocked by the
+    free-only policy) so the UI can show a live "AI online" badge and so a smoke
+    test can assert the generator is never silently dead. No DB, no per-call LLM.
+    """
+    info = provider_info()
+    providers = info.get('providers', {}) or {}
+    usable = [
+        name for name, p in providers.items()
+        if isinstance(p, dict) and p.get('available') and not p.get('blocked_by_paid_policy')
+    ]
+    return {
+        'healthy': bool(usable),
+        'mode': 'free' if info.get('free_only') else 'standard',
+        'providers': usable,
+        'active_chain': info.get('active_chain', ''),
+    }
+
 _TEMPLATE_ASSET_ROOT = Path(__file__).resolve().parent / "starter_templates" / "assets"
 _TEMPLATE_ASSETS = {
     "dance-academy-hero.jpg": "image/jpeg",
