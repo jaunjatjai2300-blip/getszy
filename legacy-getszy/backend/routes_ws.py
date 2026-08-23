@@ -1,17 +1,12 @@
 """Authenticated WebSocket endpoints for real-time updates."""
-import os
-
 import jwt
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
-from auth import is_token_revoked
+from auth import is_token_revoked, JWT_SECRET, JWT_ALG
 from db import db
 from websocket_manager import manager
 
 router = APIRouter(tags=['websocket'])
-
-JWT_SECRET = os.environ.get('JWT_SECRET', '')
-JWT_ALG = 'HS256'
 
 
 async def _verify_ws_user(token: str, *, require_admin: bool = False) -> dict | None:
