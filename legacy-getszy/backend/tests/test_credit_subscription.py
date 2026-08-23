@@ -137,17 +137,19 @@ async def test_subscription_ends_when_credits_hit_zero(fake_db):
 
 
 @pytest.mark.asyncio
-async def test_deduct_to_zero_ends_subscription_integration(fake_db):
+async def test_deduct_to_zero_keeps_subscription_unchanged_integration(fake_db):
     await sub_mod.grant_plan('u1', 'pro', days=30)
-    # one big action that exactly zeroes the bucket
+    # One big action then 115 one-credit actions leave the bucket exactly at zero.
+    # Credit exhaustion alone must never cancel, downgrade, or expire the paid plan.
     ok, _, bal = await credits_mod.deduct('u1', 'faceless_video')  # cost 10 -> 115
     assert ok and bal == 115
-    # exhaust remaining 115 with script (cost 1) x115
     for _ in range(115):
-        await credits_mod.deduct('u1', 'script')
+        ok, _, bal = await credits_mod.deduct('u1', 'script')
+        assert ok
+    assert bal == 0
     final = await fake_db.users.find_one({'id': 'u1'})
-    assert final['subscription']['plan'] == 'free'
-    assert final['subscription']['status'] == 'expired'
+    assert final['subscription']['plan'] == 'pro'
+    assert final['subscription']['status'] == 'active'
 
 
 @pytest.mark.asyncio

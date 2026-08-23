@@ -15,6 +15,7 @@ if not JWT_SECRET or JWT_SECRET in ('change-me', 'CHANGE_ME'):
 JWT_ALG = 'HS256'
 JWT_EXP_DAYS = 7
 JWT_REFRESH_EXP_DAYS = 30
+PREVIEW_TOKEN_EXP_MINUTES = 10
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -38,6 +39,29 @@ def create_token(user_id: str, role: str) -> str:
         'exp': datetime.now(timezone.utc) + timedelta(days=JWT_EXP_DAYS),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
+
+
+def create_preview_token(user_id: str, project_id: str) -> str:
+    """Create a short-lived token valid only for one customer builder preview."""
+    payload = {
+        'sub': user_id,
+        'project_id': project_id,
+        'type': 'builder_preview',
+        'jti': uuid.uuid4().hex,
+        'exp': datetime.now(timezone.utc) + timedelta(minutes=PREVIEW_TOKEN_EXP_MINUTES),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
+
+
+def verify_preview_token(token: str, project_id: str) -> str:
+    """Return owner ID only when the token is valid and bound to this project."""
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+    except Exception:
+        raise HTTPException(status_code=401, detail='Invalid or expired preview token')
+    if payload.get('type') != 'builder_preview' or payload.get('project_id') != project_id or not payload.get('sub'):
+        raise HTTPException(status_code=403, detail='Preview token does not authorize this project')
+    return str(payload['sub'])
 
 
 def create_refresh_token(user_id: str) -> str:
