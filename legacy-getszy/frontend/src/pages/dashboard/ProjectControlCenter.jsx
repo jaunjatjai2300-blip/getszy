@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { useBuilderPreviewToken } from "@/hooks/useBuilderPreviewToken";
 import { Button } from "@/components/ui/button";
 
 const STATUS_STYLE = {
@@ -59,8 +60,7 @@ export default function ProjectControlCenter() {
   const [evidenceItems, setEvidenceItems] = useState([]);
   const [evidenceConfirmed, setEvidenceConfirmed] = useState(false);
   const [previewDevice, setPreviewDevice] = useState("desktop");
-  const [previewToken, setPreviewToken] = useState(null);
-  const [previewTokenError, setPreviewTokenError] = useState(false);
+  const { previewUrl, error: previewTokenError } = useBuilderPreviewToken(projectId);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,14 +74,6 @@ export default function ProjectControlCenter() {
       setProject(projectResponse.data);
       setControls(nextControls);
       setEvidenceItems(nextControls.evidence_items || []);
-      try {
-        const tokenResponse = await api.get(`/builder/projects/${projectId}/preview-token`);
-        setPreviewToken(tokenResponse.data?.token || null);
-        setPreviewTokenError(false);
-      } catch {
-        setPreviewToken(null);
-        setPreviewTokenError(true);
-      }
     } catch (error) {
       toast.error(error?.response?.data?.detail || "Could not load this project");
       setProject(null);
@@ -96,7 +88,6 @@ export default function ProjectControlCenter() {
   const quality = controls?.state?.quality;
   const summary = controls?.state?.evidence;
   const hasPrivateOutput = Boolean(project?.html_content);
-  const previewUrl = previewToken ? `/api/builder/projects/${projectId}/preview?token=${encodeURIComponent(previewToken)}` : null;
   const canSaveEvidence = useMemo(() => evidenceItems.every((item) => String(item.claim || "").trim() && String(item.source || "").trim()), [evidenceItems]);
 
   const saveEvidence = async () => {
