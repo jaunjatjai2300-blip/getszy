@@ -1,9 +1,9 @@
+import asyncio
 """Builder Agents — Multi-agent pipeline for website generation.
 
 Pipeline: Planner → Designer → Coder → Reviewer
 Each agent specializes in one aspect, producing better output than a single monolithic LLM call.
 """
-import asyncio
 import re
 import json
 import logging
@@ -76,9 +76,15 @@ STRICT OUTPUT RULES:
 
 START IMMEDIATELY WITH <!DOCTYPE html>. End with </html>. Nothing else."""
 
-FAST_COMPOSITION_PROMPT = """You are Getszy's Professional Composition Engine. Create one distinctive, premium, responsive private landing-page draft from the verified customer brief.
+FAST_COMPOSITION_PROMPT = """You are Getszy's Professional Composition Engine. Create one distinctive, premium, conversion-grade, responsive private landing-page draft from the verified customer brief.
 
-OUTPUT: ONLY one complete HTML document, beginning with <!DOCTYPE html> and ending with </html>. Use Tailwind CDN and one premium Google font pairing.
+OUTPUT: ONLY one complete HTML document, beginning with <!DOCTYPE html> and ending with </html>. Use Tailwind CSS via CDN and one refined premium Google Font pairing (e.g. Plus Jakarta Sans + Inter, or Space Grotesk + Source Serif).
+
+PREMIUM DESIGN SYSTEM (apply deliberately, never a generic template):
+- Editorial hierarchy: one decisive hero with a benefit-led H1, a supporting sub-headline, and a single high-contrast primary CTA.
+- Restrained, intentional art direction: a branded gradient/duotone or inline SVG motif derived from the brief, generous whitespace, a disciplined spacing rhythm, and a consistent accent color used sparingly for emphasis and the CTA.
+- Two or three distinct section treatments (not a repeated card grid): an editorial feature block, a process/steps rhythm, and a proof or offer block. Vary typography scale, background tint, and alignment between sections.
+- Refined micro-typography: tight display headings, a comfortable body measure, visible focus rings, and a real mobile breakpoint at 375px.
 
 NON-NEGOTIABLE:
 1. Treat VERIFIED CUSTOMER BRIEF as the only product truth. Never invent testimonials, ratings, awards, logos, addresses, phone numbers, prices, discounts, guarantees, urgency, stock, certifications, or legal claims.
@@ -88,7 +94,6 @@ NON-NEGOTIABLE:
 5. Use 5–7 meaningful sections only. Prefer specific benefit, process and offer sections. Include testimonials/prices/claims only when they appear in the verified brief.
 6. No external form POST, fetch(), trackers, iframes, data:text/html, or unsafe JavaScript. Use a tiny mobile-menu script only if necessary.
 7. Target 250–450 lines with refined typography, generous whitespace, strong hierarchy and clear device responsiveness. Do not narrate your work or output markdown.
-8. If a DESIGN BRIEF (palette, fonts, per-section layout) is supplied below, follow its palette hex codes, font pairing and section layout treatments exactly — do not invent a different color system or ignore the specified layout per section. If no design brief is supplied, choose one yourself per rule 2.
 
 Speed matters. Make the complete professional draft in this one response. A deterministic Getszy quality check will inspect it before the customer sees it."""
 
@@ -272,11 +277,89 @@ async def refine_element(html: str, selector: str, instruction: str, session_id:
 
 # ── Full Pipeline ──────────────────────────────────────────────────────────────
 
-# Bound how long the optional design step is allowed to take. It only exists to
-# improve output quality — if it's slow (Groq under 429 pressure, a rate-limited
-# retry, a slow fallback provider) it must not meaningfully add to build latency.
-_DESIGN_BRIEF_TIMEOUT_SEC = 20.0
+async def compose_site_fast(prompt: str, brief: dict | None = None, session_id: str = 'builder', style_profile: str | None = None) -> str:
+    """Create a premium customer draft in one managed quality-ladder call (no wait).
 
+    This is intentionally the default customer path. The legacy multi-agent path
+    remains available for internal diagnostics and streamed specialist workflows,
+    but customer wait time must not include four serial model calls.
+    """
+    brief = brief or {}
+    confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
+    style_directive = ""
+    if style_profile:
+        style_directive = (
+            f"\n\nEXPLICIT STYLE DIRECTION (override defaults but stay brand-faithful): "
+            f"{style_profile.strip()}\n"
+        )
+    context = (
+        f"CUSTOMER REQUEST:\n{prompt}\n\n"
+        f"VERIFIED CUSTOMER BRIEF:\n{json.dumps(confirmed, ensure_ascii=False, indent=2)}\n"
+        f"{style_directive}\n"
+        "Compose the complete private draft now."
+    )
+    raw = await professional_builder_completion(
+        system=FAST_COMPOSITION_PROMPT,
+        user=context,
+        session_id=f'{session_id}-fast-compose',
+        temperature=0.38,
+        max_tokens=6000,
+    )
+    html = _extract_html(raw)
+    if not html.lower().startswith('<!doctype html') or len(html) < 4000:
+        raise ProfessionalCompositionError('The fast managed composer did not return a complete reviewable private draft.')
+    logger.info('Fast professional composition completed: %s chars', len(html))
+    return _sanitize(html)
+
+
+async def polish_site_async(html: str, brief: dict | None = None, session_id: str = 'builder') -> str:
+    """Background polish pass: upgrade the instant draft (visual refinement, stricter
+    accessibility, tighter copy) without changing product truth. Runs after the
+    customer already received the instant result, so there is no wait.
+    """
+    brief = brief or {}
+    confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
+    context = (
+        f"VERIFIED CUSTOMER BRIEF:\n{json.dumps(confirmed, ensure_ascii=False, indent=2)}\n\n"
+        "Refine the provided draft into a more premium, polished result. Keep all product truth, "
+        "sections, and the primary CTA. Improve visual hierarchy, spacing, typography, and "
+        "accessibility only. Do not add testimonials, prices, or claims that are not in the brief."
+    )
+    try:
+        raw = await professional_builder_completion(
+            system=REVIEWER_PROMPT,
+            user=f"Polish this HTML (do not invent proof or claims):\n\n{html}\n\n{context}",
+            session_id=f'{session_id}-polish',
+            temperature=0.25,
+            max_tokens=8000,
+        )
+    except Exception as exc:  # pragma: no cover - network/provider failure must not crash background task
+        logger.warning('Background polish failed, keeping instant draft: %s', exc)
+        return html
+    polished = _extract_html(raw)
+    if polished.lower().startswith('<!doctype html') and len(polished) > len(html) * 0.6:
+        logger.info('Background polish completed: %s chars (was %s)', len(polished), len(html))
+        return _sanitize(polished)
+    return html
+
+
+async def build_site(prompt: str, session_id: str = 'builder', brief: dict | None = None) -> str:
+    """Run the managed professional pipeline: plan → design → code → review.
+
+    The customer brief is supplied as project truth. It is deliberately passed to
+    every stage so a generic prompt cannot override the confirmed offer, audience,
+    CTA, visual direction, or evidence policy.
+    """
+    brief = brief or {}
+    confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
+    enriched_prompt = f"{prompt}\n\nCONFIRMED CUSTOMER BRIEF (treat as product truth):\n{json.dumps(confirmed, ensure_ascii=False)}"
+    plan = await plan_site(enriched_prompt, session_id)
+    design = await design_site(plan, enriched_prompt, session_id)
+    html = await code_site(enriched_prompt, plan, design, session_id)
+    html = await review_site(html, session_id)
+    return _sanitize(html)
+
+_DESIGN_BRIEF_TIMEOUT_SEC = 20.0
 
 async def design_brief_fast(prompt: str, brief: dict | None = None, session_id: str = 'builder') -> dict | None:
     """One extra, small LLM call before fast composition: ask for an explicit
@@ -314,62 +397,3 @@ async def design_brief_fast(prompt: str, brief: dict | None = None, session_id: 
     return design
 
 
-async def compose_site_fast(prompt: str, brief: dict | None = None, session_id: str = 'builder') -> str:
-    """Create a normal customer draft in two managed quality-ladder calls: an
-    optional design brief (palette/fonts/layout), then composition.
-
-    This is intentionally the default customer path — not the full four-agent
-    build_site pipeline (plan -> design -> code -> review), which is too slow
-    given Groq is already rate-limiting this app under a single call per build.
-    The design step here is additive and best-effort: composition proceeds
-    with or without it (see design_brief_fast).
-    """
-    brief = brief or {}
-    confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
-
-    design = await design_brief_fast(prompt, confirmed, session_id)
-
-    context_parts = [
-        f"CUSTOMER REQUEST:\n{prompt}",
-        f"VERIFIED CUSTOMER BRIEF:\n{json.dumps(confirmed, ensure_ascii=False, indent=2)}",
-    ]
-    if design:
-        context_parts.append(
-            "DESIGN BRIEF (follow this palette, fonts and section layout exactly):\n"
-            + json.dumps(design, ensure_ascii=False, indent=2)
-        )
-    context_parts.append("Compose the complete private draft now.")
-    context = "\n\n".join(context_parts)
-
-    raw = await professional_builder_completion(
-        system=FAST_COMPOSITION_PROMPT,
-        user=context,
-        session_id=f'{session_id}-fast-compose',
-        temperature=0.38,
-        max_tokens=6000,
-    )
-    html = _extract_html(raw)
-    if not html.lower().startswith('<!doctype html') or len(html) < 4000:
-        raise ProfessionalCompositionError('The fast managed composer did not return a complete reviewable private draft.')
-    logger.info(
-        'Fast professional composition completed: %s chars (design_brief=%s)',
-        len(html), bool(design),
-    )
-    return _sanitize(html)
-
-
-async def build_site(prompt: str, session_id: str = 'builder', brief: dict | None = None) -> str:
-    """Run the managed professional pipeline: plan → design → code → review.
-
-    The customer brief is supplied as project truth. It is deliberately passed to
-    every stage so a generic prompt cannot override the confirmed offer, audience,
-    CTA, visual direction, or evidence policy.
-    """
-    brief = brief or {}
-    confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
-    enriched_prompt = f"{prompt}\n\nCONFIRMED CUSTOMER BRIEF (treat as product truth):\n{json.dumps(confirmed, ensure_ascii=False)}"
-    plan = await plan_site(enriched_prompt, session_id)
-    design = await design_site(plan, enriched_prompt, session_id)
-    html = await code_site(enriched_prompt, plan, design, session_id)
-    html = await review_site(html, session_id)
-    return _sanitize(html)
