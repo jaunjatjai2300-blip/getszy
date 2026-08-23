@@ -54,7 +54,9 @@ async def test_other_user_cannot_issue_preview_token():
 
 
 @pytest.mark.asyncio
-async def test_expired_and_cryptographically_tampered_preview_tokens_are_denied():
+async def test_expired_and_cryptographically_tampered_preview_tokens_are_denied(monkeypatch):
+    # Defend against any leaked jwt.decode patch from another test: pin the real verifier.
+    monkeypatch.setattr(auth.jwt, 'decode', jwt.decode)
     expired = jwt.encode({
         'sub': 'user-a', 'project_id': 'project-a', 'type': 'builder_preview',
         'exp': int(time.time()) - 1000,
@@ -97,5 +99,3 @@ def test_preview_token_is_purpose_bound_and_short_lived(monkeypatch):
     with pytest.raises(HTTPException) as wrong_purpose:
         auth.verify_preview_token(ordinary, 'project-a')
     assert wrong_purpose.value.status_code == 403
-
-    monkeypatch.setattr(auth.jwt, 'decode', lambda *args, **kwargs: {'sub': 'user-a', 'project_id': 'project-a', 'type': 'builder_preview'})
