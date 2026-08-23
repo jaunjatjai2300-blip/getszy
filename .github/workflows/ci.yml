@@ -21,7 +21,8 @@ jobs:
     env:
       MONGO_URL: mongodb://localhost:27017
       REDIS_URL: redis://localhost:6379
-      JWT_SECRET: test-secret-for-ci
+      JWT_SECRET: test-secret-key-for-ci-use-only-32chars!!
+      INTEGRATION_ENCRYPTION_KEY: test-integration-encryption-key-32chars!!
       LLM_PROVIDER: groq
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       FREE_ONLY: 'true'
@@ -88,7 +89,9 @@ jobs:
 
       - name: Security scan (bandit + safety)
         run: |
-          pip install bandit safety
+          # Patch the runner's setuptools before Safety scans installed packages.
+          # Safety currently identifies CVE-2026-59890 in setuptools <83.0.0.
+          python -m pip install --upgrade "setuptools>=83.0.0" bandit safety
           cd legacy-getszy/backend
           # High-severity only for bandit (low/medium are too noisy to gate on).
           bandit -r . -x ./tests,./venv -lll

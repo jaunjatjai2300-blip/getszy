@@ -108,6 +108,7 @@ def _get_log_gate():
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        global _log_inflight
         start = time.time()
         response = await call_next(request)
         duration = round(time.time() - start, 4)
@@ -121,6 +122,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 _log_inflight += 1
 
             async def _write():
+                global _log_inflight
                 try:
                     async with sem:
                         from db import db
@@ -139,7 +141,6 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     pass
                 finally:
                     async with lock:
-                        global _log_inflight
                         _log_inflight = max(0, _log_inflight - 1)
 
             import asyncio

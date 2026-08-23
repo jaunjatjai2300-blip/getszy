@@ -1,19 +1,28 @@
+# Rendered by docker-compose.monitoring.yml at container start.
+# Production requires ALERT_WEBHOOK_URL in .env. The template token is intentionally
+# invalid until rendered so operators cannot silently deploy alerts with no sink.
+global:
+  resolve_timeout: 5m
+
 route:
-  receiver: 'default'
+  receiver: 'production-webhook'
   group_by: ['alertname', 'severity']
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 4h
 
 receivers:
-  - name: 'default'
-    # Real alert sink. Set ALERT_WEBHOOK_URL to a Slack/Discord/Mattermost/PagerDuty
-    # incoming webhook (or your own alert collector). Without it alerts are dropped.
+  - name: 'production-webhook'
     webhook_configs:
-      - url: '${ALERT_WEBHOOK_URL:-http://localhost:5001/alerts}'
+      - url: '__ALERT_WEBHOOK_URL__'
         send_resolved: true
-    # Example Slack receiver — uncomment and set SLACK_WEBHOOK_URL to activate:
-    # slack_configs:
-    #   - api_url: '${SLACK_WEBHOOK_URL}'
-    #     channel: '#getszy-alerts'
-    #     send_resolved: true
+
+# Slack alternative, if a dedicated Slack receiver is preferred instead of a
+# generic receiver/relay. Use a separate configured file; never commit its URL.
+#
+# receivers:
+#   - name: 'slack-production'
+#     slack_configs:
+#       - api_url: 'https://hooks.slack.com/services/REPLACE/AT/DEPLOYMENT'
+#         channel: '#getszy-alerts'
+#         send_resolved: true

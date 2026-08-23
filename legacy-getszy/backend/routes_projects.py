@@ -219,11 +219,13 @@ async def get_analytics(pid: str, user=Depends(get_current_admin)):
     }
 
 @router.post('/{pid}/analytics/track')
-async def track_event(pid: str, body: dict):
+async def track_event(pid: str, body: dict, user=Depends(get_current_user)):
     event = body.get('event', 'view')
     field_map = {'view': 'analytics_views', 'api_call': 'analytics_api_calls', 'error': 'analytics_errors'}
     field = field_map.get(event, 'analytics_views')
-    await db.gs_projects.update_one({'id': pid}, {'$inc': {field: 1}}, upsert=False)
+    res = await db.gs_projects.update_one({'id': pid, 'user_id': user['id']}, {'$inc': {field: 1}}, upsert=False)
+    if res.matched_count == 0:
+        raise HTTPException(404, 'Project not found')
     return {'ok': True}
 
 # ─────────────────────────── Logs ────────────────────────────

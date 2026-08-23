@@ -16,6 +16,11 @@ class TestLLMProviderConfig:
         from llm_provider import FREE_ONLY
         assert isinstance(FREE_ONLY, bool)
 
+    def test_verified_cloud_model_defaults(self):
+        from llm_provider import GROQ_MODEL, GEMINI_MODEL
+        assert GROQ_MODEL == 'qwen/qwen3.6-27b'
+        assert GEMINI_MODEL == 'gemini-2.5-flash'
+
     def test_provider_info_shape(self):
         from llm_provider import provider_info
         info = provider_info()
@@ -25,17 +30,17 @@ class TestLLMProviderConfig:
 
 
 class TestLLMProviderChainOrdering:
-    def test_llm_provider_pin_moves_to_front(self, monkeypatch):
-        """When LLM_PROVIDER=groq is set, groq should be tried first."""
-        monkeypatch.setenv('LLM_PROVIDER', 'groq')
+    def test_customer_chain_is_cloud_first_even_if_local_is_pinned(self, monkeypatch):
+        """An operational local pin cannot precede the managed cloud ladder."""
+        monkeypatch.setenv('LLM_PROVIDER', 'ollama')
         monkeypatch.setenv('GROQ_API_KEY', 'test-key')
-        # Force re-import so module-level LLM_PROVIDER is read
+        monkeypatch.setenv('GEMINI_API_KEY', 'test-key')
         import importlib
         import llm_provider
         importlib.reload(llm_provider)
-        chain = llm_provider._build_chain("sys","usr",0.4,"sid")
+        chain = llm_provider._build_chain("sys", "usr", 0.4, "sid")
         names = [c[0] for c in chain]
-        assert names[0] == 'groq'
+        assert names[:2] == ['groq', 'gemini']
 
     def test_chain_contains_expected_providers(self):
         import llm_provider
@@ -44,16 +49,61 @@ class TestLLMProviderChainOrdering:
         # Local free providers should always be present
         assert 'ollama' in names or 'lmstudio' in names
 
-    def test_free_only_blocks_paid(self, monkeypatch):
+    def test_free_only_blocks_nonfree_openrouter_model(self, monkeypatch):
         monkeypatch.setenv('FREE_ONLY', 'true')
         monkeypatch.setenv('OPENROUTER_API_KEY', 'x')
+        monkeypatch.setenv('OPENROUTER_CUSTOMER_FALLBACK', 'true')
+        monkeypatch.setenv('OPENROUTER_MODEL', 'qwen/qwen-2.5-72b-instruct')
         import importlib
         import llm_provider
         importlib.reload(llm_provider)
-        chain = llm_provider._build_chain("sys","usr",0.4,"sid")
+        chain = llm_provider._build_chain("sys", "usr", 0.4, "sid")
         names = [c[0] for c in chain]
         assert 'openrouter' not in names
         assert 'emergent' not in names
+
+
+    def test_free_openrouter_model_can_be_explicitly_enabled(self, monkeypatch):
+        monkeypatch.setenv('FREE_ONLY', 'true')
+        monkeypatch.setenv('OPENROUTER_API_KEY', 'x')
+        monkeypatch.setenv('OPENROUTER_CUSTOMER_FALLBACK', 'true')
+        monkeypatch.setenv('OPENROUTER_MODEL', 'qwen/qwen-2.5-72b-instruct:free')
+        import importlib
+        import llm_provider
+        importlib.reload(llm_provider)
+        names = [name for name, _ in llm_provider._build_chain('sys', 'usr', 0.4, 'sid')]
+        assert 'openrouter' in names
+
+
+class TestProfessionalBuilderProviderLadder:
+    @pytest.mark.asyncio
+    async def test_professional_builder_ladder_prioritizes_groq_then_gemini_then_ollama(self, monkeypatch):
+        import llm_provider as lp
+        calls = []
+
+        async def groq(*args, **kwargs):
+            calls.append('groq')
+            raise RuntimeError('planned Groq outage')
+
+        async def gemini(*args, **kwargs):
+            calls.append('gemini')
+            return 'premium refinement complete'
+
+        async def ollama(*args, **kwargs):
+            calls.append('ollama')
+            return 'should not be used'
+
+        monkeypatch.setattr(lp, 'GROQ_API_KEY', 'configured')
+        monkeypatch.setattr(lp, 'GEMINI_API_KEY', 'configured')
+        monkeypatch.setattr(lp, 'OLLAMA_MODELS', ['qwen2.5-coder:7b'])
+        monkeypatch.setattr(lp, '_groq', groq)
+        monkeypatch.setattr(lp, '_gemini', gemini)
+        monkeypatch.setattr(lp, '_ollama_chain', ollama)
+
+        result = await lp.professional_builder_completion('system', 'refine this page', session_id='quality-test')
+
+        assert result == 'premium refinement complete'
+        assert calls == ['groq', 'gemini']
 
 
 class TestLLMProviderChatCompletion:

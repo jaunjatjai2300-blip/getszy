@@ -119,7 +119,13 @@ async def run_backup():
             os.replace(tmp, latest)
         except Exception as e:  # pragma: no cover - environment dependent
             logger.warning(f'backup latest symlink warning: {e}')
-        total_docs = sum(manifest['collections'].values())
+        # Encrypted manifests retain metadata dictionaries while plaintext
+        # manifests keep a compact integer count. Normalize both formats before
+        # calculating the backup total used by status and Prometheus.
+        total_docs = sum(
+            value.get('docs', 0) if isinstance(value, dict) else int(value)
+            for value in manifest['collections'].values()
+        )
         epoch = datetime.now(timezone.utc).timestamp()
         LAST_BACKUP.update({'ts': ts, 'ts_epoch': epoch, 'dir': out_dir, 'docs': total_docs})
         # Off-site copy (no-op unless BACKUP_S3_BUCKET is configured). Must never

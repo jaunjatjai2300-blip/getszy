@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ export default function AIMemory() {
   const [catFilter, setCatFilter] = useState("");
   const [search, setSearch] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [mr, sr] = await Promise.allSettled([
@@ -34,9 +34,9 @@ export default function AIMemory() {
       if (sr.status==="fulfilled") setStats(sr.value.data);
     } catch { toast.error("Load failed"); }
     finally { setLoading(false); }
-  };
+  }, [userFilter, catFilter]);
 
-  useEffect(() => { load(); }, [userFilter, catFilter]);
+  useEffect(() => { load(); }, [load]);
 
   const save = async () => {
     if (!form.key || !form.value) return toast.error("Key aur value required");
