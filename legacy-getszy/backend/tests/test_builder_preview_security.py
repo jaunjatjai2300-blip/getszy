@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import pytest
 import jwt
 from datetime import datetime, timedelta, timezone
@@ -56,7 +57,7 @@ async def test_other_user_cannot_issue_preview_token():
 async def test_expired_and_cryptographically_tampered_preview_tokens_are_denied():
     expired = jwt.encode({
         'sub': 'user-a', 'project_id': 'project-a', 'type': 'builder_preview',
-        'exp': datetime.now(timezone.utc) - timedelta(seconds=1),
+        'exp': int(time.time()) - 1000,
     }, auth.JWT_SECRET, algorithm=auth.JWT_ALG)
     with pytest.raises(HTTPException) as expired_error:
         await builder_routes.preview_project('project-a', token=expired)
