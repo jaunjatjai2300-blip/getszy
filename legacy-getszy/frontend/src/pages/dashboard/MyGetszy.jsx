@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { api, fmtINR } from "@/lib/api";
+import AIStatusBadge from "@/components/AIStatusBadge";
 
 const ORDER_TONE = {
   pending: "bg-amber-100 text-amber-800",
@@ -77,8 +78,9 @@ export default function MyGetszy() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 pb-8" data-testid="my-getszy-page">
-      <section className="rounded-3xl border bg-white p-6 sm:p-8" style={{ borderColor: "var(--gs-border)" }}>
-        <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
+      <section className="relative overflow-hidden rounded-3xl border p-6 sm:p-8" style={{ borderColor: "var(--gs-border)", background: "linear-gradient(135deg, #FFFDFB 0%, #FBF7F2 58%, #F1E7DD 100%)" }}>
+        <div className="gs-ai-glow pointer-events-none absolute inset-0" aria-hidden="true" />
+        <div className="relative grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[.16em] text-[var(--gs-teal)]">My Getszy</div>
             <h1 className="mt-2 font-display text-3xl text-[var(--gs-ink)] sm:text-4xl">Everything you have chosen with Getszy, in one place.</h1>
@@ -87,6 +89,7 @@ export default function MyGetszy() {
           <div className="rounded-2xl bg-[#eaf5f0] px-4 py-3 text-sm text-[#24584e]">
             <div className="font-semibold">Hello, {friendlyName(user?.name)}</div>
             <div className="mt-0.5 text-xs">Your account remains private and under your control.</div>
+            <div className="mt-3"><AIStatusBadge /></div>
           </div>
         </div>
       </section>
