@@ -1,4 +1,4 @@
-{$DOMAIN}, www.{$DOMAIN}, dash.{$DOMAIN}, preview.{$DOMAIN} {
+{$DOMAIN}, www.{$DOMAIN}, dash.{$DOMAIN} {
     encode gzip
 
     # Keep all normal routes protected from clickjacking.
