@@ -8,6 +8,7 @@ import re
 import json
 import logging
 from llm_provider import professional_builder_completion
+from builder_quality import evaluate_landing_page_quality
 
 logger = logging.getLogger('getszy.builder.agents')
 
@@ -331,7 +332,33 @@ async def compose_site_fast(prompt: str, brief: dict | None = None, session_id: 
     html = _extract_html(raw)
     if not html.lower().startswith('<!doctype html'):
         raise ProfessionalCompositionError('The fast managed composer did not return a complete reviewable private draft.')
-    logger.info('Fast professional composition completed: %s chars', len(html))
+
+    quality = evaluate_landing_page_quality(html, confirmed)
+    if quality['status'] == 'needs_work':
+        fix_context = (
+            context
+            + "\n\nThis draft failed the automated premium-quality preflight. Correct ONLY these issues, "
+            + "then output the complete corrected HTML document:\n"
+            + "\n".join(f"- {item}" for item in quality.get('next_actions', []))
+        )
+        try:
+            raw2 = await professional_builder_completion(
+                system=FAST_COMPOSITION_PROMPT,
+                user=fix_context,
+                session_id=f'{session_id}-fast-compose-fix',
+                temperature=0.3,
+                max_tokens=6000,
+            )
+            html2 = _extract_html(raw2)
+            if html2.lower().startswith('<!doctype html'):
+                q2 = evaluate_landing_page_quality(html2, confirmed)
+                if q2['required_checks_passed'] >= quality['required_checks_passed']:
+                    html = html2
+                    quality = q2
+        except Exception as exc:  # pragma: no cover - self-heal is best-effort
+            logger.warning('Premium quality self-heal failed; keeping first draft: %s', exc)
+
+    logger.info('Fast professional composition completed: %s chars (quality=%s)', len(html), quality.get('status'))
     return _sanitize(html)
 
 

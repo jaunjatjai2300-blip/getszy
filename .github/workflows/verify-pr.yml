@@ -16,7 +16,7 @@ jobs:
       matrix:
         include:
           - { lane: 1, kind: backend,  serve: true,  cmd: 'cd legacy-getszy/backend && python -m pytest tests/ -q -p no:cacheprovider -m "not integration"' }
-          - { lane: 2, kind: frontend, serve: false, optional: true, cmd: 'cd legacy-getszy/frontend && npm ci --no-audit --no-fund && npm run build' }
+          - { lane: 2, kind: frontend, serve: false, optional: true, cmd: 'cd legacy-getszy/frontend && yarn install --no-progress && CI=false yarn build' }
           - { lane: 3, kind: frontend, serve: false, cmd: 'cd legacy-getszy/frontend && npx playwright test --grep "(?i)builder" --project=chromium --project="Mobile Chrome"', optional: true }
           - { lane: 4, kind: backend,  serve: true,  cmd: 'cd legacy-getszy/backend && python -m pytest tests/test_builder_preview_security.py tests/test_security.py -q' }
           - { lane: 5, kind: backend,  serve: true,  cmd: 'cd legacy-getszy/backend && python -m pytest tests/test_production_hardening.py -q' }
@@ -60,10 +60,15 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install Yarn
+        if: matrix.kind == 'frontend'
+        continue-on-error: true
+        run: npm install -g yarn
+
       - name: Install frontend deps
         if: matrix.kind == 'frontend'
         continue-on-error: true
-        run: cd legacy-getszy/frontend && npm ci --no-audit --no-fund
+        run: cd legacy-getszy/frontend && yarn install --no-progress
 
       - name: Install Playwright browsers
         if: contains(matrix.cmd, 'playwright')
