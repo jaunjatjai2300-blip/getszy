@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -139,6 +139,8 @@ function WebAppBuilder({ color }) {
   const [previewQuality, setPreviewQuality] = useState(null);
   const [previewToken, setPreviewToken] = useState(null);
   const [previewTokenError, setPreviewTokenError] = useState(false);
+  const [operation, setOperation] = useState(null);
+  const pollCancelledRef = useRef(false);
   const [showBrief, setShowBrief] = useState(false);
   const [proofPoints, setProofPoints] = useState("");
   const [brief, setBrief] = useState({ audience: "", primary_goal: "", primary_cta: "", brand_name: "", visual_style: "", offer: "" });
@@ -171,6 +173,57 @@ function WebAppBuilder({ color }) {
   const hasEnoughCredits = creditInfo.credits === null || creditInfo.credits >= buildCost;
   const previewUrl = previewId && previewToken ? `${BACKEND_URL}/api/builder/projects/${previewId}/preview?token=${encodeURIComponent(previewToken)}` : null;
 
+  const BUILDER_OP_KEY = "getszy_builder_operation";
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const TERMINAL = ["SUCCEEDED", "FAILED_REFUNDED", "REJECTED_NO_CHARGE"];
+
+  const persistOperation = (idempotencyKey, op) => {
+    sessionStorage.setItem(BUILDER_OP_KEY, JSON.stringify({ idempotencyKey, operation: op }));
+  };
+
+  const finishOperation = async (op) => {
+    if (op.status === "SUCCEEDED" && op.resource_id) {
+      try {
+        const pr = await api.get(`/builder/projects/${op.resource_id}`);
+        setPreviewId(op.resource_id);
+        setPreviewQuality(pr.data?.quality_report || null);
+        setCreatedProject(pr.data || null);
+        sessionStorage.removeItem(BUILDER_OP_KEY);
+      } catch {
+        toast.error("Draft is ready but could not be loaded for preview — open it from My Getszy.");
+      }
+      toast.success("Private draft ready", { id: "wa" });
+    } else if (op.status === "REJECTED_NO_CHARGE") {
+      toast.error("More credits are required. No credits were charged.", { id: "wa" });
+    } else if (op.status === "FAILED_REFUNDED") {
+      toast.error("Your request could not be completed. Credits were returned.", { id: "wa" });
+    }
+    setBusy(false);
+    await Promise.all([load(), loadCredits()]);
+  };
+
+  const pollOperation = async (idempotencyKey, operationId) => {
+    let op = null;
+    while (operationId && !pollCancelledRef.current) {
+      await sleep(2500);
+      let current;
+      try {
+        const r = await api.get(`/builder/operations/${operationId}`);
+        current = r.data?.operation || r.data;
+      } catch {
+        toast.error("Could not read build status. Refresh to reconnect to your request.", { id: "wa" });
+        setBusy(false);
+        return;
+      }
+      setOperation(current);
+      persistOperation(idempotencyKey, current);
+      if (current.status === "PENDING") toast.loading("Request accepted safely — composing your private draft…", { id: "wa", duration: 60000 });
+      else if (current.status === "RUNNING") toast.loading("Composing your private draft…", { id: "wa", duration: 60000 });
+      if (TERMINAL.includes(current.status)) { op = current; break; }
+    }
+    if (op) await finishOperation(op);
+  };
+
   const build = async () => {
     if (prompt.trim().length < 4) return toast.error("Tell Neo a little more about your goal first");
     if (!hasEnoughCredits) return toast.error(`This professional private draft needs ${buildCost} prepaid credits. Please top up first.`);
@@ -187,17 +240,59 @@ function WebAppBuilder({ color }) {
     };
     const confirmation = `Create a managed professional private draft for ${buildCost} prepaid credits? Groq 70B is used first, with controlled fallback and a quality repair pass. A failed quality check is refunded automatically.`;
     if (!window.confirm(confirmation)) return;
+    sessionStorage.setItem("getszy_mission_draft", JSON.stringify(mission));
     setCreatedProject(null);
-    setBusy(true); toast.loading("Composing your professional private draft…", { id: "wa", duration: 60000 });
+    setBusy(true);
+    const idempotencyKey = (crypto.randomUUID ? crypto.randomUUID() : `op-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    const optimistic = { operation_id: null, status: "PENDING", credit_state: "NOT_DEBITED", resource_id: null };
+    setOperation(optimistic);
+    persistOperation(idempotencyKey, optimistic);
+    toast.loading("Request accepted safely — composing your private draft…", { id: "wa", duration: 60000 });
     try {
-      sessionStorage.setItem("getszy_mission_draft", JSON.stringify(mission));
-      const r = await api.post("/builder/projects", { prompt, name, brief: normalizedBrief });
-      toast.success(`Private draft created: ${r.data.name}`, { id: "wa" });
-      setPreviewId(r.data.id); setPreviewQuality(r.data.quality_report || null); setCreatedProject(r.data); sessionStorage.setItem("getszy_last_project_id", r.data.id);
-      await Promise.all([load(), loadCredits()]);
-    } catch (e) { toast.error(e?.response?.data?.detail || "Could not create a reviewable professional draft", { id: "wa" }); }
-    finally { setBusy(false); }
+      const r = await api.post("/builder/projects", { prompt: prompt.trim(), name: name.trim(), brief: normalizedBrief }, { headers: { "Idempotency-Key": idempotencyKey } });
+      const op = r.data?.operation || r.data;
+      setOperation(op);
+      persistOperation(idempotencyKey, op);
+      if (op.operation_id && !TERMINAL.includes(op.status)) {
+        await pollOperation(idempotencyKey, op.operation_id);
+      } else if (TERMINAL.includes(op.status)) {
+        await finishOperation(op);
+      } else {
+        toast.error("Build started but no operation id was returned.", { id: "wa" });
+        setBusy(false);
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Could not start the managed build", { id: "wa" });
+      sessionStorage.removeItem(BUILDER_OP_KEY);
+      setOperation(null);
+      setBusy(false);
+    }
   };
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem(BUILDER_OP_KEY);
+    if (!raw) return;
+    let stored;
+    try { stored = JSON.parse(raw); } catch { sessionStorage.removeItem(BUILDER_OP_KEY); return; }
+    const op = stored?.operation;
+    const idempotencyKey = stored?.idempotencyKey;
+    if (!op || !op.operation_id) return;
+    setOperation(op);
+    if (TERMINAL.includes(op.status)) {
+      if (op.status === "SUCCEEDED" && op.resource_id) {
+        finishOperation(op);
+      } else {
+        setBusy(false);
+        if (op.status === "REJECTED_NO_CHARGE") toast.error("More credits are required. No credits were charged.");
+        else if (op.status === "FAILED_REFUNDED") toast.error("Your request could not be completed. Credits were returned.");
+      }
+      return;
+    }
+    setBusy(true);
+    pollOperation(idempotencyKey, op.operation_id);
+  }, []);
+
+  useEffect(() => () => { pollCancelledRef.current = true; }, []);
 
   const del = async (pid) => { try { await api.delete(`/builder/projects/${pid}`); load(); toast.success("Deleted"); } catch (e) { toast.error("Delete failed — please retry"); } };
 
@@ -245,7 +340,21 @@ function WebAppBuilder({ color }) {
       </Button>
 
       <div className="rounded-xl border p-3 text-sm" style={{ borderColor: busy ? "#9dc9ee" : "var(--gs-border)", background: busy ? "#f0f8ff" : "var(--gs-surface-2)" }} aria-live="polite" data-testid="wa-build-status">
-        {busy ? <div className="flex items-start gap-2"><Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-sky-700" /><div><strong>Composing your private draft.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">Neo is applying your brief through the managed quality ladder. This page will show a real finished project or a clear refunded failure—never a made-up progress percentage.</p></div></div> : <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gs-teal)]" /><div><strong>Professional composition, then private review.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">A unique draft is generated from your brief, checked for objective quality failures, and kept private until you inspect and approve it.</p></div></div>}
+        {!operation ? (
+          <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gs-teal)]" /><div><strong>Professional composition, then private review.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">A unique draft is generated from your brief, checked for objective quality failures, and kept private until you inspect and approve it.</p></div></div>
+        ) : operation.status === "PENDING" ? (
+          <div className="flex items-start gap-2"><Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-sky-700" /><div><strong>Request accepted safely.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">You can leave or refresh; this request stays authoritative.</p></div></div>
+        ) : operation.status === "RUNNING" ? (
+          <div className="flex items-start gap-2"><Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-sky-700" /><div><strong>Composing your private draft.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">Neo is applying your brief through the managed quality ladder. No second charge is possible — this page will show a real finished draft or a clear refunded failure.</p></div></div>
+        ) : operation.status === "SUCCEEDED" ? (
+          <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><div><strong>Private draft ready.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">Your managed draft is complete and private. Review it below before downloading or publishing.</p></div></div>
+        ) : operation.status === "REJECTED_NO_CHARGE" ? (
+          <div className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" /><div><strong>More credits are required. No credits were charged.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">Top up your prepaid credits, then start a new request.</p></div></div>
+        ) : operation.status === "FAILED_REFUNDED" ? (
+          <div className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" /><div><strong>Your request could not be completed. Credits were returned.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">You can start a new request when ready.</p></div></div>
+        ) : (
+          <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gs-teal)]" /><div><strong>Professional composition, then private review.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">A unique draft is generated from your brief, checked for objective quality failures, and kept private until you inspect and approve it.</p></div></div>
+        )}
       </div>
 
       {createdProject && <div className="rounded-xl border border-[#9ed2c3] bg-[#f0f8f5] p-4" data-testid="wa-created-project"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-sm font-semibold text-[#183c3c]"><CheckCircle2 className="h-4 w-4 text-emerald-700" />Private draft created</div><p className="mt-1 text-xs leading-5 text-[#39685f]">{createdProject.name} is ready for your private review. It has not been published or deployed.</p></div><Button type="button" onClick={() => navigate(`/dashboard/projects/${createdProject.id}`)} className="bg-[#183c3c] text-white hover:bg-[#102f2f]">Review finished project <ExternalLink className="ml-2 h-4 w-4" /></Button></div></div>}
