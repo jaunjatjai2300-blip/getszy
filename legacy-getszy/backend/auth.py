@@ -1,5 +1,6 @@
 import os
 import uuid
+import asyncio
 import bcrypt
 import jwt
 from datetime import datetime, timedelta, timezone
@@ -12,7 +13,8 @@ JWT_SECRET = os.environ.get('JWT_SECRET')
 if not JWT_SECRET or JWT_SECRET in ('change-me', 'CHANGE_ME'):
     raise RuntimeError('JWT_SECRET env var is required and must not be the default value')
 JWT_ALG = 'HS256'
-JWT_EXP_DAYS = 30
+JWT_EXP_DAYS = 7
+JWT_REFRESH_EXP_DAYS = 30
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -36,6 +38,39 @@ def create_token(user_id: str, role: str) -> str:
         'exp': datetime.now(timezone.utc) + timedelta(days=JWT_EXP_DAYS),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
+
+
+def create_refresh_token(user_id: str) -> str:
+    rti = uuid.uuid4().hex
+    payload = {
+        'sub': user_id,
+        'jti': rti,
+        'type': 'refresh',
+        'exp': datetime.now(timezone.utc) + timedelta(days=JWT_REFRESH_EXP_DAYS),
+    }
+    try:
+        if redis:
+            asyncio.ensure_future(redis.set(f'rt:{user_id}:{rti}', '1', ex=JWT_REFRESH_EXP_DAYS * 86400))
+    except Exception:
+        pass
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
+
+
+async def revoke_refresh_token(user_id: str, rti: str) -> None:
+    try:
+        if redis:
+            await redis.delete(f'rt:{user_id}:{rti}')
+    except Exception:
+        pass
+
+
+async def is_refresh_token_valid(user_id: str, rti: str) -> bool:
+    try:
+        if not redis:
+            return True
+        return bool(await redis.exists(f'rt:{user_id}:{rti}'))
+    except Exception:
+        return False
 
 
 # ── Token revocation (logout / password change) ──────────────────────────────

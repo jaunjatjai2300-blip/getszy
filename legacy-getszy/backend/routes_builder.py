@@ -458,13 +458,13 @@ async def refine_project(pid: str, body: BuilderRefineIn, user=Depends(get_curre
     ]
     quality_report = evaluate_landing_page_quality(new_html, p.get('brief') or {})
     await db.builder_projects.update_one(
-        {'id': pid},
+        {'id': pid, 'user_id': user['id']},
         {'$set': {
             'html_content': new_html, 'history': new_history, 'updated_at': _now(),
             'prompt': body.prompt, 'quality_report': quality_report,
         }},
     )
-    return await db.builder_projects.find_one({'id': pid}, {'_id': 0})
+    return await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
 
 
 @router.delete('/projects/{pid}')
@@ -580,13 +580,13 @@ async def refine_project_element(pid: str, body: dict, user=Depends(get_current_
     ]
     quality_report = evaluate_landing_page_quality(new_html, p.get('brief') or {})
     await db.builder_projects.update_one(
-        {'id': pid},
+        {'id': pid, 'user_id': user['id']},
         {'$set': {
             'html_content': new_html, 'history': new_history, 'updated_at': _now(),
             'quality_report': quality_report,
         }},
     )
-    return await db.builder_projects.find_one({'id': pid}, {'_id': 0})
+    return await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
 
 
 # ============================================================

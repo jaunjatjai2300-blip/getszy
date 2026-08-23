@@ -98,7 +98,7 @@ app.include_router(api_router)
 ALLOWED_ORIGINS = [
     o.strip() for o in os.environ.get(
         'CORS_ORIGINS',
-        'https://getszy.com,https://www.getszy.com,http://localhost:3000,http://localhost:5173'
+        'https://getszy.com,https://www.getszy.com'
     ).split(',') if o.strip()
 ]
 

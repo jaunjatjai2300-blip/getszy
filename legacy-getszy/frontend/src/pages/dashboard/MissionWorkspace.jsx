@@ -70,7 +70,7 @@ export default function MissionWorkspace() {
       destination,
       createdAt: new Date().toISOString(),
     };
-    if (draft.prompt) sessionStorage.setItem("getszy_mission_draft", JSON.stringify(draft));
+    if (draft.prompt) localStorage.setItem("getszy_mission_draft", JSON.stringify(draft));
     navigate(destination);
   };
 
