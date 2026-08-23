@@ -14,8 +14,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt /build/requirements.txt
-RUN pip install --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/ \
-    --prefix=/install -r requirements.txt
+# PyPI only. emergentintegrations (optional paid LLM provider) lives on a
+# private CloudFront-hosted index, but it's deliberately commented out of
+# requirements.txt (see the comment there: "Install separately if needed") —
+# so there's nothing here that needs a second index. A prior version of this
+# line passed --extra-index-url unconditionally, which would have let pip
+# resolve *every* package below against that third-party index too, and
+# prefer whichever index reports the higher version for a given name (classic
+# dependency confusion). If emergentintegrations is ever wired back in as a
+# real dependency, add its install back deliberately and scope the extra
+# index to that one pinned package only — don't widen this line again.
+RUN pip install --prefix=/install -r requirements.txt
 
 # ---- Runtime stage ----
 FROM python:3.11-slim
@@ -41,11 +50,20 @@ COPY backend/ /app/
 
 RUN chown -R appuser:appgroup /app
 
-USER appuser
+RUN printf '%s\n' \
+    '#!/bin/sh' \
+    'set -e' \
+    'mkdir -p /app/backend/media/audio /app/backend/media/video /app/backend/media/images /app/backend/media/avatars /app/backups' \
+    'chown -R appuser:appgroup /app/backend/media /app/backups 2>/dev/null || true' \
+    'if command -v runuser >/dev/null 2>&1; then' \
+    '  exec runuser -u appuser -- "$@"' \
+    'fi' \
+    'exec "$@"' > /app/docker-entrypoint.sh && chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 8001
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
     CMD curl -fsS http://localhost:8001/api/health || exit 1
 
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8001"]

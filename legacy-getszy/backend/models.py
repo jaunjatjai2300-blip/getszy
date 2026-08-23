@@ -273,9 +273,43 @@ class LessonIn(BaseModel):
 
 
 # ===== Talk-to-Build Studio =====
+class BuilderQualityBrief(BaseModel):
+    """Optional context that turns a generic prompt into a professional page brief."""
+    audience: Optional[str] = Field(None, max_length=240)
+    primary_goal: Optional[str] = Field(None, max_length=120)
+    primary_cta: Optional[str] = Field(None, max_length=80)
+    brand_name: Optional[str] = Field(None, max_length=120)
+    visual_style: Optional[str] = Field(None, max_length=120)
+    offer: Optional[str] = Field(None, max_length=500)
+    proof_points: List[str] = Field(default_factory=list, max_length=6)
+
+
+class BuilderEvidenceItem(BaseModel):
+    id: str = Field(default_factory=_id)
+    claim: str = Field(..., min_length=1, max_length=500)
+    source: str = Field(..., min_length=1, max_length=500)
+    status: str = Field(default='needs_confirmation', pattern='^(approved|needs_confirmation|blocked|expired)$')
+    notes: Optional[str] = Field(None, max_length=1000)
+    updated_at: str = Field(default_factory=_now)
+
+
+class BuilderEvidenceUpdateIn(BaseModel):
+    items: List[BuilderEvidenceItem] = Field(default_factory=list, max_length=100)
+
+
+class BuilderVersionIn(BaseModel):
+    label: Optional[str] = Field(None, max_length=120)
+
+
+class BuilderReleaseReviewIn(BaseModel):
+    confirm_evidence_review: bool = False
+
+
 class BuilderProjectIn(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=4000)
     name: Optional[str] = Field(None, max_length=120)
+    template_id: Optional[str] = Field(None, max_length=80)
+    brief: Optional[BuilderQualityBrief] = None
 
 
 class BuilderRefineIn(BaseModel):
@@ -294,6 +328,12 @@ class BuilderProject(BaseModel):
     user_id: str
     name: str
     prompt: str  # latest / initial
+    template_id: Optional[str] = None
+    brief: Optional[BuilderQualityBrief] = None
+    quality_report: Optional[Dict[str, Any]] = None
+    brief_intelligence: Optional[Dict[str, Any]] = None
+    evidence_items: List[BuilderEvidenceItem] = []
+    release_reviews: List[Dict[str, Any]] = []
     html_content: str = ''
     history: List[BuilderHistoryItem] = []
     created_at: str = Field(default_factory=_now)

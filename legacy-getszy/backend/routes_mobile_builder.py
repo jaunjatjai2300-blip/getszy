@@ -1,5 +1,6 @@
-import uuid
+import json
 import os
+import uuid
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
@@ -1963,7 +1964,7 @@ export default {screen_name};
                 "  return (\n"
                 "    <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await fetchData(); setRefreshing(false); }} />}>\n"
                 "      <View style={styles.content}>\n"
-                f"        <Text style={styles.title}>{screen_name.replace('Screen', '')}</Text>\n"
+                f"        <Text style={{styles.title}}>{screen_name.replace('Screen', '')}</Text>\n"
                 "        {data ? (\n"
                 "          <Text style={styles.data}>{JSON.stringify(data, null, 2)}</Text>\n"
                 "        ) : (\n"

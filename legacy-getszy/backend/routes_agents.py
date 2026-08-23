@@ -199,18 +199,9 @@ async def all_agents(user=Depends(get_current_user_optional)):
     }
 
 
-@router.get('/agents/{agent_id}')
-async def get_agent(agent_id: str, user=Depends(get_current_user)):
-    """Get details for a specific agent."""
-    agent = AGENTS.get(agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail='Agent not found')
-    return agent
-
-
 @router.get('/agents/sessions')
 async def agent_sessions(user=Depends(get_current_user)):
-    """List all agent chat sessions for the user."""
+    """List all agent chat sessions for the signed-in user."""
     pipeline = [
         {'$match': {'user_id': user['id']}},
         {'$sort': {'created_at': -1}},
@@ -240,6 +231,15 @@ async def agent_sessions(user=Depends(get_current_user)):
             'created_at': r.get('created_at', ''),
         })
     return {'sessions': sessions}
+
+
+@router.get('/agents/{agent_id}')
+async def get_agent(agent_id: str, user=Depends(get_current_user)):
+    """Get details for a specific agent."""
+    agent = AGENTS.get(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail='Agent not found')
+    return agent
 
 
 class AgentChatIn(BaseModel):

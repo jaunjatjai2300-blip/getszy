@@ -103,16 +103,9 @@ CREATOR_PLAN_GRANT = {
     'creator': CREATOR_PACKS['creator_pass']['credits'],  # 100
 }
 
-# ===== Free tier (viral growth engine) =====
-# Free users get a small monthly allowance of watermarked generations so the
-# product spreads organically ("Made with Getszy.com"). Paid users are exempt.
-FREE_TIER_MONTHLY = 5
-WATERMARK_TEXT = 'Made with Getszy.com'
-# Actions that count against the free tier (video outputs only).
-FREE_TIER_ACTIONS = {
-    'avatar_talking', 'text_to_video', 'video_translate',
-    'image_to_video', 'one_tap_repurposing',
-}
+# Digital work is prepaid-credit-only. Physical product shopping, account access,
+# and already-delivered purchases remain separate from this execution policy.
+# There is intentionally no free generation allowance.
 
 # Hard ceiling on a single credit grant (manual admin grant OR payment webhook).
 # Prevents an admin typo / bug from granting billions of credits. Tune via env.
@@ -134,27 +127,6 @@ async def get_balance(user_id: str) -> int:
     return int((user or {}).get('credits', 0) or 0)
 
 
-def _month_key() -> str:
-    return datetime.now(timezone.utc).strftime('%Y-%m')
-
-
-async def free_tier_used(user_id: str) -> int:
-    rec = await db.free_tier_usage.find_one({'user_id': user_id, 'month': _month_key()}, {'_id': 0, 'count': 1})
-    return int((rec or {}).get('count', 0) or 0)
-
-
-async def free_tier_remaining(user_id: str) -> int:
-    return max(0, FREE_TIER_MONTHLY - await free_tier_used(user_id))
-
-
-async def free_tier_record(user_id: str, n: int = 1) -> None:
-    await db.free_tier_usage.update_one(
-        {'user_id': user_id, 'month': _month_key()},
-        {'$inc': {'count': n}, '$setOnInsert': {'user_id': user_id, 'month': _month_key()}},
-        upsert=True,
-    )
-
-
 async def has_enough(user: dict, action: str, qty: int = 1) -> bool:
     if user.get('role') in ('admin', 'founder'):
         return True
@@ -162,7 +134,39 @@ async def has_enough(user: dict, action: str, qty: int = 1) -> bool:
     return int(user.get('credits', 0) or 0) >= cost
 
 
-async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] = None, user: Optional[dict] = None) -> tuple[bool, str, int]:
+async def reconcile_operation_debit_ledger(user_id: str, action: str, qty: int, ref_id: str, meta: Optional[dict] = None) -> None:
+    """Write the human audit entry for an already atomically-marked operation debit.
+
+    The user-document marker is the financial anti-double-debit authority. This
+    projection may be retried after a process crash without touching balance.
+    """
+    existing = await db.credit_transactions.find_one(
+        {'user_id': user_id, 'type': 'spend', 'ref_id': ref_id}, {'_id': 1}
+    )
+    if existing:
+        return
+    marker_user = await db.users.find_one(
+        {'id': user_id, 'paid_debit_markers.ref_id': ref_id},
+        {'_id': 0, 'credits': 1, 'paid_debit_markers': 1},
+    )
+    if not marker_user:
+        raise ValueError('operation debit marker not found')
+    try:
+        await db.credit_transactions.insert_one({
+            'user_id': user_id, 'type': 'spend', 'action': action, 'qty': qty,
+            'amount': -cost_of(action, qty), 'balance_after': int(marker_user.get('credits', 0) or 0),
+            'ref_id': ref_id, 'meta': meta or {}, 'created_at': _now(),
+        })
+    except DuplicateKeyError:
+        # Another recovery request restored the same audit projection first.
+        pass
+    await db.users.update_one(
+        {'id': user_id, 'paid_debit_markers.ref_id': ref_id},
+        {'$set': {'paid_debit_markers.$.ledger_state': 'WRITTEN'}},
+    )
+
+
+async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] = None, user: Optional[dict] = None, ref_id: Optional[str] = None) -> tuple[bool, str, int]:
     """Atomically deduct credits. Returns (ok, message, balance_after).
     Admin and founder roles bypass credit checks entirely."""
     # Admin/founder bypass — they can use everything for free
@@ -172,6 +176,48 @@ async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] =
         return True, '', int(user.get('credits', 0) or 0)
 
     cost = cost_of(action, qty)
+    if ref_id:
+        # This one-document update is the operation-aware financial authority:
+        # balance and durable marker change together, so a post-update crash
+        # cannot permit a later retry to debit the same operation again.
+        existing_marker = await db.users.find_one(
+            {'id': user_id, 'paid_debit_markers.ref_id': ref_id},
+            {'_id': 0, 'credits': 1},
+        )
+        if existing_marker:
+            await reconcile_operation_debit_ledger(user_id, action, qty, ref_id, meta)
+            return True, '', int(existing_marker.get('credits', 0) or 0)
+        updated = await db.users.find_one_and_update(
+            {
+                'id': user_id,
+                'credits': {'$gte': cost},
+                'paid_debit_markers': {'$not': {'$elemMatch': {'ref_id': ref_id}}},
+            },
+            {
+                '$inc': {'credits': -cost},
+                '$push': {'paid_debit_markers': {
+                    'ref_id': ref_id, 'action': action, 'qty': qty, 'amount': cost,
+                    'debited_at': _now(), 'ledger_state': 'PENDING',
+                }},
+            },
+            return_document=True,
+            projection={'_id': 0, 'credits': 1},
+        )
+        if updated:
+            await reconcile_operation_debit_ledger(user_id, action, qty, ref_id, meta)
+            return True, '', int(updated.get('credits', 0) or 0)
+        existing_marker = await db.users.find_one(
+            {'id': user_id, 'paid_debit_markers.ref_id': ref_id}, {'_id': 0, 'credits': 1}
+        )
+        if existing_marker:
+            await reconcile_operation_debit_ledger(user_id, action, qty, ref_id, meta)
+            return True, '', int(existing_marker.get('credits', 0) or 0)
+        current = await get_balance(user_id)
+        return False, (
+            f'Not enough credits. This action needs {cost} credits, you have {current}. '
+            'Please top up your credit balance to continue.'
+        ), current
+
     updated = await db.users.find_one_and_update(
         {'id': user_id, 'credits': {'$gte': cost}},
         {'$inc': {'credits': -cost}},
@@ -195,17 +241,9 @@ async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] =
         'meta': meta or {},
         'created_at': _now(),
     })
-    # Subscription is a credit bucket: when it hits 0, end it so the user must
-    # resubscribe to receive a fresh grant. User-only by construction — admins
-    # never reach this branch (they return early above).
-    if balance_after == 0:
-        try:
-            from subscription import end_subscription_if_no_credits
-            ended = await end_subscription_if_no_credits(user_id)
-            if ended:
-                logger.info('subscription ended at zero credits for user %s', user_id)
-        except Exception as e:  # never block the response on a side-effect
-            logger.warning('end_subscription_if_no_credits failed for %s: %s', user_id, e)
+    # A zero balance blocks the next paid action. We retain the historical pack
+    # record for customer support and ledger transparency; it implies no calendar
+    # subscription or recurring access state.
     return True, '', balance_after
 
 

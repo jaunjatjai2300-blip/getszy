@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{BRAND_NAME}} — Dance Classes & Workshops</title>
+  <meta name="description" content="{{BRAND_NAME}}: discover classes, workshops, and a welcoming dance practice.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet">
+  <style>
+    :root { --ink:#171611; --paper:#f7f2e9; --sand:#e8dcc9; --clay:#bf6949; --moss:#3f5146; --line:rgba(23,22,17,.16); --serif:'Playfair Display',Georgia,serif; --sans:Manrope,Arial,sans-serif; --mono:'DM Mono',monospace; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); }
+    a { color:inherit; text-decoration:none; }
+    .wrap { width:min(1200px, calc(100% - 48px)); margin:auto; }
+    .eyebrow { font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; }
+    .nav { position:absolute; inset:0 0 auto; z-index:5; padding:25px 0; color:#fff; }
+    .nav-inner { display:flex; align-items:center; justify-content:space-between; gap:24px; }
+    .brand { font-family:var(--serif); font-size:24px; line-height:1; }
+    .nav-links { display:flex; gap:23px; font-size:13px; }
+    .nav-links a { opacity:.84; transition:opacity .2s ease; }
+    .nav-links a:hover { opacity:1; }
+    .button { display:inline-flex; align-items:center; gap:9px; border:1px solid currentColor; padding:13px 18px; border-radius:999px; font-size:13px; font-weight:700; transition:transform .2s ease, background .2s ease, color .2s ease; }
+    .button:hover { transform:translateY(-2px); }
+    .button-light { color:#fff; background:rgba(255,255,255,.10); backdrop-filter:blur(8px); }
+    .button-dark { color:var(--paper); background:var(--ink); border-color:var(--ink); }
+    .button-dark:hover { background:var(--clay); border-color:var(--clay); }
+    .hero { min-height:760px; display:grid; align-items:end; position:relative; overflow:hidden; color:#fff; background:#211c16; }
+    .hero::before { content:''; position:absolute; inset:0; background:linear-gradient(90deg,rgba(15,12,10,.89) 0%,rgba(15,12,10,.62) 42%,rgba(15,12,10,.12) 76%),linear-gradient(0deg,rgba(15,12,10,.52),transparent 48%); z-index:1; }
+    .hero::after { content:''; position:absolute; inset:0; background:url('/api/builder/template-assets/dance-academy-hero.jpg') center/cover no-repeat; animation:slowScale 15s ease-out forwards; }
+    @keyframes slowScale { from { transform:scale(1.01); } to { transform:scale(1.08); } }
+    .hero-content { z-index:2; position:relative; padding:190px 0 64px; max-width:700px; }
+    .hero h1 { font-family:var(--serif); font-weight:500; font-size:clamp(52px,7vw,94px); line-height:.96; letter-spacing:-.055em; margin:17px 0 25px; }
+    .hero h1 em { color:#e9b18c; }
+    .hero p { max-width:500px; font-size:17px; line-height:1.7; color:rgba(255,255,255,.84); margin:0 0 31px; }
+    .hero-actions { display:flex; flex-wrap:wrap; gap:11px; }
+    .hero-note { margin-top:55px; display:flex; align-items:center; gap:15px; font-size:11px; color:rgba(255,255,255,.7); }
+    .hero-note::before { content:''; width:34px; height:1px; background:#e9b18c; }
+    .intro { padding:126px 0; display:grid; grid-template-columns:1.05fr .95fr; gap:72px; align-items:end; }
+    .intro h2,.section-title { font-family:var(--serif); font-weight:500; font-size:clamp(38px,4.8vw,65px); line-height:1.02; letter-spacing:-.045em; margin:14px 0 0; }
+    .intro-copy { border-left:1px solid var(--line); padding-left:28px; color:#544d43; line-height:1.8; font-size:16px; }
+    .format-section { background:var(--ink); color:var(--paper); padding:105px 0 28px; }
+    .format-head { display:flex; align-items:end; justify-content:space-between; gap:28px; margin-bottom:59px; }
+    .format-head p { max-width:330px; color:rgba(247,242,233,.68); line-height:1.7; margin:0; font-size:14px; }
+    .formats { display:grid; grid-template-columns:repeat(3,1fr); border-top:1px solid rgba(247,242,233,.22); }
+    .format { min-height:310px; padding:29px 27px; border-right:1px solid rgba(247,242,233,.22); display:flex; flex-direction:column; justify-content:space-between; transition:background .25s ease; }
+    .format:first-child { border-left:1px solid rgba(247,242,233,.22); }
+    .format:hover { background:#2a2821; }
+    .number { font-family:var(--mono); font-size:11px; color:#e9b18c; }
+    .format h3 { font-family:var(--serif); font-weight:500; font-size:31px; margin:0 0 12px; letter-spacing:-.03em; }
+    .format p { color:rgba(247,242,233,.65); font-size:14px; line-height:1.7; margin:0; }
+    .arrow { font-size:25px; color:#e9b18c; }
+    .process { padding:125px 0; }
+    .process-top { display:grid; grid-template-columns:1fr .85fr; gap:55px; align-items:end; margin-bottom:55px; }
+    .process-top p { color:#544d43; line-height:1.8; margin:0; font-size:15px; }
+    .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+    .step { padding:25px; min-height:185px; background:#eee3d3; border-radius:4px; position:relative; overflow:hidden; }
+    .step:nth-child(2) { background:#d8c5aa; }
+    .step:nth-child(3) { background:#bf6949; color:#fff; }
+    .step .number { color:var(--moss); }
+    .step:nth-child(3) .number { color:#ffe0ca; }
+    .step h3 { font-family:var(--serif); font-size:28px; font-weight:500; letter-spacing:-.03em; margin:35px 0 0; }
+    .step p { font-size:13px; line-height:1.65; margin:8px 0 0; opacity:.78; }
+    .availability { background:var(--moss); color:#fff; padding:92px 0; }
+    .availability-inner { display:grid; grid-template-columns:1.15fr .85fr; gap:55px; align-items:center; }
+    .availability h2 { font-family:var(--serif); font-size:clamp(39px,5vw,70px); line-height:1; font-weight:500; letter-spacing:-.05em; margin:15px 0 0; }
+    .availability-card { background:#f5efe4; color:var(--ink); padding:30px; border-radius:4px; }
+    .availability-card h3 { font-family:var(--serif); font-size:27px; font-weight:500; margin:4px 0 9px; }
+    .availability-card p { color:#5a5147; font-size:14px; line-height:1.7; margin:0 0 21px; }
+    .availability-card .button { width:100%; justify-content:center; }
+    footer { background:#d9c8b1; padding:31px 0; }
+    .footer-inner { display:flex; align-items:center; justify-content:space-between; gap:20px; font-size:12px; color:#544d43; }
+    .footer-brand { font-family:var(--serif); color:var(--ink); font-size:20px; }
+    .private-note { display:block; margin-top:8px; font-family:var(--mono); font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:rgba(84,77,67,.8); }
+    @media (max-width:760px) { .wrap { width:min(100% - 34px,1200px); } .nav-links { display:none; } .hero { min-height:700px; } .hero::before { background:linear-gradient(90deg,rgba(15,12,10,.88),rgba(15,12,10,.30)),linear-gradient(0deg,rgba(15,12,10,.62),transparent 55%); } .hero-content { padding:150px 0 44px; } .intro,.process-top,.availability-inner { grid-template-columns:1fr; gap:32px; } .intro { padding:81px 0; } .formats,.steps { grid-template-columns:1fr; } .format,.format:first-child { border-left:0; border-right:0; border-bottom:1px solid rgba(247,242,233,.22); min-height:205px; } .format-section { padding-top:75px; } .format-head { display:block; } .format-head p { margin-top:22px; } .process { padding:81px 0; } .footer-inner { align-items:flex-start; flex-direction:column; } }
+  </style>
+</head>
+<body>
+  <nav class="nav"><div class="wrap nav-inner"><a href="#top" class="brand">{{BRAND_NAME}}</a><div class="nav-links"><a href="#formats">Formats</a><a href="#practice">The experience</a><a href="#enquire">Enquire</a></div><a class="button button-light" href="#enquire">{{PRIMARY_CTA}} <span>↗</span></a></div></nav>
+  <main id="top">
+    <section class="hero"><div class="wrap hero-content"><div class="eyebrow">Dance · practice · community</div><h1>Find your <em>own</em> rhythm.</h1><p>{{OFFER}}</p><div class="hero-actions"><a class="button button-light" href="#enquire">{{PRIMARY_CTA}} <span>↗</span></a><a class="button button-light" href="#formats">Explore formats</a></div><div class="hero-note">A private first draft for your review — add your real timetable, contact details and policy links before publishing.</div></div></section>
+    <section class="wrap intro"><div><div class="eyebrow">The studio feeling</div><h2>Movement that meets you where you are.</h2></div><p class="intro-copy">A calm, confident first impression for a dance studio. This visual direction is designed to make space for your real approach, instructors, class schedule, imagery and community story—without inventing any of them.</p></section>
+    <section class="format-section" id="formats"><div class="wrap"><div class="format-head"><div><div class="eyebrow">Explore your practice</div><h2 class="section-title">Built for every first step.</h2></div><p>Use these visual modules to explain your actual class formats. Replace this draft language with verified classes, ages, levels and availability before release.</p></div><div class="formats"><article class="format"><div class="number">01 / FOUNDATIONS</div><div><h3>Start in motion.</h3><p>Introduce your real beginner pathway and the experience a new student can expect.</p></div><div class="arrow">↗</div></article><article class="format"><div class="number">02 / TECHNIQUE</div><div><h3>Build your language.</h3><p>Describe the styles, instructors and skill development that your academy actually offers.</p></div><div class="arrow">↗</div></article><article class="format"><div class="number">03 / WORKSHOPS</div><div><h3>Stay curious.</h3><p>Share authentic upcoming workshop information only after dates and availability are confirmed.</p></div><div class="arrow">↗</div></article></div></div></section>
+    <section class="wrap process" id="practice"><div class="process-top"><div><div class="eyebrow">A considered start</div><h2 class="section-title">From curiosity to your first class.</h2></div><p>A premium page should make the next step feel clear, while keeping promises accurate. This draft uses a simple sequence that you can connect to your real enquiry or booking process.</p></div><div class="steps"><article class="step"><div class="number">01</div><h3>Explore</h3><p>Let visitors understand your real formats and studio approach.</p></article><article class="step"><div class="number">02</div><h3>Connect</h3><p>Share your confirmed contact route, schedule or booking page.</p></article><article class="step"><div class="number">03</div><h3>Move</h3><p>Welcome each new student with the experience you actually provide.</p></article></div></section>
+    <section class="availability" id="enquire"><div class="wrap availability-inner"><div><div class="eyebrow">Your next detail</div><h2>Make this page truly yours.</h2></div><div class="availability-card"><div class="eyebrow">Before publishing</div><h3>Add verified class details.</h3><p>Confirm your timetable, instructor information, contact method, privacy policy and booking workflow. Getszy keeps this private until you approve a release.</p><a class="button button-dark" href="#top">Return to your project <span>↑</span></a></div></div></section>
+  </main>
+  <footer><div class="wrap footer-inner"><div><div class="footer-brand">{{BRAND_NAME}}</div><span class="private-note">Private Getszy preview · not published</span></div><span>Review the facts and contact details before release.</span></div></footer>
+</body>
+</html>

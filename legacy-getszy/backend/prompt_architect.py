@@ -11,9 +11,37 @@ Why this exists:
 import json
 import logging
 import re
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
+from pydantic import BaseModel, Field, ValidationError
 from llm_provider import chat_completion
+
+
+class BriefIntel(BaseModel):
+    intent: str = Field(..., description='video|landing|website|copy|logo|social|image')
+    name: Optional[str] = Field(None, max_length=200)
+    category: Optional[str] = Field('', max_length=120)
+    audience: Optional[str] = Field('', max_length=200)
+    tone: Optional[str] = Field('', max_length=120)
+    style: Optional[str] = Field('', max_length=120)
+    language: Optional[str] = Field('hindi', max_length=40)
+    goal: Optional[str] = Field('', max_length=300)
+    key_points: List[str] = Field(default_factory=list, max_length=8)
+    cta: Optional[str] = Field('Learn more', max_length=120)
+    visual_style: Optional[str] = Field('', max_length=200)
+    structured_prompt: Optional[str] = Field('', max_length=4000)
+
+    class Config:
+        extra = 'ignore'
+
+    @staticmethod
+    def validate_raw(data: dict) -> 'BriefIntel':
+        if not isinstance(data, dict):
+            raise ValueError('brief must be a JSON object')
+        for kp in data.get('key_points', []):
+            if not isinstance(kp, str):
+                raise ValueError('key_points must be strings')
+        return BriefIntel(**{k: v for k, v in data.items() if k in BriefIntel.model_fields})
 
 logger = logging.getLogger('getszy.architect')
 
@@ -96,6 +124,21 @@ def _rule_based(raw: str, intent: str) -> dict:
     }
 
 
+def brand_block(brand: Optional[dict]) -> str:
+    """Format non-empty saved Brand Kit fields for downstream generation prompts."""
+    if not brand:
+        return ''
+    fields = []
+    for key, label in (('name', 'Brand'), ('tone', 'Brand voice'), ('audience', 'Target audience'), ('tagline', 'Tagline')):
+        value = brand.get(key)
+        if value:
+            fields.append(f'{label}: {str(value).strip()}')
+    colors = brand.get('colors') or []
+    if colors:
+        fields.append('Brand colors: ' + ', '.join(str(color).strip() for color in colors if str(color).strip()))
+    return 'BRAND KIT (preserve this identity):\n- ' + '\n- '.join(fields) if fields else ''
+
+
 def product_block(product: Optional[dict]) -> str:
     if not product:
         return ''
@@ -149,6 +192,12 @@ async def architect(raw: str, intent: Optional[str] = None, brand: Optional[dict
         logger.warning('architect LLM failed, rule-based fallback: %s', e)
         brief = _rule_based(raw, intent)
     brief['intent'] = brief.get('intent') or intent
+    try:
+        validated = BriefIntel.validate_raw(brief)
+        brief = validated.model_dump()
+    except (ValidationError, ValueError) as e:
+        logger.warning('architect brief validation failed, using rule-based: %s', e)
+        brief = _rule_based(raw, intent)
     brief['structured_prompt'] = build(raw, brief, brand, product)
     if not brief['structured_prompt']:
         brief['structured_prompt'] = raw

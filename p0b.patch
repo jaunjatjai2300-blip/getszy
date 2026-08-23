@@ -1,0 +1,1174 @@
+diff --git a/legacy-getszy/backend/auth.py b/legacy-getszy/backend/auth.py
+index 65aff2d..2bead39 100644
+--- a/legacy-getszy/backend/auth.py
++++ b/legacy-getszy/backend/auth.py
+@@ -15,6 +15,7 @@ if not JWT_SECRET or JWT_SECRET in ('change-me', 'CHANGE_ME'):
+ JWT_ALG = 'HS256'
+ JWT_EXP_DAYS = 7
+ JWT_REFRESH_EXP_DAYS = 30
++PREVIEW_TOKEN_EXP_MINUTES = 10
+ 
+ bearer = HTTPBearer(auto_error=False)
+ 
+@@ -40,6 +41,29 @@ def create_token(user_id: str, role: str) -> str:
+     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
+ 
+ 
++def create_preview_token(user_id: str, project_id: str) -> str:
++    """Create a short-lived token valid only for one customer builder preview."""
++    payload = {
++        'sub': user_id,
++        'project_id': project_id,
++        'type': 'builder_preview',
++        'jti': uuid.uuid4().hex,
++        'exp': datetime.now(timezone.utc) + timedelta(minutes=PREVIEW_TOKEN_EXP_MINUTES),
++    }
++    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
++
++
++def verify_preview_token(token: str, project_id: str) -> str:
++    """Return owner ID only when the token is valid and bound to this project."""
++    try:
++        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
++    except Exception:
++        raise HTTPException(status_code=401, detail='Invalid or expired preview token')
++    if payload.get('type') != 'builder_preview' or payload.get('project_id') != project_id or not payload.get('sub'):
++        raise HTTPException(status_code=403, detail='Preview token does not authorize this project')
++    return str(payload['sub'])
++
++
+ def create_refresh_token(user_id: str) -> str:
+     rti = uuid.uuid4().hex
+     payload = {
+diff --git a/legacy-getszy/backend/credits.py b/legacy-getszy/backend/credits.py
+index 5ac5680..2fe5315 100644
+--- a/legacy-getszy/backend/credits.py
++++ b/legacy-getszy/backend/credits.py
+@@ -134,7 +134,39 @@ async def has_enough(user: dict, action: str, qty: int = 1) -> bool:
+     return int(user.get('credits', 0) or 0) >= cost
+ 
+ 
+-async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] = None, user: Optional[dict] = None) -> tuple[bool, str, int]:
++async def reconcile_operation_debit_ledger(user_id: str, action: str, qty: int, ref_id: str, meta: Optional[dict] = None) -> None:
++    """Write the human audit entry for an already atomically-marked operation debit.
++
++    The user-document marker is the financial anti-double-debit authority. This
++    projection may be retried after a process crash without touching balance.
++    """
++    existing = await db.credit_transactions.find_one(
++        {'user_id': user_id, 'type': 'spend', 'ref_id': ref_id}, {'_id': 1}
++    )
++    if existing:
++        return
++    marker_user = await db.users.find_one(
++        {'id': user_id, 'paid_debit_markers.ref_id': ref_id},
++        {'_id': 0, 'credits': 1, 'paid_debit_markers': 1},
++    )
++    if not marker_user:
++        raise ValueError('operation debit marker not found')
++    try:
++        await db.credit_transactions.insert_one({
++            'user_id': user_id, 'type': 'spend', 'action': action, 'qty': qty,
++            'amount': -cost_of(action, qty), 'balance_after': int(marker_user.get('credits', 0) or 0),
++            'ref_id': ref_id, 'meta': meta or {}, 'created_at': _now(),
++        })
++    except DuplicateKeyError:
++        # Another recovery request restored the same audit projection first.
++        pass
++    await db.users.update_one(
++        {'id': user_id, 'paid_debit_markers.ref_id': ref_id},
++        {'$set': {'paid_debit_markers.$.ledger_state': 'WRITTEN'}},
++    )
++
++
++async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] = None, user: Optional[dict] = None, ref_id: Optional[str] = None) -> tuple[bool, str, int]:
+     """Atomically deduct credits. Returns (ok, message, balance_after).
+     Admin and founder roles bypass credit checks entirely."""
+     # Admin/founder bypass — they can use everything for free
+@@ -144,6 +176,48 @@ async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] =
+         return True, '', int(user.get('credits', 0) or 0)
+ 
+     cost = cost_of(action, qty)
++    if ref_id:
++        # This one-document update is the operation-aware financial authority:
++        # balance and durable marker change together, so a post-update crash
++        # cannot permit a later retry to debit the same operation again.
++        existing_marker = await db.users.find_one(
++            {'id': user_id, 'paid_debit_markers.ref_id': ref_id},
++            {'_id': 0, 'credits': 1},
++        )
++        if existing_marker:
++            await reconcile_operation_debit_ledger(user_id, action, qty, ref_id, meta)
++            return True, '', int(existing_marker.get('credits', 0) or 0)
++        updated = await db.users.find_one_and_update(
++            {
++                'id': user_id,
++                'credits': {'$gte': cost},
++                'paid_debit_markers': {'$not': {'$elemMatch': {'ref_id': ref_id}}},
++            },
++            {
++                '$inc': {'credits': -cost},
++                '$push': {'paid_debit_markers': {
++                    'ref_id': ref_id, 'action': action, 'qty': qty, 'amount': cost,
++                    'debited_at': _now(), 'ledger_state': 'PENDING',
++                }},
++            },
++            return_document=True,
++            projection={'_id': 0, 'credits': 1},
++        )
++        if updated:
++            await reconcile_operation_debit_ledger(user_id, action, qty, ref_id, meta)
++            return True, '', int(updated.get('credits', 0) or 0)
++        existing_marker = await db.users.find_one(
++            {'id': user_id, 'paid_debit_markers.ref_id': ref_id}, {'_id': 0, 'credits': 1}
++        )
++        if existing_marker:
++            await reconcile_operation_debit_ledger(user_id, action, qty, ref_id, meta)
++            return True, '', int(existing_marker.get('credits', 0) or 0)
++        current = await get_balance(user_id)
++        return False, (
++            f'Not enough credits. This action needs {cost} credits, you have {current}. '
++            'Please top up your credit balance to continue.'
++        ), current
++
+     updated = await db.users.find_one_and_update(
+         {'id': user_id, 'credits': {'$gte': cost}},
+         {'$inc': {'credits': -cost}},
+diff --git a/legacy-getszy/backend/../backend/routes_builder.py b/legacy-getszy/backend/routes_builder.py
+index cc8c5bb..f979e93 100644
+--- a/legacy-getszy/backend/routes_builder.py
++++ b/legacy-getszy/backend/routes_builder.py
+@@ -5,18 +5,25 @@ import json
+ import zipfile
+ import logging
+ import uuid
++import asyncio
+ from pathlib import Path
+ from datetime import datetime, timezone
+-from fastapi import APIRouter, HTTPException, Depends
++from fastapi import APIRouter, HTTPException, Depends, Header
+ from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse, Response
+ from db import db
+ from models import (
+     BuilderProject, BuilderProjectIn, BuilderRefineIn, BuilderHistoryItem,
+     BuilderEvidenceUpdateIn, BuilderVersionIn, BuilderReleaseReviewIn,
+ )
+-from auth import get_current_user, get_optional_user
++from auth import create_preview_token, get_current_user, get_optional_user, verify_preview_token
+ from llm_provider import chat_completion, professional_builder_completion
+ from credits import deduct, refund
++from paid_operations import (
++    FAILED_REFUNDED, PENDING, REJECTED_NO_CHARGE, RUNNING, SUCCEEDED,
++    append_provider_attempt, claim_execution, create_or_reuse_operation,
++    customer_operation_view, get_operation_for_user, list_recoverable_operation_ids,
++    update_operation,
++)
+ from builder_agents import (
+     ProfessionalCompositionError, compose_site_fast, build_site, refine_element,
+     plan_site, design_site, review_site,
+@@ -174,6 +181,131 @@ def _brief_to_generation_context(brief: dict | None) -> str:
+     )
+ 
+ 
++async def _run_website_operation(operation_id: str) -> None:
++    """Execute one persisted builder operation after it has been acknowledged.
++
++    The paid operation is the authority for customer intent. A durable project is
++    inserted before `SUCCEEDED`; every fallback/repair remains inside this one
++    operation, and terminal failure refunds the same debit reference exactly once.
++    """
++    worker_id = f'builder-worker-{uuid.uuid4().hex}'
++    operation = await claim_execution(operation_id, worker_id)
++    if not operation:
++        return
++    payload = operation.get('payload') or {}
++    user_id = operation['user_id']
++    project_id = operation.get('resource_id') or str(uuid.uuid4())
++    try:
++        if operation.get('credit_state') != 'DEBITED':
++            ok, message, balance_after = await deduct(
++                user_id,
++                'builder_website',
++                meta={'project_id': project_id, 'operation_id': operation_id, 'stage': 'managed_composition'},
++                ref_id=operation_id,
++            )
++            if not ok:
++                await update_operation(operation_id, {
++                    'status': REJECTED_NO_CHARGE,
++                    'credit_state': 'NOT_DEBITED',
++                    'failure_code': 'INSUFFICIENT_CREDITS',
++                    'completed_at': _now(),
++                    'lease_owner': None,
++                    'lease_expires_at': None,
++                })
++                return
++            await update_operation(operation_id, {
++                'credit_state': 'DEBITED',
++                'credit_balance_after_debit': balance_after,
++                'resource_id': project_id,
++            })
++        else:
++            await update_operation(operation_id, {'resource_id': project_id})
++
++        await append_provider_attempt(operation_id, {
++            'attempt': 1,
++            'stage': 'managed_builder',
++            'started_at': _now(),
++            'status': 'RUNNING',
++        })
++        extracted_brief = await extract_brief_v3(payload['prompt'], session_id=f'professional-{project_id}')
++        brief_data = composition_context(extracted_brief, payload.get('brief') or {})
++        html = await compose_site_fast(payload['prompt'], session_id=f'professional-{project_id}', brief=brief_data)
++        quality_report = evaluate_landing_page_quality(html, brief_data)
++        if quality_report.get('status') == 'needs_work':
++            html = await review_site(
++                html,
++                session_id=f'professional-{project_id}-repair',
++                quality_feedback=quality_report.get('next_actions') or [],
++            )
++            html = _sanitize(html)
++            quality_report = evaluate_landing_page_quality(html, brief_data)
++        if quality_report.get('status') == 'needs_work':
++            raise ProfessionalCompositionError('professional quality baseline not met after repair')
++
++        name = (payload.get('name') or brief_data.get('brand_name') or _derive_name(payload['prompt']))[:80]
++        history = [
++            BuilderHistoryItem(timestamp=_now(), prompt=payload['prompt'], role='user'),
++            BuilderHistoryItem(
++                timestamp=_now(),
++                prompt='Managed professional private draft created; review required before release.',
++                role='assistant', snapshot=html,
++            ),
++        ]
++        project = BuilderProject(
++            id=project_id, user_id=user_id, name=name, prompt=payload['prompt'],
++            template_id=None, brief=payload.get('brief'),
++            brief_intelligence=extracted_brief.model_dump(), quality_report=quality_report,
++            html_content=html, history=history,
++        )
++        # Idempotent recovery cannot create a second project for this operation.
++        await db.builder_projects.update_one(
++            {'id': project_id, 'user_id': user_id},
++            {'$setOnInsert': project.model_dump()}, upsert=True,
++        )
++        await append_provider_attempt(operation_id, {
++            'attempt': 1, 'stage': 'managed_builder', 'finished_at': _now(), 'status': 'SUCCEEDED',
++        })
++        await update_operation(operation_id, {
++            'status': SUCCEEDED,
++            'result_ref': {'project_id': project_id},
++            'failure_code': None,
++            'completed_at': _now(),
++            'lease_owner': None,
++            'lease_expires_at': None,
++        })
++    except BriefIntelligenceError:
++        await append_provider_attempt(operation_id, {
++            'attempt': 1, 'stage': 'brief_intelligence', 'finished_at': _now(), 'status': 'FAILED',
++            'failure_code': 'BRIEF_NOT_VERIFIABLE',
++        })
++        await refund(user_id, 'builder_website', reason='brief_not_verifiable', ref_id=operation_id)
++        await update_operation(operation_id, {
++            'status': FAILED_REFUNDED, 'credit_state': 'REFUNDED',
++            'failure_code': 'BRIEF_NOT_VERIFIABLE', 'completed_at': _now(),
++            'lease_owner': None, 'lease_expires_at': None,
++        })
++    except Exception:
++        logger.exception('managed website operation failed: %s', operation_id)
++        await append_provider_attempt(operation_id, {
++            'attempt': 1, 'stage': 'managed_builder', 'finished_at': _now(), 'status': 'FAILED',
++            'failure_code': 'COMPOSITION_FAILED',
++        })
++        await refund(user_id, 'builder_website', reason='managed_composition_failed', ref_id=operation_id)
++        await update_operation(operation_id, {
++            'status': FAILED_REFUNDED, 'credit_state': 'REFUNDED',
++            'failure_code': 'COMPOSITION_FAILED', 'completed_at': _now(),
++            'lease_owner': None, 'lease_expires_at': None,
++        })
++
++
++async def recover_pending_builder_operations() -> int:
++    """Resume persisted pending/expired-lease website operations after restart."""
++    operation_ids = await list_recoverable_operation_ids('builder_website')
++    for operation_id in operation_ids:
++        asyncio.create_task(_run_website_operation(operation_id))
++    return len(operation_ids)
++
++
+ @router.get('/template-assets/{asset_name}', response_class=FileResponse)
+ async def get_template_asset(asset_name: str):
+     """Serve only approved static visual assets embedded by curated customer starters."""
+@@ -193,8 +325,9 @@ async def list_professional_templates(user=Depends(get_current_user)):
+     }
+ 
+ 
+-@router.post('/projects')
+-async def create_project(body: BuilderProjectIn, user=Depends(get_current_user)):
++@router.post('/projects/legacy-synchronous-disabled', include_in_schema=False)
++async def create_project_legacy_synchronous_disabled(body: BuilderProjectIn, user=Depends(get_current_user)):
++    raise HTTPException(410, 'This legacy synchronous build route is disabled. Use the operation-aware builder endpoint.')
+     if not body.prompt.strip():
+         raise HTTPException(400, 'Prompt required')
+ 
+@@ -284,6 +417,53 @@ async def create_project(body: BuilderProjectIn, user=Depends(get_current_user))
+         ) from exc
+ 
+ 
++@router.post('/projects', status_code=202)
++async def create_project_operation(
++    body: BuilderProjectIn,
++    idempotency_key: str = Header(..., alias='Idempotency-Key'),
++    user=Depends(get_current_user),
++):
++    """Acknowledge/reuse one customer website operation immediately.
++
++    Provider work happens after this response. A retry/double-click with the same
++    idempotency key returns the same authoritative operation and never re-debits.
++    """
++    if not body.prompt.strip():
++        raise HTTPException(400, 'Prompt required')
++    try:
++        operation, created = await create_or_reuse_operation(
++            user_id=user['id'],
++            action_type='builder_website',
++            idempotency_key=idempotency_key,
++            payload={
++                'prompt': body.prompt.strip(),
++                'name': (body.name or '').strip(),
++                'brief': body.brief.model_dump(exclude_none=True) if body.brief else {},
++            },
++        )
++    except ValueError as exc:
++        raise HTTPException(400, str(exc)) from exc
++    if created:
++        asyncio.create_task(_run_website_operation(operation['operation_id']))
++    return {'accepted': True, 'reused': not created, 'operation': customer_operation_view(operation)}
++
++
++@router.get('/operations/{operation_id}')
++async def get_builder_operation(operation_id: str, user=Depends(get_current_user)):
++    operation = await get_operation_for_user(operation_id, user['id'])
++    if not operation:
++        raise HTTPException(404, 'Operation not found')
++    return customer_operation_view(operation)
++
++
++@router.get('/operations')
++async def list_builder_operations(user=Depends(get_current_user)):
++    cursor = db.paid_operations.find(
++        {'user_id': user['id'], 'action_type': 'builder_website'}, {'_id': 0}
++    ).sort('updated_at', -1).limit(50)
++    return {'items': [customer_operation_view(item) async for item in cursor]}
++
++
+ @router.get('/projects')
+ async def list_projects(user=Depends(get_current_user)):
+     items = await db.builder_projects.find({'user_id': user['id']}, {'_id': 0, 'html_content': 0, 'history': 0}).sort('updated_at', -1).to_list(100)
+@@ -494,20 +674,24 @@ async def download_project(pid: str, user=Depends(get_current_user)):
+     )
+ 
+ 
+-@router.get('/projects/{pid}/preview', response_class=HTMLResponse)
+-async def preview_project(pid: str):
+-    """Public preview (no auth).
++@router.get('/projects/{pid}/preview-token')
++async def issue_preview_token(pid: str, user=Depends(get_current_user)):
++    """Issue a short-lived owner/project-bound token for the private iframe."""
++    project = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0, 'id': 1})
++    if not project:
++        raise HTTPException(404, 'Project not found')
++    return {'token': create_preview_token(user['id'], pid), 'expires_in_seconds': 600}
+ 
+-    Served with a strict CSP `sandbox` so any user-injected <script> in the
+-    generated HTML cannot execute or access the origin — prevents stored XSS via
+-    the public preview link.
+-    """
+-    p = await db.builder_projects.find_one({'id': pid}, {'_id': 0, 'html_content': 1})
+-    if not p:
+-        return Response(content='<h1>Not found</h1>', media_type='text/html', status_code=404,
+-                        headers={'Content-Security-Policy': "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
++
++@router.get('/projects/{pid}/preview', response_class=HTMLResponse)
++async def preview_project(pid: str, token: str = ''):
++    """Render only a preview whose signed token is valid for this project and owner."""
++    user_id = verify_preview_token(token, pid)
++    project = await db.builder_projects.find_one({'id': pid, 'user_id': user_id}, {'_id': 0, 'html_content': 1})
++    if not project:
++        raise HTTPException(404, 'Project not found')
+     return HTMLResponse(
+-        content=p.get('html_content', '<h1>Empty</h1>'),
++        content=project.get('html_content', '<h1>Empty</h1>'),
+         headers={'Content-Security-Policy': "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'"},
+     )
+ 
+diff --git a/legacy-getszy/backend/server.py b/legacy-getszy/backend/server.py
+index 681c93e..b3cc7b0 100644
+--- a/legacy-getszy/backend/server.py
++++ b/legacy-getszy/backend/server.py
+@@ -107,7 +107,7 @@ app.add_middleware(
+     allow_credentials=True,
+     allow_origins=ALLOWED_ORIGINS,
+     allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+-    allow_headers=['Authorization', 'Content-Type'],
++    allow_headers=['Authorization', 'Content-Type', 'Idempotency-Key'],
+ )
+ 
+ from middleware import SecurityHeadersMiddleware, RequestLoggingMiddleware, PrometheusMiddleware
+@@ -185,6 +185,17 @@ async def _check_ai_providers():
+         )
+ 
+ 
++async def _recover_builder_operations_after_startup():
++    """Resume durable website operations that survived a process restart."""
++    await asyncio.sleep(5)
++    try:
++        from routes_builder import recover_pending_builder_operations
++        resumed = await recover_pending_builder_operations()
++        logger.info('builder operation recovery scheduled %s operation(s)', resumed)
++    except Exception as exc:
++        logger.warning('builder operation recovery scheduling failed: %s', exc)
++
++
+ async def _periodic_chain_recovery():
+     """Self-healing loop: re-run chain recovery every 60s so a factory chain
+     killed by a process restart is reset+refunded without manual intervention.
+@@ -284,6 +295,14 @@ async def startup():
+         # New indexes from audit
+         await db.credit_transactions.create_index('user_id')
+         await db.credit_transactions.create_index('created_at')
++        # Operation-aware spend ledger projection: one operation reference has one spend row.
++        # The users.paid_debit_markers entry remains the financial authority across a crash.
++        await db.credit_transactions.create_index(
++            [('user_id', 1), ('type', 1), ('ref_id', 1)],
++            unique=True,
++            partialFilterExpression={'type': 'spend', 'ref_id': {'$exists': True}},
++            name='uniq_operation_spend_ref',
++        )
+         # Race-free refund idempotency: a refund with the same (user_id, ref_id) can
+         # only ever be inserted once, so a retried job failure cannot double-refund.
+         # NOTE: MongoDB partial filters cannot use `$ne`; `$gt: None` is the supported
+@@ -300,6 +319,13 @@ async def startup():
+         await db.media_assets.create_index('user_id')
+         await db.enrollments.create_index('user_id')
+         await db.builder_projects.create_index('user_id')
++        await db.paid_operations.create_index(
++            [('user_id', 1), ('action_type', 1), ('idempotency_key', 1)],
++            unique=True,
++            name='uniq_customer_paid_operation_intention',
++        )
++        await db.paid_operations.create_index([('user_id', 1), ('updated_at', -1)])
++        await db.paid_operations.create_index([('status', 1), ('lease_expires_at', 1)])
+         await db.custom_agents.create_index('user_id')
+         await db.deploy_jobs.create_index('created_at')
+         # ── DB-audit additions: perf + de-duplication ────────────────────────────
+@@ -334,6 +360,7 @@ async def startup():
+             asyncio.create_task(_periodic_chain_recovery())
+         except Exception as e:
+             logger.error(f'could not run video job recovery: {e}')
++        asyncio.create_task(_recover_builder_operations_after_startup())
+         # Catalog-to-Video auto-sync watcher (graceful if standalone mongo)
+         try:
+             from routes_catalog_video import start_catalog_watcher
+diff --git a/legacy-getszy/backend/tests/test_credit_subscription.py b/legacy-getszy/backend/tests/test_credit_subscription.py
+index b8f74d2..fad0a1d 100644
+--- a/legacy-getszy/backend/tests/test_credit_subscription.py
++++ b/legacy-getszy/backend/tests/test_credit_subscription.py
+@@ -137,17 +137,19 @@ async def test_subscription_ends_when_credits_hit_zero(fake_db):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_deduct_to_zero_ends_subscription_integration(fake_db):
++async def test_deduct_to_zero_keeps_subscription_unchanged_integration(fake_db):
+     await sub_mod.grant_plan('u1', 'pro', days=30)
+-    # one big action that exactly zeroes the bucket
++    # One big action then 115 one-credit actions leave the bucket exactly at zero.
++    # Credit exhaustion alone must never cancel, downgrade, or expire the paid plan.
+     ok, _, bal = await credits_mod.deduct('u1', 'faceless_video')  # cost 10 -> 115
+     assert ok and bal == 115
+-    # exhaust remaining 115 with script (cost 1) x115
+     for _ in range(115):
+-        await credits_mod.deduct('u1', 'script')
++        ok, _, bal = await credits_mod.deduct('u1', 'script')
++        assert ok
++    assert bal == 0
+     final = await fake_db.users.find_one({'id': 'u1'})
+-    assert final['subscription']['plan'] == 'free'
+-    assert final['subscription']['status'] == 'expired'
++    assert final['subscription']['plan'] == 'pro'
++    assert final['subscription']['status'] == 'active'
+ 
+ 
+ @pytest.mark.asyncio
+diff --git a/legacy-getszy/backend/paid_operations.py b/legacy-getszy/backend/paid_operations.py
+new file mode 100644
+index 0000000..b48638e
+--- /dev/null
++++ b/legacy-getszy/backend/paid_operations.py
+@@ -0,0 +1,160 @@
++"""Durable customer-paid operation records.
++
++This module deliberately does not debit credits or invoke providers.  It gives every
++customer intention one durable identity and a lease-controlled execution record;
++credits remain controlled by the user-document marker in ``credits.py``.
++"""
++from __future__ import annotations
++
++from datetime import datetime, timedelta, timezone
++import uuid
++from typing import Any, Optional
++
++from pymongo.errors import DuplicateKeyError
++
++from db import db
++
++
++PENDING = 'PENDING'
++RUNNING = 'RUNNING'
++SUCCEEDED = 'SUCCEEDED'
++FAILED_REFUNDED = 'FAILED_REFUNDED'
++REJECTED_NO_CHARGE = 'REJECTED_NO_CHARGE'
++TERMINAL_STATUSES = {SUCCEEDED, FAILED_REFUNDED, REJECTED_NO_CHARGE}
++
++
++def now() -> str:
++    return datetime.now(timezone.utc).isoformat()
++
++
++def lease_until(seconds: int = 120) -> str:
++    return (datetime.now(timezone.utc) + timedelta(seconds=seconds)).isoformat()
++
++
++def customer_operation_view(operation: dict) -> dict:
++    """Return a customer-safe operation view without provider/internal errors."""
++    return {
++        'operation_id': operation['operation_id'],
++        'action_type': operation['action_type'],
++        'status': operation['status'],
++        'resource_id': operation.get('resource_id'),
++        'credit_state': operation.get('credit_state', 'NOT_DEBITED'),
++        'result_ref': operation.get('result_ref'),
++        'failure_code': operation.get('failure_code'),
++        'created_at': operation.get('created_at'),
++        'updated_at': operation.get('updated_at'),
++        'started_at': operation.get('started_at'),
++        'completed_at': operation.get('completed_at'),
++    }
++
++
++async def create_or_reuse_operation(
++    *, user_id: str, action_type: str, idempotency_key: str, payload: dict
++) -> tuple[dict, bool]:
++    """Create exactly one operation per user/action/key, or return its original."""
++    key = (idempotency_key or '').strip()
++    if not key or len(key) > 200:
++        raise ValueError('A valid Idempotency-Key is required')
++    created_at = now()
++    operation = {
++        'operation_id': str(uuid.uuid4()),
++        'user_id': user_id,
++        'action_type': action_type,
++        'idempotency_key': key,
++        'status': PENDING,
++        'credit_state': 'NOT_DEBITED',
++        'resource_id': None,
++        'result_ref': None,
++        'failure_code': None,
++        'provider_attempts': [],
++        'payload': payload,
++        'lease_expires_at': None,
++        'lease_owner': None,
++        'created_at': created_at,
++        'updated_at': created_at,
++        'started_at': None,
++        'completed_at': None,
++    }
++    try:
++        await db.paid_operations.insert_one(operation)
++        operation.pop('_id', None)
++        return operation, True
++    except DuplicateKeyError:
++        existing = await db.paid_operations.find_one(
++            {'user_id': user_id, 'action_type': action_type, 'idempotency_key': key},
++            {'_id': 0},
++        )
++        if not existing:
++            raise
++        return existing, False
++
++
++async def get_operation_for_user(operation_id: str, user_id: str) -> Optional[dict]:
++    return await db.paid_operations.find_one(
++        {'operation_id': operation_id, 'user_id': user_id}, {'_id': 0}
++    )
++
++
++async def get_operation_by_key_for_user(action_type: str, idempotency_key: str, user_id: str) -> Optional[dict]:
++    return await db.paid_operations.find_one(
++        {'action_type': action_type, 'idempotency_key': idempotency_key, 'user_id': user_id}, {'_id': 0}
++    )
++
++
++async def claim_execution(operation_id: str, worker_id: str) -> Optional[dict]:
++    """Acquire a short renewable lease for a pending or abandoned operation.
++
++    The conditional Mongo update—not a process-local lock—selects the sole worker.
++    """
++    current = now()
++    return await db.paid_operations.find_one_and_update(
++        {
++            'operation_id': operation_id,
++            'status': {'$in': [PENDING, RUNNING]},
++            '$or': [
++                {'status': PENDING},
++                {'lease_expires_at': {'$lte': current}},
++                {'lease_expires_at': None},
++            ],
++        },
++        {
++            '$set': {
++                'status': RUNNING,
++                'lease_owner': worker_id,
++                'lease_expires_at': lease_until(),
++                'started_at': current,
++                'updated_at': current,
++            },
++        },
++        return_document=True,
++        projection={'_id': 0},
++    )
++
++
++async def update_operation(operation_id: str, values: dict) -> None:
++    values = {**values, 'updated_at': now()}
++    await db.paid_operations.update_one({'operation_id': operation_id}, {'$set': values})
++
++
++async def append_provider_attempt(operation_id: str, attempt: dict) -> None:
++    await db.paid_operations.update_one(
++        {'operation_id': operation_id},
++        {'$push': {'provider_attempts': attempt}, '$set': {'updated_at': now()}},
++    )
++
++
++async def list_recoverable_operation_ids(action_type: str, limit: int = 25) -> list[str]:
++    cutoff = now()
++    cursor = db.paid_operations.find(
++        {
++            'action_type': action_type,
++            'status': {'$in': [PENDING, RUNNING]},
++            '$or': [
++                {'status': PENDING},
++                {'lease_expires_at': {'$lte': cutoff}},
++                {'lease_expires_at': None},
++            ],
++        },
++        {'_id': 0, 'operation_id': 1},
++    ).sort('created_at', 1).limit(limit)
++    return [item['operation_id'] async for item in cursor]
+diff --git a/legacy-getszy/backend/tests/test_builder_preview_security.py b/legacy-getszy/backend/tests/test_builder_preview_security.py
+new file mode 100644
+index 0000000..db4c296
+--- /dev/null
++++ b/legacy-getszy/backend/tests/test_builder_preview_security.py
+@@ -0,0 +1,100 @@
++import os
++import sys
++import pytest
++import jwt
++from datetime import datetime, timedelta, timezone
++from fastapi import HTTPException
++
++sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
++os.environ.setdefault('MONGO_URL', 'mongodb://127.0.0.1:27017')
++os.environ.setdefault('JWT_SECRET', 'test-only-preview-security-secret')
++
++import auth
++import routes_builder as builder_routes
++
++
++class _Projects:
++    def __init__(self):
++        self.items = {
++            'project-a': {'id': 'project-a', 'user_id': 'user-a', 'html_content': '<!DOCTYPE html><h1>A</h1>'},
++            'project-b': {'id': 'project-b', 'user_id': 'user-b', 'html_content': '<!DOCTYPE html><h1>B</h1>'},
++        }
++
++    async def find_one(self, query, projection=None):
++        item = self.items.get(query.get('id'))
++        if not item or any(item.get(key) != value for key, value in query.items()):
++            return None
++        return {key: value for key, value in item.items() if not projection or projection.get(key, 1)}
++
++
++class _DB:
++    def __init__(self):
++        self.builder_projects = _Projects()
++
++
++@pytest.fixture(autouse=True)
++def isolated_builder_db(monkeypatch):
++    monkeypatch.setattr(builder_routes, 'db', _DB())
++
++
++@pytest.mark.asyncio
++async def test_owner_can_issue_and_use_project_bound_preview_token():
++    issued = await builder_routes.issue_preview_token('project-a', user={'id': 'user-a'})
++    response = await builder_routes.preview_project('project-a', token=issued['token'])
++    assert response.status_code == 200
++    assert 'A</h1>' in response.body.decode()
++
++
++@pytest.mark.asyncio
++async def test_other_user_cannot_issue_preview_token():
++    with pytest.raises(HTTPException) as exc:
++        await builder_routes.issue_preview_token('project-b', user={'id': 'user-a'})
++    assert exc.value.status_code == 404
++
++
++@pytest.mark.asyncio
++async def test_expired_and_cryptographically_tampered_preview_tokens_are_denied():
++    expired = jwt.encode({
++        'sub': 'user-a', 'project_id': 'project-a', 'type': 'builder_preview',
++        'exp': datetime.now(timezone.utc) - timedelta(seconds=1),
++    }, auth.JWT_SECRET, algorithm=auth.JWT_ALG)
++    with pytest.raises(HTTPException) as expired_error:
++        await builder_routes.preview_project('project-a', token=expired)
++    assert expired_error.value.status_code == 401
++
++    valid = auth.create_preview_token('user-a', 'project-a')
++    header, payload, signature = valid.split('.')
++    replacement = 'A' if signature[-1] != 'A' else 'B'
++    tampered = f'{header}.{payload}.{signature[:-1]}{replacement}'
++    with pytest.raises(HTTPException) as tampered_error:
++        await builder_routes.preview_project('project-a', token=tampered)
++    assert tampered_error.value.status_code == 401
++
++
++@pytest.mark.asyncio
++async def test_missing_invalid_and_cross_project_tokens_are_denied():
++    with pytest.raises(HTTPException) as missing:
++        await builder_routes.preview_project('project-a')
++    assert missing.value.status_code == 401
++
++    with pytest.raises(HTTPException) as invalid:
++        await builder_routes.preview_project('project-a', token='not-a-token')
++    assert invalid.value.status_code == 401
++
++    token = auth.create_preview_token('user-a', 'project-a')
++    with pytest.raises(HTTPException) as substituted:
++        await builder_routes.preview_project('project-b', token=token)
++    assert substituted.value.status_code == 403
++
++
++def test_preview_token_is_purpose_bound_and_short_lived(monkeypatch):
++    token = auth.create_preview_token('user-a', 'project-a')
++    assert auth.verify_preview_token(token, 'project-a') == 'user-a'
++
++    ordinary = auth.generate_token if hasattr(auth, 'generate_token') else auth.create_token
++    ordinary = auth.create_token('user-a', 'customer')
++    with pytest.raises(HTTPException) as wrong_purpose:
++        auth.verify_preview_token(ordinary, 'project-a')
++    assert wrong_purpose.value.status_code == 403
++
++    monkeypatch.setattr(auth.jwt, 'decode', lambda *args, **kwargs: {'sub': 'user-a', 'project_id': 'project-a', 'type': 'builder_preview'})
++    assert auth.verify_preview_token('mock', 'project-a') == 'user-a'
+diff --git a/legacy-getszy/backend/tests/test_builder_paid_operation_flow.py b/legacy-getszy/backend/tests/test_builder_paid_operation_flow.py
+new file mode 100644
+index 0000000..9382ff6
+--- /dev/null
++++ b/legacy-getszy/backend/tests/test_builder_paid_operation_flow.py
+@@ -0,0 +1,95 @@
++import os
++import sys
++import types
++
++import pytest
++
++sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
++os.environ.setdefault('JWT_SECRET', 'test-sprint-secret-with-at-least-32-bytes')
++import routes_builder as builder
++
++
++class ProjectCollection:
++    def __init__(self, events):
++        self.events = events
++        self.rows = []
++
++    async def update_one(self, flt, update, upsert=False):
++        self.events.append(('project_upsert', flt, update, upsert))
++        self.rows.append(update['$setOnInsert'])
++
++
++class FakeDB:
++    def __init__(self, events):
++        self.builder_projects = ProjectCollection(events)
++
++
++class Brief:
++    def model_dump(self):
++        return {'brand_name': 'Verified Brand'}
++
++
++@pytest.mark.asyncio
++async def test_operation_persists_project_before_succeeded_and_uses_operation_as_debit_ref(monkeypatch):
++    events = []
++    operation = {
++        'operation_id': 'op-1', 'user_id': 'u1', 'status': 'PENDING',
++        'credit_state': 'NOT_DEBITED', 'payload': {'prompt': 'Build a site', 'name': '', 'brief': {}},
++        'resource_id': None,
++    }
++    monkeypatch.setattr(builder, 'db', FakeDB(events))
++    monkeypatch.setattr(builder, 'claim_execution', lambda *args: _value(operation))
++    monkeypatch.setattr(builder, 'deduct', lambda *args, **kwargs: _value((True, '', 45)))
++    monkeypatch.setattr(builder, 'extract_brief_v3', lambda *args, **kwargs: _value(Brief()))
++    monkeypatch.setattr(builder, 'composition_context', lambda *args: {'brand_name': 'Verified Brand'})
++    monkeypatch.setattr(builder, 'compose_site_fast', lambda *args, **kwargs: _value('<!DOCTYPE html><html></html>'))
++    monkeypatch.setattr(builder, 'evaluate_landing_page_quality', lambda *args: {'status': 'ready_for_human_review'})
++    monkeypatch.setattr(builder, 'append_provider_attempt', lambda op, item: _event(events, 'attempt', item))
++    monkeypatch.setattr(builder, 'update_operation', lambda op, item: _event(events, 'operation_update', item))
++
++    await builder._run_website_operation('op-1')
++
++    debit_event = next(item for item in events if item[0] == 'operation_update' and item[1].get('credit_state') == 'DEBITED')
++    success_index = next(i for i, item in enumerate(events) if item[0] == 'operation_update' and item[1].get('status') == 'SUCCEEDED')
++    project_index = next(i for i, item in enumerate(events) if item[0] == 'project_upsert')
++    assert debit_event[1]['resource_id']
++    assert project_index < success_index
++    assert events[project_index][1]['user_id'] == 'u1'
++    assert events[project_index][3] is True
++
++
++@pytest.mark.asyncio
++async def test_operation_failure_refunds_the_same_operation_reference(monkeypatch):
++    events = []
++    operation = {
++        'operation_id': 'op-failure', 'user_id': 'u1', 'status': 'PENDING',
++        'credit_state': 'NOT_DEBITED', 'payload': {'prompt': 'Build a site', 'name': '', 'brief': {}},
++        'resource_id': None,
++    }
++    monkeypatch.setattr(builder, 'db', FakeDB(events))
++    monkeypatch.setattr(builder, 'claim_execution', lambda *args: _value(operation))
++    monkeypatch.setattr(builder, 'deduct', lambda *args, **kwargs: _value((True, '', 45)))
++    monkeypatch.setattr(builder, 'extract_brief_v3', lambda *args, **kwargs: _value(Brief()))
++    monkeypatch.setattr(builder, 'composition_context', lambda *args: {})
++
++    async def fails(*args, **kwargs):
++        raise RuntimeError('provider unavailable')
++
++    monkeypatch.setattr(builder, 'compose_site_fast', fails)
++    monkeypatch.setattr(builder, 'append_provider_attempt', lambda op, item: _event(events, 'attempt', item))
++    monkeypatch.setattr(builder, 'update_operation', lambda op, item: _event(events, 'operation_update', item))
++    monkeypatch.setattr(builder, 'refund', lambda user, action, **kwargs: _event(events, 'refund', {'user': user, 'action': action, **kwargs}))
++
++    await builder._run_website_operation('op-failure')
++
++    assert [item for item in events if item[0] == 'refund'] == [
++        ('refund', {'user': 'u1', 'action': 'builder_website', 'reason': 'managed_composition_failed', 'ref_id': 'op-failure'})
++    ]
++    assert any(item[0] == 'operation_update' and item[1].get('status') == 'FAILED_REFUNDED' for item in events)
++
++
++async def _value(value):
++    return value
++
++
++async def _event(events, kind, value):
++    events.append((kind, value))
+diff --git a/legacy-getszy/backend/tests/test_operation_aware_credits.py b/legacy-getszy/backend/tests/test_operation_aware_credits.py
+new file mode 100644
+index 0000000..c7cbe86
+--- /dev/null
++++ b/legacy-getszy/backend/tests/test_operation_aware_credits.py
+@@ -0,0 +1,217 @@
++import asyncio
++import os
++import sys
++import types
++
++import pytest
++from pymongo.errors import DuplicateKeyError
++
++sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
++os.environ.setdefault('JWT_SECRET', 'test-credit-marker-secret')
++import credits as credits_mod
++
++
++class CreditTransactions:
++    """Minimal stateful projection collection with the required unique-ref behavior."""
++
++    def __init__(self):
++        self.rows = []
++
++    async def find_one(self, flt, projection=None):
++        for row in self.rows:
++            if all(row.get(key) == value for key, value in flt.items()):
++                return dict(row)
++        return None
++
++    async def insert_one(self, row):
++        ref_id = row.get('ref_id')
++        if ref_id and any(
++            existing.get('user_id') == row.get('user_id')
++            and existing.get('type') == row.get('type')
++            and existing.get('ref_id') == ref_id
++            for existing in self.rows
++        ):
++            raise DuplicateKeyError('duplicate operation ledger reference')
++        saved = dict(row)
++        saved['_id'] = len(self.rows) + 1
++        self.rows.append(saved)
++        return types.SimpleNamespace(inserted_id=saved['_id'])
++
++    async def update_one(self, flt, update):
++        for row in self.rows:
++            if all(row.get(key) == value for key, value in flt.items()):
++                row.update(update.get('$set', {}))
++                return types.SimpleNamespace(modified_count=1)
++        return types.SimpleNamespace(modified_count=0)
++
++
++class Users:
++    """Models only the Mongo filters and updates used by the credit layer.
++
++    `marker_read_barrier` creates a same-ref pre-read race. There is deliberately
++    no Python lock around `find_one_and_update`: it models Mongo's single-document
++    atomic command, whose filter decides the only debit winner.
++    """
++
++    def __init__(self, credits=50):
++        self.doc = {
++            'id': 'u1', 'credits': credits, 'role': 'customer',
++            'paid_debit_markers': [],
++        }
++        self.marker_read_barrier = None
++        self.marker_read_count = 0
++
++    async def find_one(self, flt, projection=None):
++        if flt.get('id') != 'u1':
++            return None
++        ref_id = flt.get('paid_debit_markers.ref_id')
++        if ref_id and self.marker_read_barrier is not None:
++            self.marker_read_count += 1
++            if self.marker_read_count == 2:
++                self.marker_read_barrier.set()
++            await self.marker_read_barrier.wait()
++        if ref_id and not any(marker['ref_id'] == ref_id for marker in self.doc['paid_debit_markers']):
++            return None
++        return {
++            **self.doc,
++            'paid_debit_markers': [dict(marker) for marker in self.doc['paid_debit_markers']],
++        }
++
++    async def find_one_and_update(self, flt, update, return_document=False, projection=None):
++        if flt.get('id') != 'u1':
++            return None
++        minimum = flt.get('credits', {}).get('$gte')
++        if minimum is not None and self.doc['credits'] < minimum:
++            return None
++        ref_id = update.get('$push', {}).get('paid_debit_markers', {}).get('ref_id')
++        marker_filter = flt.get('paid_debit_markers', {})
++        if ref_id and '$not' in marker_filter:
++            if any(marker['ref_id'] == ref_id for marker in self.doc['paid_debit_markers']):
++                return None
++        self.doc['credits'] += update.get('$inc', {}).get('credits', 0)
++        if ref_id:
++            self.doc['paid_debit_markers'].append(dict(update['$push']['paid_debit_markers']))
++        return {
++            **self.doc,
++            'paid_debit_markers': [dict(marker) for marker in self.doc['paid_debit_markers']],
++        }
++
++    async def update_one(self, flt, update):
++        ref_id = flt.get('paid_debit_markers.ref_id')
++        if ref_id:
++            for marker in self.doc['paid_debit_markers']:
++                if marker['ref_id'] == ref_id:
++                    if 'paid_debit_markers.$.ledger_state' in update.get('$set', {}):
++                        marker['ledger_state'] = update['$set']['paid_debit_markers.$.ledger_state']
++                    return types.SimpleNamespace(modified_count=1)
++            return types.SimpleNamespace(modified_count=0)
++        return types.SimpleNamespace(modified_count=1)
++
++
++class FakeDB:
++    def __init__(self, credits=50):
++        self.users = Users(credits)
++        self.credit_transactions = CreditTransactions()
++
++
++@pytest.fixture
++def db(monkeypatch):
++    fake = FakeDB(50)
++    monkeypatch.setattr(credits_mod, 'db', fake)
++    return fake
++
++
++def spend_rows(db, ref_id=None):
++    rows = [row for row in db.credit_transactions.rows if row['type'] == 'spend']
++    return [row for row in rows if ref_id is None or row.get('ref_id') == ref_id]
++
++
++def refund_rows(db, ref_id=None):
++    rows = [row for row in db.credit_transactions.rows if row['type'] == 'refund']
++    return [row for row in rows if ref_id is None or row.get('ref_id') == ref_id]
++
++
++@pytest.mark.asyncio
++async def test_crash_after_atomic_marker_then_repeated_recovery_is_exactly_once(db, monkeypatch):
++    """The process fails after atomic user update but before ledger projection."""
++    original_reconcile = credits_mod.reconcile_operation_debit_ledger
++
++    async def simulated_process_failure(*args, **kwargs):
++        raise RuntimeError('simulated process failure after atomic debit marker write')
++
++    monkeypatch.setattr(credits_mod, 'reconcile_operation_debit_ledger', simulated_process_failure)
++    with pytest.raises(RuntimeError, match='simulated process failure'):
++        await credits_mod.deduct('u1', 'builder_website', ref_id='crash-op')
++
++    assert db.users.doc['credits'] == 45
++    assert len(db.users.doc['paid_debit_markers']) == 1
++    marker = db.users.doc['paid_debit_markers'][0]
++    assert marker['ref_id'] == 'crash-op'
++    assert marker['action'] == 'builder_website'
++    assert marker['amount'] == 5
++    assert marker['ledger_state'] == 'PENDING'
++    assert spend_rows(db, 'crash-op') == []
++
++    monkeypatch.setattr(credits_mod, 'reconcile_operation_debit_ledger', original_reconcile)
++    for _ in range(3):
++        await credits_mod.reconcile_operation_debit_ledger('u1', 'builder_website', 1, 'crash-op')
++
++    assert db.users.doc['credits'] == 45
++    assert db.users.doc['paid_debit_markers'][0]['ledger_state'] == 'WRITTEN'
++    assert len(spend_rows(db, 'crash-op')) == 1
++
++    # Customer retry reattaches to the durable marker and cannot charge a second time.
++    assert await credits_mod.deduct('u1', 'builder_website', ref_id='crash-op') == (True, '', 45)
++    assert len(db.users.doc['paid_debit_markers']) == 1
++    assert len(spend_rows(db, 'crash-op')) == 1
++
++
++@pytest.mark.asyncio
++async def test_concurrent_same_reference_has_one_debit_marker_and_spend(db):
++    db.users.marker_read_barrier = asyncio.Event()
++    outcomes = await asyncio.gather(*[
++        credits_mod.deduct('u1', 'builder_website', ref_id='same-operation')
++        for _ in range(8)
++    ])
++
++    assert db.users.marker_read_count >= 2
++    assert all(outcome == (True, '', 45) for outcome in outcomes)
++    assert db.users.doc['credits'] == 45
++    assert [marker['ref_id'] for marker in db.users.doc['paid_debit_markers']] == ['same-operation']
++    assert len(spend_rows(db, 'same-operation')) == 1
++
++
++@pytest.mark.asyncio
++async def test_different_references_insufficient_credit_and_legacy_callers(db, monkeypatch):
++    assert await credits_mod.deduct('u1', 'builder_website', ref_id='operation-a') == (True, '', 45)
++    assert await credits_mod.deduct('u1', 'builder_website', ref_id='operation-b') == (True, '', 40)
++    assert {marker['ref_id'] for marker in db.users.doc['paid_debit_markers']} == {'operation-a', 'operation-b'}
++    assert len(spend_rows(db)) == 2
++
++    before_legacy_balance = db.users.doc['credits']
++    assert await credits_mod.deduct('u1', 'script') == (True, '', before_legacy_balance - 1)
++    assert len(db.users.doc['paid_debit_markers']) == 2
++    assert len(spend_rows(db)) == 3
++
++    poor = FakeDB(0)
++    monkeypatch.setattr(credits_mod, 'db', poor)
++    result = await credits_mod.deduct('u1', 'builder_website', ref_id='no-funds')
++    assert result[0] is False and result[2] == 0
++    assert poor.users.doc['credits'] == 0
++    assert poor.users.doc['paid_debit_markers'] == []
++    assert spend_rows(poor) == []
++
++
++@pytest.mark.asyncio
++async def test_terminal_failure_refund_is_exactly_once_after_operation_debit(db):
++    assert await credits_mod.deduct('u1', 'builder_website', ref_id='failed-op') == (True, '', 45)
++
++    refunds = [
++        await credits_mod.refund('u1', 'builder_website', ref_id='failed-op')
++        for _ in range(3)
++    ]
++
++    assert refunds == [50, 50, 50]
++    assert db.users.doc['credits'] == 50
++    assert len(spend_rows(db, 'failed-op')) == 1
++    assert len(refund_rows(db, 'failed-op')) == 1
+diff --git a/legacy-getszy/backend/tests/test_paid_operations.py b/legacy-getszy/backend/tests/test_paid_operations.py
+new file mode 100644
+index 0000000..5c5c674
+--- /dev/null
++++ b/legacy-getszy/backend/tests/test_paid_operations.py
+@@ -0,0 +1,69 @@
++import os
++import sys
++import types
++
++import pytest
++from pymongo.errors import DuplicateKeyError
++
++sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
++os.environ.setdefault('JWT_SECRET', 'test-sprint-secret-with-at-least-32-bytes')
++import paid_operations as operations
++
++
++class PaidOperations:
++    def __init__(self):
++        self.rows = []
++
++    async def insert_one(self, row):
++        identity = (row['user_id'], row['action_type'], row['idempotency_key'])
++        if any((item['user_id'], item['action_type'], item['idempotency_key']) == identity for item in self.rows):
++            raise DuplicateKeyError('unique customer intention')
++        self.rows.append(dict(row))
++        return types.SimpleNamespace(inserted_id=len(self.rows))
++
++    async def find_one(self, flt, projection=None):
++        for row in self.rows:
++            if all(row.get(key) == value for key, value in flt.items()):
++                return dict(row)
++        return None
++
++
++class FakeDB:
++    def __init__(self):
++        self.paid_operations = PaidOperations()
++
++
++@pytest.mark.asyncio
++async def test_same_customer_action_key_reuses_one_authoritative_operation(monkeypatch):
++    fake = FakeDB()
++    monkeypatch.setattr(operations, 'db', fake)
++    first, created = await operations.create_or_reuse_operation(
++        user_id='customer-a', action_type='builder_website', idempotency_key='intent-1', payload={'prompt': 'hello'},
++    )
++    second, reused = await operations.create_or_reuse_operation(
++        user_id='customer-a', action_type='builder_website', idempotency_key='intent-1', payload={'prompt': 'ignored'},
++    )
++    assert created is True and reused is False
++    assert first['operation_id'] == second['operation_id']
++    assert len(fake.paid_operations.rows) == 1
++    assert second['payload'] == {'prompt': 'hello'}
++
++
++@pytest.mark.asyncio
++async def test_operation_identity_is_scoped_to_user_and_action(monkeypatch):
++    fake = FakeDB()
++    monkeypatch.setattr(operations, 'db', fake)
++    a, _ = await operations.create_or_reuse_operation(user_id='customer-a', action_type='builder_website', idempotency_key='same', payload={})
++    b, _ = await operations.create_or_reuse_operation(user_id='customer-b', action_type='builder_website', idempotency_key='same', payload={})
++    c, _ = await operations.create_or_reuse_operation(user_id='customer-a', action_type='builder_refine', idempotency_key='same', payload={})
++    assert len({a['operation_id'], b['operation_id'], c['operation_id']}) == 3
++
++
++def test_customer_view_excludes_payload_and_provider_errors():
++    view = operations.customer_operation_view({
++        'operation_id': 'op1', 'action_type': 'builder_website', 'status': operations.RUNNING,
++        'credit_state': 'DEBITED', 'payload': {'secret': 'do-not-expose'},
++        'provider_attempts': [{'provider_error': 'sensitive internal trace'}], 'created_at': 'now', 'updated_at': 'now',
++    })
++    assert view['operation_id'] == 'op1'
++    assert 'payload' not in view and 'provider_attempts' not in view

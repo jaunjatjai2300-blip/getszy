@@ -1,7 +1,7 @@
 """AI Infrastructure Audit — fallback chain, cost guard, truncation, double-charge.
 
-Deliberately fails each provider (Ollama -> LM Studio -> Groq -> Gemini ->
-OpenRouter -> Emergent) and verifies the chain behaves as a production system
+Deliberately fails each provider (Groq -> Gemini -> controlled OpenRouter ->
+Ollama -> LM Studio -> Emergent) and verifies the chain behaves as a production system
 must: real fallback, timeout-triggered fallback, exactly-once charge per
 request, failure logging, cost-guard exclusion, and input truncation on every
 backend.
@@ -21,6 +21,7 @@ def _configure(monkeypatch, *, include_openrouter=True, include_emergent=False):
     monkeypatch.setattr(lp, 'GROQ_API_KEY', 'dummy')
     monkeypatch.setattr(lp, 'GEMINI_API_KEY', 'dummy')
     monkeypatch.setattr(lp, 'OPENROUTER_API_KEY', 'dummy' if include_openrouter else '')
+    monkeypatch.setattr(lp, 'OPENROUTER_CUSTOMER_FALLBACK', include_openrouter)
     monkeypatch.setattr(lp, 'EMERGENT_LLM_KEY', 'dummy' if include_emergent else '')
     monkeypatch.setattr(lp, 'FREE_ONLY', False)
     monkeypatch.setattr(lp, 'LLM_PROVIDER', '')
@@ -34,8 +35,8 @@ async def _fail_rest(monkeypatch, exclude):
             monkeypatch.setattr(lp, name, down)
 
 
-async def test_fallback_ollama_down_then_groq(monkeypatch):
-    """Ollama DOWN -> chain falls through to Groq and returns its result."""
+async def test_cloud_primary_starts_with_groq(monkeypatch):
+    """Groq is the managed primary; local providers are not attempted first."""
     _configure(monkeypatch)
     calls = {}
 
@@ -51,7 +52,7 @@ async def test_fallback_ollama_down_then_groq(monkeypatch):
 
     res = await lp.chat_completion('sys', 'usr', temperature=0)
     assert res == 'pong-from-groq'
-    # No double charge: Groq attempted exactly once.
+    # No double charge: Groq attempted exactly once, before local fallbacks.
     assert calls['groq'] == 1
 
 
@@ -77,8 +78,8 @@ async def test_fallback_full_chain_order(monkeypatch):
 
     res = await lp.chat_completion('s', 'u')
     assert res == 'win'
-    # Every provider before the winner was attempted exactly once (no retry loops).
-    assert order == ['ollama', 'lmstudio', 'groq', 'gemini', 'openrouter']
+    # Every managed cloud provider precedes local resilience fallbacks.
+    assert order == ['groq', 'gemini', 'openrouter']
 
 
 async def test_timeout_triggers_fallback(monkeypatch):

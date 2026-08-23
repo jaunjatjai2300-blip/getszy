@@ -16,6 +16,8 @@ from app.router_registry import load_all_routers
 from monitoring import init_monitoring
 from llm_provider import LLMServiceUnavailable
 
+# FastAPI docs remain available on the private backend for local CI and operator
+# diagnostics. Caddy explicitly returns 404 for these paths on the public domain.
 app = FastAPI(title='getszy API')
 api_router = APIRouter(prefix='/api')
 
@@ -54,8 +56,11 @@ async def health():
     try:
         await db.command('ping')
         return {'status': 'ok', 'ai': 'Getszy AI'}
-    except Exception as e:
-        return {'status': 'error', 'detail': str(e)}
+    except Exception:
+        # A non-2xx response is required for Docker, uptime monitors, and reverse
+        # proxies to recognise a database outage instead of treating an error body
+        # as a healthy service.
+        return JSONResponse(status_code=503, content={'status': 'error', 'detail': 'database_unavailable'})
 
 
 @api_router.get('/health/llm')
@@ -93,7 +98,7 @@ app.include_router(api_router)
 ALLOWED_ORIGINS = [
     o.strip() for o in os.environ.get(
         'CORS_ORIGINS',
-        'https://getszy.com,https://www.getszy.com,http://localhost:3000,http://localhost:5173'
+        'https://getszy.com,https://www.getszy.com'
     ).split(',') if o.strip()
 ]
 
@@ -102,7 +107,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_origins=ALLOWED_ORIGINS,
     allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allow_headers=['Authorization', 'Content-Type'],
+    allow_headers=['Authorization', 'Content-Type', 'Idempotency-Key'],
 )
 
 from middleware import SecurityHeadersMiddleware, RequestLoggingMiddleware, PrometheusMiddleware
@@ -178,6 +183,17 @@ async def _check_ai_providers():
             'AI PROVIDER SELF-CHECK: Ollama at %s unreachable — OK only if relying on '
             'remote keys (%s).', ollama, ', '.join(remote) or 'none',
         )
+
+
+async def _recover_builder_operations_after_startup():
+    """Resume durable website operations that survived a process restart."""
+    await asyncio.sleep(5)
+    try:
+        from routes_builder import recover_pending_builder_operations
+        resumed = await recover_pending_builder_operations()
+        logger.info('builder operation recovery scheduled %s operation(s)', resumed)
+    except Exception as exc:
+        logger.warning('builder operation recovery scheduling failed: %s', exc)
 
 
 async def _periodic_chain_recovery():
@@ -279,6 +295,14 @@ async def startup():
         # New indexes from audit
         await db.credit_transactions.create_index('user_id')
         await db.credit_transactions.create_index('created_at')
+        # Operation-aware spend ledger projection: one operation reference has one spend row.
+        # The users.paid_debit_markers entry remains the financial authority across a crash.
+        await db.credit_transactions.create_index(
+            [('user_id', 1), ('type', 1), ('ref_id', 1)],
+            unique=True,
+            partialFilterExpression={'type': 'spend', 'ref_id': {'$exists': True}},
+            name='uniq_operation_spend_ref',
+        )
         # Race-free refund idempotency: a refund with the same (user_id, ref_id) can
         # only ever be inserted once, so a retried job failure cannot double-refund.
         # NOTE: MongoDB partial filters cannot use `$ne`; `$gt: None` is the supported
@@ -295,6 +319,13 @@ async def startup():
         await db.media_assets.create_index('user_id')
         await db.enrollments.create_index('user_id')
         await db.builder_projects.create_index('user_id')
+        await db.paid_operations.create_index(
+            [('user_id', 1), ('action_type', 1), ('idempotency_key', 1)],
+            unique=True,
+            name='uniq_customer_paid_operation_intention',
+        )
+        await db.paid_operations.create_index([('user_id', 1), ('updated_at', -1)])
+        await db.paid_operations.create_index([('status', 1), ('lease_expires_at', 1)])
         await db.custom_agents.create_index('user_id')
         await db.deploy_jobs.create_index('created_at')
         # ── DB-audit additions: perf + de-duplication ────────────────────────────
@@ -329,6 +360,7 @@ async def startup():
             asyncio.create_task(_periodic_chain_recovery())
         except Exception as e:
             logger.error(f'could not run video job recovery: {e}')
+        asyncio.create_task(_recover_builder_operations_after_startup())
         # Catalog-to-Video auto-sync watcher (graceful if standalone mongo)
         try:
             from routes_catalog_video import start_catalog_watcher

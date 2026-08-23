@@ -4,19 +4,42 @@ import re
 import json
 import zipfile
 import logging
+import uuid
+import asyncio
+from pathlib import Path
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import HTMLResponse, StreamingResponse, Response
+from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from db import db
-from models import BuilderProject, BuilderProjectIn, BuilderRefineIn, BuilderHistoryItem
-from auth import get_current_user, get_optional_user
-from llm_provider import chat_completion
-from subscription import can_use_studio, increment_studio_builds
+from models import (
+    BuilderProject, BuilderProjectIn, BuilderRefineIn, BuilderHistoryItem,
+    BuilderEvidenceUpdateIn, BuilderVersionIn, BuilderReleaseReviewIn,
+)
+from auth import create_preview_token, get_current_user, get_optional_user, verify_preview_token
+from llm_provider import chat_completion, professional_builder_completion
 from credits import deduct, refund
-from builder_agents import build_site, refine_element, plan_site, design_site
+from paid_operations import (
+    FAILED_REFUNDED, PENDING, REJECTED_NO_CHARGE, RUNNING, SUCCEEDED,
+    append_provider_attempt, claim_execution, create_or_reuse_operation,
+    customer_operation_view, get_operation_for_user, list_recoverable_operation_ids,
+    update_operation,
+)
+from builder_agents import (
+    ProfessionalCompositionError, compose_site_fast, build_site, refine_element,
+    plan_site, design_site, review_site,
+)
+from builder_quality import evaluate_landing_page_quality
+from brief_intelligence import BriefIntelligenceError, composition_context, extract_brief_v3
+from builder_controls import mission_control_state
+from template_catalog import public_template_catalog, get_template, recommend_template_id, render_customer_template
 
 logger = logging.getLogger('getszy.builder')
 router = APIRouter(prefix='/builder', tags=['builder'])
+_TEMPLATE_ASSET_ROOT = Path(__file__).resolve().parent / "starter_templates" / "assets"
+_TEMPLATE_ASSETS = {
+    "dance-academy-hero.jpg": "image/jpeg",
+    "brand-foundation-hero.jpg": "image/jpeg",
+}
 
 
 SYSTEM_PROMPT_REFINE = """You are an elite front-end web developer refining an existing single-page website.
@@ -77,7 +100,13 @@ async def _generate_site(prompt: str, current_html: str | None = None, session_i
             f"REFINEMENT REQUEST:\n{prompt}\n\n"
             "Now output the complete updated HTML document only."
         )
-        raw = await chat_completion(system=SYSTEM_PROMPT_REFINE, user=user_msg, session_id=session_id, temperature=0.6, max_tokens=8000)
+        raw = await professional_builder_completion(
+            system=SYSTEM_PROMPT_REFINE,
+            user=user_msg,
+            session_id=session_id,
+            temperature=0.45,
+            max_tokens=8000,
+        )
         html = _sanitize(_extract_html(raw))
         if not html.lower().startswith('<!doctype html'):
             html = current_html  # Fallback: keep original
@@ -127,35 +156,457 @@ def _derive_name(prompt: str) -> str:
     return ' '.join(words).title() or 'Untitled Project'
 
 
-@router.post('/projects')
-async def create_project(body: BuilderProjectIn, user=Depends(get_current_user)):
+def _brief_to_generation_context(brief: dict | None) -> str:
+    """Give the multi-agent builder concrete professional-output constraints."""
+    brief = brief or {}
+    entries = [
+        ('Brand name', brief.get('brand_name')),
+        ('Target audience', brief.get('audience')),
+        ('Primary conversion goal', brief.get('primary_goal')),
+        ('Primary CTA', brief.get('primary_cta')),
+        ('Offer', brief.get('offer')),
+        ('Visual direction', brief.get('visual_style')),
+    ]
+    proof_points = [str(item).strip() for item in brief.get('proof_points', []) if str(item).strip()]
+    lines = [f'- {label}: {value}' for label, value in entries if str(value or '').strip()]
+    if proof_points:
+        lines.append('- Verified proof points supplied by the customer: ' + '; '.join(proof_points))
+    if not lines:
+        return ''
+    return (
+        '\n\nPROFESSIONAL PAGE BRIEF (follow this as product context):\n'
+        + '\n'.join(lines)
+        + '\nDo not invent testimonials, company logos, customer counts, prices, guarantees, legal claims, or product capabilities. '
+          'Where proof is not supplied, use an honest proof-plan placeholder for the customer to complete before publishing.'
+    )
+
+
+async def _run_website_operation(operation_id: str) -> None:
+    """Execute one persisted builder operation after it has been acknowledged.
+
+    The paid operation is the authority for customer intent. A durable project is
+    inserted before `SUCCEEDED`; every fallback/repair remains inside this one
+    operation, and terminal failure refunds the same debit reference exactly once.
+    """
+    worker_id = f'builder-worker-{uuid.uuid4().hex}'
+    operation = await claim_execution(operation_id, worker_id)
+    if not operation:
+        return
+    payload = operation.get('payload') or {}
+    user_id = operation['user_id']
+    project_id = operation.get('resource_id') or str(uuid.uuid4())
+    try:
+        if operation.get('credit_state') != 'DEBITED':
+            ok, message, balance_after = await deduct(
+                user_id,
+                'builder_website',
+                meta={'project_id': project_id, 'operation_id': operation_id, 'stage': 'managed_composition'},
+                ref_id=operation_id,
+            )
+            if not ok:
+                await update_operation(operation_id, {
+                    'status': REJECTED_NO_CHARGE,
+                    'credit_state': 'NOT_DEBITED',
+                    'failure_code': 'INSUFFICIENT_CREDITS',
+                    'completed_at': _now(),
+                    'lease_owner': None,
+                    'lease_expires_at': None,
+                })
+                return
+            await update_operation(operation_id, {
+                'credit_state': 'DEBITED',
+                'credit_balance_after_debit': balance_after,
+                'resource_id': project_id,
+            })
+        else:
+            await update_operation(operation_id, {'resource_id': project_id})
+
+        await append_provider_attempt(operation_id, {
+            'attempt': 1,
+            'stage': 'managed_builder',
+            'started_at': _now(),
+            'status': 'RUNNING',
+        })
+        extracted_brief = await extract_brief_v3(payload['prompt'], session_id=f'professional-{project_id}')
+        brief_data = composition_context(extracted_brief, payload.get('brief') or {})
+        html = await compose_site_fast(payload['prompt'], session_id=f'professional-{project_id}', brief=brief_data)
+        quality_report = evaluate_landing_page_quality(html, brief_data)
+        if quality_report.get('status') == 'needs_work':
+            html = await review_site(
+                html,
+                session_id=f'professional-{project_id}-repair',
+                quality_feedback=quality_report.get('next_actions') or [],
+            )
+            html = _sanitize(html)
+            quality_report = evaluate_landing_page_quality(html, brief_data)
+        if quality_report.get('status') == 'needs_work':
+            raise ProfessionalCompositionError('professional quality baseline not met after repair')
+
+        name = (payload.get('name') or brief_data.get('brand_name') or _derive_name(payload['prompt']))[:80]
+        history = [
+            BuilderHistoryItem(timestamp=_now(), prompt=payload['prompt'], role='user'),
+            BuilderHistoryItem(
+                timestamp=_now(),
+                prompt='Managed professional private draft created; review required before release.',
+                role='assistant', snapshot=html,
+            ),
+        ]
+        project = BuilderProject(
+            id=project_id, user_id=user_id, name=name, prompt=payload['prompt'],
+            template_id=None, brief=payload.get('brief'),
+            brief_intelligence=extracted_brief.model_dump(), quality_report=quality_report,
+            html_content=html, history=history,
+        )
+        # Idempotent recovery cannot create a second project for this operation.
+        await db.builder_projects.update_one(
+            {'id': project_id, 'user_id': user_id},
+            {'$setOnInsert': project.model_dump()}, upsert=True,
+        )
+        await append_provider_attempt(operation_id, {
+            'attempt': 1, 'stage': 'managed_builder', 'finished_at': _now(), 'status': 'SUCCEEDED',
+        })
+        await update_operation(operation_id, {
+            'status': SUCCEEDED,
+            'result_ref': {'project_id': project_id},
+            'failure_code': None,
+            'completed_at': _now(),
+            'lease_owner': None,
+            'lease_expires_at': None,
+        })
+    except BriefIntelligenceError:
+        await append_provider_attempt(operation_id, {
+            'attempt': 1, 'stage': 'brief_intelligence', 'finished_at': _now(), 'status': 'FAILED',
+            'failure_code': 'BRIEF_NOT_VERIFIABLE',
+        })
+        await refund(user_id, 'builder_website', reason='brief_not_verifiable', ref_id=operation_id)
+        await update_operation(operation_id, {
+            'status': FAILED_REFUNDED, 'credit_state': 'REFUNDED',
+            'failure_code': 'BRIEF_NOT_VERIFIABLE', 'completed_at': _now(),
+            'lease_owner': None, 'lease_expires_at': None,
+        })
+    except Exception:
+        logger.exception('managed website operation failed: %s', operation_id)
+        await append_provider_attempt(operation_id, {
+            'attempt': 1, 'stage': 'managed_builder', 'finished_at': _now(), 'status': 'FAILED',
+            'failure_code': 'COMPOSITION_FAILED',
+        })
+        await refund(user_id, 'builder_website', reason='managed_composition_failed', ref_id=operation_id)
+        await update_operation(operation_id, {
+            'status': FAILED_REFUNDED, 'credit_state': 'REFUNDED',
+            'failure_code': 'COMPOSITION_FAILED', 'completed_at': _now(),
+            'lease_owner': None, 'lease_expires_at': None,
+        })
+
+
+async def recover_pending_builder_operations() -> int:
+    """Resume persisted pending/expired-lease website operations after restart."""
+    operation_ids = await list_recoverable_operation_ids('builder_website')
+    for operation_id in operation_ids:
+        asyncio.create_task(_run_website_operation(operation_id))
+    return len(operation_ids)
+
+
+@router.get('/template-assets/{asset_name}', response_class=FileResponse)
+async def get_template_asset(asset_name: str):
+    """Serve only approved static visual assets embedded by curated customer starters."""
+    media_type = _TEMPLATE_ASSETS.get(asset_name)
+    asset_path = (_TEMPLATE_ASSET_ROOT / asset_name).resolve()
+    if not media_type or asset_path.parent != _TEMPLATE_ASSET_ROOT.resolve() or not asset_path.is_file():
+        raise HTTPException(404, 'Template asset not found')
+    return FileResponse(asset_path, media_type=media_type, headers={'Cache-Control': 'public, max-age=86400'})
+
+
+@router.get('/templates')
+async def list_professional_templates(user=Depends(get_current_user)):
+    """Expose no new-build starters until category-specific professional packs are ready."""
+    return {
+        'templates': [],
+        'notice': 'New customer website production is paused while Getszy prepares approved category-specific professional packs. Existing private projects remain available for review.',
+    }
+
+
+@router.post('/projects/legacy-synchronous-disabled', include_in_schema=False)
+async def create_project_legacy_synchronous_disabled(body: BuilderProjectIn, user=Depends(get_current_user)):
+    raise HTTPException(410, 'This legacy synchronous build route is disabled. Use the operation-aware builder endpoint.')
     if not body.prompt.strip():
         raise HTTPException(400, 'Prompt required')
-    ok, msg, _ = await deduct(user['id'], 'builder_website')
-    if not ok:
-        raise HTTPException(402, msg)
+
+    customer_brief = body.brief.model_dump(exclude_none=True) if body.brief else {}
+    project_id = str(uuid.uuid4())
+
+    # Brief Intelligence runs before any credit deduction. Its strict schema and
+    # conservative support filter ensure only explicit customer facts reach the
+    # page composer; failed extraction never creates a draft or charge.
     try:
-        html = await _generate_site(body.prompt)
-    except Exception as e:
-        logger.exception('generate failed')
-        # P1-3: pass ref_id so a retried failure cannot double-refund.
-        await refund(user['id'], 'builder_website', reason='generation_failed', ref_id=body.name or body.prompt[:64])
-        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
-    name = (body.name or _derive_name(body.prompt))[:80]
-    history = [
-        BuilderHistoryItem(timestamp=_now(), prompt=body.prompt, role='user'),
-        BuilderHistoryItem(timestamp=_now(), prompt='Initial build complete', role='assistant', snapshot=html),
-    ]
-    project = BuilderProject(user_id=user['id'], name=name, prompt=body.prompt, html_content=html, history=history)
-    await db.builder_projects.insert_one(project.model_dump())
-    await increment_studio_builds(user['id'])
-    return project.model_dump()
+        extracted_brief = await extract_brief_v3(body.prompt, session_id=f'professional-{project_id}')
+    except BriefIntelligenceError as exc:
+        raise HTTPException(
+            422,
+            'Getszy could not verify a structured brief from this request. Add clear business details and try again; no credit has been consumed.',
+        ) from exc
+    brief_data = composition_context(extracted_brief, customer_brief)
+    charged = user.get('role') not in ('admin', 'founder')
+    ok, message, _balance_after = await deduct(
+        user['id'],
+        'builder_website',
+        meta={'project_id': project_id, 'stage': 'fast_professional_composition'},
+        user=user,
+    )
+    if not ok:
+        raise HTTPException(402, message)
+
+    try:
+        html = await compose_site_fast(body.prompt, session_id=f'professional-{project_id}', brief=brief_data)
+        quality_report = evaluate_landing_page_quality(html, brief_data)
+
+        # One bounded repair pass translates objective preflight failures into
+        # concrete instructions for the managed quality ladder. A second failure is
+        # not silently saved or presented as a finished professional result.
+        if quality_report.get('status') == 'needs_work':
+            html = await review_site(
+                html,
+                session_id=f'professional-{project_id}-repair',
+                quality_feedback=quality_report.get('next_actions') or [],
+            )
+            html = _sanitize(html)
+            quality_report = evaluate_landing_page_quality(html, brief_data)
+
+        if quality_report.get('status') == 'needs_work':
+            raise ProfessionalCompositionError(
+                'The draft did not meet Getszy\'s private-review quality baseline after repair.'
+            )
+
+        name = (body.name or brief_data.get('brand_name') or _derive_name(body.prompt))[:80]
+        history = [
+            BuilderHistoryItem(timestamp=_now(), prompt=body.prompt, role='user'),
+            BuilderHistoryItem(
+                timestamp=_now(),
+                prompt='Managed professional private draft created; review required before release.',
+                role='assistant',
+                snapshot=html,
+            ),
+        ]
+        project = BuilderProject(
+            id=project_id,
+            user_id=user['id'],
+            name=name,
+            prompt=body.prompt,
+            template_id=None,
+            brief=body.brief,
+            brief_intelligence=extracted_brief.model_dump(),
+            quality_report=quality_report,
+            html_content=html,
+            history=history,
+        )
+        await db.builder_projects.insert_one(project.model_dump())
+        return project.model_dump()
+    except ProfessionalCompositionError as exc:
+        if charged:
+            await refund(user['id'], 'builder_website', reason='professional_composition_quality_failed', ref_id=project_id)
+        raise HTTPException(
+            422,
+            'Getszy could not create a reviewable professional private draft for this request. No credit has been consumed. Add more verified brief details or try again.',
+        ) from exc
+    except Exception as exc:
+        logger.exception('Professional builder composition failed for project %s', project_id)
+        if charged:
+            await refund(user['id'], 'builder_website', reason='professional_composition_failed', ref_id=project_id)
+        raise HTTPException(
+            503,
+            'Getszy\'s professional composition service is temporarily unavailable. No credit has been consumed; please retry shortly.',
+        ) from exc
+
+
+@router.post('/projects', status_code=202)
+async def create_project_operation(
+    body: BuilderProjectIn,
+    idempotency_key: str = Header(..., alias='Idempotency-Key'),
+    user=Depends(get_current_user),
+):
+    """Acknowledge/reuse one customer website operation immediately.
+
+    Provider work happens after this response. A retry/double-click with the same
+    idempotency key returns the same authoritative operation and never re-debits.
+    """
+    if not body.prompt.strip():
+        raise HTTPException(400, 'Prompt required')
+    try:
+        operation, created = await create_or_reuse_operation(
+            user_id=user['id'],
+            action_type='builder_website',
+            idempotency_key=idempotency_key,
+            payload={
+                'prompt': body.prompt.strip(),
+                'name': (body.name or '').strip(),
+                'brief': body.brief.model_dump(exclude_none=True) if body.brief else {},
+            },
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if created:
+        asyncio.create_task(_run_website_operation(operation['operation_id']))
+    return {'accepted': True, 'reused': not created, 'operation': customer_operation_view(operation)}
+
+
+@router.get('/operations/{operation_id}')
+async def get_builder_operation(operation_id: str, user=Depends(get_current_user)):
+    operation = await get_operation_for_user(operation_id, user['id'])
+    if not operation:
+        raise HTTPException(404, 'Operation not found')
+    return customer_operation_view(operation)
+
+
+@router.get('/operations')
+async def list_builder_operations(user=Depends(get_current_user)):
+    cursor = db.paid_operations.find(
+        {'user_id': user['id'], 'action_type': 'builder_website'}, {'_id': 0}
+    ).sort('updated_at', -1).limit(50)
+    return {'items': [customer_operation_view(item) async for item in cursor]}
 
 
 @router.get('/projects')
 async def list_projects(user=Depends(get_current_user)):
     items = await db.builder_projects.find({'user_id': user['id']}, {'_id': 0, 'html_content': 0, 'history': 0}).sort('updated_at', -1).to_list(100)
     return items
+
+
+@router.get('/projects/{pid}/quality')
+async def get_project_quality(pid: str, user=Depends(get_current_user)):
+    project = await db.builder_projects.find_one(
+        {'id': pid, 'user_id': user['id']},
+        {'_id': 0, 'quality_report': 1, 'brief': 1, 'updated_at': 1},
+    )
+    if not project:
+        raise HTTPException(404, 'Project not found')
+    return {
+        'quality_report': project.get('quality_report') or evaluate_landing_page_quality('', project.get('brief') or {}),
+        'brief': project.get('brief') or {},
+        'updated_at': project.get('updated_at'),
+    }
+
+
+@router.get('/projects/{pid}/controls')
+async def get_project_controls(pid: str, user=Depends(get_current_user)):
+    """Return only customer-owned project controls and transparent review eligibility."""
+    project = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
+    if not project:
+        raise HTTPException(404, 'Project not found')
+    versions = project.get('control_versions') or []
+    control_input = dict(project)
+    control_input['version_count'] = len(versions)
+    state = mission_control_state(control_input)
+    return {
+        'project_id': pid,
+        'state': state,
+        'evidence_items': project.get('evidence_items') or [],
+        'versions': [
+            {'id': item.get('id'), 'label': item.get('label'), 'created_at': item.get('created_at')}
+            for item in versions
+        ],
+        'release_reviews': project.get('release_reviews') or [],
+    }
+
+
+@router.put('/projects/{pid}/evidence')
+async def replace_project_evidence(pid: str, body: BuilderEvidenceUpdateIn, user=Depends(get_current_user)):
+    """Store customer-reviewed evidence; it never publishes or validates a legal claim."""
+    project = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0, 'brief': 1})
+    if not project:
+        raise HTTPException(404, 'Project not found')
+    items = [item.model_dump() for item in body.items]
+    await db.builder_projects.update_one(
+        {'id': pid, 'user_id': user['id']},
+        {'$set': {'evidence_items': items, 'updated_at': _now()}},
+    )
+    refreshed = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
+    control_input = dict(refreshed)
+    control_input['version_count'] = len(refreshed.get('control_versions') or [])
+    return {'ok': True, 'evidence_items': items, 'state': mission_control_state(control_input)}
+
+
+@router.post('/projects/{pid}/versions')
+async def create_project_version(pid: str, body: BuilderVersionIn, user=Depends(get_current_user)):
+    """Create a named customer restore point for builder state. No external deployment is affected."""
+    project = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
+    if not project:
+        raise HTTPException(404, 'Project not found')
+    versions = project.get('control_versions') or []
+    version = {
+        'id': str(uuid.uuid4()),
+        'label': (body.label or '').strip()[:120] or f'Version {len(versions) + 1}',
+        'created_at': _now(),
+        'state': {
+            'html_content': project.get('html_content') or '',
+            'brief': project.get('brief') or {},
+            'evidence_items': project.get('evidence_items') or [],
+            'quality_report': project.get('quality_report') or {},
+            'prompt': project.get('prompt') or '',
+        },
+    }
+    versions.append(version)
+    await db.builder_projects.update_one(
+        {'id': pid, 'user_id': user['id']},
+        {'$set': {'control_versions': versions, 'updated_at': _now()}},
+    )
+    return {'ok': True, 'version': {'id': version['id'], 'label': version['label'], 'created_at': version['created_at']}}
+
+
+@router.post('/projects/{pid}/versions/{version_id}/restore')
+async def restore_project_version(pid: str, version_id: str, user=Depends(get_current_user)):
+    """Restore a customer-owned named builder version. This cannot publish or mutate another project."""
+    project = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
+    if not project:
+        raise HTTPException(404, 'Project not found')
+    version = next((item for item in (project.get('control_versions') or []) if item.get('id') == version_id), None)
+    if not version or not isinstance(version.get('state'), dict):
+        raise HTTPException(404, 'Version not found')
+    state = version['state']
+    html = state.get('html_content') or ''
+    quality_report = evaluate_landing_page_quality(html, state.get('brief') or {})
+    history = project.get('history') or []
+    history.extend([
+        {'timestamp': _now(), 'prompt': f'Restored named version: {version.get("label")}', 'role': 'user', 'snapshot': None},
+        {'timestamp': _now(), 'prompt': 'Named version restored', 'role': 'assistant', 'snapshot': html},
+    ])
+    await db.builder_projects.update_one(
+        {'id': pid, 'user_id': user['id']},
+        {'$set': {
+            'html_content': html,
+            'brief': state.get('brief') or {},
+            'evidence_items': state.get('evidence_items') or [],
+            'quality_report': quality_report,
+            'prompt': state.get('prompt') or project.get('prompt') or '',
+            'history': history,
+            'updated_at': _now(),
+        }},
+    )
+    return {'ok': True, 'restored_version_id': version_id, 'quality_report': quality_report}
+
+
+@router.post('/projects/{pid}/release-review')
+async def request_customer_release_review(pid: str, body: BuilderReleaseReviewIn, user=Depends(get_current_user)):
+    """Record a request for customer review, never a publication or production deployment."""
+    project = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
+    if not project:
+        raise HTTPException(404, 'Project not found')
+    control_input = dict(project)
+    control_input['version_count'] = len(project.get('control_versions') or [])
+    state = mission_control_state(control_input)
+    if not body.confirm_evidence_review:
+        raise HTTPException(422, 'Customer confirmation of evidence review is required')
+    if not state['eligible_for_customer_review']:
+        raise HTTPException(409, 'Project is not eligible for customer review; complete the brief, resolve evidence blockers and run the required quality checks.')
+    review = {
+        'id': str(uuid.uuid4()),
+        'requested_at': _now(),
+        'status': 'ready_for_customer_review',
+        'note': 'This status is not production-ready and does not publish the project.',
+    }
+    await db.builder_projects.update_one(
+        {'id': pid, 'user_id': user['id']},
+        {'$push': {'release_reviews': review}, '$set': {'updated_at': _now()}},
+    )
+    return {'ok': True, 'review': review, 'state': state}
 
 
 @router.get('/projects/{pid}')
@@ -185,12 +636,15 @@ async def refine_project(pid: str, body: BuilderRefineIn, user=Depends(get_curre
         {'timestamp': _now(), 'prompt': body.prompt, 'role': 'user', 'snapshot': None},
         {'timestamp': _now(), 'prompt': 'Refinement applied', 'role': 'assistant', 'snapshot': new_html},
     ]
+    quality_report = evaluate_landing_page_quality(new_html, p.get('brief') or {})
     await db.builder_projects.update_one(
-        {'id': pid},
-        {'$set': {'html_content': new_html, 'history': new_history, 'updated_at': _now(), 'prompt': body.prompt}},
+        {'id': pid, 'user_id': user['id']},
+        {'$set': {
+            'html_content': new_html, 'history': new_history, 'updated_at': _now(),
+            'prompt': body.prompt, 'quality_report': quality_report,
+        }},
     )
-    await increment_studio_builds(user['id'])
-    return await db.builder_projects.find_one({'id': pid}, {'_id': 0})
+    return await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
 
 
 @router.delete('/projects/{pid}')
@@ -220,20 +674,24 @@ async def download_project(pid: str, user=Depends(get_current_user)):
     )
 
 
-@router.get('/projects/{pid}/preview', response_class=HTMLResponse)
-async def preview_project(pid: str):
-    """Public preview (no auth).
+@router.get('/projects/{pid}/preview-token')
+async def issue_preview_token(pid: str, user=Depends(get_current_user)):
+    """Issue a short-lived owner/project-bound token for the private iframe."""
+    project = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0, 'id': 1})
+    if not project:
+        raise HTTPException(404, 'Project not found')
+    return {'token': create_preview_token(user['id'], pid), 'expires_in_seconds': 600}
 
-    Served with a strict CSP `sandbox` so any user-injected <script> in the
-    generated HTML cannot execute or access the origin — prevents stored XSS via
-    the public preview link.
-    """
-    p = await db.builder_projects.find_one({'id': pid}, {'_id': 0, 'html_content': 1})
-    if not p:
-        return Response(content='<h1>Not found</h1>', media_type='text/html', status_code=404,
-                        headers={'Content-Security-Policy': "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
+
+@router.get('/projects/{pid}/preview', response_class=HTMLResponse)
+async def preview_project(pid: str, token: str = ''):
+    """Render only a preview whose signed token is valid for this project and owner."""
+    user_id = verify_preview_token(token, pid)
+    project = await db.builder_projects.find_one({'id': pid, 'user_id': user_id}, {'_id': 0, 'html_content': 1})
+    if not project:
+        raise HTTPException(404, 'Project not found')
     return HTMLResponse(
-        content=p.get('html_content', '<h1>Empty</h1>'),
+        content=project.get('html_content', '<h1>Empty</h1>'),
         headers={'Content-Security-Policy': "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'"},
     )
 
@@ -304,12 +762,15 @@ async def refine_project_element(pid: str, body: dict, user=Depends(get_current_
         {'timestamp': _now(), 'prompt': f'[{selector}] {instruction}', 'role': 'user', 'snapshot': None},
         {'timestamp': _now(), 'prompt': 'Element refined', 'role': 'assistant', 'snapshot': new_html},
     ]
+    quality_report = evaluate_landing_page_quality(new_html, p.get('brief') or {})
     await db.builder_projects.update_one(
-        {'id': pid},
-        {'$set': {'html_content': new_html, 'history': new_history, 'updated_at': _now()}},
+        {'id': pid, 'user_id': user['id']},
+        {'$set': {
+            'html_content': new_html, 'history': new_history, 'updated_at': _now(),
+            'quality_report': quality_report,
+        }},
     )
-    await increment_studio_builds(user['id'])
-    return await db.builder_projects.find_one({'id': pid}, {'_id': 0})
+    return await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
 
 
 # ============================================================

@@ -7,11 +7,11 @@ Endpoints (prefix /video-tools):
   POST /one-tap-repurposing  Long video / link -> vertical shorts plan
   POST /social-publish       One-click publish to YouTube / Instagram / Facebook
   POST /influencer-reply     AI auto-reply to a social comment
-  GET  /status               provider + free-tier status
+  GET  /status               provider and prepaid-credit status
 
-Credit gating uses credits.py (deduct + refund on failure). Free users get a
-small monthly allowance of WATERMARKED video generations (FREE_TIER_ACTIONS).
-Heavy media work (real lip-sync, compositing, social OAuth) degrades gracefully
+Credit gating uses credits.py (deduct + refund on failure). Every customer
+video generation requires sufficient prepaid credits; zero credit balance means
+no new digital generation can start. Heavy media work (real lip-sync, compositing, social OAuth) degrades gracefully
 to a "configured: False" state until providers/env are wired — never crashes.
 """
 import asyncio
@@ -30,15 +30,12 @@ from pydantic import BaseModel, Field
 
 from auth import get_current_user
 from db import db
-from credits import (
-    deduct, get_balance, has_enough, free_tier_remaining, free_tier_record,
-    FREE_TIER_ACTIONS, WATERMARK_TEXT,
-)
+from credits import deduct, get_balance, has_enough
 from llm_provider import chat_completion, LLMServiceUnavailable
 from whisper_stt import transcribe
 from video.ai_providers import (
     fetch_image, cogvideo_clip, xtts_clone_voice, extract_audio,
-    watermark_video, lip_sync_video, concat_videos, burn_hormozi_captions,
+    lip_sync_video, concat_videos, burn_hormozi_captions,
     providers_status, CLIP_DIR,
 )
 
@@ -75,24 +72,17 @@ def _extract_json_array(text: str) -> Optional[list]:
 
 
 async def _authorize(user: dict, action: str) -> tuple[bool, bool, Optional[str]]:
-    """Return (allowed, watermarked, error). Admin/founder bypass everything."""
+    """Return (allowed, watermarked, error) under the prepaid-credit policy."""
     if user.get('role') in ('admin', 'founder'):
         return True, False, None
-    if has_enough(user, action):
+    if await has_enough(user, action):
         return True, False, None
-    # Free tier: watermarked allowance for video outputs.
-    if action in FREE_TIER_ACTIONS and await free_tier_remaining(user['id']) > 0:
-        return True, True, None
     bal = await get_balance(user['id'])
-    return False, False, (
-        f'Not enough credits (need {1} for this). You have {bal}. '
-        'Upgrade to Creator Pass or use your free watermarked tier.'
-    )
+    return False, False, f'Not enough prepaid credits for this action. You have {bal}. Please top up to continue.'
 
 
 async def _refund(user_id: str, action: str):
-    # Credits are only deducted on success; free-tier count is recorded only on
-    # success too, so there is nothing to roll back here. Kept for symmetry.
+    # Credits are only deducted on success, so there is nothing to roll back here.
     return
 
 
@@ -150,10 +140,7 @@ async def _run_text_to_video(project_id, payload, user_id, watermarked):
                 'image_url': (f'/media/{Path(img).name}' if img else None),
                 'clip_url': (f'/media/clips/{Path(clip).name}' if clip else None),
             })
-        if watermarked:
-            await free_tier_record(user_id, 1)
-        else:
-            await deduct(user_id, 'text_to_video', user={'id': user_id})
+        await deduct(user_id, 'text_to_video', user={'id': user_id})
 
         # Optional: compose a single captioned final video (FFmpeg + Hormozi ASS).
         final_url = None
@@ -224,14 +211,7 @@ async def _run_image_to_video(job_id, img_path, prompt, duration, user_id, water
     try:
         clip = await cogvideo_clip(prompt, duration=duration)
         out = clip
-        if clip and watermarked:
-            wm = await watermark_video(clip, WATERMARK_TEXT)
-            if wm:
-                out = wm
-        if watermarked:
-            await free_tier_record(user_id, 1)
-        else:
-            await deduct(user_id, 'image_to_video', user={'id': user_id})
+        await deduct(user_id, 'image_to_video', user={'id': user_id})
         await db.ai_jobs.update_one(
             {'id': job_id},
             {'$set': {'status': 'done', 'output_path': out,
@@ -299,10 +279,7 @@ async def _run_video_translate(job_id, vid_path, target_lang, transcript, ref_pa
             dubbed_audio = await xtts_clone_voice(translated, ref_path, language='hi')
         # Lip-sync: graceful no-op until a Wav2Lip/SadTalker-Face model is wired.
         synced = await lip_sync_video(vid_path, dubbed_audio) if dubbed_audio else None
-        if watermarked:
-            await free_tier_record(user_id, 1)
-        else:
-            await deduct(user_id, 'video_translate', user={'id': user_id})
+        await deduct(user_id, 'video_translate', user={'id': user_id})
         await db.ai_jobs.update_one(
             {'id': job_id},
             {'$set': {
@@ -355,7 +332,7 @@ async def _youtube_to_transcript(url: str) -> Optional[str]:
     with Whisper. Returns transcript text or None if yt-dlp/ffmpeg missing."""
     import shutil
     import tempfile
-    if not shutil.which('yt-dlp') or not _ffmpeg_available():
+    if not shutil.which('yt-dlp') or not shutil.which('ffmpeg'):
         return None
     tmp = tempfile.mkdtemp()
     out_tmpl = os.path.join(tmp, 'audio.%(ext)s')
@@ -396,10 +373,7 @@ async def _run_repurpose(project_id, payload, user_id, watermarked):
         )
         raw = await chat_completion(system, transcript, temperature=0.6)
         shorts = _extract_json_array(raw) or []
-        if watermarked:
-            await free_tier_record(user_id, 1)
-        else:
-            await deduct(user_id, 'one_tap_repurposing', user={'id': user_id})
+        await deduct(user_id, 'one_tap_repurposing', user={'id': user_id})
         await db.video_projects.update_one(
             {'id': project_id},
             {'$set': {'status': 'done', 'shorts': shorts[:payload.count],
@@ -572,8 +546,8 @@ async def status(user=Depends(get_current_user)):
     return {
         'providers': providers_status(),
         'social': {'youtube': YT_ENABLED, 'instagram': META_ENABLED, 'facebook': META_ENABLED},
-        'free_tier_remaining': await free_tier_remaining(user['id']),
-        'free_tier_monthly': 5,
+        'credits': await get_balance(user['id']),
+        'access_model': 'prepaid_credits_only',
     }
 
 

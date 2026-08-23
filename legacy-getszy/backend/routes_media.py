@@ -8,6 +8,7 @@ import asyncio
 import os
 import uuid
 import httpx
+import mimetypes
 from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
@@ -26,7 +27,10 @@ router = APIRouter(prefix='/media', tags=['media'])
 HF_TOKEN = os.environ.get('HF_TOKEN', '').strip()
 FAL_KEY = os.environ.get('FAL_KEY', '').strip()
 
-# On-disk cache for generated images (served back through /api/media/file/...)
+# On-disk cache for generated images (served back through /api/media/file/...).
+# Compose explicitly sets MEDIA_CACHE_DIR=/app/backend/media so production uses the
+# persistent backend_media volume; this local default keeps tests and bare-metal
+# development writable without requiring an /app mount.
 CACHE_DIR = Path(os.environ.get('MEDIA_CACHE_DIR', str(Path(__file__).resolve().parent / 'media_cache')))
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 AUDIO_CACHE_DIR = CACHE_DIR / 'audio'
@@ -173,27 +177,48 @@ async def gen_logo(payload: LogoGenIn, user=Depends(get_current_user)):
         raise
 
 
-# ===== Serve cached image bytes =====
+async def _require_media_owner(filename: str, user: dict):
+    """Require the authenticated owner of a cached media asset."""
+    user_id = user.get('id') if isinstance(user, dict) else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail='Not authenticated')
+    asset_id = Path(filename).stem
+    owned = await db.media_assets.find_one({'id': asset_id, 'user_id': user_id}, {'_id': 0, 'id': 1})
+    if not owned:
+        # Older HF video jobs predate media_assets records; keep those files
+        # accessible only to the job owner while the migration is completed.
+        owned = await db.video_jobs.find_one(
+            {'user_id': user_id, 'video_url': f'/api/media/file/{filename}'},
+            {'_id': 0, 'id': 1},
+        )
+    if not owned:
+        raise HTTPException(status_code=404, detail='Not found')
+
+
+# ===== Serve cached media bytes =====
 @router.get('/file/{filename}')
-async def serve_cached(filename: str):
+async def serve_cached(filename: str, user=Depends(get_current_user)):
     # Basic safety: only allow simple cached filenames
     if '/' in filename or '..' in filename:
         raise HTTPException(status_code=400, detail='Invalid filename')
+    await _require_media_owner(filename, user)
     path = CACHE_DIR / filename
     if not path.exists():
         raise HTTPException(status_code=404, detail='Not found')
-    return FileResponse(str(path), media_type='image/jpeg', headers={'Cache-Control': 'public, max-age=31536000, immutable'})
+    media_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+    return FileResponse(str(path), media_type=media_type, headers={'Cache-Control': 'private, max-age=3600'})
 
 
 # ===== Serve cached voice audio =====
 @router.get('/audio/{filename}')
-async def serve_audio(filename: str):
+async def serve_audio(filename: str, user=Depends(get_current_user)):
     if '/' in filename or '..' in filename:
         raise HTTPException(status_code=400, detail='Invalid filename')
+    await _require_media_owner(filename, user)
     path = AUDIO_CACHE_DIR / filename
     if not path.exists():
         raise HTTPException(status_code=404, detail='Not found')
-    return FileResponse(str(path), media_type='audio/mpeg', headers={'Cache-Control': 'public, max-age=31536000, immutable'})
+    return FileResponse(str(path), media_type='audio/mpeg', headers={'Cache-Control': 'private, max-age=3600'})
 
 
 # ===== VOICE (LIVE - free, Edge Neural TTS, no key needed) =====
@@ -285,6 +310,13 @@ async def gen_video(payload: VideoGenIn, user=Depends(get_current_user)):
                     out_path.write_bytes(r.content)
                     job['status'] = 'done'
                     job['video_url'] = f'/api/media/file/{asset_id}.mp4'
+                    await db.media_assets.insert_one({
+                        'id': asset_id,
+                        'user_id': user['id'],
+                        'kind': 'video',
+                        'url': job['video_url'],
+                        'created_at': datetime.now(timezone.utc).isoformat(),
+                    })
                 else:
                     job['status'] = 'failed'
                     job['error'] = f'HF API error: {r.status_code}'

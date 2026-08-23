@@ -19,6 +19,31 @@ const STATUS_COLORS = {
   cancelled: "bg-rose-100 text-rose-800",
 };
 
+const escapeHtml = (value) => String(value ?? "")
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+
+async function openCertificate(courseSlug) {
+  const popup = window.open("", "_blank");
+  if (!popup) {
+    toast.error("Please allow pop-ups to view your certificate");
+    return;
+  }
+  popup.document.title = "Getszy Certificate";
+  popup.document.body.innerHTML = "<p style=\"font-family:system-ui;padding:2rem\">Loading certificate…</p>";
+  try {
+    const response = await api.get(`/me/courses/${encodeURIComponent(courseSlug)}/certificate`);
+    const certificate = response.data;
+    const html = `<!doctype html><html><head><meta charset=\"utf-8\"><title>Getszy Certificate</title><style>body{margin:0;background:#f7f5f2;color:#183c3c;font-family:Georgia,serif;display:grid;place-items:center;min-height:100vh}.certificate{box-sizing:border-box;width:min(900px,calc(100% - 32px));padding:72px 64px;border:12px solid #1e8e8e;background:#fff;text-align:center}.brand{font:700 18px system-ui;letter-spacing:.18em;text-transform:uppercase;color:#1e8e8e}.label{margin-top:42px;font:600 13px system-ui;letter-spacing:.14em;text-transform:uppercase;color:#6b7280}.name{margin:18px 0 8px;font-size:46px;color:#183c3c}.course{font-size:25px;color:#1e8e8e}.meta{margin-top:44px;font:14px system-ui;color:#4b5563}.print{margin-top:30px;padding:10px 18px;border:0;border-radius:8px;background:#1e8e8e;color:#fff;cursor:pointer}@media print{body{background:#fff}.certificate{width:100%;border-width:8px}.print{display:none}}</style></head><body><main class=\"certificate\"><div class=\"brand\">getszy</div><div class=\"label\">Certificate of completion</div><div class=\"name\">${escapeHtml(certificate.student_name)}</div><div>has successfully completed</div><div class=\"course\">${escapeHtml(certificate.course_title)}</div><div class=\"meta\">${escapeHtml(certificate.course_level)} · Issued ${escapeHtml(certificate.completed_at ? new Date(certificate.completed_at).toLocaleDateString("en-IN") : "") } · ID ${escapeHtml(certificate.certificate_id)}</div><div class=\"meta\">Instructor: ${escapeHtml(certificate.instructor)}</div><button class=\"print\" onclick=\"window.print()\">Print / Save PDF</button></main></body></html>`;
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    popup.location.href = url;
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (error) {
+    popup.close();
+    toast.error(error?.response?.data?.detail || "Certificate unavailable — please retry");
+  }
+}
+
 export default function Account() {
   const { user, loading, refresh } = useAuth();
   const navigate = useNavigate();
@@ -209,13 +234,13 @@ export default function Account() {
                 ) : (
                   <div className="grid sm:grid-cols-2 gap-3">
                     {certificates.slice(0, 4).map((e) => (
-                      <a key={e.id} href={`/api/me/courses/${e.course_slug}/certificate`} target="_blank" rel="noreferrer" className="gs-card gs-card-hover p-3 flex items-center gap-3">
+                      <button key={e.id} type="button" onClick={() => openCertificate(e.course_slug)} className="w-full text-left gs-card gs-card-hover p-3 flex items-center gap-3">
                         <span className="h-9 w-9 rounded-lg bg-emerald-100 text-emerald-700 grid place-items-center"><Award className="h-4 w-4" /></span>
                         <div className="min-w-0">
                           <div className="font-semibold text-sm truncate">{e.course?.title || e.course_slug}</div>
                           <div className="text-xs text-[var(--gs-muted)]">100% complete · View certificate</div>
                         </div>
-                      </a>
+                      </button>
                     ))}
                   </div>
                 )}
