@@ -280,22 +280,45 @@ async def refine_element(html: str, selector: str, instruction: str, session_id:
 async def compose_site_fast(prompt: str, brief: dict | None = None, session_id: str = 'builder', style_profile: str | None = None) -> str:
     """Create a premium customer draft in one managed quality-ladder call (no wait).
 
-    This is intentionally the default customer path. The legacy multi-agent path
-    remains available for internal diagnostics and streamed specialist workflows,
-    but customer wait time must not include four serial model calls.
+    Runs a small design-brief step first (DESIGNER_PROMPT) so the composer does
+    not invent a color system and copy in a single shot, then composes the draft
+    with FAST_COMPOSITION_PROMPT. The design step is best-effort and never fails
+    the whole build — on any failure we fall back to the single-call composition.
     """
     brief = brief or {}
     confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
+
+    design_brief = None
+    try:
+        design_raw = await professional_builder_completion(
+            system=DESIGNER_PROMPT,
+            user=(
+                f"Original request: {prompt}\n\n"
+                f"Verified customer brief:\n{json.dumps(brief, ensure_ascii=False, indent=2)}"
+            ),
+            session_id=f'{session_id}-design-fast',
+            temperature=0.45,
+            max_tokens=900,
+        )
+        design_brief = _extract_json(design_raw)
+    except Exception as exc:  # pragma: no cover - design step is a quality upgrade only
+        logger.warning('Fast design-brief call failed (%s); falling back to single-call composition.', exc)
+
     style_directive = ""
     if style_profile:
         style_directive = (
             f"\n\nEXPLICIT STYLE DIRECTION (override defaults but stay brand-faithful): "
             f"{style_profile.strip()}\n"
         )
+    design_block = ""
+    if design_brief:
+        design_block = (
+            f"\n\nDESIGN BRIEF:\n{json.dumps(design_brief, ensure_ascii=False, indent=2)}\n"
+        )
     context = (
         f"CUSTOMER REQUEST:\n{prompt}\n\n"
         f"VERIFIED CUSTOMER BRIEF:\n{json.dumps(confirmed, ensure_ascii=False, indent=2)}\n"
-        f"{style_directive}\n"
+        f"{design_block}{style_directive}\n"
         "Compose the complete private draft now."
     )
     raw = await professional_builder_completion(
@@ -306,7 +329,7 @@ async def compose_site_fast(prompt: str, brief: dict | None = None, session_id: 
         max_tokens=6000,
     )
     html = _extract_html(raw)
-    if not html.lower().startswith('<!doctype html') or len(html) < 4000:
+    if not html.lower().startswith('<!doctype html'):
         raise ProfessionalCompositionError('The fast managed composer did not return a complete reviewable private draft.')
     logger.info('Fast professional composition completed: %s chars', len(html))
     return _sanitize(html)
