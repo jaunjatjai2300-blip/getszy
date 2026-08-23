@@ -63,7 +63,6 @@ class TestLLMProviderChainOrdering:
         assert 'emergent' not in names
 
 
-<<<<<<< HEAD
     def test_free_openrouter_model_can_be_explicitly_enabled(self, monkeypatch):
         monkeypatch.setenv('FREE_ONLY', 'true')
         monkeypatch.setenv('OPENROUTER_API_KEY', 'x')
@@ -76,8 +75,6 @@ class TestLLMProviderChainOrdering:
         assert 'openrouter' in names
 
 
-=======
->>>>>>> origin/feature/professional-landing-gates
 class TestProfessionalBuilderProviderLadder:
     @pytest.mark.asyncio
     async def test_professional_builder_ladder_prioritizes_groq_then_gemini_then_ollama(self, monkeypatch):

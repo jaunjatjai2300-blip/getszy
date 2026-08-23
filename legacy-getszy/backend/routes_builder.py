@@ -15,11 +15,7 @@ from models import (
     BuilderProject, BuilderProjectIn, BuilderRefineIn, BuilderHistoryItem,
     BuilderEvidenceUpdateIn, BuilderVersionIn, BuilderReleaseReviewIn,
 )
-<<<<<<< HEAD
 from auth import create_preview_token, get_current_user, get_optional_user, verify_preview_token
-=======
-from auth import get_current_user, get_optional_user
->>>>>>> origin/feature/professional-landing-gates
 from llm_provider import chat_completion, professional_builder_completion
 from credits import deduct, refund
 from paid_operations import (
@@ -344,12 +340,6 @@ async def create_project_legacy_synchronous_disabled(body: BuilderProjectIn, use
     try:
         extracted_brief = await extract_brief_v3(body.prompt, session_id=f'professional-{project_id}')
     except BriefIntelligenceError as exc:
-        # brief_intelligence already logs the raw completion / validation errors
-        # at the point of failure; log here too so a 422 on this route is
-        # traceable to that log line via project_id, not silently invisible.
-        logger.warning(
-            'brief_intelligence rejected project %s: %s', project_id, exc,
-        )
         raise HTTPException(
             422,
             'Getszy could not verify a structured brief from this request. Add clear business details and try again; no credit has been consumed.',
