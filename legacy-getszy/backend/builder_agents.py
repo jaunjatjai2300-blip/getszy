@@ -75,9 +75,15 @@ STRICT OUTPUT RULES:
 
 START IMMEDIATELY WITH <!DOCTYPE html>. End with </html>. Nothing else."""
 
-FAST_COMPOSITION_PROMPT = """You are Getszy's Professional Composition Engine. Create one distinctive, premium, responsive private landing-page draft from the verified customer brief.
+FAST_COMPOSITION_PROMPT = """You are Getszy's Professional Composition Engine. Create one distinctive, premium, conversion-grade, responsive private landing-page draft from the verified customer brief.
 
-OUTPUT: ONLY one complete HTML document, beginning with <!DOCTYPE html> and ending with </html>. Use Tailwind CDN and one premium Google font pairing.
+OUTPUT: ONLY one complete HTML document, beginning with <!DOCTYPE html> and ending with </html>. Use Tailwind CSS via CDN and one refined premium Google Font pairing (e.g. Plus Jakarta Sans + Inter, or Space Grotesk + Source Serif).
+
+PREMIUM DESIGN SYSTEM (apply deliberately, never a generic template):
+- Editorial hierarchy: one decisive hero with a benefit-led H1, a supporting sub-headline, and a single high-contrast primary CTA.
+- Restrained, intentional art direction: a branded gradient/duotone or inline SVG motif derived from the brief, generous whitespace, a disciplined spacing rhythm, and a consistent accent color used sparingly for emphasis and the CTA.
+- Two or three distinct section treatments (not a repeated card grid): an editorial feature block, a process/steps rhythm, and a proof or offer block. Vary typography scale, background tint, and alignment between sections.
+- Refined micro-typography: tight display headings, a comfortable body measure, visible focus rings, and a real mobile breakpoint at 375px.
 
 NON-NEGOTIABLE:
 1. Treat VERIFIED CUSTOMER BRIEF as the only product truth. Never invent testimonials, ratings, awards, logos, addresses, phone numbers, prices, discounts, guarantees, urgency, stock, certifications, or legal claims.
@@ -270,8 +276,8 @@ async def refine_element(html: str, selector: str, instruction: str, session_id:
 
 # ── Full Pipeline ──────────────────────────────────────────────────────────────
 
-async def compose_site_fast(prompt: str, brief: dict | None = None, session_id: str = 'builder') -> str:
-    """Create a normal customer draft in one managed quality-ladder call.
+async def compose_site_fast(prompt: str, brief: dict | None = None, session_id: str = 'builder', style_profile: str | None = None) -> str:
+    """Create a premium customer draft in one managed quality-ladder call (no wait).
 
     This is intentionally the default customer path. The legacy multi-agent path
     remains available for internal diagnostics and streamed specialist workflows,
@@ -279,9 +285,16 @@ async def compose_site_fast(prompt: str, brief: dict | None = None, session_id: 
     """
     brief = brief or {}
     confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
+    style_directive = ""
+    if style_profile:
+        style_directive = (
+            f"\n\nEXPLICIT STYLE DIRECTION (override defaults but stay brand-faithful): "
+            f"{style_profile.strip()}\n"
+        )
     context = (
         f"CUSTOMER REQUEST:\n{prompt}\n\n"
-        f"VERIFIED CUSTOMER BRIEF:\n{json.dumps(confirmed, ensure_ascii=False, indent=2)}\n\n"
+        f"VERIFIED CUSTOMER BRIEF:\n{json.dumps(confirmed, ensure_ascii=False, indent=2)}\n"
+        f"{style_directive}\n"
         "Compose the complete private draft now."
     )
     raw = await professional_builder_completion(
@@ -296,6 +309,37 @@ async def compose_site_fast(prompt: str, brief: dict | None = None, session_id: 
         raise ProfessionalCompositionError('The fast managed composer did not return a complete reviewable private draft.')
     logger.info('Fast professional composition completed: %s chars', len(html))
     return _sanitize(html)
+
+
+async def polish_site_async(html: str, brief: dict | None = None, session_id: str = 'builder') -> str:
+    """Background polish pass: upgrade the instant draft (visual refinement, stricter
+    accessibility, tighter copy) without changing product truth. Runs after the
+    customer already received the instant result, so there is no wait.
+    """
+    brief = brief or {}
+    confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
+    context = (
+        f"VERIFIED CUSTOMER BRIEF:\n{json.dumps(confirmed, ensure_ascii=False, indent=2)}\n\n"
+        "Refine the provided draft into a more premium, polished result. Keep all product truth, "
+        "sections, and the primary CTA. Improve visual hierarchy, spacing, typography, and "
+        "accessibility only. Do not add testimonials, prices, or claims that are not in the brief."
+    )
+    try:
+        raw = await professional_builder_completion(
+            system=REVIEWER_PROMPT,
+            user=f"Polish this HTML (do not invent proof or claims):\n\n{html}\n\n{context}",
+            session_id=f'{session_id}-polish',
+            temperature=0.25,
+            max_tokens=8000,
+        )
+    except Exception as exc:  # pragma: no cover - network/provider failure must not crash background task
+        logger.warning('Background polish failed, keeping instant draft: %s', exc)
+        return html
+    polished = _extract_html(raw)
+    if polished.lower().startswith('<!doctype html') and len(polished) > len(html) * 0.6:
+        logger.info('Background polish completed: %s chars (was %s)', len(polished), len(html))
+        return _sanitize(polished)
+    return html
 
 
 async def build_site(prompt: str, session_id: str = 'builder', brief: dict | None = None) -> str:
