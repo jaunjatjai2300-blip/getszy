@@ -59,7 +59,10 @@ async def test_operation_persists_project_before_succeeded_and_uses_operation_as
 
 
 @pytest.mark.asyncio
-async def test_operation_failure_refunds_the_same_operation_reference(monkeypatch):
+async def test_operation_compose_failure_delivers_template_without_refund(monkeypatch):
+    """Production-suite guarantee: a compose/provider failure must NOT surface a
+    blank or errored result. The deterministic premium template is delivered
+    instead, so the operation still SUCCEEDS and no credit is refunded."""
     events = []
     operation = {
         'operation_id': 'op-failure', 'user_id': 'u1', 'status': 'PENDING',
@@ -82,10 +85,19 @@ async def test_operation_failure_refunds_the_same_operation_reference(monkeypatc
 
     await builder._run_website_operation('op-failure')
 
-    assert [item for item in events if item[0] == 'refund'] == [
-        ('refund', {'user': 'u1', 'action': 'builder_website', 'reason': 'managed_composition_failed', 'ref_id': 'op-failure'})
-    ]
-    assert any(item[0] == 'operation_update' and item[1].get('status') == 'FAILED_REFUNDED' for item in events)
+    # No error path: the deterministic premium template is delivered, so no refund.
+    assert [item for item in events if item[0] == 'refund'] == []
+    assert any(item[0] == 'operation_update' and item[1].get('status') == 'SUCCEEDED' for item in events)
+
+    stored_html = None
+    for item in events:
+        if item[0] == 'project_upsert':
+            upd = item[2]
+            if '$set' in upd and 'html_content' in upd['$set']:
+                stored_html = upd['$set']['html_content']
+            elif '$setOnInsert' in upd and 'html_content' in upd['$setOnInsert']:
+                stored_html = upd['$setOnInsert']['html_content']
+    assert stored_html and stored_html.lower().startswith('<!doctype html')
 
 
 async def _value(value):
