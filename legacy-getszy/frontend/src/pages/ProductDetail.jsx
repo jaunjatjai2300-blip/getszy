@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, fmtINR, API_BASE } from "@/lib/api";
+import { worldFor } from "@/worlds/registry";
+import WorldShell from "@/worlds/WorldShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -42,7 +44,8 @@ export default function ProductDetail() {
   if (p === null) return <div className="gs-container py-20 text-center">Loading…</div>;
   if (!p) return <div className="gs-container py-20 text-center">Product not found</div>;
 
-  const img = (p.images && p.images[0]) || "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800";
+  // Never substitute an unrelated stock photograph for a missing product image.
+  const img = (p.images && p.images[0]) || null;
 
   const onAdd = async () => {
     if (!user) { navigate("/login"); return; }
@@ -72,10 +75,21 @@ export default function ProductDetail() {
   // Mirror AI is shown only for physical products
   const showMirror = !p.is_digital;
 
+  // A product page belongs to its category's world, so the environment does not
+  // change character between browsing a category and opening a product in it.
+  const worldConfig = worldFor(p.category);
+
   return (
+    <WorldShell config={worldConfig}>
     <div className="gs-container gs-section grid md:grid-cols-2 gap-10" data-testid="product-detail-page">
       <div className="rounded-2xl overflow-hidden" style={{ background: "var(--gs-surface-2)" }}>
-        <img src={img} alt={p.name} className="w-full aspect-square object-cover"/>
+        {img ? (
+          <img src={img} alt={p.name} className="w-full aspect-square object-cover"/>
+        ) : (
+          <div className="grid aspect-square w-full place-items-center p-8 text-center">
+            <span className="font-display text-2xl text-[var(--gs-ink)]">{p.name}</span>
+          </div>
+        )}
       </div>
       <div>
         <div className="flex items-center gap-2 mb-2">
@@ -155,5 +169,6 @@ export default function ProductDetail() {
         </div>
       </div>
     </div>
+    </WorldShell>
   );
 }

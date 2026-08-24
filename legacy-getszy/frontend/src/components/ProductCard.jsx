@@ -12,7 +12,9 @@ export function ProductCard({ product }) {
   const { user } = useAuth();
   const { add } = useCart();
   const navigate = useNavigate();
-  const img = (product.images && product.images[0]) || "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600";
+  // No stock-photo substitute: showing an unrelated Unsplash image as if it
+  // were the product is fabricated product imagery. Fall back to a plate.
+  const img = (product.images && product.images[0]) || null;
 
   const onAdd = async (e) => {
     e.preventDefault();
@@ -26,7 +28,13 @@ export function ProductCard({ product }) {
     <Link to={`/product/${product.id}`} data-testid={`product-card-${product.id}`} className="group block">
       <div className="gs-card gs-card-hover overflow-hidden">
         <div className="relative aspect-square overflow-hidden" style={{ background: "var(--gs-surface-2)" }}>
-          <img src={img} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy"/>
+          {img ? (
+            <img src={img} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy"/>
+          ) : (
+            <div className="grid h-full w-full place-items-center p-4 text-center">
+              <span className="font-display text-base text-[var(--gs-ink)]">{product.name}</span>
+            </div>
+          )}
           {product.is_featured && <Badge className="absolute top-3 left-3 bg-white text-[var(--gs-ink)] hover:bg-white">Featured</Badge>}
           {product.is_digital && <Badge className="absolute top-3 right-3 bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]">Digital</Badge>}
         </div>
