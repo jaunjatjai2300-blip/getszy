@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, fmtINR, API_BASE } from "@/lib/api";
 import { worldFor } from "@/worlds/registry";
+import { imageProps } from "@/commerce/responsiveImage";
 import WorldShell from "@/worlds/WorldShell";
+import ProductReviews from "@/commerce/ProductReviews";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -84,7 +86,7 @@ export default function ProductDetail() {
     <div className="gs-container gs-section grid md:grid-cols-2 gap-10" data-testid="product-detail-page">
       <div className="rounded-2xl overflow-hidden" style={{ background: "var(--gs-surface-2)" }}>
         {img ? (
-          <img src={img} alt={p.name} className="w-full aspect-square object-cover"/>
+          <img {...imageProps(img, "showcase")} alt={p.name} className="w-full aspect-square object-cover"/>
         ) : (
           <div className="grid aspect-square w-full place-items-center p-8 text-center">
             <span className="font-display text-2xl text-[var(--gs-ink)]">{p.name}</span>
@@ -169,6 +171,7 @@ export default function ProductDetail() {
         </div>
       </div>
     </div>
+    <ProductReviews productId={p.id} productName={p.name} />
     </WorldShell>
   );
 }
