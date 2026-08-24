@@ -42,7 +42,7 @@ export function ProductCard({ product }) {
           <div className="text-sm font-semibold truncate">{product.name}</div>
           <div className="mt-2 flex items-center justify-between">
             <span className="font-display text-lg">{fmtINR(product.price)}</span>
-            <Button size="sm" onClick={onAdd} className="bg-[var(--gs-primary)] hover:bg-[var(--gs-primary-2)] h-9" data-testid={`product-card-add-${product.id}`}>
+            <Button size="sm" onClick={onAdd} className="bg-[var(--gs-primary)] hover:bg-[var(--gs-primary-2)] !h-11 !w-11" data-testid={`product-card-add-${product.id}`}>
               <ShoppingBag className="h-4 w-4"/>
             </Button>
           </div>

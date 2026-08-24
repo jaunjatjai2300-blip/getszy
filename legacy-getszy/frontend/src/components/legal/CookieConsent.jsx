@@ -39,7 +39,7 @@ export default function CookieConsent() {
               <Button size="sm" variant="outline" onClick={() => accept("essential")} className="h-8 text-xs" data-testid="cookie-accept-essential">Essential only</Button>
             </div>
           </div>
-          <button onClick={() => accept("dismissed")} className="text-[var(--gs-muted)] hover:text-[var(--gs-ink)] p-1" aria-label="Dismiss" data-testid="cookie-dismiss">
+          <button onClick={() => accept("dismissed")} className="grid h-11 w-11 place-items-center text-[var(--gs-muted)] hover:text-[var(--gs-ink)]" aria-label="Dismiss" data-testid="cookie-dismiss">
             <X className="h-4 w-4"/>
           </button>
         </div>

@@ -17,6 +17,7 @@ import Privacy from "@/pages/Privacy";
 import Support from "@/pages/Support";
 import AIAgents from "@/pages/AIAgents";
 import Referrals from "@/pages/Referrals";
+import Gifts from "@/pages/Gifts";
 import Academy from "@/pages/Academy";
 import CourseDetail from "@/pages/CourseDetail";
 import Learn from "@/pages/Learn";
@@ -152,6 +153,7 @@ export default function App() {
             <Route path="/support" element={<Support />} />
             <Route path="/ai-agents" element={<AIAgents />} />
             <Route path="/referrals" element={<Referrals />} />
+            <Route path="/gifts" element={<Gifts />} />
             {/* Learning / Academy. These pages and their backend endpoints
                 (/api/courses, /api/courses/{slug}, /api/courses/{slug}/learn)
                 already existed but were never routed, so every "Academy" link
