@@ -1,9 +1,8 @@
 """Agent Factory — master runtime.
 
-Wraps the EXISTING production tool-calling loop
-(`llm_provider.chat_completion_with_tools`, which already handles multi-provider
-routing and real tool dispatch) with the four things the spec requires and that
-loop does not provide:
+Drives the engineering tool loop (agent_llm, which reuses llm_provider's
+provider transports with the ENGINEERING registry) and adds the four things the
+spec requires:
 
   1. the engineering toolset (agent_tools) instead of the commerce toolset
   2. a bounded repair loop — max 3 autonomous attempts, then stop for a human
@@ -150,7 +149,7 @@ async def run_task(
     """Execute one engineering task with bounded autonomous repair.
 
     `model_call` is injected so the runtime is not welded to one provider. In
-    production it is `llm_provider.chat_completion_with_tools`. It is NEVER
+    production it is the engineering tool loop from agent_llm. It is NEVER
     defaulted to a stub — if nothing is supplied and no provider is importable,
     the run fails loudly.
     """
@@ -204,18 +203,27 @@ async def _drive(prompt, system_prompt, audit, approvals, model_call) -> None:
 
 
 def _production_model_call():
-    """Bind the real provider chain. Raises rather than falling back to a stub."""
+    """Bind the real engineering tool loop.
+
+    Uses agent_llm, which reuses llm_provider's provider transports with the
+    ENGINEERING registry rather than the commerce one — so connecting the agent
+    does not require modifying production commerce tooling.
+
+    Raises rather than falling back to a stub: a plausible answer produced
+    without the ability to inspect the repository is worse than an error.
+    """
     try:
-        from llm_provider import chat_completion_with_tools  # noqa: F401
+        from agent_llm import NoEngineeringProvider, engineering_tool_loop
     except Exception as e:
-        raise NoModelAvailable(f"No LLM provider available: {e}")
+        raise NoModelAvailable(f"Engineering tool loop unavailable: {e}")
 
     async def call(system, user, tools, execute):
-        raise NoModelAvailable(
-            "chat_completion_with_tools is present but no provider is configured "
-            "with a usable model. Configure GROQ_API_KEY / GEMINI_API_KEY, or "
-            "install an Ollama model (e.g. `ollama pull qwen2.5:7b`)."
-        )
+        try:
+            return await engineering_tool_loop(
+                system=system, user=user, execute=execute, tools=tools
+            )
+        except NoEngineeringProvider as e:
+            raise NoModelAvailable(str(e)) from e
 
     return call
 
