@@ -17,6 +17,9 @@ import Privacy from "@/pages/Privacy";
 import Support from "@/pages/Support";
 import AIAgents from "@/pages/AIAgents";
 import Referrals from "@/pages/Referrals";
+import Academy from "@/pages/Academy";
+import CourseDetail from "@/pages/CourseDetail";
+import Learn from "@/pages/Learn";
 import AdminLayout from "@/components/AdminLayout";
 import VideoStudio from "@/pages/dashboard/VideoStudio";
 import DashboardBuild from "@/pages/dashboard/BuildStudio";
@@ -145,6 +148,13 @@ export default function App() {
             <Route path="/support" element={<Support />} />
             <Route path="/ai-agents" element={<AIAgents />} />
             <Route path="/referrals" element={<Referrals />} />
+            {/* Learning / Academy. These pages and their backend endpoints
+                (/api/courses, /api/courses/{slug}, /api/courses/{slug}/learn)
+                already existed but were never routed, so every "Academy" link
+                in the app 404'd and the whole Learn vertical was unreachable. */}
+            <Route path="/academy" element={<Academy />} />
+            <Route path="/academy/:slug" element={<CourseDetail />} />
+            <Route path="/academy/:slug/learn" element={<Learn />} />
           </Route>
 
           <Route path="/admin" element={<AdminLayout />}>

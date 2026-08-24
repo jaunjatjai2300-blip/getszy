@@ -1,6 +1,6 @@
 /* eslint-disable react/no-unescaped-entities */
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useInView } from "framer-motion";
 import {
   ArrowRight, Sparkle, Sparkles, Bot, GraduationCap, Wand2, ShoppingBag, Heart, Eye, Star, Home as HomeIcon,
@@ -91,11 +91,15 @@ const BUILD_TOOLS = [
   { title: "Manage Projects", desc: "Plan, organise & ship with Neo.", Icon: FolderKanban, grad: "from-[#EDE6DD] to-[#FBF7F2]" },
 ];
 
-const LEARN = [
-  { title: "Money Made Simple", lessons: "12 lessons", Icon: BookOpen, grad: "from-[#F3E2C7] to-[#E79C86]" },
-  { title: "Content that Sells", lessons: "9 lessons", Icon: Headphones, grad: "from-[#D7F0EE] to-[#F3E2C7]" },
-  { title: "AI for Creators", lessons: "7 lessons", Icon: Command, grad: "from-[#F4DDE6] to-[#F3E2C7]" },
-  { title: "Grow Your Biz", lessons: "10 lessons", Icon: LifeBuoy, grad: "from-[#F6C9B8] to-[#E79C86]" },
+// Decoration only. Course titles / lesson counts are NEVER hardcoded here —
+// this section renders real courses from /api/courses. It previously listed four
+// invented courses ("Money Made Simple", etc.) with made-up lesson counts that
+// matched nothing in the catalog, on cards that were not even clickable.
+const LEARN_DECOR = [
+  { Icon: BookOpen, grad: "from-[#F3E2C7] to-[#E79C86]" },
+  { Icon: Headphones, grad: "from-[#D7F0EE] to-[#F3E2C7]" },
+  { Icon: Command, grad: "from-[#F4DDE6] to-[#F3E2C7]" },
+  { Icon: LifeBuoy, grad: "from-[#F6C9B8] to-[#E79C86]" },
 ];
 
 const GROW = [
@@ -410,6 +414,7 @@ export default function Home() {
   const [subbed, setSubbed] = useState(false);
   const subscribe = (e) => { e.preventDefault(); if (email.trim()) setSubbed(true); };
   const categories = useApi("/categories");
+  const courses = useApi("/courses");
   const trending = useApi("/shop?sort=trending&limit=10");
   const bestsellers = useApi("/shop?sort=bestseller&limit=10");
 
@@ -512,20 +517,35 @@ export default function Home() {
         </div>
       </Section>
 
+      {courses.data.length > 0 && (
       <Section><div className="gs-container">
-        <div className="max-w-2xl"><span className="gs-eyebrow">Learn</span><h2 className="font-display text-3xl sm:text-4xl text-[#1B1A18] mt-2">Skills that pay you back</h2></div>
+        <div className="flex items-end justify-between">
+          <div className="max-w-2xl"><span className="gs-eyebrow">Learn</span><h2 className="font-display text-3xl sm:text-4xl text-[#1B1A18] mt-2">Skills that pay you back</h2></div>
+          <Link to="/academy" className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-[#A86B5B]">View all courses <ArrowRight className="h-4 w-4" /></Link>
+        </div>
         <div className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {LEARN.map((c) => {
-            const Icon = c.Icon;
+          {courses.data.slice(0, 4).map((c, i) => {
+            const decor = LEARN_DECOR[i % LEARN_DECOR.length];
+            const Icon = decor.Icon;
+            const meta = [c.level, c.duration_hours ? `${c.duration_hours}h` : null].filter(Boolean).join(" · ");
             return (
-              <motion.div key={c.title} variants={fadeUp} className="group rounded-3xl bg-white border border-[#E7D9CE] overflow-hidden hover:shadow-[0_24px_60px_rgba(27,26,24,0.12)] transition">
-                <div className={"h-28 bg-gradient-to-br " + c.grad} />
-                <div className="p-4"><div className="flex items-center gap-2 text-[#A86B5B]"><Icon className="h-4 w-4" /><span className="text-xs font-semibold">{c.lessons}</span></div><h3 className="mt-1 font-display text-lg text-[#1B1A18]">{c.title}</h3></div>
+              <motion.div key={c.slug || c.id} variants={fadeUp}>
+                <Link to={`/academy/${c.slug}`} className="group block h-full rounded-3xl bg-white border border-[#E7D9CE] overflow-hidden hover:shadow-[0_24px_60px_rgba(27,26,24,0.12)] transition">
+                  {c.thumbnail
+                    ? <img src={c.thumbnail} alt="" loading="lazy" className="h-28 w-full object-cover" />
+                    : <div className={"h-28 bg-gradient-to-br " + decor.grad} />}
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 text-[#A86B5B]"><Icon className="h-4 w-4" /><span className="text-xs font-semibold">{meta}</span></div>
+                    <h3 className="mt-1 font-display text-lg text-[#1B1A18]">{c.title}</h3>
+                  </div>
+                </Link>
               </motion.div>
             );
           })}
         </div>
+        <Link to="/academy" className="sm:hidden mt-6 inline-flex items-center gap-1 text-sm font-semibold text-[#A86B5B]">View all courses <ArrowRight className="h-4 w-4" /></Link>
       </div></Section>
+      )}
 
 
 
