@@ -3,6 +3,7 @@ import { ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { fmtINR } from "@/lib/api";
+import { imageProps } from "@/commerce/responsiveImage";
 import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/cart";
 import { useNavigate } from "react-router-dom";
@@ -29,7 +30,7 @@ export function ProductCard({ product }) {
       <div className="gs-card gs-card-hover overflow-hidden">
         <div className="relative aspect-square overflow-hidden" style={{ background: "var(--gs-surface-2)" }}>
           {img ? (
-            <img src={img} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy"/>
+            <img {...imageProps(img, "card")} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy"/>
           ) : (
             <div className="grid h-full w-full place-items-center p-4 text-center">
               <span className="font-display text-base text-[var(--gs-ink)]">{product.name}</span>

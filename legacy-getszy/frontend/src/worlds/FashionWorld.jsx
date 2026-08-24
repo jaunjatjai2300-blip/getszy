@@ -25,6 +25,7 @@ import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/cart";
 import { tierAllows } from "@/commerce/productModel";
 import WorldShell from "./WorldShell";
+import { imageProps } from "@/commerce/responsiveImage";
 
 const reveal = {
   hidden: { opacity: 0, y: 28 },
@@ -52,7 +53,7 @@ function EditorialCard({ product, priority = false, ratio = "aspect-[3/4]" }) {
       <div className={`relative overflow-hidden ${ratio}`} style={{ background: "var(--w-champagne)" }}>
         {img ? (
           <img
-            src={img}
+            {...imageProps(img, "showcase")}
             alt={product.name}
             loading={priority ? "eager" : "lazy"}
             className="h-full w-full object-cover transition-transform duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04]"
@@ -110,7 +111,7 @@ function EditorialHero({ category, lead }) {
             </motion.span>
             <motion.h1
               variants={reveal}
-              className="font-display mt-6 text-[42px] leading-[1.02] sm:text-6xl lg:text-[68px]"
+              className="font-display mt-6 gs-display"
               style={{ color: "var(--w-ink)" }}
             >
               Dress the life
@@ -130,7 +131,7 @@ function EditorialHero({ category, lead }) {
           style={{ background: "var(--w-champagne)" }}
         >
           {img && (
-            <motion.img src={img} alt="" style={{ y }} className="absolute inset-0 h-[112%] w-full object-cover" />
+            <motion.img {...imageProps(img, "hero")} alt="" style={{ y }} className="absolute inset-0 h-[112%] w-full object-cover" />
           )}
         </div>
       </div>

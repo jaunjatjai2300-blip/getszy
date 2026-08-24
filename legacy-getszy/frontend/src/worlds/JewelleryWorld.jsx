@@ -18,6 +18,7 @@ import { useCartAction } from "@/commerce/useCartAction";
 import { tierAllows } from "@/commerce/productModel";
 import WorldShell, { AddToBag } from "./WorldShell";
 import { Reveal, RevealItem, Tilt } from "@/experience/primitives";
+import { imageProps } from "@/commerce/responsiveImage";
 
 /* A single piece, alone in its own band. */
 function Vitrine({ product, index }) {
@@ -35,7 +36,7 @@ function Vitrine({ product, index }) {
               <div className="relative aspect-square overflow-hidden">
                 {img ? (
                   <img
-                    src={img}
+                    {...imageProps(img, "showcase")}
                     alt={product.name}
                     loading={index === 0 ? "eager" : "lazy"}
                     className="h-full w-full object-cover transition-transform duration-[1400ms] ease-out hover:scale-[1.03]"
@@ -98,7 +99,7 @@ export default function JewelleryWorld({ catalog, config }) {
           <motion.h1
             initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
-            className="font-display mt-8 max-w-3xl text-[40px] leading-[1.06] sm:text-6xl lg:text-[64px]"
+            className="font-display mt-8 max-w-3xl gs-display"
             style={{ color: "var(--w-ink)" }}
           >
             Kept, not collected.
@@ -119,7 +120,7 @@ export default function JewelleryWorld({ catalog, config }) {
               className="mt-16 w-full max-w-lg"
             >
               <div className="relative aspect-[4/3] overflow-hidden">
-                <img src={lead.assets.primary} alt="" className="h-full w-full object-cover" />
+                <img {...imageProps(lead.assets.primary, "hero")} alt="" className="h-full w-full object-cover" />
               </div>
             </motion.div>
           )}

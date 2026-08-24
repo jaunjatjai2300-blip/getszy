@@ -22,6 +22,7 @@ import { fmtINR } from "@/lib/api";
 import { useCartAction } from "@/commerce/useCartAction";
 import WorldShell, { AddToBag } from "./WorldShell";
 import { Reveal, RevealItem, Tilt } from "@/experience/primitives";
+import { imageProps } from "@/commerce/responsiveImage";
 
 function FloatingPanel({ product, index }) {
   const addToBag = useCartAction();
@@ -43,7 +44,7 @@ function FloatingPanel({ product, index }) {
 
             <div className="relative mt-6 aspect-[16/10] overflow-hidden rounded-xl" style={{ background: "var(--w-deep)" }}>
               {img ? (
-                <img src={img} alt={product.name} loading={index === 0 ? "eager" : "lazy"} className="h-full w-full object-cover opacity-90" />
+                <img {...imageProps(img, "showcase")} alt={product.name} loading={index === 0 ? "eager" : "lazy"} className="h-full w-full object-cover opacity-90" />
               ) : (
                 <div className="grid h-full w-full place-items-center">
                   <span className="font-display text-xl" style={{ color: "var(--w-muted)" }}>{product.name}</span>
@@ -89,7 +90,7 @@ export default function DigitalWorld({ catalog, config }) {
           <motion.h1
             initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-            className="font-display mt-8 max-w-4xl text-[42px] leading-[1.02] sm:text-6xl lg:text-[72px]"
+            className="font-display mt-8 max-w-4xl gs-display"
             style={{ color: "var(--w-ink)" }}
           >
             Tools that do the<br />work with you.
