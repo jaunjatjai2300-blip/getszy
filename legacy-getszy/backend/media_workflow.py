@@ -22,6 +22,9 @@ logger = logging.getLogger('getszy.media_workflow')
 # Node runners are resolved lazily so this module imports with no heavy deps.
 _RUNNERS: Dict[str, Callable[..., Awaitable[Any]]] = {}
 
+# Public list of supported node types (used for request validation).
+KNOWN_NODE_TYPES = ('image', 'tts', 'text', 'delay', 'shorts')
+
 
 def _runner(type_name: str):
     async def image(inputs, params):
