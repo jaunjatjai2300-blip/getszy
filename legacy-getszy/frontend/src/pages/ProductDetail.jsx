@@ -79,7 +79,7 @@ export default function ProductDetail() {
       </div>
       <div>
         <div className="flex items-center gap-2 mb-2">
-          {p.is_featured && <Badge className="bg-[var(--gs-champagne)] text-[var(--gs-ink)] hover:bg-[var(--gs-champagne)]">Bestseller</Badge>}
+          {p.is_featured && <Badge className="bg-[var(--gs-champagne)] text-[var(--gs-ink)] hover:bg-[var(--gs-champagne)]">Featured</Badge>}
           {p.is_digital && <Badge className="bg-[var(--gs-teal)]">Digital</Badge>}
         </div>
         <h1 className="font-display text-3xl sm:text-4xl mb-3">{p.name}</h1>

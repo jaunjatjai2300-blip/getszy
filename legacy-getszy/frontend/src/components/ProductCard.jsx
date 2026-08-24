@@ -27,7 +27,7 @@ export function ProductCard({ product }) {
       <div className="gs-card gs-card-hover overflow-hidden">
         <div className="relative aspect-square overflow-hidden" style={{ background: "var(--gs-surface-2)" }}>
           <img src={img} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy"/>
-          {product.is_featured && <Badge className="absolute top-3 left-3 bg-white text-[var(--gs-ink)] hover:bg-white">Bestseller</Badge>}
+          {product.is_featured && <Badge className="absolute top-3 left-3 bg-white text-[var(--gs-ink)] hover:bg-white">Featured</Badge>}
           {product.is_digital && <Badge className="absolute top-3 right-3 bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]">Digital</Badge>}
         </div>
         <div className="p-4">
