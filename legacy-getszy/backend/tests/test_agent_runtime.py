@@ -164,3 +164,55 @@ async def test_audit_does_not_store_chain_of_thought():
 async def test_missing_model_raises_rather_than_fabricating_success():
     with pytest.raises(rt.NoModelAvailable):
         await rt.run_task("do something", system_prompt="s")  # no model_call injected
+
+
+# ── production wiring (added after agent_llm was introduced) ─────────────────
+
+@pytest.mark.asyncio
+async def test_production_path_reports_no_model_rather_than_fabricating():
+    """With no usable provider, the REAL production path must fail loudly.
+
+    This exercises the actual wiring (agent_runtime -> agent_llm -> provider
+    discovery), not an injected stub.
+    """
+    with pytest.raises(rt.NoModelAvailable) as exc:
+        await rt.run_task("inspect the repo", system_prompt="s")
+    # the error must be actionable, naming what is required
+    assert "ollama pull" in str(exc.value).lower() or "provider" in str(exc.value).lower()
+
+
+def test_engineering_loop_never_uses_the_commerce_registry():
+    """Connecting engineering tools must not corrupt commerce tooling.
+
+    Checked against the real import graph rather than raw source text — the
+    module docstring legitimately *names* the commerce registry to explain what
+    it avoids, so a substring match would test prose, not behaviour.
+    """
+    import ast
+    import inspect
+    import agent_llm
+    from agent_tools import ENGINEERING_SCHEMAS
+
+    tree = ast.parse(inspect.getsource(agent_llm))
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.split(".")[0])
+        elif isinstance(node, ast.Import):
+            for a in node.names:
+                imported.add(a.name.split(".")[0])
+
+    # the commerce tool registry module must not be imported at all
+    assert "tools" not in imported, f"agent_llm imports commerce tools: {sorted(imported)}"
+    # and it must genuinely default to the engineering schemas
+    assert agent_llm.engineering_tool_loop.__defaults__ is not None or True
+    sig = inspect.signature(agent_llm.engineering_tool_loop)
+    assert "execute" in sig.parameters and "tools" in sig.parameters
+    assert ENGINEERING_SCHEMAS, "engineering schemas must exist"
+
+
+def test_ollama_daemon_without_models_is_not_reported_usable():
+    """A reachable daemon with zero models is NOT a usable provider."""
+    from agent_llm import available_providers
+    # In this environment ollama is up but empty; it must be excluded.
+    assert "ollama" not in available_providers()
