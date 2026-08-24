@@ -24,6 +24,7 @@ import { fmtINR } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/cart";
 import { tierAllows } from "@/commerce/productModel";
+import WorldShell from "./WorldShell";
 
 const reveal = {
   hidden: { opacity: 0, y: 28 },
@@ -48,7 +49,7 @@ function EditorialCard({ product, priority = false, ratio = "aspect-[3/4]" }) {
 
   return (
     <Link to={`/product/${product.id}`} className="group block" data-testid={`fashion-card-${product.id}`}>
-      <div className={`relative overflow-hidden ${ratio}`} style={{ background: "var(--fw-champagne)" }}>
+      <div className={`relative overflow-hidden ${ratio}`} style={{ background: "var(--w-champagne)" }}>
         {img ? (
           <img
             src={img}
@@ -60,14 +61,14 @@ function EditorialCard({ product, priority = false, ratio = "aspect-[3/4]" }) {
           /* No photograph yet. An intentional typographic plate reads as editorial
              restraint; a repeated stock image would read as broken. */
           <div className="flex h-full w-full items-end p-6">
-            <span className="font-display text-2xl" style={{ color: "var(--fw-deep)" }}>{product.name}</span>
+            <span className="font-display text-2xl" style={{ color: "var(--w-deep)" }}>{product.name}</span>
           </div>
         )}
       </div>
       <div className="mt-4 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h3 className="font-display text-lg leading-snug" style={{ color: "var(--fw-ink)" }}>{product.name}</h3>
-          <p className="mt-1 text-sm" style={{ color: "var(--fw-muted)" }}>{fmtINR(product.price)}</p>
+          <h3 className="font-display text-lg leading-snug" style={{ color: "var(--w-ink)" }}>{product.name}</h3>
+          <p className="mt-1 text-sm" style={{ color: "var(--w-muted)" }}>{fmtINR(product.price)}</p>
         </div>
         {/* L3 solid: a conversion control is never glass and never blurred. */}
         <button
@@ -75,7 +76,7 @@ function EditorialCard({ product, priority = false, ratio = "aspect-[3/4]" }) {
           aria-label={`Add ${product.name} to bag`}
           data-testid={`fashion-add-${product.id}`}
           className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-white transition-colors"
-          style={{ background: "var(--fw-accent)" }}
+          style={{ background: "var(--w-accent)" }}
         >
           <ShoppingBag className="h-4 w-4" />
         </button>
@@ -103,20 +104,20 @@ function EditorialHero({ category, lead }) {
             <motion.span
               variants={reveal}
               className="gs-glass-2 inline-flex items-center gap-2 !rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em]"
-              style={{ color: "var(--fw-accent)" }}
+              style={{ color: "var(--w-accent)" }}
             >
               {category ? category.name : "Fashion"}
             </motion.span>
             <motion.h1
               variants={reveal}
               className="font-display mt-6 text-[42px] leading-[1.02] sm:text-6xl lg:text-[68px]"
-              style={{ color: "var(--fw-ink)" }}
+              style={{ color: "var(--w-ink)" }}
             >
               Dress the life
               <br />
               you are building.
             </motion.h1>
-            <motion.p variants={reveal} className="mt-6 max-w-md text-lg" style={{ color: "var(--fw-muted)" }}>
+            <motion.p variants={reveal} className="mt-6 max-w-md text-lg" style={{ color: "var(--w-muted)" }}>
               {category && category.description
                 ? category.description
                 : "Pieces chosen for how they live on you — considered cuts, honest fabric, and nothing that shouts."}
@@ -126,7 +127,7 @@ function EditorialHero({ category, lead }) {
 
         <div
           className="relative min-h-[380px] overflow-hidden lg:col-span-6 lg:min-h-[640px]"
-          style={{ background: "var(--fw-champagne)" }}
+          style={{ background: "var(--w-champagne)" }}
         >
           {img && (
             <motion.img src={img} alt="" style={{ y }} className="absolute inset-0 h-[112%] w-full object-cover" />
@@ -176,14 +177,14 @@ function CategoryStory() {
     >
       <div className="grid gap-10 md:grid-cols-12">
         <motion.div variants={reveal} className="md:col-span-5">
-          <h2 className="font-display text-3xl sm:text-4xl" style={{ color: "var(--fw-ink)" }}>
+          <h2 className="font-display text-3xl sm:text-4xl" style={{ color: "var(--w-ink)" }}>
             Fewer things, chosen well.
           </h2>
         </motion.div>
         <motion.div
           variants={reveal}
           className="space-y-5 text-lg md:col-span-6 md:col-start-7"
-          style={{ color: "var(--fw-muted)" }}
+          style={{ color: "var(--w-muted)" }}
         >
           <p>Every piece here is bought the way you would buy for yourself — held, checked, and kept only if it earns its place.</p>
           <p>We would rather show you two pieces worth owning than fifty you will scroll past.</p>
@@ -222,17 +223,17 @@ function ExploreCta() {
     <section className="gs-container pb-20" data-testid="fashion-cta">
       <div className="gs-glass-1 flex flex-col items-start gap-6 p-8 sm:flex-row sm:items-center sm:justify-between sm:p-12">
         <div>
-          <h2 className="font-display text-2xl sm:text-3xl" style={{ color: "var(--fw-ink)" }}>
+          <h2 className="font-display text-2xl sm:text-3xl" style={{ color: "var(--w-ink)" }}>
             Looking for something else?
           </h2>
-          <p className="mt-2" style={{ color: "var(--fw-muted)" }}>
+          <p className="mt-2" style={{ color: "var(--w-muted)" }}>
             See everything currently in the Getszy edit.
           </p>
         </div>
         <Link
           to="/shop"
           className="inline-flex shrink-0 items-center gap-2 rounded-full px-7 py-3 text-sm font-semibold text-white transition-colors"
-          style={{ background: "var(--fw-accent)" }}
+          style={{ background: "var(--w-accent)" }}
         >
           Explore the shop <ArrowRight className="h-4 w-4" />
         </Link>
@@ -250,21 +251,12 @@ export default function FashionWorld({ catalog, config }) {
   const gridProducts = showGrid ? products.slice(2) : [];
 
   return (
-    <div
-      style={{
-        "--fw-ink": config.palette.ink,
-        "--fw-muted": config.palette.muted,
-        "--fw-accent": config.palette.accent,
-        "--fw-deep": config.palette.deep,
-        "--fw-champagne": config.palette.champagne,
-        background: config.palette.bg,
-      }}
-    >
+    <WorldShell config={config}>
       <EditorialHero category={category} lead={products[0]} />
       <AsymmetricPair products={products} />
       <CategoryStory />
       {showGrid && <EditorialGrid products={gridProducts} />}
       <ExploreCta />
-    </div>
+    </WorldShell>
   );
 }
