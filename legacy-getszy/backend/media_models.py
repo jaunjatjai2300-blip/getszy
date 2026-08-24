@@ -16,8 +16,16 @@ safely: every entry is a free, keyless-or-HF-token model.
 import os
 import httpx
 import logging
+from typing import Optional
 
 logger = logging.getLogger('getszy.media_models')
+
+# Optional external provider (Fal.ai). Imported lazily-guarded so the suite still
+# imports cleanly when fal_client/fal_key are absent.
+try:
+    import media_fal as fal_mod
+except Exception:  # noqa: BLE001
+    fal_mod = None
 
 HF_TOKEN = os.environ.get('HF_TOKEN', '').strip()
 POLLINATIONS_URL = 'https://image.pollinations.ai/prompt/{prompt}'
@@ -44,7 +52,25 @@ FREE_MODELS = {
 
 
 def list_free_models() -> dict:
-    return {cap: [m for m in models if m.get('free')] for cap, models in FREE_MODELS.items()}
+    """Free models plus optional external providers (Fal.ai) when configured."""
+    out = {cap: [m for m in models if m.get('free')] for cap, models in FREE_MODELS.items()}
+    if fal_mod is not None:
+        try:
+            fal_imgs = fal_mod.fal_image_models()
+            if fal_imgs:
+                out.setdefault('image', []).extend(fal_imgs)
+        except Exception:  # noqa: BLE001
+            pass
+    return out
+
+
+def is_fal_model(model_id: Optional[str]) -> bool:
+    if not model_id or fal_mod is None:
+        return False
+    try:
+        return model_id in fal_mod.fal_model_ids()
+    except Exception:  # noqa: BLE001
+        return False
 
 
 async def generate_image_model(prompt: str, model_id: str = None, width: int = 1024, height: int = 1024) -> dict:
@@ -54,6 +80,11 @@ async def generate_image_model(prompt: str, model_id: str = None, width: int = 1
         if m['id'] == model_id:
             model = m
             break
+    # Optional external provider (Fal.ai) — capability-based, key from env only.
+    if model is None and is_fal_model(model_id):
+        if fal_mod is not None and fal_mod.fal_configured():
+            return await fal_mod.generate_image_fal(prompt, width, height, model_id)
+        return {'error': 'fal.ai provider not configured'}
     if model and model.get('hf'):
         if not HF_TOKEN:
             return {'error': 'HF_TOKEN not set'}

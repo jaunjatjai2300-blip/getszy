@@ -4,27 +4,34 @@ Endpoints added here are strictly additive: they never modify the existing
 ``routes_video`` / ``routes_images`` / ``routes_voice`` flows, so there is zero
 regression risk for the features already in production.
 
-Scope of this first slice:
-- ``GET  /media-suite/providers``  - live free-media status (monitoring + badge)
-- ``POST /media-suite/design``     - Open-AI-Design-Agent: banner / poster / social
-- ``GET  /media-suite/skills``     - CLI-agent skill catalog (Claude Code/Codex/Gemini)
-
-Shorts generation and the Vibe-Workflow executor arrive in follow-up PRs that
-extend this same router.
+Surfaces:
+- ``GET  /media-suite/providers``   - live free-media status (monitoring + badge)
+- ``GET  /media-suite/models``      - integrated free models (+ Fal.ai only if FAL_KEY set)
+- ``GET  /media-suite/skills``      - CLI-agent skill catalog (Claude Code/Codex/Gemini)
+- ``GET  /media-suite/design/formats`` - platform format dimensions
+- ``POST /media-suite/design``      - Open-AI-Design-Agent: background image only
+- ``POST /media-suite/design/compose`` - full composition (bg + title/CTA/logo/brand)
+- ``GET  /media-suite/design/{asset_id}`` - owned asset (404 cross-user)
+- ``POST /media-suite/workflow/run``  - Vibe-Workflow JSON-DAG executor
+- ``POST /media-suite/shorts``        - Shorts/Reel generator (upload + YouTube URL)
 """
+import base64
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File, Form
+from fastapi.responses import Response, FileResponse
 from pydantic import BaseModel
 
 from auth import get_current_user
 from db import db
 from media_providers import media_provider_info, FREE_ONLY_MEDIA
 from media_models import generate_image_model, list_free_models
-from media_workflow import run_graph
+from media_workflow import run_graph, KNOWN_NODE_TYPES
 from media_shorts import run_shorts
+from media_design import compose_design, DESIGN_FORMATS
 
 router = APIRouter(prefix='/media-suite', tags=['media-suite'])
 
@@ -33,10 +40,17 @@ router = APIRouter(prefix='/media-suite', tags=['media-suite'])
 SKILLS = [
     {
         'name': 'generate_image',
-        'description': 'Generate an image from a text prompt using free FLUX/Pollinations.',
+        'description': 'Generate an image from a text prompt using free FLUX/Pollinations (or Fal.ai if configured).',
         'endpoint': '/media-suite/design',
         'method': 'POST',
         'params': {'prompt': 'string', 'kind': 'poster|banner|social|thumbnail', 'aspect': '1:1|16:9|9:16|4:5'},
+    },
+    {
+        'name': 'compose_design',
+        'description': 'Compose a professional platform graphic (IG post/story, Reel cover, YT thumbnail, poster, banner) from a background + title/CTA/logo/brand color.',
+        'endpoint': '/media-suite/design/compose',
+        'method': 'POST',
+        'params': {'fmt': 'ig_post|ig_story|reel_cover|yt_thumb|yt_shorts_cover|poster|banner', 'title': 'string', 'subtitle': 'string', 'cta': 'string'},
     },
     {
         'name': 'text_to_speech',
@@ -110,6 +124,12 @@ async def workflow_run(payload: dict, bg: BackgroundTasks, user=Depends(get_curr
     graph = payload.get('graph') if isinstance(payload, dict) else None
     if not graph or not graph.get('nodes'):
         raise HTTPException(status_code=400, detail='graph with nodes required')
+    for node in graph.get('nodes', []):
+        if node.get('type') not in KNOWN_NODE_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f'unsupported node type: {node.get("type")!r} (supported: {", ".join(KNOWN_NODE_TYPES)})',
+            )
     try:
         from media_workflow import topo_sort
         topo_sort(graph.get('nodes', []), graph.get('edges', []))
@@ -218,3 +238,125 @@ async def design(payload: DesignIn, user=Depends(get_current_user)):
         'provider': result.get('provider'),
         'id': record['id'],
     }
+
+
+@router.get('/design/formats')
+async def design_formats():
+    """Platform format dimensions for the Design Agent UI."""
+    return {
+        'formats': [
+            {'id': fid, 'label': DESIGN_FORMATS[fid][2], 'width': DESIGN_FORMATS[fid][0], 'height': DESIGN_FORMATS[fid][1]}
+            for fid in DESIGN_FORMATS
+        ]
+    }
+
+
+@router.post('/design/compose')
+async def design_compose(
+    fmt: str = Form('ig_post'),
+    title: str = Form(''),
+    subtitle: str = Form(''),
+    cta: str = Form(''),
+    prompt: str = Form(''),
+    model_id: Optional[str] = Form(None),
+    primary_color: str = Form(''),
+    secondary_color: str = Form(''),
+    background: UploadFile = File(None),
+    logo: UploadFile = File(None),
+    user=Depends(get_current_user),
+):
+    """Open-AI-Design-Agent: compose a professional platform graphic.
+
+    Background is either an uploaded image or, if absent, generated from ``prompt``
+    via the free model registry (Fal.ai only when FAL_KEY is set). The composed PNG
+    is stored under the caller's user id and served from /design/{asset_id} with
+    ownership enforced (cross-user requests get 404).
+    """
+    if not FREE_ONLY_MEDIA:
+        raise HTTPException(status_code=403, detail='Media suite is free-only')
+
+    bg_bytes: Optional[bytes] = None
+    provider = 'upload'
+    if background is not None:
+        data = await background.read()
+        if data:
+            bg_bytes = data
+    if bg_bytes is None:
+        if len((prompt or '').strip()) < 3:
+            raise HTTPException(status_code=400, detail='Provide a background image or a generation prompt (min 3 chars)')
+        w, h = DESIGN_FORMATS.get(fmt, (1080, 1080))[:2]
+        gen = await generate_image_model(prompt.strip(), model_id, w, h)
+        if 'error' in gen:
+            # Safe, customer-facing error — never leak provider stack traces.
+            raise HTTPException(status_code=502, detail=f'Background generation failed: {gen["error"]}')
+        provider = gen.get('provider', 'huggingface')
+        bg_bytes = base64.b64decode(gen['image'])
+
+    logo_bytes: Optional[bytes] = None
+    if logo is not None:
+        ldata = await logo.read()
+        if ldata:
+            logo_bytes = ldata
+
+    try:
+        png, meta = compose_design(
+            bg_bytes,
+            title=title,
+            subtitle=subtitle,
+            cta=cta,
+            logo=logo_bytes,
+            primary_color=primary_color,
+            secondary_color=secondary_color,
+            fmt=fmt,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    asset_id = str(uuid.uuid4())
+    record = {
+        'id': asset_id,
+        'user_id': user['id'],
+        'fmt': fmt,
+        'title': title,
+        'subtitle': subtitle,
+        'cta': cta,
+        'provider': provider,
+        'png': base64.b64encode(png).decode(),
+        'meta': meta,
+        'created_at': datetime.now(timezone.utc).isoformat(),
+    }
+    await db.media_designs.insert_one(record)
+    data_url = f'data:image/png;base64,{base64.b64encode(png).decode()}'
+    return {
+        'asset_id': asset_id,
+        'format': fmt,
+        'width': meta['width'],
+        'height': meta['height'],
+        'provider': provider,
+        'status': 'ok',
+        'image': data_url,
+    }
+
+
+@router.get('/design/{asset_id}')
+async def design_asset(asset_id: str, user=Depends(get_current_user)):
+    """Serve an owned design asset. Ownership is enforced by the user_id filter;
+    a different user simply gets 404 (no IDOR / cross-user access)."""
+    doc = await db.media_designs.find_one({'id': asset_id, 'user_id': user['id']}, {'_id': 0, 'png': 1})
+    if not doc or not doc.get('png'):
+        raise HTTPException(status_code=404, detail='not found')
+    png = base64.b64decode(doc['png'])
+    return Response(content=png, media_type='image/png', headers={'Cache-Control': 'private, max-age=3600'})
+
+
+@router.get('/shorts/{job_id}/file')
+async def shorts_file(job_id: str, user=Depends(get_current_user)):
+    """Serve a completed shorts video. Ownership enforced via user_id; a different
+    user gets 404 (no cross-user asset access)."""
+    doc = await db.media_shorts.find_one({'id': job_id, 'user_id': user['id']}, {'_id': 0, 'result': 1})
+    if not doc:
+        raise HTTPException(status_code=404, detail='not found')
+    out = (doc.get('result') or {}).get('output')
+    if not out or not os.path.exists(out):
+        raise HTTPException(status_code=404, detail='output not available')
+    return FileResponse(out, media_type='video/mp4', filename=f'{job_id}.mp4')
