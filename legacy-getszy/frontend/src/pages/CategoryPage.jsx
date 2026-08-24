@@ -14,10 +14,22 @@ import { useCatalog } from "@/commerce/useCatalog";
 import { worldFor } from "@/worlds/registry";
 import DefaultWorld from "@/worlds/DefaultWorld";
 import FashionWorld from "@/worlds/FashionWorld";
+import JewelleryWorld from "@/worlds/JewelleryWorld";
+import BeautyWorld from "@/worlds/BeautyWorld";
+import LifestyleWorld from "@/worlds/LifestyleWorld";
+import TechLifestyleWorld from "@/worlds/TechLifestyleWorld";
+import KidsWorld from "@/worlds/KidsWorld";
+import DigitalWorld from "@/worlds/DigitalWorld";
 
-/** Built worlds only. Configured-but-unbuilt slugs are absent on purpose. */
+/** Built worlds. A configured slug with no entry here falls back to DefaultWorld. */
 const WORLD_COMPONENTS = {
   FashionWorld,
+  JewelleryWorld,
+  BeautyWorld,
+  LifestyleWorld,
+  TechLifestyleWorld,
+  KidsWorld,
+  DigitalWorld,
 };
 
 export default function CategoryPage() {

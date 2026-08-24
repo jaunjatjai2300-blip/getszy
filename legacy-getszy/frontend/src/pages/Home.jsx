@@ -77,7 +77,6 @@ const PILLARS = [
 
 const EDIT_HIGHLIGHTS = [
   { label: "New Arrivals", tag: "Just in", grad: "from-[#F4DDE6] to-[#F3E2C7]" },
-  { label: "Best Sellers", tag: "Loved", grad: "from-[#F6C9B8] to-[#E79C86]" },
   { label: "Under ₹999", tag: "Smart buy", grad: "from-[#D7F0EE] to-[#F3E2C7]" },
   { label: "Made by Women", tag: "Founder", grad: "from-[#EDE6DD] to-[#FBF7F2]" },
 ];
@@ -418,8 +417,10 @@ export default function Home() {
   const subscribe = (e) => { e.preventDefault(); if (email.trim()) setSubbed(true); };
   const categories = useApi("/categories");
   const courses = useApi("/courses");
-  const trending = useApi("/shop?sort=trending&limit=10");
-  const bestsellers = useApi("/shop?sort=bestseller&limit=10");
+  // /api/shop does not exist; /api/products?featured=true is the real,
+  // catalog-backed source. There is no sales data behind "trending" or
+  // "best sellers", so we do not claim either.
+  const featured = useApi("/products?featured=true&limit=10");
 
   return (
     <div className="bg-[#FBF7F2]">
@@ -498,8 +499,7 @@ export default function Home() {
 
 
 
-      <Section><div className="gs-container"><DiscoveryRail title="Trending Now" icon={TrendingUp} items={trending.data} wishlist={wishlist} toggleWish={toggleWishlist} addToCart={addToCart} viewAllTo="/shop?sort=trending" /></div></Section>
-      <Section><div className="gs-container"><DiscoveryRail title="Best Sellers" icon={Star} items={bestsellers.data} wishlist={wishlist} toggleWish={toggleWishlist} addToCart={addToCart} viewAllTo="/shop?sort=bestseller" /></div></Section>
+      <Section><div className="gs-container"><DiscoveryRail title="Featured" items={featured.data} wishlist={wishlist} toggleWish={toggleWishlist} addToCart={addToCart} viewAllTo="/shop" /></div></Section>
 
       <Section className="bg-[#FBF1E9]">
         <div className="gs-container">

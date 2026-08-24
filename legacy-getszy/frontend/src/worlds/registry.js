@@ -37,7 +37,7 @@ export const WORLDS = {
     photography: "macro",       // large product photography, heavy negative space
     cardVariant: "displayCase",
     glass: "displayCase",       // glass as a vitrine metaphor, used selectively
-    implemented: false,
+    implemented: true,
   },
 
   beauty: {
@@ -50,7 +50,7 @@ export const WORLDS = {
     photography: "texture",     // macro texture matters more than 3D
     cardVariant: "ritual",
     glass: "soft",
-    implemented: false,
+    implemented: true,
   },
 
   "home-decor": {
@@ -63,7 +63,7 @@ export const WORLDS = {
     photography: "in-context",  // product-in-context over isolated packshots
     cardVariant: "editorial",
     glass: "minimal",
-    implemented: false,
+    implemented: true,
   },
 
   gadgets: {
@@ -78,7 +78,7 @@ export const WORLDS = {
     photography: "product-hero",
     cardVariant: "technical",
     glass: "restrained",
-    implemented: false,
+    implemented: true,
   },
 
   kids: {
@@ -93,7 +93,7 @@ export const WORLDS = {
     photography: "product-hero",
     cardVariant: "rounded",
     glass: "soft",
-    implemented: false,
+    implemented: true,
   },
 
   "digital-products": {
@@ -108,7 +108,7 @@ export const WORLDS = {
     photography: "interface",   // show the actual product experience
     cardVariant: "demo",
     glass: "dominant",
-    implemented: false,
+    implemented: true,
   },
 };
 
