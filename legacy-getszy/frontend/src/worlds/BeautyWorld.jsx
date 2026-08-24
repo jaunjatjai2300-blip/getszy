@@ -17,6 +17,7 @@ import { useCartAction } from "@/commerce/useCartAction";
 import { tierAllows } from "@/commerce/productModel";
 import WorldShell, { AddToBag } from "./WorldShell";
 import { Reveal, RevealItem } from "@/experience/primitives";
+import { imageProps } from "@/commerce/responsiveImage";
 
 function RitualStep({ product, index, total }) {
   const addToBag = useCartAction();
@@ -43,7 +44,7 @@ function RitualStep({ product, index, total }) {
           <div className="relative mx-auto aspect-square w-full max-w-[260px] overflow-hidden rounded-full">
             {img ? (
               <img
-                src={img}
+                {...imageProps(img, "showcase")}
                 alt={product.name}
                 loading={index === 0 ? "eager" : "lazy"}
                 className="h-full w-full object-cover transition-transform duration-[1100ms] ease-out group-hover:scale-[1.06]"

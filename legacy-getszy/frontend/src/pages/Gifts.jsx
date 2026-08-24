@@ -23,6 +23,7 @@ import { useCartAction } from "@/commerce/useCartAction";
 import WorldShell, { AddToBag } from "@/worlds/WorldShell";
 import { DEFAULT_WORLD } from "@/worlds/registry";
 import { Reveal, RevealItem } from "@/experience/primitives";
+import { imageProps } from "@/commerce/responsiveImage";
 
 const BUDGETS = [
   { id: "any", label: "Any budget", test: () => true },
@@ -47,7 +48,7 @@ function GiftCard({ product, index }) {
           <div className="relative aspect-[4/5] overflow-hidden" style={{ background: "var(--w-champagne)" }}>
             {img ? (
               <img
-                src={img}
+                {...imageProps(img, "card")}
                 alt={product.name}
                 loading={index < 3 ? "eager" : "lazy"}
                 className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
