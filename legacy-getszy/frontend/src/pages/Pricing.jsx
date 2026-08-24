@@ -15,26 +15,73 @@ function Section({ children, className = "", id = "" }) {
   return (<motion.section ref={ref} id={id} initial="hidden" animate={inview ? "visible" : "hidden"} variants={stagger} className={"gs-section " + className}>{children}</motion.section>);
 }
 
-const PLANS = [
-  { id: "starter", name: "Starter", tag: "Start Free", price: "₹0", period: "", for: "मैं Getszy को explore करना चाहती हूँ।", features: ["Shop Getszy products", "Wishlist", "Neo basic guidance", "10 introductory digital credits", "Explore selected digital experiences", "My Getszy account", "Order tracking", "Basic support"], cta: "Start Free", to: "/signup" },
-  { id: "creator", name: "Creator", tag: "Create & Launch", price: "₹999", period: "/ month", for: "मैं अपना digital presence बनाना शुरू कर रही हूँ।", features: ["Everything in Starter", "Monthly digital usage", "Guided website / landing-page workflows", "Brand Kit", "Evidence & Claims Vault", "Private preview", "Version history", "QR mobile testing", "Quality Gate", "Priority support"], cta: "Start Creating", to: "/signup" },
-  { id: "founder", name: "Founder", tag: "Build & Grow", price: "₹2,499", period: "/ month", for: "मेरा business बढ़ रहा है और मुझे ज्यादा powerful digital support चाहिए।", features: ["Everything in Creator", "Higher monthly usage", "Store / advanced digital workflows where supported", "Campaign workflows", "Advanced brand & evidence management", "Growth-oriented Neo workflows", "Priority support", "More project capacity"], cta: "Start Growing", to: "/signup" },
-  { id: "enterprise", name: "Enterprise", tag: "Built for Bigger Teams", price: "Custom", period: "", for: "हमें multiple brands, workflows या managed digital solutions चाहिए।", features: ["Multiple brands", "Custom workflows", "Dedicated support", "Advanced security requirements", "Custom usage", "Business integrations where approved", "Custom commercial terms"], cta: "Talk to Getszy", to: "/support" },
-];
+// ── Plan presentation copy ───────────────────────────────────────
+// Price, plan name and monthly credit allowance are deliberately NOT hardcoded
+// here — they are fetched from /api/billing/pricing (backed by credits.py
+// CREDIT_PACKS / CREATOR_PACKS) so this page can never advertise a price the
+// payment system does not actually charge. This map holds marketing copy only,
+// keyed by the backend plan id.
+const PLAN_COPY = {
+  creator_pass: {
+    tag: "Create & Publish",
+    for: "मैं short-form content बनाती हूँ और तेज़ी से publish करना चाहती हूँ।",
+    cta: "Start Creating",
+    features: ["Everything in Starter", "Guided creation workflows", "Brand Kit", "Private preview", "QR mobile testing", "Quality Gate", "Priority support"],
+  },
+  lite: {
+    tag: "Start Building",
+    for: "मैं अपना digital presence बनाना शुरू कर रही हूँ।",
+    cta: "Start Building",
+    features: ["Everything in Starter", "Guided website / landing-page workflows", "Brand Kit", "Evidence & Claims Vault", "Private preview", "Version history", "Quality Gate"],
+  },
+  pro: {
+    tag: "Build & Grow",
+    recommended: true,
+    for: "मेरा business बढ़ रहा है और मुझे ज्यादा powerful digital support चाहिए।",
+    cta: "Start Growing",
+    features: ["Everything in Lite", "Store / advanced digital workflows where supported", "Campaign workflows", "Advanced brand & evidence management", "Growth-oriented Neo workflows", "Priority support", "More project capacity"],
+  },
+  ultra: {
+    tag: "Scale Up",
+    for: "मुझे सबसे ज़्यादा capacity और advanced workflows चाहिए।",
+    cta: "Go Ultra",
+    features: ["Everything in Pro", "Highest monthly usage", "Maximum project capacity", "Advanced campaign & growth workflows", "Priority support"],
+  },
+};
 
+// Starter and Enterprise stay static on purpose: neither is a recurring Razorpay
+// pack, so neither is returned by /api/billing/pricing. Starter is the free
+// signup tier, Enterprise is contact-sales with no fixed price.
+// NOTE: Starter deliberately does NOT promise introductory credits — credits.py
+// is explicit that new users start with 0 credits and no free allowance.
+const STATIC_STARTER = {
+  id: "starter", name: "Starter", tag: "Start Free", priceLabel: "₹0", period: "", creditsLabel: "",
+  for: "मैं Getszy को explore करना चाहती हूँ।",
+  features: ["Shop Getszy products", "Wishlist", "Neo basic guidance", "Explore selected digital experiences", "My Getszy account", "Order tracking", "Basic support"],
+  cta: "Start Free", to: "/signup",
+};
+const STATIC_ENTERPRISE = {
+  id: "enterprise", name: "Enterprise", tag: "Built for Bigger Teams", priceLabel: "Custom", period: "", creditsLabel: "",
+  for: "हमें multiple brands, workflows या managed digital solutions चाहिए।",
+  features: ["Multiple brands", "Custom workflows", "Dedicated support", "Advanced security requirements", "Custom usage", "Business integrations where approved", "Custom commercial terms"],
+  cta: "Talk to Getszy", to: "/support",
+};
+
+// Keyed by plan id (not array position) so the table adapts to whatever plans
+// the billing API actually returns.
 const COMPARE = [
-  { f: "Shop Physical", v: ["✓", "✓", "✓", "✓"] },
-  { f: "Neo Guidance", v: ["✓", "✓", "✓", "✓"] },
-  { f: "Digital Usage", v: ["Limited", "Included", "Higher", "Custom"] },
-  { f: "Brand Kit", v: ["—", "✓", "✓", "✓"] },
-  { f: "Evidence Vault", v: ["—", "✓", "✓", "✓"] },
-  { f: "Private Preview", v: ["—", "✓", "✓", "✓"] },
-  { f: "QR Mobile Test", v: ["—", "✓", "✓", "✓"] },
-  { f: "Version History", v: ["—", "✓", "✓", "✓"] },
-  { f: "Quality Gate", v: ["Selected", "✓", "✓", "✓"] },
-  { f: "Campaign workflows", v: ["—", "Selected", "✓", "Custom"] },
-  { f: "Priority Support", v: ["—", "✓", "✓", "Dedicated"] },
-  { f: "Multiple Brands", v: ["—", "—", "—/limited", "✓"] },
+  { f: "Shop Physical",      v: { starter: "✓", creator_pass: "✓", lite: "✓", pro: "✓", ultra: "✓", enterprise: "✓" } },
+  { f: "Neo Guidance",       v: { starter: "✓", creator_pass: "✓", lite: "✓", pro: "✓", ultra: "✓", enterprise: "✓" } },
+  { f: "Digital Usage",      v: { starter: "—", creator_pass: "Included", lite: "Included", pro: "Higher", ultra: "Highest", enterprise: "Custom" } },
+  { f: "Brand Kit",          v: { starter: "—", creator_pass: "✓", lite: "✓", pro: "✓", ultra: "✓", enterprise: "✓" } },
+  { f: "Evidence Vault",     v: { starter: "—", creator_pass: "—", lite: "✓", pro: "✓", ultra: "✓", enterprise: "✓" } },
+  { f: "Private Preview",    v: { starter: "—", creator_pass: "✓", lite: "✓", pro: "✓", ultra: "✓", enterprise: "✓" } },
+  { f: "QR Mobile Test",     v: { starter: "—", creator_pass: "✓", lite: "✓", pro: "✓", ultra: "✓", enterprise: "✓" } },
+  { f: "Version History",    v: { starter: "—", creator_pass: "—", lite: "✓", pro: "✓", ultra: "✓", enterprise: "✓" } },
+  { f: "Quality Gate",       v: { starter: "Selected", creator_pass: "✓", lite: "✓", pro: "✓", ultra: "✓", enterprise: "✓" } },
+  { f: "Campaign workflows", v: { starter: "—", creator_pass: "—", lite: "Selected", pro: "✓", ultra: "✓", enterprise: "Custom" } },
+  { f: "Priority Support",   v: { starter: "—", creator_pass: "✓", lite: "—", pro: "✓", ultra: "✓", enterprise: "Dedicated" } },
+  { f: "Multiple Brands",    v: { starter: "—", creator_pass: "—", lite: "—", pro: "—/limited", ultra: "✓", enterprise: "✓" } },
 ];
 
 const FAQ = [
@@ -49,18 +96,45 @@ const FAQ = [
   { q: "Is Getszy a marketplace?", a: "No. Getszy directly provides the products and digital solutions offered through the platform." },
 ];
 
-const YEARLY_OFF = 17;
-
 export default function Pricing() {
   const navigate = useNavigate();
-  const [cycle, setCycle] = useState("monthly");
-  const yearly = cycle === "yearly";
-  const priceFor = (p) => {
-    if (p.price === "Custom" || p.price === "₹0") return p.price;
-    const num = parseInt(p.price.replace(/[^0-9]/g, ""), 10);
-    if (yearly) return "₹" + (num * 10).toLocaleString("en-IN") + " / year";
-    return p.price + (p.period || "");
-  };
+  const [paidPlans, setPaidPlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [plansError, setPlansError] = useState(false);
+
+  // Single source of truth for money: the billing API. Never hardcode prices
+  // here — a mismatch between this page and Razorpay is a real customer harm.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get("/billing/pricing");
+        if (cancelled) return;
+        const mapped = (data?.plans || [])
+          .filter((p) => PLAN_COPY[p.id])
+          .sort((a, b) => (a.price_monthly || 0) - (b.price_monthly || 0))
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            priceLabel: "₹" + Number(p.price_monthly || 0).toLocaleString("en-IN"),
+            period: "/ month",
+            creditsLabel: p.credits ? `${p.credits} credits / month` : "",
+            tagline: p.tagline || "",
+            to: "/signup",
+            ...PLAN_COPY[p.id],
+          }));
+        setPaidPlans(mapped);
+      } catch (e) {
+        if (!cancelled) setPlansError(true);
+      } finally {
+        if (!cancelled) setPlansLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Starter / Enterprise bookend the paid plans returned by the API.
+  const plans = [STATIC_STARTER, ...paidPlans, STATIC_ENTERPRISE];
 
   return (
     <div className="bg-[#FBF7F2]">
@@ -79,9 +153,12 @@ export default function Pricing() {
               </div>
             ))}
           </div>
-          <div className="mt-8 inline-flex items-center gap-1 rounded-full bg-white border border-[#E7D9CE] p-1">
-            <button onClick={() => setCycle("monthly")} className={"px-5 py-2 rounded-full text-sm font-semibold " + (!yearly ? "bg-[#C58B7A] text-white" : "text-[#5F5951]")}>Monthly</button>
-            <button onClick={() => setCycle("yearly")} className={"px-5 py-2 rounded-full text-sm font-semibold " + (yearly ? "bg-[#C58B7A] text-white" : "text-[#5F5951]")}>Yearly{YEARLY_OFF ? ` · Save ${YEARLY_OFF}%` : ""}</button>
+          {/* Billing is monthly-only (see /api/billing/pricing -> interval).
+              A yearly toggle used to be shown here computing a x10 annual price,
+              but no annual plan exists in the payment system — removed rather
+              than advertise a billing cycle a customer cannot actually buy. */}
+          <div className="mt-8 inline-flex items-center gap-2 rounded-full bg-white border border-[#E7D9CE] px-5 py-2 text-sm font-semibold text-[#5F5951]">
+            <Check className="h-4 w-4 text-[#C58B7A]" />Monthly billing · cancel anytime
           </div>
         </div>
       </section>
@@ -107,15 +184,27 @@ export default function Pricing() {
       </div></Section>
       <Section className="!pt-0"><div className="gs-container">
         <div className="text-center max-w-2xl mx-auto mb-10"><span className="gs-eyebrow justify-center">Plans</span><h2 className="font-display text-3xl sm:text-5xl text-[#1B1A18] mt-2">Pick your plan</h2></div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5 items-start">
-          {PLANS.map((p) => {
-            const recommended = p.id === "founder";
+        {plansError && (
+          <div className="mb-6 rounded-2xl border border-[#E7D9CE] bg-white p-4 text-sm text-[#6B625B] text-center">
+            Live plan pricing could not be loaded right now. Showing free and Enterprise options only — please refresh, or <button onClick={() => navigate("/support")} className="underline font-semibold">contact support</button>.
+          </div>
+        )}
+        {plansLoading && (
+          <div className="mb-6 flex items-center justify-center gap-2 text-sm text-[#6B625B]">
+            <Loader2 className="h-4 w-4 animate-spin" />Loading current plans…
+          </div>
+        )}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5 items-start">
+          {plans.map((p) => {
+            const recommended = !!p.recommended;
             return (
               <div key={p.id} className={"relative rounded-3xl p-6 flex flex-col " + (recommended ? "bg-[#1B1A18] text-white border border-[#1B1A18] shadow-[0_24px_60px_rgba(27,26,24,0.25)]" : "bg-white text-[#1B1A18] border border-[#E7D9CE]")}>
                 {recommended && <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#C58B7A] text-white text-xs font-semibold px-3 py-1">Recommended</span>}
                 <div className={"text-xs font-semibold tracking-wide uppercase " + (recommended ? "text-[#E8C9AE]" : "text-[#A86B5B]")}>{p.tag}</div>
                 <h3 className="font-display text-2xl mt-1">{p.name}</h3>
-                <div className="mt-3 text-3xl font-display">{priceFor(p)}</div>
+                <div className="mt-3 text-3xl font-display">{p.priceLabel}<span className="text-base font-sans">{p.period}</span></div>
+                {p.creditsLabel && <div className={"mt-1 text-sm font-semibold " + (recommended ? "text-[#E8C9AE]" : "text-[#A86B5B]")}>{p.creditsLabel}</div>}
+                {p.tagline && <div className={"mt-1 text-xs " + (recommended ? "text-white/60" : "text-[#6B625B]")}>{p.tagline}</div>}
                 <p className={"mt-3 text-sm italic " + (recommended ? "text-white/70" : "text-[#6B625B]")}>{p.for}</p>
                 <button onClick={() => navigate(p.to)} className={"mt-5 w-full rounded-full py-3 text-sm font-semibold inline-flex items-center justify-center gap-2 " + (recommended ? "bg-[#C58B7A] text-white hover:bg-[#b87a68]" : "bg-[#1B1A18] text-white hover:bg-[#2c2a26]")}>{p.cta}<ArrowRight className="h-4 w-4" /></button>
                 <ul className={"mt-6 space-y-2 text-sm " + (recommended ? "text-white/85" : "text-[#3D3833]")}>
@@ -163,14 +252,17 @@ export default function Pricing() {
             <thead>
               <tr className="text-left border-b border-[#E7D9CE]">
                 <th className="p-4 font-display text-[#1B1A18]">Feature</th>
-                {PLANS.map((p) => (<th key={p.id} className="p-4 font-display text-[#1B1A18] text-center">{p.name}</th>))}
+                {plans.map((p) => (<th key={p.id} className="p-4 font-display text-[#1B1A18] text-center">{p.name}</th>))}
               </tr>
             </thead>
             <tbody>
               {COMPARE.map((row) => (
                 <tr key={row.f} className="border-b border-[#F1E7DD] last:border-0">
                   <td className="p-4 text-[#3D3833]">{row.f}</td>
-                  {row.v.map((val, i) => (<td key={i} className="p-4 text-center text-[#5F5951]">{val === "✓" ? <Check className="h-4 w-4 mx-auto text-[#C58B7A]" /> : val}</td>))}
+                  {plans.map((p) => {
+                    const val = row.v[p.id] ?? "—";
+                    return (<td key={p.id} className="p-4 text-center text-[#5F5951]">{val === "✓" ? <Check className="h-4 w-4 mx-auto text-[#C58B7A]" /> : val}</td>);
+                  })}
                 </tr>
               ))}
             </tbody>
