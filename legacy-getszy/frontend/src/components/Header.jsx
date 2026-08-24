@@ -135,7 +135,7 @@ export function Header() {
       <div className="gs-container flex items-center gap-3 h-16">
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="lg:hidden" data-testid="header-mobile-menu-button"><Menu className="h-5 w-5" /></Button>
+            <Button variant="ghost" size="icon" className="lg:hidden !h-11 !w-11" data-testid="header-mobile-menu-button"><Menu className="h-5 w-5" /></Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-80 p-0">
             <div className="p-6">
@@ -216,7 +216,7 @@ export function Header() {
         </form>
 
         <div className="ml-auto flex items-center gap-1.5">
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileSearchOpen((v) => !v)} data-testid="header-mobile-search-button">
+          <Button variant="ghost" size="icon" className="lg:hidden !h-11 !w-11" onClick={() => setMobileSearchOpen((v) => !v)} data-testid="header-mobile-search-button">
             {mobileSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
           </Button>
           {user ? (
@@ -252,7 +252,7 @@ export function Header() {
           ) : (
             <Button variant="ghost" onClick={() => navigate("/login")} data-testid="header-login-button" className="text-sm">Login</Button>
           )}
-          <Link to="/cart" className="relative" data-testid="header-cart-link">
+          <Link to="/cart" className="relative grid h-11 w-11 place-items-center" data-testid="header-cart-link">
             <Button variant="ghost" size="icon"><ShoppingBag className="h-5 w-5" /></Button>
             {cart.count > 0 && (
               <span className="absolute -top-0.5 -right-0.5 bg-[var(--gs-primary)] text-white text-[10px] rounded-full h-5 w-5 flex items-center justify-center font-semibold">{cart.count}</span>

@@ -10,6 +10,7 @@ import {
   Leaf, Moon, ShoppingCart, Headphones, LineChart, Users, Lock, FileText, Command, Hand, Shield
 } from "lucide-react";
 import { api } from "../lib/api";
+import NeoOrb from "@/experience/NeoOrb";
 import { useCart } from "../lib/cart";
 import { useAuth } from "../lib/auth";
 
@@ -145,10 +146,10 @@ function ProductCard({ product, wishlisted, onToggleWish, addToCart }) {
         </div>
         {off > 0 && <span className="absolute top-3 left-3 gs-pill bg-[#1B1A18] text-white">{off}% OFF</span>}
         <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition duration-300">
-          <button onClick={() => onToggleWish && onToggleWish(p)} aria-label="Wishlist" className="h-9 w-9 grid place-items-center rounded-full bg-white/90 shadow hover:bg-white">
+          <button onClick={() => onToggleWish && onToggleWish(p)} aria-label="Wishlist" className="h-11 w-11 grid place-items-center rounded-full bg-white/90 shadow hover:bg-white">
             <Heart className={"h-4 w-4 " + (wishlisted ? "fill-[#C58B7A] text-[#C58B7A]" : "text-[#1B1A18]")} />
           </button>
-          <button onClick={() => addToCart && addToCart(p)} aria-label="Add to cart" className="h-9 w-9 grid place-items-center rounded-full bg-white/90 shadow hover:bg-white">
+          <button onClick={() => addToCart && addToCart(p)} aria-label="Add to cart" className="h-11 w-11 grid place-items-center rounded-full bg-white/90 shadow hover:bg-white">
             <ShoppingCart className="h-4 w-4 text-[#1B1A18]" />
           </button>
         </div>
@@ -336,7 +337,7 @@ function NeoShowcase() {
             </div>
             <form onSubmit={tryNeo} className="mt-4 flex items-center gap-2 rounded-full bg-white/90 p-1.5 pl-4">
               <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="I want to…" className="flex-1 bg-transparent outline-none text-[#1B1A18] text-sm placeholder:text-[#9A8E82]" />
-              <button type="submit" disabled={busy} className="h-9 w-9 grid place-items-center rounded-full bg-[#C58B7A] text-white disabled:opacity-60"><Send className="h-4 w-4" /></button>
+              <button type="submit" disabled={busy} className="h-11 w-11 grid place-items-center rounded-full bg-[#C58B7A] text-white disabled:opacity-60"><Send className="h-4 w-4" /></button>
             </form>
           </div>
         </div>
@@ -364,8 +365,9 @@ function Hero({ onAskNeo }) {
             <span className="gs-eyebrow">Shop · Learn · Build · Grow · Earn</span>
             <h1 className="font-display text-[44px] sm:text-6xl lg:text-[72px] leading-[0.98] mt-5 text-[#1B1A18]">Made for women<br/>who <span className="text-[#C58B7A] italic">do it all.</span></h1>
             <p className="mt-6 text-lg text-[#5F5951] max-w-xl">One rooftop for your style, your skills and your business — shop women-led brands, learn real skills, and let Neo build the rest.</p>
-            <form onSubmit={submit} className="gs-glass-1 mt-8 flex items-center gap-2 !rounded-full p-2 pl-5 max-w-xl">
-              <Sparkles className="h-5 w-5 text-[#C58B7A]" />
+            <form onSubmit={submit} className="gs-glass-1 mt-8 flex items-center gap-2 !rounded-full p-2 pl-3 max-w-xl">
+              {/* Neo is present in the hero, not hidden behind a chat launcher. */}
+              <NeoOrb state={q.trim() ? "thinking" : "idle"} size={40} />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask Neo to plan, build or find anything…" className="flex-1 bg-transparent outline-none text-[#1B1A18] placeholder:text-[#9A8E82]" />
               <button className="gs-btn-primary rounded-full">Go</button>
             </form>
@@ -388,7 +390,7 @@ function Hero({ onAskNeo }) {
               </div>
               <div className="mt-5 font-display text-3xl text-[#1B1A18] leading-tight">Shop what you love.<br/><span className="text-[#C58B7A] italic">Build what you need.</span></div>
               <div className="mt-5 flex items-start gap-3 rounded-2xl bg-gradient-to-br from-[#F3E2C7] to-[#F6C9B8] p-3">
-                <div className="h-9 w-9 rounded-full bg-white/70 grid place-items-center"><Bot className="h-5 w-5 text-[#A86B5B]" /></div>
+                <div className="h-11 w-11 rounded-full bg-white/70 grid place-items-center"><Bot className="h-5 w-5 text-[#A86B5B]" /></div>
                 <div className="text-sm text-[#5F4535]">Tell me what you're building — I'll plan the brand, site & launch.</div>
               </div>
               <div className="mt-5 grid grid-cols-3 gap-3">
