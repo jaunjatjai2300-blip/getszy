@@ -1,13 +1,15 @@
+import asyncio
 """Builder Agents — Multi-agent pipeline for website generation.
 
 Pipeline: Planner → Designer → Coder → Reviewer
 Each agent specializes in one aspect, producing better output than a single monolithic LLM call.
 """
-import asyncio
 import re
 import json
+import html as _html
 import logging
 from llm_provider import professional_builder_completion
+from builder_quality import evaluate_landing_page_quality
 
 logger = logging.getLogger('getszy.builder.agents')
 
@@ -54,7 +56,7 @@ Given a site plan (JSON), output a detailed design brief as JSON:
 
 Reply ONLY with valid JSON. No prose."""
 
-CODER_PROMPT = """You are an award-winning front-end designer and copywriter. Generate a stunning, modern, fully-responsive, conversion-focused SINGLE-PAGE WEBSITE.
+CODER_PROMPT = """You are a world-class front-end designer, art director and conversion copywriter trusted by premium brands. Generate a stunning, modern, fully-responsive, conversion-focused SINGLE-PAGE WEBSITE that looks custom-built by a top studio — never a template.
 
 STRICT OUTPUT RULES:
 1. Output ONLY a SINGLE complete HTML document. No prose. No markdown fences.
@@ -73,12 +75,19 @@ STRICT OUTPUT RULES:
 14. Do not use a generic card grid as the primary visual language. Compose one intentional hero, one editorial rhythm, two or three distinct section treatments, and a closing conversion moment. Use the supplied visual direction rather than repeating the same layout.
 15. If no real customer image is supplied, create a premium CSS/SVG art direction that is specific to the business brief; do not leave empty image cards or image placeholder areas.
 16. Total HTML should be 300-800 lines. Color scheme, fonts, and section layout MUST match the design brief exactly.
+17. WORLD-CLASS BAR: this must read as a $20k+ bespoke site, not a generator output. Compose a distinctive art direction (custom gradient/duotone or inline-SVG motif derived from the brand), an editorial rhythm with varied section treatments and typographic scale, refined micro-interactions, a confident hero, and a decisive closing conversion moment. Avoid generic utility-only layouts and repetitive card grids.
 
 START IMMEDIATELY WITH <!DOCTYPE html>. End with </html>. Nothing else."""
 
-FAST_COMPOSITION_PROMPT = """You are Getszy's Professional Composition Engine. Create one distinctive, premium, responsive private landing-page draft from the verified customer brief.
+FAST_COMPOSITION_PROMPT = """You are Getszy's Professional Composition Engine. Create one distinctive, premium, conversion-grade, responsive private landing-page draft from the verified customer brief.
 
-OUTPUT: ONLY one complete HTML document, beginning with <!DOCTYPE html> and ending with </html>. Use Tailwind CDN and one premium Google font pairing.
+OUTPUT: ONLY one complete HTML document, beginning with <!DOCTYPE html> and ending with </html>. Use Tailwind CSS via CDN and one refined premium Google Font pairing (e.g. Plus Jakarta Sans + Inter, or Space Grotesk + Source Serif).
+
+PREMIUM DESIGN SYSTEM (apply deliberately, never a generic template):
+- Editorial hierarchy: one decisive hero with a benefit-led H1, a supporting sub-headline, and a single high-contrast primary CTA.
+- Restrained, intentional art direction: a branded gradient/duotone or inline SVG motif derived from the brief, generous whitespace, a disciplined spacing rhythm, and a consistent accent color used sparingly for emphasis and the CTA.
+- Two or three distinct section treatments (not a repeated card grid): an editorial feature block, a process/steps rhythm, and a proof or offer block. Vary typography scale, background tint, and alignment between sections.
+- Refined micro-typography: tight display headings, a comfortable body measure, visible focus rings, and a real mobile breakpoint at 375px.
 
 NON-NEGOTIABLE:
 1. Treat VERIFIED CUSTOMER BRIEF as the only product truth. Never invent testimonials, ratings, awards, logos, addresses, phone numbers, prices, discounts, guarantees, urgency, stock, certifications, or legal claims.
@@ -88,7 +97,8 @@ NON-NEGOTIABLE:
 5. Use 5–7 meaningful sections only. Prefer specific benefit, process and offer sections. Include testimonials/prices/claims only when they appear in the verified brief.
 6. No external form POST, fetch(), trackers, iframes, data:text/html, or unsafe JavaScript. Use a tiny mobile-menu script only if necessary.
 7. Target 250–450 lines with refined typography, generous whitespace, strong hierarchy and clear device responsiveness. Do not narrate your work or output markdown.
-8. If a DESIGN BRIEF (palette, fonts, per-section layout) is supplied below, follow its palette hex codes, font pairing and section layout treatments exactly — do not invent a different color system or ignore the specified layout per section. If no design brief is supplied, choose one yourself per rule 2.
+
+WORLD-CLASS BAR: the result must read as a bespoke $20k+ studio site, not a generator output. Lead with a distinctive art direction (branded gradient/duotone or an inline-SVG motif built from the brief), an editorial rhythm with varied section treatments and typographic scale, restrained motion, a confident hero, and one decisive closing conversion moment. Never fall back to a generic utility-only layout or a repeated card grid.
 
 Speed matters. Make the complete professional draft in this one response. A deterministic Getszy quality check will inspect it before the customer sees it."""
 
@@ -153,6 +163,305 @@ def _extract_html(raw: str) -> str:
     if end:
         raw = raw[:end.end()]
     return raw
+
+
+def _esc(value) -> str:
+    return _html.escape(str(value), quote=True)
+
+
+def _derive_name(prompt: str) -> str:
+    words = re.findall(r'[A-Za-z0-9]+', prompt or '')[:6]
+    return ' '.join(words).title() or 'Your Brand'
+
+
+def _repair_html(html: str) -> str:
+    """Guarantee a valid, complete, premium-ready single document.
+
+    Safety net on every generated page so the customer never receives broken or
+    markdown-wrapped markup. Only repairs structure; never changes copy.
+    """
+    if not html:
+        return html
+    raw = _extract_html(html)
+    lowered = raw.lower()
+
+    if '<head' not in lowered:
+        m = re.search(r'<html[^>]*>', raw, re.IGNORECASE)
+        if m:
+            raw = raw[:m.end()] + '<head></head>' + raw[m.end():]
+        else:
+            raw = '<html><head></head>' + raw
+        lowered = raw.lower()
+    if 'charset' not in lowered:
+        raw = raw.replace('<head>', '<head>\n<meta charset="utf-8">', 1)
+        lowered = raw.lower()
+    if 'name="viewport"' not in lowered and "name='viewport'" not in lowered:
+        raw = raw.replace('</head>', '<meta name="viewport" content="width=device-width, initial-scale=1">\n</head>', 1)
+        lowered = raw.lower()
+    if '<title' not in lowered:
+        raw = raw.replace('</head>', '<title>Getszy Site</title>\n</head>', 1)
+        lowered = raw.lower()
+    if '<body' not in lowered:
+        raw = raw.replace('</head>', '</head>\n<body>', 1)
+        if '</html>' in raw.lower():
+            raw = raw.replace('</html>', '</body>\n</html>', 1)
+        else:
+            raw = raw + '\n</body>\n</html>'
+        lowered = raw.lower()
+    if '</html>' not in lowered:
+        raw = raw + '\n</html>'
+    return raw
+
+
+# Curated, restrained premium palettes (hex without '#'). Picked deterministically
+# from the brand name so the same brand always looks the same.
+_PREMIUM_PALETTES = [
+    {'primary': '4f46e5', 'accent': '06b6d4', 'bg': 'ffffff', 'text': '0f172a', 'surface': 'f8fafc'},
+    {'primary': '059669', 'accent': 'f59e0b', 'bg': 'ffffff', 'text': '111827', 'surface': 'ecfdf5'},
+    {'primary': 'e11d48', 'accent': 'f43f5e', 'bg': '0f172a', 'text': 'f8fafc', 'surface': '1e293b'},
+    {'primary': '0ea5e9', 'accent': '8b5cf6', 'bg': 'ffffff', 'text': '0f172a', 'surface': 'f0ffff'},
+]
+
+# Vertical families give the deterministic fallback real variety so a customer
+# whose LLM call fails still gets a page tuned to their business type — not a
+# one-size-fits-all shell. Copy stays honest (no invented testimonials/promises).
+_VERTICAL_LABELS = {
+    'saas': 'Software', 'restaurant': 'Hospitality', 'portfolio': 'Studio',
+    'ecommerce': 'Retail', 'health': 'Wellness', 'default': 'Business',
+}
+_VERTICAL_RULES = [
+    ('restaurant', ('restaurant', 'cafe', 'coffee', 'bakery', 'bar', 'food', 'pizza', 'dining', 'menu', 'kitchen', 'bistro')),
+    ('ecommerce', ('shop', 'store', 'ecommerce', 'e-commerce', 'retail', 'product', 'fashion', 'boutique', 'sell', 'marketplace')),
+    ('portfolio', ('portfolio', 'agency', 'freelance', 'designer', 'photographer', 'artist', 'studio', 'creative', 'illustrator')),
+    ('health', ('health', 'wellness', 'clinic', 'fitness', 'yoga', 'therapy', 'medical', 'spa', 'coach', 'nutrition')),
+    ('saas', ('saas', 'software', 'platform', 'app', 'tool', 'startup', 'ai', 'api', 'tech', 'automation', 'dashboard')),
+]
+_VERTICAL_SECTIONS = {
+    'saas': [
+        ('Product', 'What you ship', [
+            ('Onboarding', 'A guided first run that delivers value in minutes, not weeks.'),
+            ('Automation', 'Repeatable workflows that remove the busywork your team dislikes.'),
+            ('Insights', 'Clear dashboards so the next decision is obvious.'),
+        ]),
+        ('Integrations', 'Works where you already work', [
+            ('API', 'A clean, documented API for the systems you rely on.'),
+            ('Webhooks', 'Real-time events keep every connected tool in sync.'),
+            ('Teams', 'Roles and permissions that scale with you.'),
+        ]),
+    ],
+    'restaurant': [
+        ('Menu', 'Tastes worth the trip', [
+            ('Starters', 'Small plates designed to share and surprise.'),
+            ('Mains', 'Considered dishes built from local, seasonal ingredients.'),
+            ('Desserts', 'A short, confident list worth saving room for.'),
+        ]),
+        ('Visit', 'Find us and book', [
+            ('Hours', 'Open daily for lunch and dinner service.'),
+            ('Location', 'A calm, easy-to-reach room with seating inside and out.'),
+            ('Reserve', 'Book a table online in a few taps.'),
+        ]),
+    ],
+    'portfolio': [
+        ('Work', 'Selected projects', [
+            ('Brand', 'Identity systems with a clear point of view.'),
+            ('Product', 'Interfaces that feel effortless to use.'),
+            ('Motion', 'Detail-oriented motion that earns attention.'),
+        ]),
+        ('About', 'The person behind it', [
+            ('Approach', 'Strategy first, then craft.'),
+            ('Clients', 'Founders, teams and labels who trusted the work.'),
+            ('Recognition', 'Awards and features worth mentioning.'),
+        ]),
+    ],
+    'ecommerce': [
+        ('Shop', 'Collections', [
+            ('New', 'The latest drop, curated and in stock.'),
+            ('Bestsellers', 'The pieces customers return for.'),
+            ('Essentials', 'Quiet staples that complete the look.'),
+        ]),
+        ('Why us', 'Reasons to choose us', [
+            ('Quality', 'Materials and construction we stand behind.'),
+            ('Shipping', 'Fast, tracked delivery with clear updates.'),
+            ('Support', 'Real help from people who know the product.'),
+        ]),
+    ],
+    'health': [
+        ('Approach', 'How we help', [
+            ('Assessment', 'We start with where you are, not a template.'),
+            ('Plan', 'A realistic path you can actually follow.'),
+            ('Progress', 'Honest check-ins that keep momentum.'),
+        ]),
+        ('Care', 'What to expect', [
+            ('Sessions', 'Focused time with someone who listens.'),
+            ('Resources', 'Practical tools to use between visits.'),
+            ('Community', 'People walking the same path.'),
+        ]),
+    ],
+}
+
+
+def _vertical_for(brief: dict, prompt: str) -> str:
+    text = ' '.join([
+        str(brief.get('vertical', '') or ''),
+        str(brief.get('industry', '') or ''),
+        str(brief.get('business_type', '') or ''),
+        str(brief.get('category', '') or ''),
+        prompt,
+    ]).lower()
+    for vertical, keywords in _VERTICAL_RULES:
+        if any(k in text for k in keywords):
+            return vertical
+    return 'default'
+
+
+def _render_vertical_sections(vertical: str, cta_lower: str) -> str:
+    """Return vertical-specific <section> blocks (h2 + card grids)."""
+    blocks = _VERTICAL_SECTIONS.get(vertical)
+    if not blocks:
+        # default: the generic outcome block
+        return (
+            '<section class="wrap">'
+            '<span class="eyebrow">Why it works</span>'
+            '<h2>Built around one outcome</h2>'
+            '<div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:24px">'
+            '<div class="card"><h3 class="display" style="font-size:20px;margin-bottom:8px">Clarity</h3><p class="muted">One message, one audience, one goal — no competing calls to action.</p></div>'
+            f'<div class="card"><h3 class="display" style="font-size:20px;margin-bottom:8px">Trust</h3><p class="muted">Honest proof and a clean, professional presentation your visitors recognise.</p></div>'
+            f'<div class="card"><h3 class="display" style="font-size:20px;margin-bottom:8px">Momentum</h3><p class="muted">A single high-contrast path from first glance to {_esc(cta_lower)}.</p></div>'
+            '</div></section>'
+        )
+    out = []
+    for eyebrow, heading, items in blocks:
+        cards = "".join(
+            f'<div class="card"><h3 class="display" style="font-size:20px;margin-bottom:8px">{_esc(t)}</h3>'
+            f'<p class="muted">{_esc(d)}</p></div>'
+            for t, d in items
+        )
+        out.append(
+            f'<section class="wrap"><span class="eyebrow">{_esc(eyebrow)}</span>'
+            f'<h2>{_esc(heading)}</h2>'
+            f'<div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:24px">{cards}</div></section>'
+        )
+    return "".join(out)
+
+
+def _premium_template(prompt: str, brief: dict | None = None) -> str:
+    """Deterministic, always-available premium landing page.
+
+    FINAL GUARANTEE: if every LLM provider is unavailable we still return a
+    complete, responsive, on-brand, conversion-focused page so the customer
+    never sees an error or a blank draft. No external calls, no randomness.
+    Picks a vertical family (SaaS / hospitality / studio / retail / wellness /
+    default) so the fallback is tuned to the business, not generic.
+    """
+    brief = brief or {}
+    confirmed = {k: v for k, v in brief.items() if v not in (None, '', [])}
+    brand = str(confirmed.get('brand_name') or confirmed.get('business_name') or _derive_name(prompt))
+    goal = str(confirmed.get('primary_goal') or 'reach more of the right customers')
+    cta = str(confirmed.get('primary_cta') or 'Get started')
+    audience = str(confirmed.get('audience') or 'your customers')
+    proof_points = confirmed.get('proof_points') or []
+    cta_lower = (cta or 'get started').lower()
+    vertical = _vertical_for(brief, prompt)
+    vlabel = _VERTICAL_LABELS.get(vertical, 'Business')
+
+    palette = _PREMIUM_PALETTES[sum(ord(c) for c in brand) % len(_PREMIUM_PALETTES)]
+    p, a, bg, tx, sf = palette['primary'], palette['accent'], palette['bg'], palette['text'], palette['surface']
+
+    style = (
+        ":root{--p:#__P__;--a:#__A__;--bg:#__BG__;--tx:#__TX__;--sf:#__SF__}"
+        "*{box-sizing:border-box;margin:0;padding:0}"
+        "html{scroll-behavior:smooth}"
+        "body{font-family:'Inter',system-ui,sans-serif;color:#__TX__;background:#__BG__;line-height:1.6;-webkit-font-smoothing:antialiased}"
+        ".display{font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-weight:800;letter-spacing:-0.02em;line-height:1.05}"
+        ".wrap{max-width:1120px;margin:0 auto;padding:0 24px}"
+        ".hero{background:radial-gradient(1200px 600px at 80% -10%, #__A__22, transparent),linear-gradient(135deg,#__P__0d,#__A__05);color:#__TX__}"
+        ".btn{display:inline-flex;align-items:center;gap:8px;background:#__P__;color:#fff;padding:14px 26px;border-radius:999px;font-weight:700;text-decoration:none;transition:transform .2s ease, box-shadow .2s ease}"
+        ".btn:hover{transform:translateY(-2px);box-shadow:0 12px 30px #__A__33}"
+        "section{padding:88px 0}"
+        ".eyebrow{text-transform:uppercase;letter-spacing:.18em;font-size:12px;font-weight:700;color:#__A__}"
+        ".card{background:#__SF__;border:1px solid #__P__22;border-radius:20px;padding:28px;transition:transform .2s ease, box-shadow .2s ease}"
+        ".card:hover{transform:translateY(-4px);box-shadow:0 18px 40px rgba(15,23,42,.08)}"
+        "h2{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:clamp(28px,4vw,40px);letter-spacing:-0.02em;margin-bottom:14px}"
+        ".muted{opacity:.72}"
+        "a:focus-visible,button:focus-visible{outline:3px solid #__A__;outline-offset:3px;border-radius:6px}"
+        "@media(max-width:720px){section{padding:56px 0}.hero{padding-top:64px}}"
+    )
+    style = (
+        style.replace('__P__', p).replace('__A__', a)
+        .replace('__BG__', bg).replace('__TX__', tx).replace('__SF__', sf)
+    )
+
+    if proof_points:
+        proof_items = "".join(
+            f'<li class="card"><strong>{_esc(pt)}</strong></li>' for pt in proof_points[:4]
+        )
+        proof_block = (
+            '<section class="wrap"><span class="eyebrow">Proof</span>'
+            '<h2>Results customers can stand behind</h2>'
+            f'<ul style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));list-style:none;margin-top:24px">{proof_items}</ul></section>'
+        )
+    else:
+        proof_block = (
+            '<section class="wrap"><span class="eyebrow">Proof plan</span>'
+            '<h2>Add verified results</h2>'
+            '<p class="muted" style="max-width:60ch">Replace this section with real customer outcomes — metrics, case notes, or a short quote you are authorised to publish. '
+            'We never invent testimonials or statistics, so the published page stays truthful and review-ready.</p></section>'
+        )
+
+    vertical_sections = _render_vertical_sections(vertical, cta_lower)
+
+    script = (
+        "<script>document.addEventListener('click',function(e){"
+        "var t=e.target.closest('a[href^=\"#\"]');if(t){"
+        "var id=t.getAttribute('href');if(id&&id.length>1){"
+        "var el=document.querySelector(id);if(el){el.scrollIntoView({behavior:'smooth'});e.preventDefault();}}}});</script>"
+    )
+
+    html = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{_esc(brand)} — {_esc(goal[:48])}</title>
+<meta name="description" content="{_esc(brand)} helps {_esc(audience)} {_esc(goal)}. {_esc(cta)} today.">
+<meta property="og:title" content="{_esc(brand)}">
+<meta property="og:description" content="{_esc(goal)}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>{style}</style>
+</head>
+<body>
+<header class="wrap" style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px">
+  <span class="display" style="font-size:20px;color:#{p}">{_esc(brand)}</span>
+  <a class="btn" href="#cta">{_esc(cta)}</a>
+</header>
+<main>
+  <section class="hero">
+    <div class="wrap" style="padding:96px 24px">
+      <span class="eyebrow">For {_esc(audience)} · {_esc(vlabel)}</span>
+      <h1 class="display" style="font-size:clamp(40px,7vw,72px);max-width:16ch;margin:14px 0">{_esc(brand)} helps {_esc(audience)} {_esc(goal)}</h1>
+      <p class="muted" style="max-width:56ch;font-size:19px;margin-bottom:28px">{_esc(brand)} turns attention into action with a clear, honest offer and a single focused next step.</p>
+      <a class="btn" href="#cta">{_esc(cta)}</a>
+    </div>
+  </section>
+  {vertical_sections}
+  {proof_block}
+  <section id="cta" class="wrap" style="text-align:center;background:#{sf};border-radius:28px;padding:64px 24px;margin:40px auto">
+    <h2>Ready to begin?</h2>
+    <p class="muted" style="max-width:52ch;margin:0 auto 24px">{_esc(brand)} is ready for {_esc(audience)}. {_esc(cta)} and move forward with confidence.</p>
+    <a class="btn" href="#">{_esc(cta)}</a>
+  </section>
+</main>
+<footer class="wrap" style="padding:32px 24px;opacity:.7;font-size:14px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px">
+  <span>&copy; {_esc(brand)}</span>
+  <span>Made with Getszy</span>
+</footer>
+{script}
+</body>
+</html>'''
+    return html
 
 
 class ProfessionalCompositionError(RuntimeError):
@@ -222,7 +531,7 @@ async def code_site(prompt: str, plan: dict, design: dict, session_id: str = 'bu
         temperature=0.48,
         max_tokens=8000,
     )
-    html = _extract_html(raw)
+    html = _repair_html(_extract_html(raw))
     if not html.lower().startswith('<!doctype html') or len(html) < 4000:
         raise ProfessionalCompositionError('The managed composition engine did not return a complete professional private draft. No generic fallback page was created.')
     logger.info(f'Builder coded: {len(html)} chars')
@@ -264,7 +573,7 @@ async def refine_element(html: str, selector: str, instruction: str, session_id:
         temperature=0.5,
         max_tokens=8000,
     )
-    refined = _extract_html(raw)
+    refined = _repair_html(_extract_html(raw))
     if refined.lower().startswith('<!doctype html') and len(refined) > len(html) * 0.5:
         return refined
     return html
@@ -272,11 +581,138 @@ async def refine_element(html: str, selector: str, instruction: str, session_id:
 
 # ── Full Pipeline ──────────────────────────────────────────────────────────────
 
-# Bound how long the optional design step is allowed to take. It only exists to
-# improve output quality — if it's slow (Groq under 429 pressure, a rate-limited
-# retry, a slow fallback provider) it must not meaningfully add to build latency.
-_DESIGN_BRIEF_TIMEOUT_SEC = 20.0
+async def compose_site_fast(prompt: str, brief: dict | None = None, session_id: str = 'builder', style_profile: str | None = None) -> str:
+    """Create a premium customer draft in one managed quality-ladder call (no wait).
 
+    Runs a small design-brief step first (DESIGNER_PROMPT) so the composer does
+    not invent a color system and copy in a single shot, then composes the draft
+    with FAST_COMPOSITION_PROMPT. The design step is best-effort and never fails
+    the whole build — on any failure we fall back to the single-call composition.
+    """
+    brief = brief or {}
+    confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
+
+    design_brief = None
+    try:
+        design_raw = await professional_builder_completion(
+            system=DESIGNER_PROMPT,
+            user=(
+                f"Original request: {prompt}\n\n"
+                f"Verified customer brief:\n{json.dumps(brief, ensure_ascii=False, indent=2)}"
+            ),
+            session_id=f'{session_id}-design-fast',
+            temperature=0.45,
+            max_tokens=900,
+        )
+        design_brief = _extract_json(design_raw)
+    except Exception as exc:  # pragma: no cover - design step is a quality upgrade only
+        logger.warning('Fast design-brief call failed (%s); falling back to single-call composition.', exc)
+
+    style_directive = ""
+    if style_profile:
+        style_directive = (
+            f"\n\nEXPLICIT STYLE DIRECTION (override defaults but stay brand-faithful): "
+            f"{style_profile.strip()}\n"
+        )
+    design_block = ""
+    if design_brief:
+        design_block = (
+            f"\n\nDESIGN BRIEF:\n{json.dumps(design_brief, ensure_ascii=False, indent=2)}\n"
+        )
+    context = (
+        f"CUSTOMER REQUEST:\n{prompt}\n\n"
+        f"VERIFIED CUSTOMER BRIEF:\n{json.dumps(confirmed, ensure_ascii=False, indent=2)}\n"
+        f"{design_block}{style_directive}\n"
+        "Compose the complete private draft now."
+    )
+    raw = await professional_builder_completion(
+        system=FAST_COMPOSITION_PROMPT,
+        user=context,
+        session_id=f'{session_id}-fast-compose',
+        temperature=0.38,
+        max_tokens=6000,
+    )
+    html = _repair_html(_extract_html(raw))
+    if not html.lower().startswith('<!doctype html'):
+        raise ProfessionalCompositionError('The fast managed composer did not return a complete reviewable private draft.')
+
+    quality = evaluate_landing_page_quality(html, confirmed)
+    if quality['status'] == 'needs_work':
+        fix_context = (
+            context
+            + "\n\nThis draft failed the automated premium-quality preflight. Correct ONLY these issues, "
+            + "then output the complete corrected HTML document:\n"
+            + "\n".join(f"- {item}" for item in quality.get('next_actions', []))
+        )
+        try:
+            raw2 = await professional_builder_completion(
+                system=FAST_COMPOSITION_PROMPT,
+                user=fix_context,
+                session_id=f'{session_id}-fast-compose-fix',
+                temperature=0.3,
+                max_tokens=6000,
+            )
+            html2 = _repair_html(_extract_html(raw2))
+            if html2.lower().startswith('<!doctype html'):
+                q2 = evaluate_landing_page_quality(html2, confirmed)
+                if q2['required_checks_passed'] >= quality['required_checks_passed']:
+                    html = html2
+                    quality = q2
+        except Exception as exc:  # pragma: no cover - self-heal is best-effort
+            logger.warning('Premium quality self-heal failed; keeping first draft: %s', exc)
+
+    logger.info('Fast professional composition completed: %s chars (quality=%s)', len(html), quality.get('status'))
+    return _sanitize(html)
+
+
+async def polish_site_async(html: str, brief: dict | None = None, session_id: str = 'builder') -> str:
+    """Background polish pass: upgrade the instant draft (visual refinement, stricter
+    accessibility, tighter copy) without changing product truth. Runs after the
+    customer already received the instant result, so there is no wait.
+    """
+    brief = brief or {}
+    confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
+    context = (
+        f"VERIFIED CUSTOMER BRIEF:\n{json.dumps(confirmed, ensure_ascii=False, indent=2)}\n\n"
+        "Refine the provided draft into a more premium, polished result. Keep all product truth, "
+        "sections, and the primary CTA. Improve visual hierarchy, spacing, typography, and "
+        "accessibility only. Do not add testimonials, prices, or claims that are not in the brief."
+    )
+    try:
+        raw = await professional_builder_completion(
+            system=REVIEWER_PROMPT,
+            user=f"Polish this HTML (do not invent proof or claims):\n\n{html}\n\n{context}",
+            session_id=f'{session_id}-polish',
+            temperature=0.25,
+            max_tokens=8000,
+        )
+    except Exception as exc:  # pragma: no cover - network/provider failure must not crash background task
+        logger.warning('Background polish failed, keeping instant draft: %s', exc)
+        return html
+    polished = _repair_html(_extract_html(raw))
+    if polished.lower().startswith('<!doctype html') and len(polished) > len(html) * 0.6:
+        logger.info('Background polish completed: %s chars (was %s)', len(polished), len(html))
+        return _sanitize(polished)
+    return html
+
+
+async def build_site(prompt: str, session_id: str = 'builder', brief: dict | None = None) -> str:
+    """Run the managed professional pipeline: plan → design → code → review.
+
+    The customer brief is supplied as project truth. It is deliberately passed to
+    every stage so a generic prompt cannot override the confirmed offer, audience,
+    CTA, visual direction, or evidence policy.
+    """
+    brief = brief or {}
+    confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
+    enriched_prompt = f"{prompt}\n\nCONFIRMED CUSTOMER BRIEF (treat as product truth):\n{json.dumps(confirmed, ensure_ascii=False)}"
+    plan = await plan_site(enriched_prompt, session_id)
+    design = await design_site(plan, enriched_prompt, session_id)
+    html = await code_site(enriched_prompt, plan, design, session_id)
+    html = _repair_html(await review_site(html, session_id))
+    return _sanitize(html)
+
+_DESIGN_BRIEF_TIMEOUT_SEC = 20.0
 
 async def design_brief_fast(prompt: str, brief: dict | None = None, session_id: str = 'builder') -> dict | None:
     """One extra, small LLM call before fast composition: ask for an explicit
@@ -314,62 +750,3 @@ async def design_brief_fast(prompt: str, brief: dict | None = None, session_id: 
     return design
 
 
-async def compose_site_fast(prompt: str, brief: dict | None = None, session_id: str = 'builder') -> str:
-    """Create a normal customer draft in two managed quality-ladder calls: an
-    optional design brief (palette/fonts/layout), then composition.
-
-    This is intentionally the default customer path — not the full four-agent
-    build_site pipeline (plan -> design -> code -> review), which is too slow
-    given Groq is already rate-limiting this app under a single call per build.
-    The design step here is additive and best-effort: composition proceeds
-    with or without it (see design_brief_fast).
-    """
-    brief = brief or {}
-    confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
-
-    design = await design_brief_fast(prompt, confirmed, session_id)
-
-    context_parts = [
-        f"CUSTOMER REQUEST:\n{prompt}",
-        f"VERIFIED CUSTOMER BRIEF:\n{json.dumps(confirmed, ensure_ascii=False, indent=2)}",
-    ]
-    if design:
-        context_parts.append(
-            "DESIGN BRIEF (follow this palette, fonts and section layout exactly):\n"
-            + json.dumps(design, ensure_ascii=False, indent=2)
-        )
-    context_parts.append("Compose the complete private draft now.")
-    context = "\n\n".join(context_parts)
-
-    raw = await professional_builder_completion(
-        system=FAST_COMPOSITION_PROMPT,
-        user=context,
-        session_id=f'{session_id}-fast-compose',
-        temperature=0.38,
-        max_tokens=6000,
-    )
-    html = _extract_html(raw)
-    if not html.lower().startswith('<!doctype html') or len(html) < 4000:
-        raise ProfessionalCompositionError('The fast managed composer did not return a complete reviewable private draft.')
-    logger.info(
-        'Fast professional composition completed: %s chars (design_brief=%s)',
-        len(html), bool(design),
-    )
-    return _sanitize(html)
-
-
-async def build_site(prompt: str, session_id: str = 'builder', brief: dict | None = None) -> str:
-    """Run the managed professional pipeline: plan → design → code → review.
-
-    The customer brief is supplied as project truth. It is deliberately passed to
-    every stage so a generic prompt cannot override the confirmed offer, audience,
-    CTA, visual direction, or evidence policy.
-    """
-    brief = brief or {}
-    confirmed = {key: value for key, value in brief.items() if value not in (None, '', [])}
-    enriched_prompt = f"{prompt}\n\nCONFIRMED CUSTOMER BRIEF (treat as product truth):\n{json.dumps(confirmed, ensure_ascii=False)}"
-    plan = await plan_site(enriched_prompt, session_id)
-    design = await design_site(plan, enriched_prompt, session_id)
-    html = await code_site(enriched_prompt, plan, design, session_id)
-    html = await review_site(html, session_id)
-    return _sanitize(html)

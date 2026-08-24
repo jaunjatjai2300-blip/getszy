@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import PageState from "@/components/dashboard/PageState";
 import DashboardPageFrame from "@/components/dashboard/DashboardPageFrame";
+import MediaSuite from "./MediaSuite";
 
 /* ─── tiny helpers ─────────────────────────────────────────────────────────── */
 
@@ -985,6 +986,7 @@ const TABS = [
   { id: "video", label: "Video Tools" },
   { id: "social", label: "Social & Agents" },
   { id: "growth", label: "Growth" },
+  { id: "media", label: "Media Suite" },
 ];
 
 export default function CreatorStudio() {
@@ -1014,6 +1016,7 @@ export default function CreatorStudio() {
       {tab === "video" && <VideoTools />}
       {tab === "social" && <SocialAgents />}
       {tab === "growth" && <GrowthTools />}
+      {tab === "media" && <MediaSuite />}
     </DashboardPageFrame>
   );
 }

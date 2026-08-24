@@ -377,6 +377,29 @@ function FilesTab({ projectId, assets, setActiveAsset, onChanged, loading }) {
   const [filter, setFilter] = useState("all"); // all | pinned
   const backend = process.env.REACT_APP_BACKEND_URL || "";
   const [editAsset, setEditAsset] = useState(null); // { asset, text, isWebapp, saving }
+  const [previewTokens, setPreviewTokens] = useState({}); // builderProjectId -> signed preview token
+
+  useEffect(() => {
+    const webappProjectIds = [...new Set((assets || [])
+      .filter((a) => a.kind === "webapp" && a.data?.project_id)
+      .map((a) => a.data.project_id))]
+      .filter((pid) => !(pid in previewTokens));
+    if (webappProjectIds.length === 0) return;
+    let cancelled = false;
+    Promise.all(webappProjectIds.map((pid) =>
+      api.get(`/builder/projects/${pid}/preview-token`)
+        .then((r) => [pid, r.data?.token || null])
+        .catch(() => [pid, null])
+    )).then((entries) => {
+      if (cancelled) return;
+      setPreviewTokens((current) => {
+        const next = { ...current };
+        for (const [pid, token] of entries) next[pid] = token;
+        return next;
+      });
+    });
+    return () => { cancelled = true; };
+  }, [assets, previewTokens]);
 
   const openEdit = async (a) => {
     if (a.kind === "webapp") {
@@ -430,7 +453,11 @@ function FilesTab({ projectId, assets, setActiveAsset, onChanged, loading }) {
 
   const previewUrl = (a) => {
     const d = a.data || {};
-    if (a.kind === "webapp" && d.project_id) return `${backend}/api/builder/projects/${d.project_id}/preview`;
+    if (a.kind === "webapp" && d.project_id) {
+      const token = previewTokens[d.project_id];
+      if (!token) return null;
+      return `${backend}/api/builder/projects/${d.project_id}/preview?token=${encodeURIComponent(token)}`;
+    }
     if (a.kind?.startsWith("starter_") && d.preview_url) return `${backend}${d.preview_url}`;
     if (a.kind === "video_job" && d.status_endpoint) return null;
     return null;

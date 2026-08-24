@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
+import { useBuilderWebsiteOperation } from "@/hooks/useBuilderWebsiteOperation";
+import { useBuilderPreviewToken } from "@/hooks/useBuilderPreviewToken";
+import { OperationStatusCard } from "@/components/operation/OperationStatusCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -132,7 +135,6 @@ function WebAppBuilder({ color }) {
   const navigate = useNavigate();
   const [prompt, setPrompt] = useState("");
   const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
   const [projects, setProjects] = useState([]);
   const [previewId, setPreviewId] = useState(null);
   const [previewDevice, setPreviewDevice] = useState("desktop");
@@ -157,6 +159,17 @@ function WebAppBuilder({ color }) {
 
   const buildCost = Number(creditInfo.costs?.builder_website ?? 0);
   const hasEnoughCredits = creditInfo.credits === null || creditInfo.credits >= buildCost;
+  const { previewUrl, error: previewTokenError } = useBuilderPreviewToken(previewId, { backend: BACKEND_URL });
+  const { operation, busy, start, recover } = useBuilderWebsiteOperation({
+    storageKey: "getszy_builder_webapp_operation",
+    noun: "draft",
+    onSucceeded: async (project, op) => {
+      setPreviewId(op.resource_id);
+      setPreviewQuality(project?.quality_report || null);
+      setCreatedProject(project || null);
+    },
+  });
+  useEffect(() => { recover(); }, []);
 
   const build = async () => {
     if (prompt.trim().length < 4) return toast.error("Tell Neo a little more about your goal first");
@@ -165,26 +178,17 @@ function WebAppBuilder({ color }) {
       ...brief,
       proof_points: proofPoints.split("\n").map((item) => item.trim()).filter(Boolean).slice(0, 6),
     };
-    const mission = {
-      prompt: prompt.trim(),
-      name: name.trim(),
-      brief: normalizedBrief,
-      intention: "professional-composition",
-      createdAt: new Date().toISOString(),
-    };
     const confirmation = `Create a managed professional private draft for ${buildCost} prepaid credits? Groq 70B is used first, with controlled fallback and a quality repair pass. A failed quality check is refunded automatically.`;
     if (!window.confirm(confirmation)) return;
+    sessionStorage.setItem("getszy_mission_draft", JSON.stringify({ prompt: prompt.trim(), name: name.trim(), brief: normalizedBrief, intention: "professional-composition", createdAt: new Date().toISOString() }));
     setCreatedProject(null);
-    setBusy(true); toast.loading("Composing your professional private draft…", { id: "wa", duration: 60000 });
     try {
-      sessionStorage.setItem("getszy_mission_draft", JSON.stringify(mission));
-      const r = await api.post("/builder/projects", { prompt, name, brief: normalizedBrief });
-      toast.success(`Private draft created: ${r.data.name}`, { id: "wa" });
-      setPreviewId(r.data.id); setPreviewQuality(r.data.quality_report || null); setCreatedProject(r.data); sessionStorage.setItem("getszy_last_project_id", r.data.id);
-      await Promise.all([load(), loadCredits()]);
-    } catch (e) { toast.error(e?.response?.data?.detail || "Could not create a reviewable professional draft", { id: "wa" }); }
-    finally { setBusy(false); }
+      await start({ prompt: prompt.trim(), name: name.trim(), brief: normalizedBrief });
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Could not start the managed build");
+    }
   };
+
 
   const del = async (pid) => { try { await api.delete(`/builder/projects/${pid}`); load(); toast.success("Deleted"); } catch (e) { toast.error("Delete failed — please retry"); } };
 
@@ -232,7 +236,7 @@ function WebAppBuilder({ color }) {
       </Button>
 
       <div className="rounded-xl border p-3 text-sm" style={{ borderColor: busy ? "#9dc9ee" : "var(--gs-border)", background: busy ? "#f0f8ff" : "var(--gs-surface-2)" }} aria-live="polite" data-testid="wa-build-status">
-        {busy ? <div className="flex items-start gap-2"><Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-sky-700" /><div><strong>Composing your private draft.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">Neo is applying your brief through the managed quality ladder. This page will show a real finished project or a clear refunded failure—never a made-up progress percentage.</p></div></div> : <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gs-teal)]" /><div><strong>Professional composition, then private review.</strong><p className="mt-1 text-xs leading-5 text-[var(--gs-muted)]">A unique draft is generated from your brief, checked for objective quality failures, and kept private until you inspect and approve it.</p></div></div>}
+        <OperationStatusCard operation={operation} noun="draft" />
       </div>
 
       {createdProject && <div className="rounded-xl border border-[#9ed2c3] bg-[#f0f8f5] p-4" data-testid="wa-created-project"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-sm font-semibold text-[#183c3c]"><CheckCircle2 className="h-4 w-4 text-emerald-700" />Private draft created</div><p className="mt-1 text-xs leading-5 text-[#39685f]">{createdProject.name} is ready for your private review. It has not been published or deployed.</p></div><Button type="button" onClick={() => navigate(`/dashboard/projects/${createdProject.id}`)} className="bg-[#183c3c] text-white hover:bg-[#102f2f]">Review finished project <ExternalLink className="ml-2 h-4 w-4" /></Button></div></div>}
@@ -272,7 +276,7 @@ function WebAppBuilder({ color }) {
                 </Button>
               ))}
               <Button type="button" size="icon" variant="outline" onClick={() => setPreviewId(null)} aria-label="Close preview"><RotateCcw className="h-3.5 w-3.5" /></Button>
-              <a href={`${BACKEND_URL}/api/builder/projects/${previewId}/preview`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium hover:bg-[var(--gs-surface-2)]" style={{ borderColor: "var(--gs-border)" }}><ExternalLink className="h-3.5 w-3.5" />Open</a>
+              {previewUrl ? <a href={previewUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium hover:bg-[var(--gs-surface-2)]" style={{ borderColor: "var(--gs-border)" }}><ExternalLink className="h-3.5 w-3.5" />Open</a> : previewTokenError ? <span className="inline-flex h-8 items-center text-xs font-medium text-rose-600">Preview link unavailable</span> : null}
             </div>
           </div>
           {previewQuality && (
@@ -283,7 +287,7 @@ function WebAppBuilder({ color }) {
           )}
           <div className="overflow-auto p-4">
             <div className={`mx-auto overflow-hidden rounded-xl border bg-white shadow-sm ${previewDevice === "mobile" ? "h-[680px] max-w-[390px]" : previewDevice === "tablet" ? "h-[620px] max-w-[768px]" : "h-[560px] w-full"}`} style={{ borderColor: "var(--gs-border)" }}>
-              <iframe src={`${BACKEND_URL}/api/builder/projects/${previewId}/preview`} className="h-full w-full" title="Private project preview" data-testid="wa-preview-iframe"/>
+              {previewUrl ? <iframe src={previewUrl} className="h-full w-full" title="Private project preview" data-testid="wa-preview-iframe"/> : previewTokenError ? <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[var(--gs-muted)]">The secure preview link could not be prepared. Reload the project to retry.</div> : <div className="flex h-full items-center justify-center gap-2 text-sm text-[var(--gs-muted)]"><Loader2 className="h-4 w-4 animate-spin" />Preparing secure preview…</div>}
             </div>
           </div>
           <div className="flex items-center gap-2 border-t px-4 py-3 text-xs text-[var(--gs-muted)]" style={{ borderColor: "var(--gs-border)" }}><ShieldCheck className="h-4 w-4 text-emerald-600" />This draft is private. Preview does not publish it to a public domain.</div>

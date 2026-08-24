@@ -134,7 +134,39 @@ async def has_enough(user: dict, action: str, qty: int = 1) -> bool:
     return int(user.get('credits', 0) or 0) >= cost
 
 
-async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] = None, user: Optional[dict] = None) -> tuple[bool, str, int]:
+async def reconcile_operation_debit_ledger(user_id: str, action: str, qty: int, ref_id: str, meta: Optional[dict] = None) -> None:
+    """Write the human audit entry for an already atomically-marked operation debit.
+
+    The user-document marker is the financial anti-double-debit authority. This
+    projection may be retried after a process crash without touching balance.
+    """
+    existing = await db.credit_transactions.find_one(
+        {'user_id': user_id, 'type': 'spend', 'ref_id': ref_id}, {'_id': 1}
+    )
+    if existing:
+        return
+    marker_user = await db.users.find_one(
+        {'id': user_id, 'paid_debit_markers.ref_id': ref_id},
+        {'_id': 0, 'credits': 1, 'paid_debit_markers': 1},
+    )
+    if not marker_user:
+        raise ValueError('operation debit marker not found')
+    try:
+        await db.credit_transactions.insert_one({
+            'user_id': user_id, 'type': 'spend', 'action': action, 'qty': qty,
+            'amount': -cost_of(action, qty), 'balance_after': int(marker_user.get('credits', 0) or 0),
+            'ref_id': ref_id, 'meta': meta or {}, 'created_at': _now(),
+        })
+    except DuplicateKeyError:
+        # Another recovery request restored the same audit projection first.
+        pass
+    await db.users.update_one(
+        {'id': user_id, 'paid_debit_markers.ref_id': ref_id},
+        {'$set': {'paid_debit_markers.$.ledger_state': 'WRITTEN'}},
+    )
+
+
+async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] = None, user: Optional[dict] = None, ref_id: Optional[str] = None) -> tuple[bool, str, int]:
     """Atomically deduct credits. Returns (ok, message, balance_after).
     Admin and founder roles bypass credit checks entirely."""
     # Admin/founder bypass — they can use everything for free
@@ -144,6 +176,48 @@ async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] =
         return True, '', int(user.get('credits', 0) or 0)
 
     cost = cost_of(action, qty)
+    if ref_id:
+        # This one-document update is the operation-aware financial authority:
+        # balance and durable marker change together, so a post-update crash
+        # cannot permit a later retry to debit the same operation again.
+        existing_marker = await db.users.find_one(
+            {'id': user_id, 'paid_debit_markers.ref_id': ref_id},
+            {'_id': 0, 'credits': 1},
+        )
+        if existing_marker:
+            await reconcile_operation_debit_ledger(user_id, action, qty, ref_id, meta)
+            return True, '', int(existing_marker.get('credits', 0) or 0)
+        updated = await db.users.find_one_and_update(
+            {
+                'id': user_id,
+                'credits': {'$gte': cost},
+                'paid_debit_markers': {'$not': {'$elemMatch': {'ref_id': ref_id}}},
+            },
+            {
+                '$inc': {'credits': -cost},
+                '$push': {'paid_debit_markers': {
+                    'ref_id': ref_id, 'action': action, 'qty': qty, 'amount': cost,
+                    'debited_at': _now(), 'ledger_state': 'PENDING',
+                }},
+            },
+            return_document=True,
+            projection={'_id': 0, 'credits': 1},
+        )
+        if updated:
+            await reconcile_operation_debit_ledger(user_id, action, qty, ref_id, meta)
+            return True, '', int(updated.get('credits', 0) or 0)
+        existing_marker = await db.users.find_one(
+            {'id': user_id, 'paid_debit_markers.ref_id': ref_id}, {'_id': 0, 'credits': 1}
+        )
+        if existing_marker:
+            await reconcile_operation_debit_ledger(user_id, action, qty, ref_id, meta)
+            return True, '', int(existing_marker.get('credits', 0) or 0)
+        current = await get_balance(user_id)
+        return False, (
+            f'Not enough credits. This action needs {cost} credits, you have {current}. '
+            'Please top up your credit balance to continue.'
+        ), current
+
     updated = await db.users.find_one_and_update(
         {'id': user_id, 'credits': {'$gte': cost}},
         {'$inc': {'credits': -cost}},

@@ -8,9 +8,8 @@ os.environ.setdefault('MONGO_URL', 'mongodb://127.0.0.1:27017')
 os.environ.setdefault('JWT_SECRET', 'test-only-builder-control-contract-secret')
 
 from models import BuilderEvidenceItem, BuilderEvidenceUpdateIn, BuilderReleaseReviewIn, BuilderVersionIn, BuilderProjectIn
-from brief_intelligence import BriefIntelligenceV3
 import routes_builder as builder_routes
-from routes_builder import router, create_project
+from routes_builder import router, create_project_operation
 
 
 def test_builder_control_models_validate_customer_review_data():
@@ -35,62 +34,65 @@ class _BuilderDB:
         self.builder_projects = _ProjectCollection()
 
 
+def _fake_operation(operation_id='op-1'):
+    return {
+        'operation_id': operation_id, 'user_id': 'customer-test', 'action_type': 'builder_website',
+        'status': 'PENDING', 'credit_state': 'NOT_DEBITED', 'resource_id': None,
+        'result_ref': None, 'failure_code': None,
+        'created_at': '2024-01-01T00:00:00+00:00', 'updated_at': '2024-01-01T00:00:00+00:00',
+        'started_at': None, 'completed_at': None,
+    }
+
+
 @pytest.mark.asyncio
-async def test_new_page_uses_managed_composition_and_saves_private_draft(monkeypatch):
-    fake_db = _BuilderDB()
-    charges = []
+async def test_create_project_operation_returns_accepted_envelope(monkeypatch):
+    captured = {}
 
-    async def fake_deduct(*args, **kwargs):
-        charges.append((args, kwargs))
-        return True, '', 75
+    async def fake_create(*, user_id, action_type, idempotency_key, payload):
+        captured.update({
+            'user_id': user_id, 'action_type': action_type,
+            'idempotency_key': idempotency_key, 'payload': payload,
+        })
+        return _fake_operation(), True
 
-    async def fake_compose(*args, **kwargs):
-        return "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width'><title>Beauty Studio</title><meta name='description' content='Beauty appointments'></head><body><header><a>Book now</a></header><main><section><h1>Beauty Studio</h1></section><section><p>How it works</p></section><section><button>Book now</button></section></main><footer></footer><style>@media (max-width:600px){body{padding:1rem}} .hero{background:linear-gradient(#123,#456)}</style></body></html>"
+    monkeypatch.setattr(builder_routes, 'create_or_reuse_operation', fake_create)
+    monkeypatch.setattr(builder_routes.asyncio, 'create_task', lambda coro: None)
 
-    async def fake_extract(*args, **kwargs):
-        return BriefIntelligenceV3(business_name='Beauty Studio', primary_goal='Bookings', cta='Book now')
-
-    monkeypatch.setattr(builder_routes, 'db', fake_db)
-    monkeypatch.setattr(builder_routes, 'extract_brief_v3', fake_extract)
-    monkeypatch.setattr(builder_routes, 'deduct', fake_deduct)
-    monkeypatch.setattr(builder_routes, 'compose_site_fast', fake_compose)
-    result = await create_project(
+    result = await create_project_operation(
         BuilderProjectIn(prompt='Build a beauty studio website', brief={'primary_goal': 'Book appointments', 'primary_cta': 'Book now'}),
-        user={'id': 'customer-test', 'role': 'customer', 'credits': 100},
+        idempotency_key='key-1',
+        user={'id': 'customer-test', 'role': 'customer'},
     )
 
-    assert charges and charges[0][0][1] == 'builder_website'
-    assert result['template_id'] is None
-    assert fake_db.builder_projects.saved[0]['html_content'].startswith('<!DOCTYPE html>')
+    assert result['accepted'] is True
+    assert result['reused'] is False
+    assert result['operation']['operation_id'] == 'op-1'
+    assert result['operation']['status'] == 'PENDING'
+    assert captured['action_type'] == 'builder_website'
+    assert captured['idempotency_key'] == 'key-1'
+    assert captured['payload']['prompt'] == 'Build a beauty studio website'
 
 
 @pytest.mark.asyncio
-async def test_failed_composition_refunds_customer_credit(monkeypatch):
-    refunds = []
+async def test_create_project_operation_reuses_same_idempotency_key(monkeypatch):
+    async def fake_create(*, user_id, action_type, idempotency_key, payload):
+        return _fake_operation(), True
 
-    async def fake_deduct(*args, **kwargs):
-        return True, '', 75
+    monkeypatch.setattr(builder_routes, 'create_or_reuse_operation', fake_create)
+    monkeypatch.setattr(builder_routes.asyncio, 'create_task', lambda coro: None)
+    body = BuilderProjectIn(prompt='Build a beauty studio website')
 
-    async def fail_compose(*args, **kwargs):
-        raise builder_routes.ProfessionalCompositionError('quality failure')
+    r1 = await create_project_operation(body, idempotency_key='same-key', user={'id': 'customer-test', 'role': 'customer'})
+    assert r1['reused'] is False
 
-    async def fake_refund(*args, **kwargs):
-        refunds.append((args, kwargs))
-        return 100
+    async def fake_reuse(*, user_id, action_type, idempotency_key, payload):
+        return _fake_operation(), False
 
-    async def fake_extract(*args, **kwargs):
-        return BriefIntelligenceV3(business_name='Beauty Studio')
+    monkeypatch.setattr(builder_routes, 'create_or_reuse_operation', fake_reuse)
+    r2 = await create_project_operation(body, idempotency_key='same-key', user={'id': 'customer-test', 'role': 'customer'})
 
-    monkeypatch.setattr(builder_routes, 'extract_brief_v3', fake_extract)
-    monkeypatch.setattr(builder_routes, 'deduct', fake_deduct)
-    monkeypatch.setattr(builder_routes, 'compose_site_fast', fail_compose)
-    monkeypatch.setattr(builder_routes, 'refund', fake_refund)
-
-    with pytest.raises(HTTPException) as exc:
-        await create_project(BuilderProjectIn(prompt='Build a beauty studio website'), user={'id': 'customer-test', 'role': 'customer', 'credits': 100})
-
-    assert exc.value.status_code == 422
-    assert refunds and refunds[0][1]['reason'] == 'professional_composition_quality_failed'
+    assert r2['reused'] is True
+    assert r1['operation']['operation_id'] == r2['operation']['operation_id']
 
 
 def test_builder_control_routes_are_registered_before_dynamic_project_route():

@@ -175,12 +175,14 @@ async def test_ai_chat_delete_requires_target(monkeypatch):
 @pytest.mark.asyncio
 async def test_builder_preview_is_csp_sandboxed(monkeypatch):
     import routes_builder
+    import auth
     class FakeColl:
         async def find_one(self, *a, **k):
             return {'html_content': '<script>alert(1)</script><h1>hi</h1>'}
     class FakeDB:
         builder_projects = FakeColl()
     monkeypatch.setattr(routes_builder, 'db', FakeDB())
-    resp = await routes_builder.preview_project('pid1')
+    token = auth.create_preview_token('user-x', 'pid1')
+    resp = await routes_builder.preview_project('pid1', token=token)
     assert 'sandbox' in resp.headers.get('Content-Security-Policy', '')
 
