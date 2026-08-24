@@ -85,7 +85,7 @@ export default function LifestyleWorld({ catalog, config }) {
           <motion.h1
             initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-            className="font-display mt-6 max-w-4xl text-[42px] leading-[1.03] sm:text-6xl lg:text-[70px]"
+            className="font-display mt-6 max-w-4xl gs-display"
             style={{ color: "var(--w-ink)" }}
           >
             The room remembers<br />what you chose.

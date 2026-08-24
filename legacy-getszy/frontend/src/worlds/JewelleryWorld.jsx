@@ -98,7 +98,7 @@ export default function JewelleryWorld({ catalog, config }) {
           <motion.h1
             initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
-            className="font-display mt-8 max-w-3xl text-[40px] leading-[1.06] sm:text-6xl lg:text-[64px]"
+            className="font-display mt-8 max-w-3xl gs-display"
             style={{ color: "var(--w-ink)" }}
           >
             Kept, not collected.

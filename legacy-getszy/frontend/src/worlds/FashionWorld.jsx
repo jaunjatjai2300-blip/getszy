@@ -110,7 +110,7 @@ function EditorialHero({ category, lead }) {
             </motion.span>
             <motion.h1
               variants={reveal}
-              className="font-display mt-6 text-[42px] leading-[1.02] sm:text-6xl lg:text-[68px]"
+              className="font-display mt-6 gs-display"
               style={{ color: "var(--w-ink)" }}
             >
               Dress the life

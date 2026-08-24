@@ -57,7 +57,14 @@
     -moz-osx-font-smoothing: grayscale;
     margin: 0;
   }
-  h1, h2, .font-display { font-family: 'Gloock', serif; letter-spacing: -0.01em; }
+  h1, h2, .font-display {
+    font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
+    /* Fraunces is variable: real weight range, unlike Gloock which shipped a
+       single 400 weight and forced hierarchy to rest on size alone. */
+    font-weight: 400;
+    font-optical-sizing: auto;
+    letter-spacing: -0.01em;
+  }
   ::selection { background: rgba(197,139,122,0.25); }
 }
 
@@ -470,4 +477,69 @@
    the compound selector keeps the core and iris untouched. */
 @media (max-width: 767px) {
   .gs-neo > .gs-neo-orbit:nth-child(n + 10) { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TYPE RAMP — six steps, fluid.
+
+   Replaces an ad-hoc mix of arbitrary pixel values (text-[40px], text-[42px],
+   text-[64px], text-[68px], text-[70px], text-[72px]) and Tailwind steps, which
+   meant no two worlds shared a heading size.
+
+   Sizes use clamp() against viewport width, so 375/390/430px are handled by the
+   same rule rather than by per-breakpoint overrides — one source of truth, and
+   no breakpoint gap where a heading jumps.
+
+   Optical tracking: large display type needs to be tighter than body text or it
+   reads loose and cheap. Each step carries its own tracking rather than
+   inheriting one global value.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@layer components {
+  /* 1 — Hero display. One per page, top of a world. */
+  .gs-display {
+    font-size: clamp(2.5rem, 1.6rem + 3.8vw, 4.5rem);   /* 40px -> 72px */
+    line-height: 1.03;
+    letter-spacing: -0.022em;                            /* tightest: largest type */
+    font-weight: 400;
+  }
+
+  /* 2 — Section heading. */
+  .gs-h1 {
+    font-size: clamp(2rem, 1.45rem + 2.3vw, 3.25rem);    /* 32px -> 52px */
+    line-height: 1.08;
+    letter-spacing: -0.018em;
+    font-weight: 400;
+  }
+
+  /* 3 — Sub-section heading. */
+  .gs-h2 {
+    font-size: clamp(1.625rem, 1.35rem + 1.15vw, 2.25rem); /* 26px -> 36px */
+    line-height: 1.15;
+    letter-spacing: -0.012em;
+    font-weight: 400;
+  }
+
+  /* 4 — Card / product title. */
+  .gs-h3 {
+    font-size: clamp(1.125rem, 1.03rem + 0.4vw, 1.375rem); /* 18px -> 22px */
+    line-height: 1.3;
+    letter-spacing: -0.006em;
+    font-weight: 500;
+  }
+
+  /* 5 — Body / lede. */
+  .gs-body {
+    font-size: clamp(1rem, 0.96rem + 0.18vw, 1.125rem);  /* 16px -> 18px */
+    line-height: 1.6;
+    letter-spacing: 0;
+  }
+
+  /* 6 — Eyebrow / uppercase label. Tracking opens up as size drops. */
+  .gs-label {
+    font-size: 0.6875rem;                                 /* 11px */
+    line-height: 1.4;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
 }
