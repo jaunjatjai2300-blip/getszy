@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/auth";
 import Home from "@/pages/Home";
-import Shop from "@/pages/Shop";
+import CategoryPage from "@/pages/CategoryPage";
 import ProductDetail from "@/pages/ProductDetail";
 import Cart from "@/pages/Cart";
 import Checkout from "@/pages/Checkout";
@@ -133,8 +133,12 @@ export default function App() {
         <Routes>
           <Route element={<StorefrontLayout />}>
             <Route path="/" element={<Home />} />
-            <Route path="/shop" element={<Shop />} />
-            <Route path="/category/:slug" element={<Shop />} />
+            {/* Both routes resolve through CategoryPage, which picks the
+                category's visual world (see worlds/registry.js) and falls back
+                to a neutral presentation for categories without one yet.
+                URLs are unchanged. */}
+            <Route path="/shop" element={<CategoryPage />} />
+            <Route path="/category/:slug" element={<CategoryPage />} />
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
