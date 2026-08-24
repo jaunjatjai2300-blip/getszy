@@ -139,3 +139,182 @@
 .prose-dashboard blockquote { @apply border-l-2 border-[var(--gs-teal)] pl-3 italic text-[var(--gs-muted)] my-2; }
 .prose-dashboard hr { @apply my-3 border-[var(--gs-surface)]; }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIVING GLASS WORLD — foundation
+   Rule: "Calm by default. Magical when it matters."
+
+   Three glass levels, chosen by JOB not by taste:
+     L1 Crystal  — hero / feature surfaces. Strong blur. FEW instances per page.
+     L2 Frosted  — cards, nav. Light blur. MANY instances, so blur stays cheap.
+     L3 Solid    — conversion actions (Add to Bag, Buy, Checkout). NO blur,
+                   near-opaque, maximum legibility. Never sacrifice these.
+
+   Performance: backdrop-filter is the expensive property. Cost scales with
+   (blur radius x number of blurred surfaces on screen). L2 is deliberately the
+   cheapest blur because product grids show 12-20 of them at once on mobile.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Glass on LIGHT surfaces (default page bg #FBF7F2) */
+  --gs-g1-bg: rgba(255, 253, 251, 0.55);
+  --gs-g1-border: rgba(255, 255, 255, 0.85);
+  --gs-g1-blur: 20px;
+  --gs-g1-shadow: 0 24px 70px rgba(27, 26, 24, 0.13);
+
+  --gs-g2-bg: rgba(255, 253, 251, 0.82);   /* high enough that --gs-ink stays >7:1 */
+  --gs-g2-border: rgba(231, 217, 206, 0.9);
+  --gs-g2-blur: 8px;                        /* deliberately small: many instances */
+  --gs-g2-shadow: var(--gs-shadow-sm);
+
+  --gs-g3-bg: var(--gs-primary);            /* conversion: opaque, no blur at all */
+  --gs-g3-ink: #ffffff;
+
+  /* Luminous edge — the "light catches the rim" detail */
+  --gs-edge: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0) 45%);
+
+  /* Motion tokens — one vocabulary so nothing feels ad-hoc */
+  --gs-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --gs-dur-fast: 160ms;
+  --gs-dur: 260ms;
+  --gs-dur-slow: 520ms;
+}
+
+/* Glass on DARK surfaces (.gs-dark sections) */
+.gs-dark {
+  --gs-g1-bg: rgba(255, 255, 255, 0.10);
+  --gs-g1-border: rgba(255, 255, 255, 0.22);
+  --gs-g2-bg: rgba(255, 255, 255, 0.07);
+  --gs-g2-border: rgba(255, 255, 255, 0.14);
+  --gs-g1-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+  --gs-edge: linear-gradient(135deg, rgba(255,255,255,0.35), rgba(255,255,255,0) 45%);
+}
+
+@layer components {
+  /* ── L1 Crystal ───────────────────────────────────────────────────────── */
+  .gs-glass-1 {
+    position: relative;
+    background: var(--gs-g1-bg);
+    border: 1px solid var(--gs-g1-border);
+    border-radius: 24px;
+    box-shadow: var(--gs-g1-shadow);
+    backdrop-filter: blur(var(--gs-g1-blur)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--gs-g1-blur)) saturate(1.4);
+  }
+  /* Luminous rim. Pseudo-element so it never affects layout or text contrast. */
+  .gs-glass-1::before {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: var(--gs-edge);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* ── L2 Frosted ───────────────────────────────────────────────────────── */
+  .gs-glass-2 {
+    background: var(--gs-g2-bg);
+    border: 1px solid var(--gs-g2-border);
+    border-radius: 18px;
+    box-shadow: var(--gs-g2-shadow);
+    backdrop-filter: blur(var(--gs-g2-blur));
+    -webkit-backdrop-filter: blur(var(--gs-g2-blur));
+  }
+
+  /* ── L3 Solid — conversion. Opaque on purpose. ────────────────────────── */
+  .gs-glass-3 {
+    background: var(--gs-g3-bg);
+    color: var(--gs-g3-ink);
+    border: 1px solid transparent;
+    border-radius: 14px;
+    box-shadow: var(--gs-shadow-md);
+    backdrop-filter: none;               /* never blur a buy button */
+    transition: background-color var(--gs-dur-fast) var(--gs-ease),
+                transform var(--gs-dur-fast) var(--gs-ease);
+  }
+  .gs-glass-3:hover { background: var(--gs-primary-2); }
+  .gs-glass-3:active { transform: translateY(1px); }
+}
+
+/* ── Dynamic lighting: one slow light source drifting behind the glass ─────
+   Transform-only animation (compositor thread), so it does not cause layout
+   or paint work on scroll. Parent must be position:relative + overflow:hidden. */
+@keyframes gs-light-drift {
+  0%   { transform: translate3d(-18%, -12%, 0) scale(1); }
+  50%  { transform: translate3d(14%, 10%, 0) scale(1.15); }
+  100% { transform: translate3d(-18%, -12%, 0) scale(1); }
+}
+.gs-lightsource {
+  position: absolute;
+  inset: -25%;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(closest-side, rgba(243, 226, 199, 0.55), transparent 70%),
+    radial-gradient(closest-side, rgba(215, 240, 238, 0.45), transparent 70%);
+  background-position: 25% 30%, 75% 60%;
+  background-size: 55% 55%, 50% 50%;
+  background-repeat: no-repeat;
+  animation: gs-light-drift 28s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* ── Liquid motion: very slow blob drift. Never aggressive. ──────────────── */
+@keyframes gs-liquid {
+  0%, 100% { border-radius: 42% 58% 63% 37% / 47% 42% 58% 53%; transform: translate3d(0,0,0) rotate(0deg); }
+  50%      { border-radius: 58% 42% 37% 63% / 53% 58% 42% 47%; transform: translate3d(0,-2%,0) rotate(8deg); }
+}
+.gs-liquid { animation: gs-liquid 22s ease-in-out infinite; will-change: transform, border-radius; }
+
+/* ═══ GUARDRAILS ═══════════════════════════════════════════════════════════
+   Everything above degrades safely. These blocks are not optional polish —
+   they are what keeps the design usable on real devices.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* 1. Browsers without backdrop-filter get solid surfaces, not transparent mush. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .gs-glass-1 { background: rgba(255, 253, 251, 0.96); }
+  .gs-glass-2 { background: rgba(255, 253, 251, 0.98); }
+  .gs-dark .gs-glass-1 { background: rgba(27, 21, 16, 0.92); }
+  .gs-dark .gs-glass-2 { background: rgba(27, 21, 16, 0.88); }
+}
+
+/* 2. Performance mode. Set data-fx="reduced" on <html> for low-end devices.
+      Kills every blur and ambient animation; layout and colour stay identical. */
+[data-fx="reduced"] .gs-glass-1,
+[data-fx="reduced"] .gs-glass-2 {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: var(--gs-surface);
+}
+[data-fx="reduced"] .gs-dark .gs-glass-1,
+[data-fx="reduced"] .gs-dark .gs-glass-2 { background: rgba(27, 21, 16, 0.9); }
+[data-fx="reduced"] .gs-lightsource,
+[data-fx="reduced"] .gs-liquid { animation: none !important; }
+
+/* 3. Reduced motion: ambient animation stops entirely. The global
+      prefers-reduced-motion block above sets duration to ~0, which would make
+      these infinite loops jitter; `animation: none` is the correct treatment. */
+@media (prefers-reduced-motion: reduce) {
+  .gs-lightsource, .gs-liquid { animation: none !important; }
+}
+
+/* 4. Mobile: blur is most expensive exactly where devices are weakest.
+      Halve L1 blur and drop L2 blur entirely below the tablet breakpoint. */
+@media (max-width: 767px) {
+  :root { --gs-g1-blur: 10px; }
+  .gs-glass-2 { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--gs-surface); }
+}
+
+/* 5. Never animate backdrop-filter. Transitioning it forces the compositor to
+      re-blur the backdrop every frame of the transition — on a grid of 12-20
+      frosted cards that is a guaranteed jank source. Tailwind's blanket
+      `transition` utility includes backdrop-filter, so glass surfaces pin the
+      transition list to cheap properties. Use `transition-colors` on glass,
+      never bare `transition`. */
+.gs-glass-1, .gs-glass-2 {
+  transition-property: background-color, border-color, box-shadow, transform;
+}

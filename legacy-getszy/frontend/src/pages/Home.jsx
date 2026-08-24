@@ -355,6 +355,9 @@ function Hero({ onAskNeo }) {
   return (
     <section className="relative overflow-hidden">
       <div className="gs-hero-wash absolute inset-0" />
+      {/* Slow-drifting light source. Transform-only, compositor-thread, and
+          disabled under data-fx="reduced" / prefers-reduced-motion. */}
+      <div className="gs-lightsource" aria-hidden="true" />
       <div className="gs-noise" />
       <div className="gs-container relative pt-14 pb-12 lg:pt-24 lg:pb-24">
         <div className="grid lg:grid-cols-12 gap-10 items-center">
@@ -362,14 +365,14 @@ function Hero({ onAskNeo }) {
             <span className="gs-eyebrow">Shop · Learn · Build · Grow · Earn</span>
             <h1 className="font-display text-[44px] sm:text-6xl lg:text-[72px] leading-[0.98] mt-5 text-[#1B1A18]">Made for women<br/>who <span className="text-[#C58B7A] italic">do it all.</span></h1>
             <p className="mt-6 text-lg text-[#5F5951] max-w-xl">One rooftop for your style, your skills and your business — shop women-led brands, learn real skills, and let Neo build the rest.</p>
-            <form onSubmit={submit} className="mt-8 flex items-center gap-2 rounded-full bg-white border border-[#E7D9CE] shadow-[0_14px_40px_rgba(27,26,24,0.10)] p-2 pl-5 max-w-xl">
+            <form onSubmit={submit} className="gs-glass-1 mt-8 flex items-center gap-2 !rounded-full p-2 pl-5 max-w-xl">
               <Sparkles className="h-5 w-5 text-[#C58B7A]" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask Neo to plan, build or find anything…" className="flex-1 bg-transparent outline-none text-[#1B1A18] placeholder:text-[#9A8E82]" />
               <button className="gs-btn-primary rounded-full">Go</button>
             </form>
             <div className="mt-4 flex flex-wrap gap-2">
               {["Start a business", "Plan my brand", "Find a gift", "Learn Content"].map((s) => (
-                <button key={s} onClick={() => onAskNeo && onAskNeo(s)} className="gs-pill bg-white border border-[#E7D9CE] text-[#5F5951] hover:border-[#C58B7A] transition">{s}</button>
+                <button key={s} onClick={() => onAskNeo && onAskNeo(s)} className="gs-pill gs-glass-2 !rounded-full text-[#5F5951] hover:border-[#C58B7A] transition-colors">{s}</button>
               ))}
             </div>
             <div className="mt-8 flex flex-wrap items-center gap-4">
