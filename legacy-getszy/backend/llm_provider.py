@@ -24,6 +24,10 @@ logger = logging.getLogger('getszy.llm')
 
 # ── Config ────────────────────────────────────────────────────────────────────
 FREE_ONLY        = os.environ.get('FREE_ONLY', 'true').lower() != 'false'
+# Race mode fires every configured provider concurrently and returns the first
+# valid success. This is the "instant output" guarantee for free/open models:
+# whichever model answers first wins, and a single working provider is enough.
+LLM_RACE         = os.environ.get('LLM_RACE', 'true').lower() != 'false'
 GROQ_API_KEY     = os.environ.get('GROQ_API_KEY', '').strip()
 # Live model availability varies by Groq account. The former Llama 3.3 70B
 # default was not available to Getszy's account and caused HTTP 404. Qwen 3.6
@@ -35,11 +39,16 @@ GEMINI_API_KEY   = os.environ.get('GEMINI_API_KEY', '').strip()
 # configurable, but default to the confirmed stable 2.5 Flash identifier.
 GEMINI_MODEL     = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash').strip()
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '').strip()
-# Never use an auto-routing or "best free" OpenRouter selector for paid customer
-# output. Operators must explicitly enable one known model as a final fallback.
-OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'qwen/qwen-2.5-72b-instruct').strip()
+# Customer output MUST stay free. OpenRouter is only allowed when the chosen model
+# carries the explicit `:free` suffix (enforced in _openrouter_customer_allowed).
+# Default to a reliable free model and enable it in the race by default.
+OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'meta-llama/llama-3.1-8b-instruct:free').strip()
+# Optional extra free OpenRouter models (comma-separated); each MUST end with :free.
+OPENROUTER_FREE_MODELS = [
+    m.strip() for m in os.environ.get('OPENROUTER_FREE_MODELS', '').split(',') if m.strip()
+]
 OPENROUTER_CUSTOMER_FALLBACK = os.environ.get(
-    'OPENROUTER_CUSTOMER_FALLBACK', 'false'
+    'OPENROUTER_CUSTOMER_FALLBACK', 'true'
 ).strip().lower() in ('1', 'true', 'yes')
 OLLAMA_BASE_URL  = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
 OLLAMA_SECRET    = os.environ.get('OLLAMA_SECRET', '')
@@ -66,6 +75,28 @@ if not OLLAMA_MODELS:
 GROQ_DAILY_LIMIT   = int(os.environ.get('GROQ_DAILY_LIMIT', '11000'))
 GEMINI_DAILY_LIMIT = int(os.environ.get('GEMINI_DAILY_LIMIT', '1200'))
 
+# ── Free-tier token/quota guard (compulsory) ─────────────────────────────────
+# Every external request is capped comfortably UNDER each provider's published
+# free ceiling so we can never trip a 429 / over-quota rejection. Local models
+# (Ollama/LM Studio) are exempt — they have no external quota. PAID providers
+# (Emergent/gpt-4o-mini) are forbidden by policy regardless of FREE_ONLY.
+PER_PROVIDER_MAX_TOKENS = {
+    'groq': int(os.environ.get('GROQ_MAX_TOKENS', '4096')),
+    'gemini': int(os.environ.get('GEMINI_MAX_TOKENS', '8192')),
+    'openrouter': int(os.environ.get('OPENROUTER_MAX_TOKENS', '4096')),
+}
+TOKEN_BUDGETS = {
+    'groq':      {'tpm': int(os.environ.get('GROQ_TPM_LIMIT', '12000')),
+                  'daily': int(os.environ.get('GROQ_DAILY_TOKENS', '450000'))},
+    'gemini':    {'tpm': int(os.environ.get('GEMINI_TPM_LIMIT', '150000')),
+                  'daily': int(os.environ.get('GEMINI_DAILY_TOKENS', '800000'))},
+    'openrouter':{'tpm': int(os.environ.get('OPENROUTER_TPM_LIMIT', '12000')),
+                  'daily': int(os.environ.get('OPENROUTER_DAILY_TOKENS', '450000'))},
+}
+# Paid providers are forbidden by policy. Emergent (gpt-4o-mini) is paid.
+ALLOW_PAID_PROVIDERS = os.environ.get('ALLOW_PAID_PROVIDERS', 'false').strip().lower() in ('1', 'true', 'yes')
+PAID_PROVIDERS = {'emergent'}
+
 # ── In-memory daily counters (reset at midnight UTC) ─────────────────────────
 _counters: dict = {}
 
@@ -89,6 +120,57 @@ def _under_limit(provider: str) -> bool:
     return _count(provider) < limits.get(provider, 999999)
 
 
+class _BudgetExceeded(Exception):
+    """Provider would exceed its free-tier token budget; treated as a skip."""
+
+
+# Token usage tracking (estimated) for the free-tier guard.
+_TOK_MIN: dict = {}   # provider -> list[(mono_ts, tokens)] within last 60s
+_TOK_DAY: dict = {}   # "provider:YYYY-MM-DD" -> tokens
+
+
+def _within_token_budget(provider: str, est: int) -> bool:
+    """True if `est` estimated tokens fit the provider's rolling 60s + daily free budget."""
+    if provider in ('ollama', 'lmstudio'):
+        return True  # local, no external quota
+    cfg = TOKEN_BUDGETS.get(provider)
+    if not cfg:
+        return True
+    now = time.monotonic()
+    win = _TOK_MIN.setdefault(provider, [])
+    while win and win[0][0] < now - 60.0:
+        win.pop(0)
+    used_min = sum(n for _, n in win)
+    if used_min + est > cfg['tpm']:
+        return False
+    day_key = f'{provider}:{_today()}'
+    if _TOK_DAY.get(day_key, 0) + est > cfg['daily']:
+        return False
+    return True
+
+
+def _spend_tokens(provider: str, est: int):
+    if provider in ('ollama', 'lmstudio'):
+        return
+    now = time.monotonic()
+    _TOK_MIN.setdefault(provider, []).append((now, est))
+    day_key = f'{provider}:{_today()}'
+    _TOK_DAY[day_key] = _TOK_DAY.get(day_key, 0) + est
+
+
+def _budget_wrap(provider: str, fn, est: int):
+    """Wrap a provider call so it is skipped (not hard-failed) when its free-tier
+    token budget is exhausted, and records estimated usage on success."""
+    async def wrapped():
+        if not _within_token_budget(provider, est):
+            logger.info(f'LLM {provider} skipped: free-tier token budget reached')
+            raise _BudgetExceeded(provider)
+        result = await fn()
+        _spend_tokens(provider, est)
+        return result
+    return wrapped
+
+
 def _is_rate_limited(e: Exception) -> bool:
     """True if the provider rejected us with HTTP 429 (rate limit)."""
     try:
@@ -106,6 +188,15 @@ def _retry_after(e: Exception, base: float) -> float:
     except Exception:
         pass
     return base
+
+
+def _default_validate(text: str | None) -> bool:
+    """A provider "succeeded" only if it returned non-empty content.
+
+    We never accept an empty 200 as success — that would surface a blank page
+    to the customer. Callers may pass a stricter validator (e.g. HTML shape).
+    """
+    return bool(text and str(text).strip())
 
 
 # ── Groq rate limiting (RPM + TPM pacer with adaptive backoff) ──────────────
@@ -321,7 +412,8 @@ async def _emergent(system: str, user: str, session_id: str) -> str:
     return await chat.send_message(UserMessage(text=user))
 
 
-async def _openrouter(system: str, user: str, temperature: float, max_tokens: int | None = None) -> str:
+async def _openrouter(system: str, user: str, temperature: float, max_tokens: int | None = None, model: str | None = None) -> str:
+    model = model or OPENROUTER_MODEL
     async with httpx.AsyncClient(timeout=60.0) as client:
         r = await client.post(
             'https://openrouter.ai/api/v1/chat/completions',
@@ -331,7 +423,7 @@ async def _openrouter(system: str, user: str, temperature: float, max_tokens: in
                 'X-Title': 'Getszy',
             },
             json={
-                'model': OPENROUTER_MODEL,
+                'model': model,
                 'messages': [
                     {'role': 'system', 'content': system},
                     {'role': 'user', 'content': user},
@@ -363,31 +455,39 @@ LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'groq').strip().lower()
 
 
 def _build_chain(system, user, temperature, session_id, max_tokens: int | None = None) -> list:
-    """Return the deterministic managed customer provider ladder.
+    """Deterministic managed customer provider ladder — FREE-TIER ONLY.
 
-    A fixed model name is required for every external fallback. This prevents
-    model roulette and keeps quality/cost behaviour predictable for customers.
+    Order: Groq -> Gemini -> OpenRouter(:free) -> Ollama -> LM Studio.
+    Every external call is wrapped with the token-budget guard and capped to a
+    safe per-provider max_tokens so we never approach a free quota. Paid
+    providers (Emergent/gpt-4o-mini) are hard-blocked by policy.
     """
     chain = []
+    cap = PER_PROVIDER_MAX_TOKENS
+    mt_groq = min(max_tokens or 10**9, cap['groq'])
+    mt_gemini = min(max_tokens or 10**9, cap['gemini'])
+    mt_or = min(max_tokens or 10**9, cap['openrouter'])
 
     if GROQ_API_KEY and _under_limit('groq'):
-        chain.append(('groq', lambda: _groq(system, user, temperature, max_tokens)))
+        est = _est_tokens(system) + _est_tokens(user) + mt_groq
+        chain.append(('groq', _budget_wrap('groq', lambda: _groq(system, user, temperature, mt_groq), est)))
     if GEMINI_API_KEY and _under_limit('gemini'):
-        chain.append(('gemini', lambda: _gemini(system, user, temperature, max_tokens)))
+        est = _est_tokens(system) + _est_tokens(user) + mt_gemini
+        chain.append(('gemini', _budget_wrap('gemini', lambda: _gemini(system, user, temperature, mt_gemini), est)))
     if _openrouter_customer_allowed():
-        chain.append(('openrouter', lambda: _openrouter(system, user, temperature, max_tokens)))
-
-    # Local providers are resilience fallbacks, never the default customer model.
+        est = _est_tokens(system) + _est_tokens(user) + mt_or
+        chain.append(('openrouter', _budget_wrap('openrouter', lambda: _openrouter(system, user, temperature, mt_or), est)))
+        for m in OPENROUTER_FREE_MODELS:
+            if m.endswith(':free'):
+                chain.append((f'openrouter:{m}', _budget_wrap('openrouter', lambda m=m: _openrouter(system, user, temperature, mt_or, model=m), est)))
     if OLLAMA_MODELS:
-        chain.append(('ollama', lambda: _ollama_chain(system, user, temperature, max_tokens)))
-    chain.append(('lmstudio', lambda: _lmstudio(system, user, temperature, max_tokens)))
+        est = _est_tokens(system) + _est_tokens(user)
+        chain.append(('ollama', _budget_wrap('ollama', lambda: _ollama_chain(system, user, temperature, None), est)))
+    if LMSTUDIO_BASE_URL:
+        est = _est_tokens(system) + _est_tokens(user)
+        chain.append(('lmstudio', _budget_wrap('lmstudio', lambda: _lmstudio(system, user, temperature, None), est)))
 
-    # Keep optional Emergent/OpenAI-compatible use isolated and opt-in. It is not
-    # included in customer composition unless operators explicitly disable the
-    # prepaid-only guard for a separate approved workflow.
-    if EMERGENT_LLM_KEY and not FREE_ONLY:
-        chain.append(('emergent', lambda: _emergent(system, user, session_id)))
-
+    # Paid providers (Emergent) are intentionally never added to the customer chain.
     return chain
 
 
@@ -398,36 +498,69 @@ class LLMServiceUnavailable(Exception):
     FastAPI converts this to a clean 503 (see server.py) so users never see a raw 500."""
 
 
-async def _run_provider_chain(chain: list, *, session_id: str) -> str:
-    """Run a prepared provider chain with the shared rate-limit/retry discipline."""
-    last_error = None
-    for name, fn in chain:
-        # Retry one 429 before dropping to the next provider. The provider-specific
-        # pacer controls normal concurrency; this is only a transient recovery path.
-        for _attempt in range(4):
-            try:
-                result = await fn()
-                if name == 'groq':
-                    _increment('groq')
-                    _groq_relax()
-                    logger.info(f'LLM: groq ({_count("groq")}/{GROQ_DAILY_LIMIT} today)')
-                elif name == 'gemini':
-                    _increment('gemini')
-                    logger.info(f'LLM: gemini ({_count("gemini")}/{GEMINI_DAILY_LIMIT} today)')
-                else:
-                    logger.info(f'LLM: {name}')
-                return result
-            except Exception as e:
-                if _is_rate_limited(e) and _attempt == 0:
-                    wait = _retry_after(e, 2.0)
-                    logger.warning(f'LLM {name} rate-limited (429); one retry in {wait:.1f}s')
-                    await asyncio.sleep(wait)
-                    last_error = e
-                    continue
-                logger.warning(f'LLM {name} failed: {e}')
-                last_error = e
-                break
+def _record_success(name: str):
+    """Bookkeeping shared by both the race and sequential paths."""
+    if name == 'groq':
+        _increment('groq')
+        _groq_relax()
+        logger.info(f'LLM: groq ({_count("groq")}/{GROQ_DAILY_LIMIT} today)')
+    elif name == 'gemini':
+        _increment('gemini')
+        logger.info(f'LLM: gemini ({_count("gemini")}/{GEMINI_DAILY_LIMIT} today)')
+    else:
+        logger.info(f'LLM: {name}')
 
+
+async def _run_provider_race(chain: list, *, session_id: str, validate) -> str:
+    """Fire every provider at once; return the first valid success.
+
+    This is what makes free/open models feel instant: we don't wait for Groq to
+    fail before trying Gemini — whichever answers first (and passes `validate`)
+    wins. A provider returning garbage (empty/invalid 200) is treated as a
+    failure so the race continues to a real answer.
+    """
+    last_error = None
+
+    async def run_one(name, fn):
+        try:
+            result = await fn()
+            if not validate(result):
+                logger.warning(f'LLM {name} returned invalid content')
+                return (name, None, RuntimeError(f'{name} returned invalid content'))
+            return (name, result, None)
+        except Exception as e:  # noqa: BLE001 - any provider error is a race loss
+            logger.warning(f'LLM {name} failed: {e}')
+            return (name, None, e)
+
+    tasks = [asyncio.create_task(run_one(n, f)) for n, f in chain]
+    pending = set(tasks)
+    try:
+        while pending:
+            done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+            for t in done:
+                name, result, err = t.result()
+                if err is not None:
+                    last_error = err
+                    continue
+                # First valid success wins — cancel the rest to save quota.
+                for p in list(pending):
+                    p.cancel()
+                _record_success(name)
+                logger.info(f'LLM (race winner): {name}')
+                return result
+        # Every provider failed.
+        _report_chain_failure(chain, session_id, last_error)
+        raise LLMServiceUnavailable(
+            'All LLM providers failed. '
+            'Set LLM_PROVIDER appropriately and ensure at least one of '
+            'GROQ_API_KEY/GEMINI_API_KEY/OPENROUTER_API_KEY is configured.'
+        )
+    finally:
+        for t in pending:
+            t.cancel()
+
+
+def _report_chain_failure(chain, session_id, last_error):
     try:
         import sentry_sdk
         sentry_sdk.capture_exception(
@@ -441,6 +574,47 @@ async def _run_provider_chain(chain: list, *, session_id: str) -> str:
         inc_ollama_failure()
     except Exception:
         pass
+
+
+async def _run_provider_chain(chain: list, *, session_id: str, validate=_default_validate) -> str:
+    """Run a prepared provider chain with the shared rate-limit/retry discipline.
+
+    With LLM_RACE enabled (default), providers are fired concurrently and the
+    first valid answer wins. Otherwise they are tried in order with a single
+    429 retry, which keeps deterministic behaviour for callers/tests that pin a
+    provider.
+    """
+    if not chain:
+        raise LLMServiceUnavailable('No LLM providers are configured.')
+
+    if LLM_RACE and len(chain) > 1:
+        return await _run_provider_race(chain, session_id=session_id, validate=validate)
+
+    last_error = None
+    for name, fn in chain:
+        # Retry one 429 before dropping to the next provider. The provider-specific
+        # pacer controls normal concurrency; this is only a transient recovery path.
+        for _attempt in range(4):
+            try:
+                result = await fn()
+                if not validate(result):
+                    logger.warning(f'LLM {name} returned invalid content; trying next provider')
+                    last_error = RuntimeError(f'{name} returned invalid content')
+                    break
+                _record_success(name)
+                return result
+            except Exception as e:
+                if _is_rate_limited(e) and _attempt == 0:
+                    wait = _retry_after(e, 2.0)
+                    logger.warning(f'LLM {name} rate-limited (429); one retry in {wait:.1f}s')
+                    await asyncio.sleep(wait)
+                    last_error = e
+                    continue
+                logger.warning(f'LLM {name} failed: {e}')
+                last_error = e
+                break
+
+    _report_chain_failure(chain, session_id, last_error)
     raise LLMServiceUnavailable(
         'All LLM providers failed. '
         'Set LLM_PROVIDER appropriately and ensure at least one of '
@@ -454,6 +628,7 @@ async def chat_completion(
     session_id: str | None = None,
     temperature: float = 0.4,
     max_tokens: int | None = None,
+    validate=None,
 ) -> str:
     session_id = session_id or str(uuid.uuid4())
 
@@ -464,7 +639,7 @@ async def chat_completion(
     user = _truncate(user)
 
     chain = _build_chain(system, user, temperature, session_id, max_tokens)
-    return await _run_provider_chain(chain, session_id=session_id)
+    return await _run_provider_chain(chain, session_id=session_id, validate=validate or _default_validate)
 
 
 async def professional_builder_completion(
@@ -473,6 +648,7 @@ async def professional_builder_completion(
     session_id: str | None = None,
     temperature: float = 0.4,
     max_tokens: int | None = None,
+    validate=None,
 ) -> str:
     """Quality-first customer builder ladder: Groq 70B -> Gemini -> Qwen/Ollama.
 
@@ -487,7 +663,7 @@ async def professional_builder_completion(
     rank = {'groq': 0, 'gemini': 1, 'openrouter': 2, 'ollama': 3, 'lmstudio': 4, 'emergent': 5}
     chain = sorted(available, key=lambda item: rank.get(item[0], 99))
     logger.info('LLM professional builder ladder: %s', [name for name, _ in chain])
-    return await _run_provider_chain(chain, session_id=session_id)
+    return await _run_provider_chain(chain, session_id=session_id, validate=validate or _default_validate)
 
 
 # ── Tool-calling (agentic) providers ────────────────────────────────────────────
@@ -593,7 +769,7 @@ async def chat_completion_with_tools(
     provider_fns = []
     if GROQ_API_KEY and _under_limit('groq'):
         provider_fns.append(('groq', lambda m: _groq_with_tools(m, schemas, temperature)))
-    if OPENROUTER_API_KEY and not FREE_ONLY:
+    if _openrouter_customer_allowed():
         provider_fns.append(('openrouter', lambda m: _openrouter_with_tools(m, schemas, temperature)))
     provider_fns.append(('lmstudio', lambda m: _lmstudio_with_tools(m, schemas, temperature)))
     if OLLAMA_MODELS:
@@ -655,7 +831,7 @@ def provider_info() -> dict:
                 'customer_fallback_enabled': OPENROUTER_CUSTOMER_FALLBACK,
                 'blocked_by_free_only': bool(OPENROUTER_API_KEY) and OPENROUTER_CUSTOMER_FALLBACK and not _openrouter_customer_allowed(),
             },
-            'emergent':{'available': bool(EMERGENT_LLM_KEY) and not FREE_ONLY, 'blocked_by_free_only': FREE_ONLY},
+            'emergent':{'available': bool(EMERGENT_LLM_KEY) and ALLOW_PAID_PROVIDERS, 'blocked_by_paid_policy': True, 'blocked_by_free_only': FREE_ONLY},
         },
         'active_chain': ' -> '.join(
             name for name, _ in _build_chain('', '', 0.0, 'provider-info')

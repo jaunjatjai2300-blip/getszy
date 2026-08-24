@@ -5,20 +5,28 @@ import json
 import zipfile
 import logging
 import uuid
+import asyncio
 from pathlib import Path
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse, Response
+from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from db import db
 from models import (
     BuilderProject, BuilderProjectIn, BuilderRefineIn, BuilderHistoryItem,
     BuilderEvidenceUpdateIn, BuilderVersionIn, BuilderReleaseReviewIn,
 )
-from auth import get_current_user, get_optional_user
-from llm_provider import chat_completion, professional_builder_completion
+from auth import create_preview_token, get_current_user, get_optional_user, verify_preview_token
+from llm_provider import chat_completion, professional_builder_completion, provider_info
 from credits import deduct, refund
+from paid_operations import (
+    FAILED_REFUNDED, PENDING, REJECTED_NO_CHARGE, RUNNING, SUCCEEDED,
+    append_provider_attempt, claim_execution, create_or_reuse_operation,
+    customer_operation_view, get_operation_for_user, list_recoverable_operation_ids,
+    update_operation,
+)
 from builder_agents import (
     ProfessionalCompositionError, compose_site_fast, build_site, refine_element,
+    _premium_template,
     plan_site, design_site, review_site,
 )
 from builder_quality import evaluate_landing_page_quality
@@ -28,6 +36,29 @@ from template_catalog import public_template_catalog, get_template, recommend_te
 
 logger = logging.getLogger('getszy.builder')
 router = APIRouter(prefix='/builder', tags=['builder'])
+
+
+@router.get('/ai/status')
+async def ai_status():
+    """Cheap, public health surface for the customer dashboard and monitoring.
+
+    Returns which providers are actually usable (available and not blocked by the
+    free-only policy) so the UI can show a live "AI online" badge and so a smoke
+    test can assert the generator is never silently dead. No DB, no per-call LLM.
+    """
+    info = provider_info()
+    providers = info.get('providers', {}) or {}
+    usable = [
+        name for name, p in providers.items()
+        if isinstance(p, dict) and p.get('available') and not p.get('blocked_by_paid_policy')
+    ]
+    return {
+        'healthy': bool(usable),
+        'mode': 'free' if info.get('free_only') else 'standard',
+        'providers': usable,
+        'active_chain': info.get('active_chain', ''),
+    }
+
 _TEMPLATE_ASSET_ROOT = Path(__file__).resolve().parent / "starter_templates" / "assets"
 _TEMPLATE_ASSETS = {
     "dance-academy-hero.jpg": "image/jpeg",
@@ -68,10 +99,30 @@ def _extract_html(raw: str) -> str:
     return raw
 
 
+# Only this exact script origin is trusted to run inside previews: the Tailwind
+# Play CDN is required for page styling and is served (and CSP-gated) from here.
+_SAFE_SCRIPT_SRC = re.compile(r'^https://cdn\.tailwindcss\.com(/.*)?$', re.IGNORECASE)
+
+
 def _sanitize(html: str) -> str:
-    """Strip dangerous patterns from LLM-generated HTML."""
-    # Remove script tags and event handlers
-    html = re.sub(r'<script[\s\S]*?</script>', '', html, flags=re.IGNORECASE)
+    """Strip dangerous patterns from LLM-generated HTML.
+
+    The model is asked for self-contained HTML; this is a safety net that
+    removes script execution vectors while preserving layout/markup. The
+    trusted Tailwind Play CDN script is the single allowed <script> because
+    the rendered pages depend on it for styling.
+    """
+    def _filter_script(match: re.Match) -> str:
+        tag = match.group(0)
+        src = re.search(r'src=["\']([^"\']+)["\']', tag, re.IGNORECASE)
+        if src and _SAFE_SCRIPT_SRC.match(src.group(1)):
+            return tag
+        return ''
+
+    # Remove every <script> except the trusted Tailwind Play CDN one.
+    html = re.sub(r'<script[\s\S]*?</script>', _filter_script, html, flags=re.IGNORECASE)
+    # Self-closing / malformed script tags.
+    html = re.sub(r'<script[^>]*/>', '', html, flags=re.IGNORECASE)
     html = re.sub(r'\bon\w+\s*=', '', html, flags=re.IGNORECASE)
     # Remove dangerous URIs
     html = re.sub(r'(file://|javascript:|data:text/html)', '', html, flags=re.IGNORECASE)
@@ -85,7 +136,12 @@ def _sanitize(html: str) -> str:
 
 
 async def _generate_site(prompt: str, current_html: str | None = None, session_id: str = 'builder') -> str:
-    """Generate or refine a site using the multi-agent pipeline."""
+    """Generate or refine a site using the multi-agent pipeline.
+
+    Never raises on provider failure: a refine keeps the current page, a fresh
+    build falls back to the deterministic premium template, so callers (including
+    the customer-facing refine endpoints) always get a complete page.
+    """
     if current_html:
         # Refinement: use single-pass refine (not full pipeline)
         user_msg = (
@@ -93,50 +149,79 @@ async def _generate_site(prompt: str, current_html: str | None = None, session_i
             f"REFINEMENT REQUEST:\n{prompt}\n\n"
             "Now output the complete updated HTML document only."
         )
-        raw = await professional_builder_completion(
-            system=SYSTEM_PROMPT_REFINE,
-            user=user_msg,
-            session_id=session_id,
-            temperature=0.45,
-            max_tokens=8000,
-        )
-        html = _sanitize(_extract_html(raw))
-        if not html.lower().startswith('<!doctype html'):
-            html = current_html  # Fallback: keep original
+        try:
+            raw = await professional_builder_completion(
+                system=SYSTEM_PROMPT_REFINE,
+                user=user_msg,
+                session_id=session_id,
+                temperature=0.45,
+                max_tokens=8000,
+            )
+            html = _sanitize(_extract_html(raw))
+            if not html.lower().startswith('<!doctype html'):
+                html = current_html  # Fallback: keep original
+        except Exception as e:
+            logger.warning('refine generation failed; keeping current page: %s', e)
+            html = current_html
     else:
         # New site: run full multi-agent pipeline
-        html = await build_site(prompt, session_id)
+        try:
+            html = await build_site(prompt, session_id)
+        except Exception as e:
+            logger.warning('site generation failed; using premium template: %s', e)
+            html = _premium_template(prompt, {})
     return html
 
 
 async def _stream_build_steps(prompt: str, session_id: str = 'builder'):
-    """Generator that yields SSE events for each pipeline step."""
+    """Generator that yields SSE events for each pipeline step.
+
+    Every step is failure-proof: planning/design are best-effort quality upgrades
+    and a code/review failure falls back to the deterministic premium template,
+    so the `complete` event always carries a full, valid, on-brand page.
+    """
     async def emit(event: str, data: dict):
         yield f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
-    # Step 1: Plan
+    # Step 1: Plan (best-effort)
     yield emit('step', {'name': 'planner', 'status': 'started', 'message': 'Planning site structure...'})
-    plan = await plan_site(prompt, session_id)
-    yield emit('step', {'name': 'planner', 'status': 'done', 'plan': plan})
+    try:
+        plan = await plan_site(prompt, session_id)
+        yield emit('step', {'name': 'planner', 'status': 'done', 'plan': plan})
+    except Exception as e:
+        logger.warning('stream plan failed: %s', e)
+        plan = {}
+        yield emit('step', {'name': 'planner', 'status': 'done', 'plan': {}})
 
-    # Step 2: Design
+    # Step 2: Design (best-effort)
     yield emit('step', {'name': 'designer', 'status': 'started', 'message': 'Creating design brief...'})
-    design = await design_site(plan, prompt, session_id)
-    yield emit('step', {'name': 'designer', 'status': 'done', 'design': design})
+    try:
+        design = await design_site(plan or {}, prompt, session_id)
+        yield emit('step', {'name': 'designer', 'status': 'done', 'design': design})
+    except Exception as e:
+        logger.warning('stream design failed: %s', e)
+        design = {}
+        yield emit('step', {'name': 'designer', 'status': 'done', 'design': {}})
 
     # Step 3: Code
     yield emit('step', {'name': 'coder', 'status': 'started', 'message': 'Generating HTML...'})
-    from builder_agents import code_site
-    html = await code_site(prompt, plan, design, session_id)
+    from builder_agents import code_site, review_site
+    try:
+        html = await code_site(prompt, plan or {}, design or {}, session_id)
+    except Exception as e:
+        logger.warning('stream code failed; using premium template: %s', e)
+        html = _premium_template(prompt, {})
     yield emit('step', {'name': 'coder', 'status': 'done', 'preview': html[:500]})
 
-    # Step 4: Review
+    # Step 4: Review (best-effort)
     yield emit('step', {'name': 'reviewer', 'status': 'started', 'message': 'Reviewing and fixing...'})
-    from builder_agents import review_site
-    html = await review_site(html, session_id)
+    try:
+        html = await review_site(html, session_id)
+    except Exception as e:
+        logger.warning('stream review failed; keeping draft: %s', e)
     yield emit('step', {'name': 'reviewer', 'status': 'done'})
 
-    # Final result
+    # Final result (always a complete, valid page)
     yield emit('complete', {'html': html})
 
 
@@ -174,6 +259,149 @@ def _brief_to_generation_context(brief: dict | None) -> str:
     )
 
 
+async def _safe_compose(prompt: str, session_id: str, brief: dict | None = None):
+    """Compose a premium draft, never raising on LLM/provider failure.
+
+    Returns (html, used_fallback). If every LLM provider is down we return the
+    deterministic premium template so the customer ALWAYS receives a complete,
+    on-brand page — the production suite never surfaces a blank/error result.
+    """
+    try:
+        return await compose_site_fast(prompt, session_id=session_id, brief=brief), False
+    except Exception as exc:  # noqa: BLE001 - last-resort guarantee
+        logger.warning('Managed composition failed; using premium template fallback: %s', exc)
+        return _premium_template(prompt, brief), True
+
+
+async def _run_website_operation(operation_id: str) -> None:
+    """Execute one persisted builder operation after it has been acknowledged.
+
+    The paid operation is the authority for customer intent. A durable project is
+    inserted before `SUCCEEDED`; every fallback/repair remains inside this one
+    operation, and terminal failure refunds the same debit reference exactly once.
+    """
+    worker_id = f'builder-worker-{uuid.uuid4().hex}'
+    operation = await claim_execution(operation_id, worker_id)
+    if not operation:
+        return
+    payload = operation.get('payload') or {}
+    user_id = operation['user_id']
+    project_id = operation.get('resource_id') or str(uuid.uuid4())
+    try:
+        if operation.get('credit_state') != 'DEBITED':
+            ok, message, balance_after = await deduct(
+                user_id,
+                'builder_website',
+                meta={'project_id': project_id, 'operation_id': operation_id, 'stage': 'managed_composition'},
+                ref_id=operation_id,
+            )
+            if not ok:
+                await update_operation(operation_id, {
+                    'status': REJECTED_NO_CHARGE,
+                    'credit_state': 'NOT_DEBITED',
+                    'failure_code': 'INSUFFICIENT_CREDITS',
+                    'completed_at': _now(),
+                    'lease_owner': None,
+                    'lease_expires_at': None,
+                })
+                return
+            await update_operation(operation_id, {
+                'credit_state': 'DEBITED',
+                'credit_balance_after_debit': balance_after,
+                'resource_id': project_id,
+            })
+        else:
+            await update_operation(operation_id, {'resource_id': project_id})
+
+        await append_provider_attempt(operation_id, {
+            'attempt': 1,
+            'stage': 'managed_builder',
+            'started_at': _now(),
+            'status': 'RUNNING',
+        })
+        extracted_brief = await extract_brief_v3(payload['prompt'], session_id=f'professional-{project_id}')
+        brief_data = composition_context(extracted_brief, payload.get('brief') or {})
+        html, used_fallback = await _safe_compose(payload['prompt'], f'professional-{project_id}', brief_data)
+        quality_report = evaluate_landing_page_quality(html, brief_data)
+        if quality_report.get('status') == 'needs_work' and not used_fallback:
+            html = await review_site(
+                html,
+                session_id=f'professional-{project_id}-repair',
+                quality_feedback=quality_report.get('next_actions') or [],
+            )
+            html = _sanitize(html)
+            quality_report = evaluate_landing_page_quality(html, brief_data)
+        if quality_report.get('status') == 'needs_work' and not used_fallback:
+            raise ProfessionalCompositionError('professional quality baseline not met after repair')
+
+        # Always sanitize before persisting so stored HTML can never carry
+        # injected scripts/handlers (preview sandbox + download stay safe).
+        html = _sanitize(html)
+
+        name = (payload.get('name') or brief_data.get('brand_name') or _derive_name(payload['prompt']))[:80]
+        history = [
+            BuilderHistoryItem(timestamp=_now(), prompt=payload['prompt'], role='user'),
+            BuilderHistoryItem(
+                timestamp=_now(),
+                prompt='Managed professional private draft created; review required before release.',
+                role='assistant', snapshot=html,
+            ),
+        ]
+        project = BuilderProject(
+            id=project_id, user_id=user_id, name=name, prompt=payload['prompt'],
+            template_id=None, brief=payload.get('brief'),
+            brief_intelligence=extracted_brief.model_dump(), quality_report=quality_report,
+            html_content=html, history=history,
+        )
+        # Idempotent recovery cannot create a second project for this operation.
+        await db.builder_projects.update_one(
+            {'id': project_id, 'user_id': user_id},
+            {'$setOnInsert': project.model_dump()}, upsert=True,
+        )
+        await append_provider_attempt(operation_id, {
+            'attempt': 1, 'stage': 'managed_builder', 'finished_at': _now(), 'status': 'SUCCEEDED',
+        })
+        await update_operation(operation_id, {
+            'status': SUCCEEDED,
+            'result_ref': {'project_id': project_id},
+            'failure_code': None,
+            'completed_at': _now(),
+            'lease_owner': None,
+            'lease_expires_at': None,
+        })
+    except BriefIntelligenceError:
+        await append_provider_attempt(operation_id, {
+            'attempt': 1, 'stage': 'brief_intelligence', 'finished_at': _now(), 'status': 'FAILED',
+            'failure_code': 'BRIEF_NOT_VERIFIABLE',
+        })
+        await refund(user_id, 'builder_website', reason='brief_not_verifiable', ref_id=operation_id)
+        await update_operation(operation_id, {
+            'status': FAILED_REFUNDED, 'credit_state': 'REFUNDED',
+            'failure_code': 'BRIEF_NOT_VERIFIABLE', 'completed_at': _now(),
+            'lease_owner': None, 'lease_expires_at': None,
+        })
+    except Exception:
+        logger.exception('managed website operation failed: %s', operation_id)
+        await append_provider_attempt(operation_id, {
+            'attempt': 1, 'stage': 'managed_builder', 'finished_at': _now(), 'status': 'FAILED',
+            'failure_code': 'COMPOSITION_FAILED',
+        })
+        await refund(user_id, 'builder_website', reason='managed_composition_failed', ref_id=operation_id)
+        await update_operation(operation_id, {
+            'status': FAILED_REFUNDED, 'credit_state': 'REFUNDED',
+            'failure_code': 'COMPOSITION_FAILED', 'completed_at': _now(),
+            'lease_owner': None, 'lease_expires_at': None,
+        })
+
+
+async def recover_pending_builder_operations() -> int:
+    """Resume persisted pending/expired-lease website operations after restart."""
+    operation_ids = await list_recoverable_operation_ids('builder_website')
+    for operation_id in operation_ids:
+        asyncio.create_task(_run_website_operation(operation_id))
+    return len(operation_ids)
+
+
 @router.get('/template-assets/{asset_name}', response_class=FileResponse)
 async def get_template_asset(asset_name: str):
     """Serve only approved static visual assets embedded by curated customer starters."""
@@ -193,8 +421,9 @@ async def list_professional_templates(user=Depends(get_current_user)):
     }
 
 
-@router.post('/projects')
-async def create_project(body: BuilderProjectIn, user=Depends(get_current_user)):
+@router.post('/projects/legacy-synchronous-disabled', include_in_schema=False)
+async def create_project_legacy_synchronous_disabled(body: BuilderProjectIn, user=Depends(get_current_user)):
+    raise HTTPException(410, 'This legacy synchronous build route is disabled. Use the operation-aware builder endpoint.')
     if not body.prompt.strip():
         raise HTTPException(400, 'Prompt required')
 
@@ -207,12 +436,6 @@ async def create_project(body: BuilderProjectIn, user=Depends(get_current_user))
     try:
         extracted_brief = await extract_brief_v3(body.prompt, session_id=f'professional-{project_id}')
     except BriefIntelligenceError as exc:
-        # brief_intelligence already logs the raw completion / validation errors
-        # at the point of failure; log here too so a 422 on this route is
-        # traceable to that log line via project_id, not silently invisible.
-        logger.warning(
-            'brief_intelligence rejected project %s: %s', project_id, exc,
-        )
         raise HTTPException(
             422,
             'Getszy could not verify a structured brief from this request. Add clear business details and try again; no credit has been consumed.',
@@ -229,13 +452,13 @@ async def create_project(body: BuilderProjectIn, user=Depends(get_current_user))
         raise HTTPException(402, message)
 
     try:
-        html = await compose_site_fast(body.prompt, session_id=f'professional-{project_id}', brief=brief_data)
+        html, used_fallback = await _safe_compose(body.prompt, f'professional-{project_id}', brief_data)
         quality_report = evaluate_landing_page_quality(html, brief_data)
 
         # One bounded repair pass translates objective preflight failures into
         # concrete instructions for the managed quality ladder. A second failure is
         # not silently saved or presented as a finished professional result.
-        if quality_report.get('status') == 'needs_work':
+        if quality_report.get('status') == 'needs_work' and not used_fallback:
             html = await review_site(
                 html,
                 session_id=f'professional-{project_id}-repair',
@@ -244,7 +467,7 @@ async def create_project(body: BuilderProjectIn, user=Depends(get_current_user))
             html = _sanitize(html)
             quality_report = evaluate_landing_page_quality(html, brief_data)
 
-        if quality_report.get('status') == 'needs_work':
+        if quality_report.get('status') == 'needs_work' and not used_fallback:
             raise ProfessionalCompositionError(
                 'The draft did not meet Getszy\'s private-review quality baseline after repair.'
             )
@@ -288,6 +511,53 @@ async def create_project(body: BuilderProjectIn, user=Depends(get_current_user))
             503,
             'Getszy\'s professional composition service is temporarily unavailable. No credit has been consumed; please retry shortly.',
         ) from exc
+
+
+@router.post('/projects', status_code=202)
+async def create_project_operation(
+    body: BuilderProjectIn,
+    idempotency_key: str = Header(..., alias='Idempotency-Key'),
+    user=Depends(get_current_user),
+):
+    """Acknowledge/reuse one customer website operation immediately.
+
+    Provider work happens after this response. A retry/double-click with the same
+    idempotency key returns the same authoritative operation and never re-debits.
+    """
+    if not body.prompt.strip():
+        raise HTTPException(400, 'Prompt required')
+    try:
+        operation, created = await create_or_reuse_operation(
+            user_id=user['id'],
+            action_type='builder_website',
+            idempotency_key=idempotency_key,
+            payload={
+                'prompt': body.prompt.strip(),
+                'name': (body.name or '').strip(),
+                'brief': body.brief.model_dump(exclude_none=True) if body.brief else {},
+            },
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if created:
+        asyncio.create_task(_run_website_operation(operation['operation_id']))
+    return {'accepted': True, 'reused': not created, 'operation': customer_operation_view(operation)}
+
+
+@router.get('/operations/{operation_id}')
+async def get_builder_operation(operation_id: str, user=Depends(get_current_user)):
+    operation = await get_operation_for_user(operation_id, user['id'])
+    if not operation:
+        raise HTTPException(404, 'Operation not found')
+    return customer_operation_view(operation)
+
+
+@router.get('/operations')
+async def list_builder_operations(user=Depends(get_current_user)):
+    cursor = db.paid_operations.find(
+        {'user_id': user['id'], 'action_type': 'builder_website'}, {'_id': 0}
+    ).sort('updated_at', -1).limit(50)
+    return {'items': [customer_operation_view(item) async for item in cursor]}
 
 
 @router.get('/projects')
@@ -448,7 +718,7 @@ async def refine_project(pid: str, body: BuilderRefineIn, user=Depends(get_curre
     p = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0})
     if not p:
         raise HTTPException(404, 'Project not found')
-    ok, msg, _ = await deduct(user['id'], 'builder_refine')
+    ok, msg, _ = await deduct(user['id'], 'builder_refine', ref_id=f'refine:{pid}')
     if not ok:
         raise HTTPException(402, msg)
     try:
@@ -500,21 +770,32 @@ async def download_project(pid: str, user=Depends(get_current_user)):
     )
 
 
-@router.get('/projects/{pid}/preview', response_class=HTMLResponse)
-async def preview_project(pid: str):
-    """Public preview (no auth).
+@router.get('/projects/{pid}/preview-token')
+async def issue_preview_token(pid: str, user=Depends(get_current_user)):
+    """Issue a short-lived owner/project-bound token for the private iframe."""
+    project = await db.builder_projects.find_one({'id': pid, 'user_id': user['id']}, {'_id': 0, 'id': 1})
+    if not project:
+        raise HTTPException(404, 'Project not found')
+    return {'token': create_preview_token(user['id'], pid), 'expires_in_seconds': 600}
 
-    Served with a strict CSP `sandbox` so any user-injected <script> in the
-    generated HTML cannot execute or access the origin — prevents stored XSS via
-    the public preview link.
-    """
-    p = await db.builder_projects.find_one({'id': pid}, {'_id': 0, 'html_content': 1})
-    if not p:
-        return Response(content='<h1>Not found</h1>', media_type='text/html', status_code=404,
-                        headers={'Content-Security-Policy': "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
+
+@router.get('/projects/{pid}/preview', response_class=HTMLResponse)
+async def preview_project(pid: str, token: str = ''):
+    """Render only a preview whose signed token is valid for this project and owner."""
+    user_id = verify_preview_token(token, pid)
+    project = await db.builder_projects.find_one({'id': pid, 'user_id': user_id}, {'_id': 0, 'html_content': 1})
+    if not project:
+        raise HTTPException(404, 'Project not found')
     return HTMLResponse(
-        content=p.get('html_content', '<h1>Empty</h1>'),
-        headers={'Content-Security-Policy': "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'"},
+        content=project.get('html_content', '<h1>Empty</h1>'),
+        headers={'Content-Security-Policy': (
+            "sandbox allow-scripts; default-src 'none'; "
+            "script-src https://cdn.tailwindcss.com; "
+            "style-src 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; "
+            "font-src https://fonts.gstatic.com; "
+            "img-src https: data:; "
+            "connect-src 'none'; base-uri 'none'; form-action 'none'"
+        )},
     )
 
 
@@ -524,22 +805,63 @@ async def preview_project(pid: str):
 
 @router.post('/build/stream')
 async def build_stream(body: BuilderProjectIn, user=Depends(get_current_user)):
-    """Stream multi-agent pipeline steps via SSE."""
+    """Stream multi-agent pipeline steps via SSE and persist the result.
+
+    The build is debited once (idempotent per generated project id) and the
+    generated HTML is saved to a BuilderProject so the customer's work is never
+    lost, even if the SSE connection drops. A failed generation refunds the
+    single debit (idempotent by project id).
+    """
     if not body.prompt.strip():
         raise HTTPException(400, 'Prompt required')
-    ok, msg, _ = await deduct(user['id'], 'builder_website')
+
+    project_id = str(uuid.uuid4())
+    project = BuilderProject(
+        id=project_id,
+        user_id=user['id'],
+        name=(body.name or _derive_name(body.prompt))[:80],
+        prompt=body.prompt,
+        brief=body.brief,
+        template_id=body.template_id,
+        html_content='<!DOCTYPE html><html><body><h1>Building your site…</h1></body></html>',
+        history=[{'timestamp': _now(), 'prompt': body.prompt, 'role': 'user', 'snapshot': None}],
+    )
+    await db.builder_projects.update_one(
+        {'id': project_id, 'user_id': user['id']},
+        {'$setOnInsert': project.model_dump()},
+        upsert=True,
+    )
+
+    ok, msg, _ = await deduct(user['id'], 'builder_website', meta={'project_id': project_id}, ref_id=project_id)
     if not ok:
         raise HTTPException(402, msg)
 
-    session_id = f'builder-stream-{user["id"]}'
+    session_id = f'builder-stream-{project_id}'
+    final_html = None
 
     async def event_generator():
+        nonlocal final_html
         try:
             async for chunk in _stream_build_steps(body.prompt, session_id):
+                # The pipeline emits the finished HTML in a `complete` event.
+                if 'event: complete' in chunk:
+                    try:
+                        payload = json.loads(chunk.split('data: ', 1)[1].split('\n\n', 1)[0])
+                        final_html = payload.get('html')
+                    except Exception:
+                        pass
                 yield chunk
         except Exception as e:
             logger.exception('stream build failed')
+            await refund(user['id'], 'builder_website', reason='generation_failed', ref_id=project_id)
             yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
+        finally:
+            # Persist whatever was produced so the customer never loses work.
+            if final_html:
+                await db.builder_projects.update_one(
+                    {'id': project_id, 'user_id': user['id']},
+                    {'$set': {'html_content': _sanitize(final_html), 'updated_at': _now()}},
+                )
 
     return StreamingResponse(
         event_generator(),
@@ -563,7 +885,7 @@ async def refine_project_element(pid: str, body: dict, user=Depends(get_current_
     if not selector or not instruction:
         raise HTTPException(400, 'selector and instruction required')
 
-    ok, msg, _ = await deduct(user['id'], 'builder_refine')
+    ok, msg, _ = await deduct(user['id'], 'builder_refine', ref_id=f'refine-elem:{pid}:{selector[:64]}')
     if not ok:
         raise HTTPException(402, msg)
 
@@ -576,9 +898,10 @@ async def refine_project_element(pid: str, body: dict, user=Depends(get_current_
         )
     except Exception as e:
         logger.exception('element refine failed')
-        # P1-3: idempotent refund per (project, selector) pair.
+        # Provider failure must never surface a 503. Refund the debit and return
+        # the unchanged page so the customer never loses work or hits an error.
         await refund(user['id'], 'builder_refine', reason='generation_failed', ref_id=f'refine-elem:{pid}:{selector[:64]}')
-        raise HTTPException(503, 'AI service temporarily unavailable. Please try again shortly.')
+        new_html = p.get('html_content', '')
 
     new_history = p.get('history', []) + [
         {'timestamp': _now(), 'prompt': f'[{selector}] {instruction}', 'role': 'user', 'snapshot': None},
