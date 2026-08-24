@@ -15,6 +15,7 @@ import { fmtINR } from "@/lib/api";
 import { useCartAction } from "@/commerce/useCartAction";
 import WorldShell, { AddToBag } from "./WorldShell";
 import { Reveal, RevealItem } from "@/experience/primitives";
+import { imageProps } from "@/commerce/responsiveImage";
 
 function ContextBand({ product, index }) {
   const addToBag = useCartAction();
@@ -27,7 +28,7 @@ function ContextBand({ product, index }) {
         <RevealItem className="relative min-h-[320px] overflow-hidden lg:min-h-[560px] lg:[direction:ltr]">
           {img ? (
             <img
-              src={img}
+              {...imageProps(img, "hero")}
               alt={product.name}
               loading={index === 0 ? "eager" : "lazy"}
               className="absolute inset-0 h-full w-full object-cover"
@@ -85,7 +86,7 @@ export default function LifestyleWorld({ catalog, config }) {
           <motion.h1
             initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-            className="font-display mt-6 max-w-4xl text-[42px] leading-[1.03] sm:text-6xl lg:text-[70px]"
+            className="font-display mt-6 max-w-4xl gs-display"
             style={{ color: "var(--w-ink)" }}
           >
             The room remembers<br />what you chose.

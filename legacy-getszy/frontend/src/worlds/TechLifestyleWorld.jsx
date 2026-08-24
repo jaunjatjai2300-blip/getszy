@@ -16,6 +16,7 @@ import { fmtINR } from "@/lib/api";
 import { useCartAction } from "@/commerce/useCartAction";
 import WorldShell, { AddToBag } from "./WorldShell";
 import { Reveal, RevealItem, Tilt } from "@/experience/primitives";
+import { imageProps } from "@/commerce/responsiveImage";
 
 function TechPiece({ product, index }) {
   const addToBag = useCartAction();
@@ -35,7 +36,7 @@ function TechPiece({ product, index }) {
             <div className="relative mx-auto aspect-[4/3] w-full overflow-hidden rounded-2xl" style={{ background: "var(--w-champagne)" }}>
               {img ? (
                 <img
-                  src={img}
+                  {...imageProps(img, "showcase")}
                   alt={product.name}
                   loading={index === 0 ? "eager" : "lazy"}
                   className="h-full w-full object-cover"
@@ -97,7 +98,7 @@ export default function TechLifestyleWorld({ catalog, config }) {
           <motion.h1
             initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-            className="font-display mt-7 max-w-3xl text-[40px] leading-[1.04] sm:text-6xl"
+            className="font-display mt-7 max-w-3xl gs-display"
             style={{ color: "var(--w-ink)" }}
           >
             Technology that stays out of the way.

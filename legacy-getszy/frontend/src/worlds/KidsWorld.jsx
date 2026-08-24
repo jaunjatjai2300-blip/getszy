@@ -17,6 +17,7 @@ import { fmtINR } from "@/lib/api";
 import { useCartAction } from "@/commerce/useCartAction";
 import WorldShell, { AddToBag } from "./WorldShell";
 import { Reveal, RevealItem } from "@/experience/primitives";
+import { imageProps } from "@/commerce/responsiveImage";
 
 function FloatingCard({ product, index }) {
   const addToBag = useCartAction();
@@ -41,7 +42,7 @@ function FloatingCard({ product, index }) {
           <div className="relative aspect-[4/5] overflow-hidden" style={{ background: "var(--w-champagne)" }}>
             {img ? (
               <img
-                src={img}
+                {...imageProps(img, "card")}
                 alt={product.name}
                 loading={index === 0 ? "eager" : "lazy"}
                 className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.05]"
@@ -82,7 +83,7 @@ export default function KidsWorld({ catalog, config }) {
           <motion.h1
             initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-            className="font-display mx-auto mt-7 max-w-3xl text-[40px] leading-[1.05] sm:text-6xl"
+            className="font-display mx-auto mt-7 max-w-3xl gs-display"
             style={{ color: "var(--w-ink)" }}
           >
             Things they will actually play with.

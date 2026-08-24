@@ -23,6 +23,7 @@ import { useCartAction } from "@/commerce/useCartAction";
 import WorldShell, { AddToBag } from "@/worlds/WorldShell";
 import { DEFAULT_WORLD } from "@/worlds/registry";
 import { Reveal, RevealItem } from "@/experience/primitives";
+import { imageProps } from "@/commerce/responsiveImage";
 
 const BUDGETS = [
   { id: "any", label: "Any budget", test: () => true },
@@ -47,7 +48,7 @@ function GiftCard({ product, index }) {
           <div className="relative aspect-[4/5] overflow-hidden" style={{ background: "var(--w-champagne)" }}>
             {img ? (
               <img
-                src={img}
+                {...imageProps(img, "card")}
                 alt={product.name}
                 loading={index < 3 ? "eager" : "lazy"}
                 className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
@@ -100,7 +101,7 @@ export default function Gifts() {
           <motion.h1
             initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-            className="font-display mx-auto mt-7 max-w-3xl text-[40px] leading-[1.05] sm:text-6xl"
+            className="font-display mx-auto mt-7 max-w-3xl gs-display"
             style={{ color: "var(--w-ink)" }}
           >
             Something they will actually use.

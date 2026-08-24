@@ -17,6 +17,7 @@ import { useCartAction } from "@/commerce/useCartAction";
 import { tierAllows } from "@/commerce/productModel";
 import WorldShell, { AddToBag } from "./WorldShell";
 import { Reveal, RevealItem } from "@/experience/primitives";
+import { imageProps } from "@/commerce/responsiveImage";
 
 function RitualStep({ product, index, total }) {
   const addToBag = useCartAction();
@@ -43,7 +44,7 @@ function RitualStep({ product, index, total }) {
           <div className="relative mx-auto aspect-square w-full max-w-[260px] overflow-hidden rounded-full">
             {img ? (
               <img
-                src={img}
+                {...imageProps(img, "showcase")}
                 alt={product.name}
                 loading={index === 0 ? "eager" : "lazy"}
                 className="h-full w-full object-cover transition-transform duration-[1100ms] ease-out group-hover:scale-[1.06]"
@@ -83,7 +84,7 @@ export default function BeautyWorld({ catalog, config }) {
           <motion.h1
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-            className="font-display mx-auto mt-7 max-w-3xl text-[40px] leading-[1.05] sm:text-6xl"
+            className="font-display mx-auto mt-7 max-w-3xl gs-display"
             style={{ color: "var(--w-ink)" }}
           >
             A routine that feels like a pause.
