@@ -4,6 +4,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Sentry from "@sentry/react";
 import "@/index.css";
 import App from "@/App";
+import { initExperience } from "@/lib/experience";
+
+// Decide before first paint whether this device gets the full glass treatment,
+// so we never render blur and then rip it away a frame later.
+initExperience();
 
 const sentryDsn = process.env.REACT_APP_SENTRY_DSN;
 if (sentryDsn) {
