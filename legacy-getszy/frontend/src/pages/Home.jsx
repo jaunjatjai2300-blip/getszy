@@ -1,6 +1,6 @@
 /* eslint-disable react/no-unescaped-entities */
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useInView } from "framer-motion";
 import {
   ArrowRight, Sparkle, Sparkles, Bot, GraduationCap, Wand2, ShoppingBag, Heart, Eye, Star, Home as HomeIcon,
@@ -10,6 +10,7 @@ import {
   Leaf, Moon, ShoppingCart, Headphones, LineChart, Users, Lock, FileText, Command, Hand, Shield
 } from "lucide-react";
 import { api } from "../lib/api";
+import NeoOrb from "@/experience/NeoOrb";
 import { useCart } from "../lib/cart";
 import { useAuth } from "../lib/auth";
 
@@ -77,7 +78,6 @@ const PILLARS = [
 
 const EDIT_HIGHLIGHTS = [
   { label: "New Arrivals", tag: "Just in", grad: "from-[#F4DDE6] to-[#F3E2C7]" },
-  { label: "Best Sellers", tag: "Loved", grad: "from-[#F6C9B8] to-[#E79C86]" },
   { label: "Under ₹999", tag: "Smart buy", grad: "from-[#D7F0EE] to-[#F3E2C7]" },
   { label: "Made by Women", tag: "Founder", grad: "from-[#EDE6DD] to-[#FBF7F2]" },
 ];
@@ -91,11 +91,15 @@ const BUILD_TOOLS = [
   { title: "Manage Projects", desc: "Plan, organise & ship with Neo.", Icon: FolderKanban, grad: "from-[#EDE6DD] to-[#FBF7F2]" },
 ];
 
-const LEARN = [
-  { title: "Money Made Simple", lessons: "12 lessons", Icon: BookOpen, grad: "from-[#F3E2C7] to-[#E79C86]" },
-  { title: "Content that Sells", lessons: "9 lessons", Icon: Headphones, grad: "from-[#D7F0EE] to-[#F3E2C7]" },
-  { title: "AI for Creators", lessons: "7 lessons", Icon: Command, grad: "from-[#F4DDE6] to-[#F3E2C7]" },
-  { title: "Grow Your Biz", lessons: "10 lessons", Icon: LifeBuoy, grad: "from-[#F6C9B8] to-[#E79C86]" },
+// Decoration only. Course titles / lesson counts are NEVER hardcoded here —
+// this section renders real courses from /api/courses. It previously listed four
+// invented courses ("Money Made Simple", etc.) with made-up lesson counts that
+// matched nothing in the catalog, on cards that were not even clickable.
+const LEARN_DECOR = [
+  { Icon: BookOpen, grad: "from-[#F3E2C7] to-[#E79C86]" },
+  { Icon: Headphones, grad: "from-[#D7F0EE] to-[#F3E2C7]" },
+  { Icon: Command, grad: "from-[#F4DDE6] to-[#F3E2C7]" },
+  { Icon: LifeBuoy, grad: "from-[#F6C9B8] to-[#E79C86]" },
 ];
 
 const GROW = [
@@ -142,10 +146,10 @@ function ProductCard({ product, wishlisted, onToggleWish, addToCart }) {
         </div>
         {off > 0 && <span className="absolute top-3 left-3 gs-pill bg-[#1B1A18] text-white">{off}% OFF</span>}
         <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition duration-300">
-          <button onClick={() => onToggleWish && onToggleWish(p)} aria-label="Wishlist" className="h-9 w-9 grid place-items-center rounded-full bg-white/90 shadow hover:bg-white">
+          <button onClick={() => onToggleWish && onToggleWish(p)} aria-label="Wishlist" className="h-11 w-11 grid place-items-center rounded-full bg-white/90 shadow hover:bg-white">
             <Heart className={"h-4 w-4 " + (wishlisted ? "fill-[#C58B7A] text-[#C58B7A]" : "text-[#1B1A18]")} />
           </button>
-          <button onClick={() => addToCart && addToCart(p)} aria-label="Add to cart" className="h-9 w-9 grid place-items-center rounded-full bg-white/90 shadow hover:bg-white">
+          <button onClick={() => addToCart && addToCart(p)} aria-label="Add to cart" className="h-11 w-11 grid place-items-center rounded-full bg-white/90 shadow hover:bg-white">
             <ShoppingCart className="h-4 w-4 text-[#1B1A18]" />
           </button>
         </div>
@@ -333,7 +337,7 @@ function NeoShowcase() {
             </div>
             <form onSubmit={tryNeo} className="mt-4 flex items-center gap-2 rounded-full bg-white/90 p-1.5 pl-4">
               <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="I want to…" className="flex-1 bg-transparent outline-none text-[#1B1A18] text-sm placeholder:text-[#9A8E82]" />
-              <button type="submit" disabled={busy} className="h-9 w-9 grid place-items-center rounded-full bg-[#C58B7A] text-white disabled:opacity-60"><Send className="h-4 w-4" /></button>
+              <button type="submit" disabled={busy} className="h-11 w-11 grid place-items-center rounded-full bg-[#C58B7A] text-white disabled:opacity-60"><Send className="h-4 w-4" /></button>
             </form>
           </div>
         </div>
@@ -351,6 +355,9 @@ function Hero({ onAskNeo }) {
   return (
     <section className="relative overflow-hidden">
       <div className="gs-hero-wash absolute inset-0" />
+      {/* Slow-drifting light source. Transform-only, compositor-thread, and
+          disabled under data-fx="reduced" / prefers-reduced-motion. */}
+      <div className="gs-lightsource" aria-hidden="true" />
       <div className="gs-noise" />
       <div className="gs-container relative pt-14 pb-12 lg:pt-24 lg:pb-24">
         <div className="grid lg:grid-cols-12 gap-10 items-center">
@@ -358,14 +365,15 @@ function Hero({ onAskNeo }) {
             <span className="gs-eyebrow">Shop · Learn · Build · Grow · Earn</span>
             <h1 className="font-display text-[44px] sm:text-6xl lg:text-[72px] leading-[0.98] mt-5 text-[#1B1A18]">Made for women<br/>who <span className="text-[#C58B7A] italic">do it all.</span></h1>
             <p className="mt-6 text-lg text-[#5F5951] max-w-xl">One rooftop for your style, your skills and your business — shop women-led brands, learn real skills, and let Neo build the rest.</p>
-            <form onSubmit={submit} className="mt-8 flex items-center gap-2 rounded-full bg-white border border-[#E7D9CE] shadow-[0_14px_40px_rgba(27,26,24,0.10)] p-2 pl-5 max-w-xl">
-              <Sparkles className="h-5 w-5 text-[#C58B7A]" />
+            <form onSubmit={submit} className="gs-glass-1 mt-8 flex items-center gap-2 !rounded-full p-2 pl-3 max-w-xl">
+              {/* Neo is present in the hero, not hidden behind a chat launcher. */}
+              <NeoOrb state={q.trim() ? "thinking" : "idle"} size={40} />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask Neo to plan, build or find anything…" className="flex-1 bg-transparent outline-none text-[#1B1A18] placeholder:text-[#9A8E82]" />
               <button className="gs-btn-primary rounded-full">Go</button>
             </form>
             <div className="mt-4 flex flex-wrap gap-2">
               {["Start a business", "Plan my brand", "Find a gift", "Learn Content"].map((s) => (
-                <button key={s} onClick={() => onAskNeo && onAskNeo(s)} className="gs-pill bg-white border border-[#E7D9CE] text-[#5F5951] hover:border-[#C58B7A] transition">{s}</button>
+                <button key={s} onClick={() => onAskNeo && onAskNeo(s)} className="gs-pill gs-glass-2 !rounded-full text-[#5F5951] hover:border-[#C58B7A] transition-colors">{s}</button>
               ))}
             </div>
             <div className="mt-8 flex flex-wrap items-center gap-4">
@@ -382,7 +390,7 @@ function Hero({ onAskNeo }) {
               </div>
               <div className="mt-5 font-display text-3xl text-[#1B1A18] leading-tight">Shop what you love.<br/><span className="text-[#C58B7A] italic">Build what you need.</span></div>
               <div className="mt-5 flex items-start gap-3 rounded-2xl bg-gradient-to-br from-[#F3E2C7] to-[#F6C9B8] p-3">
-                <div className="h-9 w-9 rounded-full bg-white/70 grid place-items-center"><Bot className="h-5 w-5 text-[#A86B5B]" /></div>
+                <div className="h-11 w-11 rounded-full bg-white/70 grid place-items-center"><Bot className="h-5 w-5 text-[#A86B5B]" /></div>
                 <div className="text-sm text-[#5F4535]">Tell me what you're building — I'll plan the brand, site & launch.</div>
               </div>
               <div className="mt-5 grid grid-cols-3 gap-3">
@@ -410,8 +418,11 @@ export default function Home() {
   const [subbed, setSubbed] = useState(false);
   const subscribe = (e) => { e.preventDefault(); if (email.trim()) setSubbed(true); };
   const categories = useApi("/categories");
-  const trending = useApi("/shop?sort=trending&limit=10");
-  const bestsellers = useApi("/shop?sort=bestseller&limit=10");
+  const courses = useApi("/courses");
+  // /api/shop does not exist; /api/products?featured=true is the real,
+  // catalog-backed source. There is no sales data behind "trending" or
+  // "best sellers", so we do not claim either.
+  const featured = useApi("/products?featured=true&limit=10");
 
   return (
     <div className="bg-[#FBF7F2]">
@@ -490,8 +501,7 @@ export default function Home() {
 
 
 
-      <Section><div className="gs-container"><DiscoveryRail title="Trending Now" icon={TrendingUp} items={trending.data} wishlist={wishlist} toggleWish={toggleWishlist} addToCart={addToCart} viewAllTo="/shop?sort=trending" /></div></Section>
-      <Section><div className="gs-container"><DiscoveryRail title="Best Sellers" icon={Star} items={bestsellers.data} wishlist={wishlist} toggleWish={toggleWishlist} addToCart={addToCart} viewAllTo="/shop?sort=bestseller" /></div></Section>
+      <Section><div className="gs-container"><DiscoveryRail title="Featured" items={featured.data} wishlist={wishlist} toggleWish={toggleWishlist} addToCart={addToCart} viewAllTo="/shop" /></div></Section>
 
       <Section className="bg-[#FBF1E9]">
         <div className="gs-container">
@@ -512,20 +522,35 @@ export default function Home() {
         </div>
       </Section>
 
+      {courses.data.length > 0 && (
       <Section><div className="gs-container">
-        <div className="max-w-2xl"><span className="gs-eyebrow">Learn</span><h2 className="font-display text-3xl sm:text-4xl text-[#1B1A18] mt-2">Skills that pay you back</h2></div>
+        <div className="flex items-end justify-between">
+          <div className="max-w-2xl"><span className="gs-eyebrow">Learn</span><h2 className="font-display text-3xl sm:text-4xl text-[#1B1A18] mt-2">Skills that pay you back</h2></div>
+          <Link to="/academy" className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-[#A86B5B]">View all courses <ArrowRight className="h-4 w-4" /></Link>
+        </div>
         <div className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {LEARN.map((c) => {
-            const Icon = c.Icon;
+          {courses.data.slice(0, 4).map((c, i) => {
+            const decor = LEARN_DECOR[i % LEARN_DECOR.length];
+            const Icon = decor.Icon;
+            const meta = [c.level, c.duration_hours ? `${c.duration_hours}h` : null].filter(Boolean).join(" · ");
             return (
-              <motion.div key={c.title} variants={fadeUp} className="group rounded-3xl bg-white border border-[#E7D9CE] overflow-hidden hover:shadow-[0_24px_60px_rgba(27,26,24,0.12)] transition">
-                <div className={"h-28 bg-gradient-to-br " + c.grad} />
-                <div className="p-4"><div className="flex items-center gap-2 text-[#A86B5B]"><Icon className="h-4 w-4" /><span className="text-xs font-semibold">{c.lessons}</span></div><h3 className="mt-1 font-display text-lg text-[#1B1A18]">{c.title}</h3></div>
+              <motion.div key={c.slug || c.id} variants={fadeUp}>
+                <Link to={`/academy/${c.slug}`} className="group block h-full rounded-3xl bg-white border border-[#E7D9CE] overflow-hidden hover:shadow-[0_24px_60px_rgba(27,26,24,0.12)] transition">
+                  {c.thumbnail
+                    ? <img src={c.thumbnail} alt="" loading="lazy" className="h-28 w-full object-cover" />
+                    : <div className={"h-28 bg-gradient-to-br " + decor.grad} />}
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 text-[#A86B5B]"><Icon className="h-4 w-4" /><span className="text-xs font-semibold">{meta}</span></div>
+                    <h3 className="mt-1 font-display text-lg text-[#1B1A18]">{c.title}</h3>
+                  </div>
+                </Link>
               </motion.div>
             );
           })}
         </div>
+        <Link to="/academy" className="sm:hidden mt-6 inline-flex items-center gap-1 text-sm font-semibold text-[#A86B5B]">View all courses <ArrowRight className="h-4 w-4" /></Link>
       </div></Section>
+      )}
 
 
 

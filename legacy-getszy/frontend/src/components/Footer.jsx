@@ -95,7 +95,7 @@ export function Footer() {
             </p>
             <div className="flex gap-2.5 mt-5">
               {[Instagram, Twitter, Facebook].map((Ic, i) => (
-                <a key={i} href="#" aria-label="social" className="h-9 w-9 rounded-xl bg-[var(--gs-surface-2)] grid place-items-center text-[var(--gs-muted)] hover:bg-[var(--gs-primary)] hover:text-white transition-colors">
+                <a key={i} href="#" aria-label="social" className="h-11 w-11 rounded-xl bg-[var(--gs-surface-2)] grid place-items-center text-[var(--gs-muted)] hover:bg-[var(--gs-primary)] hover:text-white transition-colors">
                   <Ic className="h-4 w-4" />
                 </a>
               ))}

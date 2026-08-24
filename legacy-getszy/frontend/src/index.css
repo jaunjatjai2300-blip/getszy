@@ -139,3 +139,335 @@
 .prose-dashboard blockquote { @apply border-l-2 border-[var(--gs-teal)] pl-3 italic text-[var(--gs-muted)] my-2; }
 .prose-dashboard hr { @apply my-3 border-[var(--gs-surface)]; }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIVING GLASS WORLD — foundation
+   Rule: "Calm by default. Magical when it matters."
+
+   Three glass levels, chosen by JOB not by taste:
+     L1 Crystal  — hero / feature surfaces. Strong blur. FEW instances per page.
+     L2 Frosted  — cards, nav. Light blur. MANY instances, so blur stays cheap.
+     L3 Solid    — conversion actions (Add to Bag, Buy, Checkout). NO blur,
+                   near-opaque, maximum legibility. Never sacrifice these.
+
+   Performance: backdrop-filter is the expensive property. Cost scales with
+   (blur radius x number of blurred surfaces on screen). L2 is deliberately the
+   cheapest blur because product grids show 12-20 of them at once on mobile.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Glass on LIGHT surfaces (default page bg #FBF7F2) */
+  --gs-g1-bg: rgba(255, 253, 251, 0.55);
+  --gs-g1-border: rgba(255, 255, 255, 0.85);
+  --gs-g1-blur: 20px;
+  --gs-g1-shadow: 0 24px 70px rgba(27, 26, 24, 0.13);
+
+  --gs-g2-bg: rgba(255, 253, 251, 0.82);   /* high enough that --gs-ink stays >7:1 */
+  --gs-g2-border: rgba(231, 217, 206, 0.9);
+  --gs-g2-blur: 8px;                        /* deliberately small: many instances */
+  --gs-g2-shadow: var(--gs-shadow-sm);
+
+  --gs-g3-bg: var(--gs-primary);            /* conversion: opaque, no blur at all */
+  --gs-g3-ink: #ffffff;
+
+  /* Luminous edge — the "light catches the rim" detail */
+  --gs-edge: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0) 45%);
+
+  /* Motion tokens — one vocabulary so nothing feels ad-hoc */
+  --gs-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --gs-dur-fast: 160ms;
+  --gs-dur: 260ms;
+  --gs-dur-slow: 520ms;
+}
+
+/* Glass on DARK surfaces (.gs-dark sections) */
+.gs-dark {
+  --gs-g1-bg: rgba(255, 255, 255, 0.10);
+  --gs-g1-border: rgba(255, 255, 255, 0.22);
+  --gs-g2-bg: rgba(255, 255, 255, 0.07);
+  --gs-g2-border: rgba(255, 255, 255, 0.14);
+  --gs-g1-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+  --gs-edge: linear-gradient(135deg, rgba(255,255,255,0.35), rgba(255,255,255,0) 45%);
+}
+
+@layer components {
+  /* ── L1 Crystal ───────────────────────────────────────────────────────── */
+  .gs-glass-1 {
+    position: relative;
+    background: var(--gs-g1-bg);
+    border: 1px solid var(--gs-g1-border);
+    border-radius: 24px;
+    box-shadow: var(--gs-g1-shadow);
+    backdrop-filter: blur(var(--gs-g1-blur)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--gs-g1-blur)) saturate(1.4);
+  }
+  /* Luminous rim. Pseudo-element so it never affects layout or text contrast. */
+  .gs-glass-1::before {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: var(--gs-edge);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* ── L2 Frosted ───────────────────────────────────────────────────────── */
+  .gs-glass-2 {
+    background: var(--gs-g2-bg);
+    border: 1px solid var(--gs-g2-border);
+    border-radius: 18px;
+    box-shadow: var(--gs-g2-shadow);
+    backdrop-filter: blur(var(--gs-g2-blur));
+    -webkit-backdrop-filter: blur(var(--gs-g2-blur));
+  }
+
+  /* ── L3 Solid — conversion. Opaque on purpose. ────────────────────────── */
+  .gs-glass-3 {
+    background: var(--gs-g3-bg);
+    color: var(--gs-g3-ink);
+    border: 1px solid transparent;
+    border-radius: 14px;
+    box-shadow: var(--gs-shadow-md);
+    backdrop-filter: none;               /* never blur a buy button */
+    transition: background-color var(--gs-dur-fast) var(--gs-ease),
+                transform var(--gs-dur-fast) var(--gs-ease);
+  }
+  .gs-glass-3:hover { background: var(--gs-primary-2); }
+  .gs-glass-3:active { transform: translateY(1px); }
+}
+
+/* ── Dynamic lighting: one slow light source drifting behind the glass ─────
+   Transform-only animation (compositor thread), so it does not cause layout
+   or paint work on scroll. Parent must be position:relative + overflow:hidden. */
+@keyframes gs-light-drift {
+  0%   { transform: translate3d(-18%, -12%, 0) scale(1); }
+  50%  { transform: translate3d(14%, 10%, 0) scale(1.15); }
+  100% { transform: translate3d(-18%, -12%, 0) scale(1); }
+}
+.gs-lightsource {
+  position: absolute;
+  inset: -25%;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(closest-side, rgba(243, 226, 199, 0.55), transparent 70%),
+    radial-gradient(closest-side, rgba(215, 240, 238, 0.45), transparent 70%);
+  background-position: 25% 30%, 75% 60%;
+  background-size: 55% 55%, 50% 50%;
+  background-repeat: no-repeat;
+  animation: gs-light-drift 28s ease-in-out infinite;
+  will-change: transform;
+}
+
+
+/* ═══ GUARDRAILS ═══════════════════════════════════════════════════════════
+   Everything above degrades safely. These blocks are not optional polish —
+   they are what keeps the design usable on real devices.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* 1. Browsers without backdrop-filter get solid surfaces, not transparent mush. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .gs-glass-1 { background: rgba(255, 253, 251, 0.96); }
+  .gs-glass-2 { background: rgba(255, 253, 251, 0.98); }
+  .gs-dark .gs-glass-1 { background: rgba(27, 21, 16, 0.92); }
+  .gs-dark .gs-glass-2 { background: rgba(27, 21, 16, 0.88); }
+}
+
+/* 2. Performance mode. Set data-fx="reduced" on <html> for low-end devices.
+      Kills every blur and ambient animation; layout and colour stay identical. */
+[data-fx="reduced"] .gs-glass-1,
+[data-fx="reduced"] .gs-glass-2 {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: var(--gs-surface);
+}
+[data-fx="reduced"] .gs-dark .gs-glass-1,
+[data-fx="reduced"] .gs-dark .gs-glass-2 { background: rgba(27, 21, 16, 0.9); }
+[data-fx="reduced"] .gs-lightsource { animation: none !important; }
+
+/* 3. Reduced motion: ambient animation stops entirely. The global
+      prefers-reduced-motion block above sets duration to ~0, which would make
+      these infinite loops jitter; `animation: none` is the correct treatment. */
+@media (prefers-reduced-motion: reduce) {
+  .gs-lightsource { animation: none !important; }
+}
+
+/* 4. Mobile: blur is most expensive exactly where devices are weakest.
+      Halve L1 blur and drop L2 blur entirely below the tablet breakpoint. */
+@media (max-width: 767px) {
+  :root { --gs-g1-blur: 10px; }
+  .gs-glass-2 { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--gs-surface); }
+}
+
+/* 5. Never animate backdrop-filter. Transitioning it forces the compositor to
+      re-blur the backdrop every frame of the transition — on a grid of 12-20
+      frosted cards that is a guaranteed jank source. Tailwind's blanket
+      `transition` utility includes backdrop-filter, so glass surfaces pin the
+      transition list to cheap properties. Use `transition-colors` on glass,
+      never bare `transition`. */
+.gs-glass-1, .gs-glass-2 {
+  transition-property: background-color, border-color, box-shadow, transform;
+}
+
+/* ── Ambient world background ─────────────────────────────────────────────────
+   Soft drifting colour fields that sit BEHIND glass (never blurred themselves).
+   Transform-only so the whole effect lives on the compositor thread — unlike
+   the earlier gs-liquid experiment, this does not animate border-radius, which
+   would force a paint on every frame. */
+@keyframes gs-blob-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  33%  { transform: translate3d(6%, -4%, 0) scale(1.12); }
+  66%  { transform: translate3d(-5%, 5%, 0) scale(0.94); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+.gs-ambient-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);           /* static blur — set once, never animated */
+  animation-name: gs-blob-drift;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+/* Guardrails, matching the rest of the system. */
+[data-fx="reduced"] .gs-ambient-blob { animation: none !important; filter: blur(40px); }
+@media (prefers-reduced-motion: reduce) { .gs-ambient-blob { animation: none !important; } }
+@media (max-width: 767px) {
+  /* Large blurred surfaces are the single most expensive thing on weak GPUs.
+     Fewer, cheaper, still present so the world keeps its character. */
+  .gs-ambient-blob { filter: blur(36px); opacity: 0.32 !important; }
+  .gs-ambient-blob:nth-child(n + 3) { display: none; }
+}
+
+/* ── NeoOrb — Neo, the Getszy assistant ──────────────────────────────────────
+   Static presentation only. Every gradient, blur and shadow below is set once
+   and NEVER animated; all motion is applied by src/experience/NeoOrb.jsx as
+   transform/opacity via framer-motion, which keeps the orb on the compositor
+   thread. Colours arrive as custom properties from the component so a single
+   set of rules serves every state (idle / thinking / success / error) and any
+   `tint` override.
+
+   Layer order inside .gs-neo:
+     1 halo   2-4 rings   5-11 orbiting dust   12 core   13 iris             */
+
+.gs-neo {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+  flex: none;                 /* never let a flex parent squash the orb */
+  max-width: 100%;
+  overflow: hidden;           /* hard guarantee: the orb cannot widen a page */
+  line-height: 0;
+  isolation: isolate;
+  contain: layout paint;
+}
+
+/* Every layer is decoration; the role="img" root carries the meaning. */
+.gs-neo > * {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* 1. Outer bloom. Soft radial falloff instead of a filter: blur — cheaper,
+      and it means there is no blurred surface to re-rasterise while it pulses. */
+.gs-neo-halo {
+  inset: 4%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    var(--gs-neo-tint-45) 0%,
+    var(--gs-neo-accent-35) 40%,
+    transparent 66%
+  );
+  transform-origin: 50% 50%;
+}
+
+/* 2-4. Ring stack. Dashed strokes so the rings read as instrument arcs rather
+        than plain circles; each wrapper rotates at its own speed/direction. */
+.gs-neo-ring {
+  border-radius: 50%;
+  transform-origin: 50% 50%;
+}
+.gs-neo-ring svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* 5-11. Orbiting dust. The wrapper spins; the dot slides along that axis, so
+         "gather toward centre" is a translate and never a size change. */
+.gs-neo-orbit {
+  inset: 0;
+  transform-origin: 50% 50%;
+}
+.gs-neo-particle {
+  position: absolute;   /* grandchild — the `.gs-neo > *` rule does not reach it */
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #ffffff 0%, var(--gs-neo-accent) 45%, var(--gs-neo-tint-70) 100%);
+  box-shadow: 0 0 6px var(--gs-neo-tint-45);   /* static glow, set once */
+}
+
+/* 12. Core — a glass sphere with an inner glow. */
+.gs-neo-core {
+  inset: 19%;
+  border-radius: 50%;
+  transform-origin: 50% 50%;
+  background:
+    radial-gradient(closest-side at 50% 58%, var(--gs-neo-accent-60) 0%, transparent 62%),
+    radial-gradient(closest-side, var(--gs-neo-tint-70) 0%, var(--gs-neo-tint-45) 58%, var(--gs-neo-tint-25) 100%);
+  box-shadow:
+    inset 0 -6px 14px var(--gs-neo-tint-25),
+    0 0 20px var(--gs-neo-tint-25);
+}
+
+/* Specular highlight — the single detail that sells "glass" over "circle". */
+.gs-neo-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(38% 32% at 32% 24%, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0) 72%);
+}
+.gs-neo-rim {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* 13. Iris — a bright focal point so the orb has somewhere to look from. */
+.gs-neo-iris {
+  inset: 43%;
+  border-radius: 50%;
+  transform-origin: 50% 50%;
+  background: radial-gradient(closest-side, #ffffff 0%, var(--gs-neo-accent) 52%, transparent 100%);
+}
+
+/* Guardrails, matching the rest of the system.
+   The component already disables its own JS-driven motion for both cases;
+   these rules catch anything that would otherwise animate via CSS. */
+[data-fx="reduced"] .gs-neo-halo,
+[data-fx="reduced"] .gs-neo-ring,
+[data-fx="reduced"] .gs-neo-orbit,
+[data-fx="reduced"] .gs-neo-particle {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gs-neo > *,
+  .gs-neo > * > * {
+    animation: none !important;
+  }
+}
+
+/* Mobile: fewer orbiting dots. Same silhouette, less compositing work.
+   Children 10 and 11 are the last two orbit wrappers (see layer order above);
+   the compound selector keeps the core and iris untouched. */
+@media (max-width: 767px) {
+  .gs-neo > .gs-neo-orbit:nth-child(n + 10) { display: none; }
+}

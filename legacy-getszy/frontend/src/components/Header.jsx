@@ -1,4 +1,5 @@
 /* eslint-disable react/no-unescaped-entities */
+import MagneticNav from "@/experience/MagneticNav";
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import {
@@ -83,7 +84,7 @@ function NavItem({ label, children, to }) {
   const enter = () => { if (closeTimer.current) clearTimeout(closeTimer.current); setOpen(true); };
   const leave = () => { closeTimer.current = setTimeout(() => setOpen(false), 120); };
   return (
-    <div className="relative h-full flex items-center" onMouseEnter={enter} onMouseLeave={leave}>
+    <div className="relative z-10 h-full flex items-center" onMouseEnter={enter} onMouseLeave={leave}>
       {to ? (
         <Link to={to} className="flex items-center gap-1 text-sm font-medium text-[var(--gs-ink)] hover:text-[var(--gs-primary-2)] transition-colors px-1">
           {label} <ChevronDown className="h-3.5 w-3.5 opacity-60" />
@@ -134,7 +135,7 @@ export function Header() {
       <div className="gs-container flex items-center gap-3 h-16">
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="lg:hidden" data-testid="header-mobile-menu-button"><Menu className="h-5 w-5" /></Button>
+            <Button variant="ghost" size="icon" className="lg:hidden !h-11 !w-11" data-testid="header-mobile-menu-button"><Menu className="h-5 w-5" /></Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-80 p-0">
             <div className="p-6">
@@ -156,7 +157,7 @@ export function Header() {
 
         <Link to="/" className="font-display text-2xl tracking-tight" data-testid="header-logo-link">getszy</Link>
 
-        <nav className="hidden lg:flex items-center gap-1 h-full ml-4">
+        <MagneticNav className="hidden lg:flex items-center gap-1 h-full ml-4">
           <NavItem label="SHOP" to="/shop">
             <MegaPanel>
               <div className="grid sm:grid-cols-3 gap-2">
@@ -205,7 +206,7 @@ export function Header() {
 
           <Link to="/pricing" className="text-sm font-medium text-[var(--gs-ink)] hover:text-[var(--gs-primary-2)] px-1" data-testid="header-pricing-link">Pricing</Link>
           <Link to="/ai-agents" className="text-sm font-medium text-[var(--gs-teal)] hover:opacity-80 px-1" data-testid="header-ai-agents-link">AI Agents</Link>
-        </nav>
+        </MagneticNav>
 
         <form onSubmit={submitSearch} className="flex-1 hidden lg:flex justify-center max-w-md mx-4">
           <div className="relative w-full">
@@ -215,7 +216,7 @@ export function Header() {
         </form>
 
         <div className="ml-auto flex items-center gap-1.5">
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileSearchOpen((v) => !v)} data-testid="header-mobile-search-button">
+          <Button variant="ghost" size="icon" className="lg:hidden !h-11 !w-11" onClick={() => setMobileSearchOpen((v) => !v)} data-testid="header-mobile-search-button">
             {mobileSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
           </Button>
           {user ? (
@@ -251,7 +252,7 @@ export function Header() {
           ) : (
             <Button variant="ghost" onClick={() => navigate("/login")} data-testid="header-login-button" className="text-sm">Login</Button>
           )}
-          <Link to="/cart" className="relative" data-testid="header-cart-link">
+          <Link to="/cart" className="relative grid h-11 w-11 place-items-center" data-testid="header-cart-link">
             <Button variant="ghost" size="icon"><ShoppingBag className="h-5 w-5" /></Button>
             {cart.count > 0 && (
               <span className="absolute -top-0.5 -right-0.5 bg-[var(--gs-primary)] text-white text-[10px] rounded-full h-5 w-5 flex items-center justify-center font-semibold">{cart.count}</span>

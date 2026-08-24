@@ -44,9 +44,9 @@ export default function Cart() {
               </div>
               <div className="flex items-center justify-between gap-3 w-full sm:w-auto">
                 <div className="flex items-center border rounded-xl shrink-0" style={{ borderColor: "var(--gs-border)" }}>
-                  <button className="h-9 w-9 grid place-items-center" onClick={() => update(it.product_id, it.quantity - 1)}><Minus className="h-3 w-3"/></button>
+                  <button className="h-11 w-11 grid place-items-center" onClick={() => update(it.product_id, it.quantity - 1)}><Minus className="h-3 w-3"/></button>
                   <span className="w-8 text-center text-sm">{it.quantity}</span>
-                  <button className="h-9 w-9 grid place-items-center" onClick={() => update(it.product_id, it.quantity + 1)}><Plus className="h-3 w-3"/></button>
+                  <button className="h-11 w-11 grid place-items-center" onClick={() => update(it.product_id, it.quantity + 1)}><Plus className="h-3 w-3"/></button>
                 </div>
                 <button onClick={() => update(it.product_id, 0)} className="text-[var(--gs-muted)] hover:text-[var(--destructive)] shrink-0" data-testid={`cart-remove-${it.product_id}`}><Trash2 className="h-4 w-4"/></button>
                 <div className="w-24 text-right font-semibold hidden sm:block shrink-0">{fmtINR(it.line_total)}</div>

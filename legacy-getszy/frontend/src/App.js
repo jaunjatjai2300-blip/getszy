@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/auth";
 import Home from "@/pages/Home";
-import Shop from "@/pages/Shop";
+import CategoryPage from "@/pages/CategoryPage";
 import ProductDetail from "@/pages/ProductDetail";
 import Cart from "@/pages/Cart";
 import Checkout from "@/pages/Checkout";
@@ -17,6 +17,10 @@ import Privacy from "@/pages/Privacy";
 import Support from "@/pages/Support";
 import AIAgents from "@/pages/AIAgents";
 import Referrals from "@/pages/Referrals";
+import Gifts from "@/pages/Gifts";
+import Academy from "@/pages/Academy";
+import CourseDetail from "@/pages/CourseDetail";
+import Learn from "@/pages/Learn";
 import AdminLayout from "@/components/AdminLayout";
 import VideoStudio from "@/pages/dashboard/VideoStudio";
 import DashboardBuild from "@/pages/dashboard/BuildStudio";
@@ -130,8 +134,12 @@ export default function App() {
         <Routes>
           <Route element={<StorefrontLayout />}>
             <Route path="/" element={<Home />} />
-            <Route path="/shop" element={<Shop />} />
-            <Route path="/category/:slug" element={<Shop />} />
+            {/* Both routes resolve through CategoryPage, which picks the
+                category's visual world (see worlds/registry.js) and falls back
+                to a neutral presentation for categories without one yet.
+                URLs are unchanged. */}
+            <Route path="/shop" element={<CategoryPage />} />
+            <Route path="/category/:slug" element={<CategoryPage />} />
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
@@ -145,6 +153,14 @@ export default function App() {
             <Route path="/support" element={<Support />} />
             <Route path="/ai-agents" element={<AIAgents />} />
             <Route path="/referrals" element={<Referrals />} />
+            <Route path="/gifts" element={<Gifts />} />
+            {/* Learning / Academy. These pages and their backend endpoints
+                (/api/courses, /api/courses/{slug}, /api/courses/{slug}/learn)
+                already existed but were never routed, so every "Academy" link
+                in the app 404'd and the whole Learn vertical was unreachable. */}
+            <Route path="/academy" element={<Academy />} />
+            <Route path="/academy/:slug" element={<CourseDetail />} />
+            <Route path="/academy/:slug/learn" element={<Learn />} />
           </Route>
 
           <Route path="/admin" element={<AdminLayout />}>
