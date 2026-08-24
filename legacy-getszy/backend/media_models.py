@@ -16,6 +16,7 @@ safely: every entry is a free, keyless-or-HF-token model.
 import os
 import httpx
 import logging
+from typing import Optional
 
 logger = logging.getLogger('getszy.media_models')
 
