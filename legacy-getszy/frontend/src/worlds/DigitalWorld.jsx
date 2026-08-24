@@ -89,7 +89,7 @@ export default function DigitalWorld({ catalog, config }) {
           <motion.h1
             initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-            className="font-display mt-8 max-w-4xl text-[42px] leading-[1.02] sm:text-6xl lg:text-[72px]"
+            className="font-display mt-8 max-w-4xl gs-display"
             style={{ color: "var(--w-ink)" }}
           >
             Tools that do the<br />work with you.

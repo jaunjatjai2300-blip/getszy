@@ -82,7 +82,7 @@ export default function KidsWorld({ catalog, config }) {
           <motion.h1
             initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-            className="font-display mx-auto mt-7 max-w-3xl text-[40px] leading-[1.05] sm:text-6xl"
+            className="font-display mx-auto mt-7 max-w-3xl gs-display"
             style={{ color: "var(--w-ink)" }}
           >
             Things they will actually play with.
