@@ -16,6 +16,7 @@ import { fmtINR } from "@/lib/api";
 import { useCartAction } from "@/commerce/useCartAction";
 import WorldShell, { AddToBag } from "./WorldShell";
 import { Reveal, RevealItem, Tilt } from "@/experience/primitives";
+import { imageProps } from "@/commerce/responsiveImage";
 
 function TechPiece({ product, index }) {
   const addToBag = useCartAction();
@@ -35,7 +36,7 @@ function TechPiece({ product, index }) {
             <div className="relative mx-auto aspect-[4/3] w-full overflow-hidden rounded-2xl" style={{ background: "var(--w-champagne)" }}>
               {img ? (
                 <img
-                  src={img}
+                  {...imageProps(img, "showcase")}
                   alt={product.name}
                   loading={index === 0 ? "eager" : "lazy"}
                   className="h-full w-full object-cover"

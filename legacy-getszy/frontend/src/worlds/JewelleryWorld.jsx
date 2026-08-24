@@ -18,6 +18,7 @@ import { useCartAction } from "@/commerce/useCartAction";
 import { tierAllows } from "@/commerce/productModel";
 import WorldShell, { AddToBag } from "./WorldShell";
 import { Reveal, RevealItem, Tilt } from "@/experience/primitives";
+import { imageProps } from "@/commerce/responsiveImage";
 
 /* A single piece, alone in its own band. */
 function Vitrine({ product, index }) {
@@ -35,7 +36,7 @@ function Vitrine({ product, index }) {
               <div className="relative aspect-square overflow-hidden">
                 {img ? (
                   <img
-                    src={img}
+                    {...imageProps(img, "showcase")}
                     alt={product.name}
                     loading={index === 0 ? "eager" : "lazy"}
                     className="h-full w-full object-cover transition-transform duration-[1400ms] ease-out hover:scale-[1.03]"
@@ -119,7 +120,7 @@ export default function JewelleryWorld({ catalog, config }) {
               className="mt-16 w-full max-w-lg"
             >
               <div className="relative aspect-[4/3] overflow-hidden">
-                <img src={lead.assets.primary} alt="" className="h-full w-full object-cover" />
+                <img {...imageProps(lead.assets.primary, "hero")} alt="" className="h-full w-full object-cover" />
               </div>
             </motion.div>
           )}

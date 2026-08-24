@@ -15,6 +15,7 @@ import { fmtINR } from "@/lib/api";
 import { useCartAction } from "@/commerce/useCartAction";
 import WorldShell, { AddToBag } from "./WorldShell";
 import { Reveal, RevealItem } from "@/experience/primitives";
+import { imageProps } from "@/commerce/responsiveImage";
 
 function ContextBand({ product, index }) {
   const addToBag = useCartAction();
@@ -27,7 +28,7 @@ function ContextBand({ product, index }) {
         <RevealItem className="relative min-h-[320px] overflow-hidden lg:min-h-[560px] lg:[direction:ltr]">
           {img ? (
             <img
-              src={img}
+              {...imageProps(img, "hero")}
               alt={product.name}
               loading={index === 0 ? "eager" : "lazy"}
               className="absolute inset-0 h-full w-full object-cover"
