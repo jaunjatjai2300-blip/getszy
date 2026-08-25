@@ -74,3 +74,48 @@ async def test_memory_failure_never_breaks_a_task():
     # No Mongo in this environment -> these must degrade, not raise.
     assert await ap.recall("no-such-session") == []
     await ap.remember("no-such-session", "user", "hello")  # must not raise
+
+
+# ── runtime wiring (added after persistence was connected to run_task) ───────
+
+@pytest.mark.asyncio
+async def test_persist_requires_user_id():
+    """Durability cannot be requested without an owner to key it against."""
+    import agent_runtime as rt
+    async def driver(system, user, tools, execute):
+        pass
+    with pytest.raises(ValueError):
+        await rt.run_task("x", system_prompt="s", model_call=driver, persist=True)
+
+
+@pytest.mark.asyncio
+async def test_memory_session_does_not_break_a_run_without_mongo():
+    """session_id is accepted and degrades cleanly when the store is absent."""
+    import agent_runtime as rt
+    async def driver(system, user, tools, execute):
+        await execute("run_tests", {"target": "backend/tests/test_agent_guard.py"})
+    out = await rt.run_task(
+        "verify guard", system_prompt="s", model_call=driver,
+        session_id="sess-no-mongo", user_id="u1",
+    )
+    assert out["result"] == "verified"
+
+
+def test_model_tier_maps_to_an_installed_model_only():
+    """A tier must never resolve to a model that is not installed."""
+    from agent_llm import model_for_tier, TIER_MODELS
+    # none installed -> None, never a hallucinated model name
+    assert model_for_tier("strong", installed=[]) is None
+    # only the 7b present -> strong falls back to it, not to 14b
+    assert model_for_tier("strong", installed=["qwen2.5-coder:7b"]) == "qwen2.5-coder:7b"
+    # exact preference honoured when present
+    assert model_for_tier("strong", installed=["qwen2.5-coder:14b", "qwen2.5-coder:7b"]) == "qwen2.5-coder:14b"
+    assert model_for_tier("light", installed=["llama3.2:3b"]) == "llama3.2:3b"
+    assert set(TIER_MODELS) == {"light", "standard", "strong"}
+
+
+def test_factory_tiers_all_resolve():
+    """Every tier the factory can assign must exist in the model map."""
+    from agent_factory import MODEL_TIERS
+    from agent_llm import TIER_MODELS
+    assert set(MODEL_TIERS) <= set(TIER_MODELS)

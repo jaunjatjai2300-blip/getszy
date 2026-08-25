@@ -145,6 +145,11 @@ async def run_task(
     approvals: set[str] | None = None,
     model_call: Callable[..., Awaitable[Any]] | None = None,
     max_attempts: int = MAX_REPAIR_ATTEMPTS,
+    user_id: str | None = None,
+    session_id: str | None = None,
+    agent_id: str = "master",
+    worker_id: str | None = None,
+    persist: bool = False,
 ) -> dict:
     """Execute one engineering task with bounded autonomous repair.
 
@@ -158,6 +163,45 @@ async def run_task(
 
     if model_call is None:
         model_call = _production_model_call()
+
+    # ── durability (opt-in) ──────────────────────────────────────────────────
+    # When persist=True the task gets a durable record with an idempotency key
+    # and an execution lease, reusing paid_operations. If that cannot be
+    # established we RAISE rather than run: the caller asked for
+    # exactly-once semantics, and silently running without them could duplicate
+    # real work (writes, commits) on a retry.
+    operation = None
+    if persist:
+        if not user_id:
+            raise ValueError("persist=True requires user_id")
+        from agent_persistence import begin_task, finish_task, mark_running
+
+        operation, should_execute = await begin_task(
+            user_id=user_id, request=request, agent_id=agent_id,
+            worker_id=worker_id or f"runtime-{audit.task_id}",
+        )
+        if not should_execute:
+            # Another worker holds the lease, or it already reached a terminal
+            # state. Returning the existing record is correct; re-running is not.
+            audit.result = "already_running_or_complete"
+            audit.finished_at = time.time()
+            out = audit.to_dict()
+            out["operation_id"] = operation.get("operation_id")
+            out["operation_status"] = operation.get("status")
+            return out
+        await mark_running(operation["operation_id"])
+
+    # ── memory (best-effort) ─────────────────────────────────────────────────
+    # Prior turns give a follow-up instruction context. Memory is an
+    # enhancement: losing it degrades the task, it must never fail it.
+    if session_id:
+        from agent_persistence import ensure_session, recall, remember
+
+        await ensure_session(session_id, user_id or "system", {"agent_id": agent_id})
+        prior = await recall(session_id)
+        if prior:
+            audit.plan = f"(continuing session with {len(prior)} prior message(s))"
+        await remember(session_id, "user", request)
 
     last_error = ""
     for attempt in range(1, max_attempts + 1):
@@ -179,12 +223,31 @@ async def run_task(
         if ok:
             audit.result = "verified"
             audit.finished_at = time.time()
-            return audit.to_dict()
+            return await _finalise(audit, operation, session_id)
         last_error = why
 
     audit.result = "failed_needs_human"
     audit.finished_at = time.time()
-    return audit.to_dict()
+    return await _finalise(audit, operation, session_id)
+
+
+async def _finalise(audit: AuditRecord, operation: dict | None, session_id: str | None) -> dict:
+    """Persist evidence and memory, then return the audit.
+
+    Status is derived from the audit's verification result, never asserted by a
+    caller — the same evidence-only rule the loop uses.
+    """
+    out = audit.to_dict()
+    if operation:
+        from agent_persistence import finish_task
+
+        await finish_task(operation_id=operation["operation_id"], audit=out)
+        out["operation_id"] = operation["operation_id"]
+    if session_id:
+        from agent_persistence import remember
+
+        await remember(session_id, "assistant", f"result={audit.result} attempts={audit.attempts}")
+    return out
 
 
 async def _drive(prompt, system_prompt, audit, approvals, model_call) -> None:
