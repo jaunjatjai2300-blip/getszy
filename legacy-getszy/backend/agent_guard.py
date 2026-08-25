@@ -24,7 +24,44 @@ import os
 from pathlib import Path
 
 # Repository root the agent is allowed to operate in.
-REPO_ROOT = Path(os.environ.get("AGENT_REPO_ROOT", Path(__file__).resolve().parent.parent)).resolve()
+# SECURITY: this must never silently fall back to a filesystem root. An earlier
+# version computed Path(__file__).resolve().parent.parent, which yields "/" when
+# this module is not at <repo>/backend/agent_guard.py -- for example when the
+# backend directory is bind-mounted alone into a container. The sandbox then
+# contained the entire filesystem and every escape test passed trivially.
+#
+# The root is now DISCOVERED via a repository marker, VALIDATED, and the guard
+# FAILS CLOSED when none can be established.
+
+_MARKER = Path("backend") / "agent_guard.py"
+
+
+def _is_filesystem_root(p: Path) -> bool:
+    """True for a path with no parent above it ('/', 'C:\\')."""
+    return p == p.parent
+
+
+def _discover_repo_root():
+    """Directory containing backend/agent_guard.py, or None if not found."""
+    candidates = []
+    override = os.environ.get("AGENT_REPO_ROOT")
+    if override:
+        candidates.append(Path(override))
+    candidates.extend(Path(__file__).resolve().parents)
+    for c in candidates:
+        try:
+            c = c.resolve()
+        except Exception:
+            continue
+        if _is_filesystem_root(c):
+            continue
+        if (c / _MARKER).is_file():
+            return c
+    return None
+
+
+REPO_ROOT = _discover_repo_root()
+REPO_ROOT_VALID = REPO_ROOT is not None
 
 # Files an agent may never write to. These ARE the controls; letting an agent
 # edit them would let it grant itself permissions. Matched against the path
@@ -69,6 +106,14 @@ def resolve_in_repo(relative_path: str) -> Path:
     Resolution happens BEFORE the containment check so symlinks and `..` are
     already collapsed — string-prefix checks alone are not sufficient.
     """
+    if not REPO_ROOT_VALID:
+        # Fail closed: without a validated root there is no sandbox to enforce,
+        # so no path operation may proceed.
+        raise GuardDenied(
+            "Agent sandbox is not configured: no repository root containing "
+            "backend/agent_guard.py was found. Set AGENT_REPO_ROOT. "
+            "Refusing all path operations."
+        )
     if not isinstance(relative_path, str) or not relative_path.strip():
         raise GuardDenied("A path is required.")
     if "\x00" in relative_path:
