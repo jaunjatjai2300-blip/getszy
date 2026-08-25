@@ -31,6 +31,14 @@ logger = logging.getLogger("getszy.agent.llm")
 
 MAX_TOOL_ROUNDS = 8
 
+# How many times in a row an identical tool call may be repeated before the loop
+# intervenes. A model that calls run_tests with the same arguments and gets the
+# same failure learns nothing from the next identical attempt; observed in a real
+# run where a specialist repeated one call fifteen times and exhausted its rounds.
+# Consecutive, not cumulative: write -> test -> fix -> test is legitimate and the
+# signature changes in between.
+MAX_IDENTICAL_REPEATS = 3
+
 # A local 14B model reasoning over tool schemas on a CPU-only VPS can take
 # minutes for a single round. llm_provider's 120s is tuned for hosted commerce
 # calls and would time out mid-plan here, which reads as "the model failed" when
@@ -294,6 +302,7 @@ async def _run_with(name, system, user, schemas, execute, temperature, max_round
                     model=None, evidence=None) -> str:
     call = _transport(name, model)
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    last_signature, repeats = None, 0
 
     if evidence is not None:
         evidence["provider"] = name
@@ -335,8 +344,34 @@ async def _run_with(name, system, user, schemas, execute, temperature, max_round
             args = _args(tc)
             if evidence is not None:
                 evidence["tool_calls"].append(fn)
-            # Guarded + audited by the runtime's executor, never called directly.
-            result = await execute(fn, args)
+
+            signature = f"{fn}:{json.dumps(args, sort_keys=True, default=str)}"
+            if signature == last_signature:
+                repeats += 1
+            else:
+                last_signature, repeats = signature, 1
+
+            if repeats > MAX_IDENTICAL_REPEATS:
+                # Not a fabricated tool result: the tool is not run, and this says
+                # so. It is a true statement about the conversation, returned so
+                # the model can change course instead of spending its whole budget
+                # rediscovering the same failure.
+                if evidence is not None:
+                    evidence["repeated_calls"] = evidence.get("repeated_calls", 0) + 1
+                logger.warning("engineering loop: %s repeated %d times, intervening", fn, repeats)
+                result = json.dumps({
+                    "error": "repeated_call",
+                    "detail": (
+                        f"You have now called {fn} with identical arguments "
+                        f"{repeats} times and received the same result each time. "
+                        "It was not run again. Repeating it cannot change the "
+                        "outcome — take a different action, or stop and report "
+                        "what is blocking you."
+                    ),
+                })
+            else:
+                # Guarded + audited by the runtime's executor, never called directly.
+                result = await execute(fn, args)
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc.get("id"),

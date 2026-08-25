@@ -368,3 +368,82 @@ async def test_loop_executes_a_call_that_arrived_as_content(stub_http):
     assert ev["recovered_tool_calls"] == 1
     assert ev["tool_calls"] == ["read_file"]
     assert out == "I have read it."
+
+
+# ── an identical call repeated forever teaches the model nothing ─────────────
+#
+# A real specialist ran the same failing pytest fifteen times and exhausted its
+# rounds without ever attempting the write it needed.
+
+@pytest.mark.asyncio
+async def test_an_identically_repeated_call_is_intervened_on(stub_http):
+    executed = []
+
+    async def execute(name, args):
+        executed.append(name)
+        return json.dumps({"exit_code": 2, "passed": False})
+
+    call = {"id": "1", "function": {"name": "run_tests", "arguments": {"target": "t.py"}}}
+    stub_http.replies = [{"content": "", "tool_calls": [call]} for _ in range(6)] + \
+                        [{"content": "giving up"}]
+    ev: dict = {}
+    await agent_llm.engineering_tool_loop(
+        system="s", user="u", execute=execute, tools=[],
+        provider="ollama", model="qwen2.5-coder:7b", evidence=ev, max_rounds=8,
+    )
+    assert len(executed) == agent_llm.MAX_IDENTICAL_REPEATS, \
+        f"the tool must stop being run after {agent_llm.MAX_IDENTICAL_REPEATS} identical calls"
+    assert ev["repeated_calls"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_a_legitimate_write_then_test_cycle_is_not_intervened_on(stub_http):
+    """write -> test -> write -> test is normal repair, not a stuck loop."""
+    executed = []
+
+    async def execute(name, args):
+        executed.append(name)
+        return json.dumps({"ok": True})
+
+    def tc(n, name, args):
+        return {"id": str(n), "function": {"name": name, "arguments": args}}
+
+    stub_http.replies = [
+        {"content": "", "tool_calls": [tc(1, "write_file", {"path": "a.py", "content": "v1"})]},
+        {"content": "", "tool_calls": [tc(2, "run_tests", {"target": "t.py"})]},
+        {"content": "", "tool_calls": [tc(3, "write_file", {"path": "a.py", "content": "v2"})]},
+        {"content": "", "tool_calls": [tc(4, "run_tests", {"target": "t.py"})]},
+        {"content": "done"},
+    ]
+    ev: dict = {}
+    await agent_llm.engineering_tool_loop(
+        system="s", user="u", execute=execute, tools=[],
+        provider="ollama", model="qwen2.5-coder:7b", evidence=ev, max_rounds=8,
+    )
+    assert executed == ["write_file", "run_tests", "write_file", "run_tests"]
+    assert ev.get("repeated_calls", 0) == 0
+
+
+@pytest.mark.asyncio
+async def test_the_repeat_guard_says_the_tool_was_not_run(stub_http):
+    """It must be honest that no tool ran, not fabricate a result."""
+    seen = []
+
+    async def execute(name, args):
+        return json.dumps({"exit_code": 2})
+
+    call = {"id": "1", "function": {"name": "run_tests", "arguments": {}}}
+    stub_http.replies = [{"content": "", "tool_calls": [call]} for _ in range(5)] + \
+                        [{"content": "stopping"}]
+
+    original = agent_llm._transport
+
+    await agent_llm.engineering_tool_loop(
+        system="s", user="u", execute=execute, tools=[],
+        provider="ollama", model="qwen2.5-coder:7b", max_rounds=8,
+    )
+    # the guard message is fed back as the tool result
+    fed = [m for m in stub_http.captured[-1]["json"]["messages"] if m.get("role") == "tool"]
+    guard_messages = [m for m in fed if "repeated_call" in m["content"]]
+    assert guard_messages, "the model must be told it is repeating itself"
+    assert "not run again" in guard_messages[0]["content"]
