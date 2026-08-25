@@ -265,3 +265,104 @@ async def test_context_window_is_set_explicitly(stub_http):
     options = stub_http.captured[0]["json"]["options"]
     assert options["num_ctx"] == agent_llm.OLLAMA_NUM_CTX
     assert options["num_ctx"] >= 4096
+
+
+# ── tool calls emitted as text instead of structured fields ──────────────────
+#
+# Observed on the VPS: qwen2.5-coder:7b selected the right tool with the right
+# argument but printed it in `content`. The loop saw tool_calls == [] and treated
+# a plan as a final answer, doing nothing for three attempts while the model was
+# behaving correctly.
+
+SCHEMAS = [
+    {"type": "function", "function": {"name": "read_file", "parameters": {}}},
+    {"type": "function", "function": {"name": "run_tests", "parameters": {}}},
+]
+
+
+def test_recovers_the_exact_payload_the_vps_model_produced():
+    content = '{"name": "read_file", "arguments": {"path": "backend/tests/test_slug_utils.py"}}'
+    calls = agent_llm._tool_calls_from_content(content, SCHEMAS)
+    assert len(calls) == 1
+    assert calls[0]["function"]["name"] == "read_file"
+    assert calls[0]["function"]["arguments"] == {"path": "backend/tests/test_slug_utils.py"}
+
+
+def test_recovers_from_a_markdown_fence():
+    content = 'I will start by reading it.\n```json\n{"name": "run_tests", "arguments": {}}\n```'
+    calls = agent_llm._tool_calls_from_content(content, SCHEMAS)
+    assert [c["function"]["name"] for c in calls] == ["run_tests"]
+
+
+def test_recovers_from_a_tool_call_tag_wrapper():
+    content = '<tool_call>{"name": "read_file", "arguments": {"path": "a.py"}}</tool_call>'
+    calls = agent_llm._tool_calls_from_content(content, SCHEMAS)
+    assert calls[0]["function"]["arguments"] == {"path": "a.py"}
+
+
+def test_recovers_the_openai_style_nesting():
+    content = '{"function": {"name": "read_file", "arguments": "{\\"path\\": \\"b.py\\"}"}}'
+    calls = agent_llm._tool_calls_from_content(content, SCHEMAS)
+    assert calls[0]["function"]["arguments"] == {"path": "b.py"}
+
+
+def test_prose_is_never_turned_into_an_action():
+    for content in [
+        "I will read backend/tests/test_slug_utils.py and then run the tests.",
+        "",
+        "Here is some JSON: {\"unrelated\": true}",
+    ]:
+        assert agent_llm._tool_calls_from_content(content, SCHEMAS) == []
+
+
+def test_an_unregistered_tool_name_is_never_executed():
+    """Recovering a call the model made is honest; inventing a tool is not."""
+    content = '{"name": "rm_rf", "arguments": {"path": "/"}}'
+    assert agent_llm._tool_calls_from_content(content, SCHEMAS) == []
+
+
+@pytest.mark.asyncio
+async def test_structured_tool_calls_take_precedence(stub_http):
+    """A model that populates the field correctly must be unaffected."""
+    seen = []
+
+    async def execute(name, args):
+        seen.append(name)
+        return json.dumps({"ok": True})
+
+    stub_http.replies = [
+        {"content": '{"name": "run_tests", "arguments": {}}',
+         "tool_calls": [{"id": "1", "function": {"name": "read_file", "arguments": {"path": "x"}}}]},
+        {"content": "done"},
+    ]
+    ev: dict = {}
+    await agent_llm.engineering_tool_loop(
+        system="s", user="u", execute=execute, tools=SCHEMAS,
+        provider="ollama", model="qwen2.5:7b", evidence=ev,
+    )
+    assert seen == ["read_file"], "the structured field must win"
+    assert ev.get("recovered_tool_calls", 0) == 0
+
+
+@pytest.mark.asyncio
+async def test_loop_executes_a_call_that_arrived_as_content(stub_http):
+    """End to end: the previously-dropped call now reaches the executor."""
+    seen = []
+
+    async def execute(name, args):
+        seen.append((name, args))
+        return json.dumps({"ok": True})
+
+    stub_http.replies = [
+        {"content": '{"name": "read_file", "arguments": {"path": "backend/tests/test_slug_utils.py"}}'},
+        {"content": "I have read it."},
+    ]
+    ev: dict = {}
+    out = await agent_llm.engineering_tool_loop(
+        system="s", user="u", execute=execute, tools=SCHEMAS,
+        provider="ollama", model="qwen2.5-coder:7b", evidence=ev,
+    )
+    assert seen == [("read_file", {"path": "backend/tests/test_slug_utils.py"})]
+    assert ev["recovered_tool_calls"] == 1
+    assert ev["tool_calls"] == ["read_file"]
+    assert out == "I have read it."

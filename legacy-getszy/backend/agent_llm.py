@@ -305,15 +305,29 @@ async def _run_with(name, system, user, schemas, execute, temperature, max_round
         msg = await call(messages, schemas, temperature)
         if evidence is not None:
             evidence["rounds"] = _round + 1
+        content = msg.get("content") or ""
         calls = msg.get("tool_calls") or []
+
+        # Some models emit the call as text rather than in the structured field.
+        recovered = False
+        if not calls:
+            calls = _tool_calls_from_content(content, schemas)
+            recovered = bool(calls)
+            if recovered and evidence is not None:
+                evidence["recovered_tool_calls"] = (
+                    evidence.get("recovered_tool_calls", 0) + len(calls)
+                )
+
         if not calls:
             if evidence is not None:
-                evidence["final_content"] = msg.get("content") or ""
-            return msg.get("content") or ""
+                evidence["final_content"] = content
+            return content
 
         messages.append({
             "role": "assistant",
-            "content": msg.get("content") or "",
+            # When the call was recovered, the content IS the call. Replaying it
+            # as text as well would invite the model to simply repeat itself.
+            "content": "" if recovered else content,
             "tool_calls": calls,
         })
         for tc in calls:
@@ -333,6 +347,100 @@ async def _run_with(name, system, user, schemas, execute, temperature, max_round
     raise NoEngineeringProvider(
         f"Tool loop exceeded {max_rounds} rounds without producing a final answer."
     )
+
+
+_TOOL_CALL_TAGS = ("<tool_call>", "</tool_call>", "<tool_calls>", "</tool_calls>")
+
+
+def _known_tool_names(schemas) -> set[str]:
+    names = set()
+    for s in schemas or []:
+        fn = (s or {}).get("function") or {}
+        if fn.get("name"):
+            names.add(fn["name"])
+    return names
+
+
+def _json_objects(text: str) -> list:
+    """Every top-level JSON object in a string, in order.
+
+    A plain `json.loads` fails when the model wraps the call in prose or a
+    markdown fence, which is exactly the case this exists to handle.
+    """
+    out: list = []
+    depth = 0
+    start = None
+    in_string = False
+    escaped = False
+    for i, ch in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}" and depth:
+            depth -= 1
+            if depth == 0 and start is not None:
+                try:
+                    out.append(json.loads(text[start:i + 1]))
+                except Exception:
+                    pass
+                start = None
+    return out
+
+
+def _tool_calls_from_content(content: str, schemas) -> list[dict]:
+    """Recover tool calls a model emitted as text instead of structured fields.
+
+    Observed with qwen2.5-coder through Ollama: the model selects the right tool
+    with the right arguments but prints it as JSON in the message content rather
+    than populating `tool_calls`. Ollama passes that straight through, so the
+    loop saw "no tool calls", treated a plan as a final answer, and did nothing —
+    three attempts in a row, with the model behaving correctly the whole time.
+
+    Deliberately strict: only an object naming a tool that is actually in the
+    supplied schemas becomes an action. Prose, or JSON that merely resembles a
+    call, is never executed. Recovering a call the model really made is honest;
+    inventing one would not be.
+    """
+    if not content or "{" not in content:
+        return []
+    known = _known_tool_names(schemas)
+    if not known:
+        return []
+
+    text = content
+    for tag in _TOOL_CALL_TAGS:
+        text = text.replace(tag, " ")
+
+    calls: list[dict] = []
+    for obj in _json_objects(text):
+        if not isinstance(obj, dict):
+            continue
+        fn = obj["function"] if isinstance(obj.get("function"), dict) else obj
+        name = fn.get("name")
+        if not isinstance(name, str) or name not in known:
+            continue
+        args = fn.get("arguments", fn.get("parameters", {}))
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except Exception:
+                args = {}
+        calls.append({
+            "id": f"recovered-{len(calls)}",
+            "function": {"name": name, "arguments": args if isinstance(args, dict) else {}},
+        })
+    return calls
 
 
 def _default_model(name: str) -> str | None:
