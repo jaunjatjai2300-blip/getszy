@@ -111,11 +111,22 @@ MAX_ATTEMPTS = runtime.MAX_REPAIR_ATTEMPTS  # 3, from the runtime itself
 # ── plumbing (deliberately independent of the agent's own tools) ─────────────
 
 def sh(*args: str, cwd: Path | None = None, timeout: int = 600) -> dict:
-    r = subprocess.run(
-        list(args), cwd=str(cwd or guard.REPO_ROOT),
-        capture_output=True, text=True, timeout=timeout,
-    )
-    return {"code": r.returncode, "out": r.stdout, "err": r.stderr}
+    """Run a command, turning a missing executable into a reportable result.
+
+    A missing binary must surface as a preflight message naming what is absent,
+    not as a traceback out of subprocess. This does not soften any check: the
+    caller still sees a non-zero exit and still refuses to proceed.
+    """
+    try:
+        r = subprocess.run(
+            list(args), cwd=str(cwd or guard.REPO_ROOT),
+            capture_output=True, text=True, timeout=timeout,
+        )
+        return {"code": r.returncode, "out": r.stdout, "err": r.stderr}
+    except FileNotFoundError:
+        return {"code": 127, "out": "", "err": f"executable not found: {args[0]}"}
+    except subprocess.TimeoutExpired:
+        return {"code": 124, "out": "", "err": f"timed out after {timeout}s"}
 
 
 def git(*args: str) -> dict:
@@ -152,6 +163,18 @@ def preflight() -> dict:
     if guard._is_filesystem_root(guard.REPO_ROOT):
         raise Preflight(f"REPO_ROOT is a filesystem root ({guard.REPO_ROOT}); the sandbox would be meaningless.")
     info["repo_root"] = str(guard.REPO_ROOT)
+
+    ver = git("--version")
+    if ver["code"] != 0:
+        raise Preflight(
+            "git is not available here, so the commit and diff criteria could not "
+            "be verified.\n"
+            "The production backend image ships only curl and ffmpeg on purpose; git "
+            "is not added to it for a test-only need. Build the acceptance image:\n"
+            "  docker build -t getszy-acceptance -f legacy-getszy/Dockerfile.acceptance - < /dev/null\n"
+            "and run that image instead of legacy-getszy-backend."
+        )
+    info["git"] = ver["out"].strip()
 
     top = git("rev-parse", "--show-toplevel")
     if top["code"] != 0:

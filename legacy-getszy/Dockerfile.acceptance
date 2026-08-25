@@ -1,0 +1,29 @@
+# Test-only image for the Agent Factory acceptance run.
+#
+# The production backend image (Dockerfile.backend) deliberately installs only
+# curl and ffmpeg. The server never shells out to git, so shipping git there
+# would add an executable to the production attack surface for a need that only
+# exists in testing -- and the agent's own tools run inside that image.
+#
+# The acceptance harness DOES need real git: it makes a real commit and verifies
+# it with `git cat-file` / `git show`. Those checks are the point of the test and
+# must not be mocked or removed, so git is added here, in a layer that never
+# reaches production.
+#
+# Build (no build context needed -- this only extends an existing local image):
+#   docker build -t getszy-acceptance -f legacy-getszy/Dockerfile.acceptance - < /dev/null
+#
+# Override the base if your local tag differs:
+#   docker build -t getszy-acceptance --build-arg BASE_IMAGE=<tag> ...
+
+ARG BASE_IMAGE=legacy-getszy-backend
+FROM ${BASE_IMAGE}
+
+USER root
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Nothing else changes: same Python, same installed packages, same application
+# code as production. Only the git executable is added.

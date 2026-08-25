@@ -246,3 +246,12 @@ def test_protected_file_would_be_detected_after_normalisation():
 
     normalised = acc.sandbox_relative("legacy-getszy/backend/auth.py", "legacy-getszy/")
     assert normalised in SELF_PROTECTED
+
+
+def test_missing_executable_is_reported_not_raised():
+    """A missing binary must become a preflight message, not a traceback."""
+    import acceptance_agent_factory as acc
+
+    out = acc.sh("definitely-not-a-real-binary-xyz")
+    assert out["code"] == 127
+    assert "not found" in out["err"]
