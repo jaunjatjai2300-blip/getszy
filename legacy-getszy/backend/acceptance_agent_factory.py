@@ -133,6 +133,23 @@ def git(*args: str) -> dict:
     return sh("git", *args)
 
 
+def log(msg: str = "") -> None:
+    """Print immediately.
+
+    A local 14B model can be silent for minutes at a time. Buffered output makes
+    a slow run indistinguishable from a hung one, and leaves nothing behind if
+    the session drops, so every line is flushed as it happens.
+    """
+    print(msg, flush=True)
+
+
+def brief(value, limit: int = 140) -> str:
+    """One-line, length-capped rendering for the live trace."""
+    text = value if isinstance(value, str) else json.dumps(value, default=str)
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[:limit] + f"…(+{len(text) - limit})"
+
+
 def sandbox_relative(git_path: str, prefix: str) -> str | None:
     """Convert a git-root-relative path to a sandbox-relative one.
 
@@ -145,6 +162,31 @@ def sandbox_relative(git_path: str, prefix: str) -> str | None:
     if not prefix:
         return git_path
     return git_path[len(prefix):] if git_path.startswith(prefix) else None
+
+
+def model_sizes_gb() -> dict:
+    """On-disk size of each installed model, as Ollama reports it."""
+    import httpx
+
+    try:
+        r = httpx.get(f"{agent_llm.ollama_base_url()}/api/tags", timeout=5.0)
+        return {m.get("name"): round(m.get("size", 0) / 1e9, 1)
+                for m in (r.json() or {}).get("models", [])}
+    except Exception:
+        return {}
+
+
+def memory_gb() -> dict:
+    """Host memory, for judging whether a model can actually be resident."""
+    try:
+        out = {}
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            key, _, value = line.partition(":")
+            if key in {"MemTotal", "MemAvailable"}:
+                out[key] = round(int(value.strip().split()[0]) / 1_000_000, 1)
+        return out
+    except Exception:
+        return {}
 
 
 class Preflight(RuntimeError):
@@ -252,12 +294,43 @@ async def main() -> int:
         return 2
 
     model = agent_llm.model_for_tier(cfg["model_tier"], env["installed_models"])
+
+    # An operator may pin a different model, but only one that is really present.
+    # The report always names the model that actually ran, so pinning cannot hide
+    # which model produced the result.
+    override = os.environ.get("ACCEPTANCE_MODEL", "").strip()
+    if override:
+        if override not in env["installed_models"]:
+            log(f"ACCEPTANCE_MODEL={override!r} is not installed. "
+                f"Installed: {env['installed_models']}")
+            return 2
+        log(f"  ACCEPTANCE_MODEL override: {model} -> {override}")
+        model = override
+
     if not model:
-        print(
-            f"No installed model satisfies tier '{cfg['model_tier']}'. "
-            f"Installed: {env['installed_models']}. Refusing to substitute one."
-        )
+        log(f"No installed model satisfies tier '{cfg['model_tier']}'. "
+            f"Installed: {env['installed_models']}. Refusing to substitute one.")
         return 2
+
+    # A model that cannot be resident will thrash swap or be OOM-killed, which
+    # can take the whole host down -- that is what ended the previous run.
+    sizes, mem = model_sizes_gb(), memory_gb()
+    need, have = sizes.get(model), mem.get("MemAvailable")
+    report["model_size_gb"] = need
+    report["host_memory_gb"] = mem
+    log(f"\n== capacity ==\n  {model}: {need or '?'} GB   "
+        f"host available: {have or '?'} GB of {mem.get('MemTotal') or '?'} GB")
+    if need and have and need > have:
+        if os.environ.get("ACCEPTANCE_ALLOW_OVERSIZED_MODEL") != "1":
+            log(
+                f"\nRefusing to run: {model} needs about {need} GB but only {have} GB is "
+                f"available.\nOllama would swap heavily or be OOM-killed, which can take "
+                f"the host down.\nEither free memory, or pin a smaller installed model:\n"
+                f"  -e ACCEPTANCE_MODEL=<one of {env['installed_models']}>\n"
+                f"To proceed anyway: -e ACCEPTANCE_ALLOW_OVERSIZED_MODEL=1"
+            )
+            return 2
+        log("  WARNING: proceeding with an oversized model at the operator's request.")
 
     report["agent"] = {
         "name": cfg["name"],
@@ -293,11 +366,27 @@ async def main() -> int:
     async def model_call(system, user, tools, execute):
         ev: dict = {}
         attempts_evidence.append(ev)
-        return await agent_llm.engineering_tool_loop(
-            system=system, user=user, execute=execute, tools=tools,
-            provider="ollama", model=model, evidence=ev,
-            max_rounds=MAX_ROUNDS, temperature=0.1,
-        )
+        attempt_no = len(attempts_evidence)
+        started_at = time.time()
+        log(f"  attempt {attempt_no}/{MAX_ATTEMPTS}: prompting {model} "
+            f"({len(tools)} tools offered)…")
+
+        async def traced(name, args):
+            log(f"    -> {name}({brief(args)})")
+            out = await execute(name, args)
+            log(f"       {brief(out)}")
+            return out
+
+        try:
+            final = await agent_llm.engineering_tool_loop(
+                system=system, user=user, execute=traced, tools=tools,
+                provider="ollama", model=model, evidence=ev,
+                max_rounds=MAX_ROUNDS, temperature=0.1,
+            )
+        finally:
+            log(f"  attempt {attempt_no} finished in {round(time.time() - started_at, 1)}s "
+                f"({ev.get('rounds', 0)} round(s), {len(ev.get('tool_calls', []))} tool call(s))")
+        return final
 
     print(f"\n== running (real model, max {MAX_ATTEMPTS} repair attempts) ==")
     run_error = None
