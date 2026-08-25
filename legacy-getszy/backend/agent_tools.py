@@ -467,10 +467,12 @@ ENGINEERING_SCHEMAS = [
             "your tools and approvals and returns structured evidence. It cannot exceed "
             "your own authority.",
             {"specialist": {"type": "string"}, "task": {"type": "string"},
-             "tools": {"type": "array", "items": {"type": "string"},
-                       "description": "Optional. Narrow the specialist further. Omit to let "
-                                      "its role decide. Requesting anything you do not hold "
-                                      "is refused."},
+             # `tools` is deliberately NOT offered to the model. It could only
+             # ever narrow the child, so it granted nothing -- but a model that
+             # hand-picks a tool list can omit the capability the task needs and
+             # leave the specialist unable to do its job with no way to recover.
+             # The specialist's validated role decides its tools, intersected
+             # with the parent. Programmatic callers can still pass tools.
              "approvals": {"type": "array", "items": {"type": "string"},
                            "description": "Optional and almost always omitted. These are "
                                           "OPERATIONS, not tools: git_push, git_reset, "

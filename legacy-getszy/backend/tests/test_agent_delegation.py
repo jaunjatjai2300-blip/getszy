@@ -560,3 +560,85 @@ async def test_a_master_restricted_from_writing_is_refused_at_its_own_executor()
     assert "write_file" not in refused["offered"]
     assert refused["write"]["error"] == "tool_not_permitted"
     assert not (REPO_ROOT / "backend/tests/_master_write_probe.txt").exists()
+
+
+# ── the exact bug the real run exposed ───────────────────────────────────────
+#
+# The master spawned a specialist with tools ["read_file", "run_tests"], so the
+# child could never create the file it was asked to create. It then ran the
+# failing test fifteen times until its rounds ran out.
+
+def test_the_model_is_not_offered_a_tools_parameter():
+    """Narrowing granted nothing and let the model disarm its own specialist."""
+    schema = next(s for s in agent_tools.ENGINEERING_SCHEMAS
+                  if s["function"]["name"] == "spawn_specialist")
+    props = schema["function"]["parameters"]["properties"]
+    assert "tools" not in props, "the model must not hand-pick a child's tool list"
+    assert set(schema["function"]["parameters"]["required"]) == {"specialist", "task"}
+
+
+@pytest.mark.asyncio
+async def test_a_master_that_cannot_write_delegates_a_child_that_can_and_the_file_appears():
+    """The acceptance scenario in miniature, end to end through real tools."""
+    target = "backend/tests/_deleg_written_by_child.txt"
+    path = REPO_ROOT / target
+    path.unlink(missing_ok=True)
+    child_result = {}
+
+    try:
+        def factory(tier):
+            async def call(system, user, tools, execute):
+                child_result["offered"] = sorted(s["function"]["name"] for s in tools)
+                child_result["write"] = json.loads(await execute(
+                    "write_file", {"path": target, "content": "written by the specialist\n"}))
+            return call
+
+        delegable = frozenset(agent_tools.ENGINEERING_TOOLS)
+        master_own = sorted(delegable - {"write_file"})
+        context = dg.master_context(task_id="t", tools=delegable, model_factory=factory)
+        master_attempt = {}
+
+        async def master(system, user, tools, execute):
+            master_attempt["offered"] = sorted(s["function"]["name"] for s in tools)
+            master_attempt["write"] = json.loads(await execute(
+                "write_file", {"path": target, "content": "written by the MASTER\n"}))
+            await execute("spawn_specialist",
+                          {"specialist": BACKEND, "task": "create the file"})
+
+        await rt.run_task("delegate the write", system_prompt="master", model_call=master,
+                          max_attempts=1, allowed_tools=master_own, delegation=context)
+
+        # the master could not write, and was refused when it tried
+        assert "write_file" not in master_attempt["offered"]
+        assert master_attempt["write"]["error"] == "tool_not_permitted"
+        # the child could, and did
+        assert "write_file" in child_result["offered"]
+        assert "error" not in child_result["write"]
+        assert path.read_text(encoding="utf-8") == "written by the specialist\n", \
+            "only the specialist may have created this file"
+        # and the child stayed inside the ceiling
+        assert set(child_result["offered"]) <= set(delegable)
+    finally:
+        path.unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
+async def test_a_child_without_write_file_cannot_write():
+    target = "backend/tests/_deleg_readonly_probe.txt"
+    path = REPO_ROOT / target
+    path.unlink(missing_ok=True)
+    result = {}
+
+    try:
+        def factory(tier):
+            async def call(system, user, tools, execute):
+                result["write"] = json.loads(await execute(
+                    "write_file", {"path": target, "content": "x"}))
+            return call
+
+        await dg.delegate(specialist=RESEARCH, task="read only",
+                          context=ctx(model_factory=factory))
+        assert result["write"]["error"] == "tool_not_permitted"
+        assert not path.exists()
+    finally:
+        path.unlink(missing_ok=True)
