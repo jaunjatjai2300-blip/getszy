@@ -171,7 +171,7 @@ def preflight() -> dict:
             "be verified.\n"
             "The production backend image ships only curl and ffmpeg on purpose; git "
             "is not added to it for a test-only need. Build the acceptance image:\n"
-            "  docker build -t getszy-acceptance -f legacy-getszy/Dockerfile.acceptance - < /dev/null\n"
+            "  docker build -t getszy-acceptance - < legacy-getszy/Dockerfile.acceptance\n"
             "and run that image instead of legacy-getszy-backend."
         )
     info["git"] = ver["out"].strip()

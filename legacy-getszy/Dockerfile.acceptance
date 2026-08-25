@@ -11,7 +11,7 @@
 # reaches production.
 #
 # Build (no build context needed -- this only extends an existing local image):
-#   docker build -t getszy-acceptance -f legacy-getszy/Dockerfile.acceptance - < /dev/null
+#   docker build -t getszy-acceptance - < legacy-getszy/Dockerfile.acceptance
 #
 # Override the base if your local tag differs:
 #   docker build -t getszy-acceptance --build-arg BASE_IMAGE=<tag> ...
