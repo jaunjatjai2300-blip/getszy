@@ -212,3 +212,47 @@ def test_guard_fails_closed_when_no_root(monkeypatch):
         with pytest.raises(GuardDenied) as exc:
             g.resolve_in_repo(path)
         assert "not configured" in str(exc.value)
+
+
+# ── 7. a search that cannot run must not look like a search with no results ──
+#
+# grep_repo previously ignored the exit code, so a missing grep binary (exit
+# 127) was reported as `matches: 0`. That tells an agent "this symbol does not
+# exist" about a repository it never actually searched -- a fabricated result.
+
+@pytest.mark.asyncio
+async def test_failed_search_is_an_error_not_zero_matches(monkeypatch):
+    monkeypatch.setattr(agent_tools, "_has", lambda cmd: True)
+    monkeypatch.setattr(
+        agent_tools, "_run",
+        lambda *a, **k: {"ok": False, "code": 127, "stdout": "", "stderr": "grep: not found"},
+    )
+    out = json.loads(await agent_tools.execute_engineering_tool(
+        "grep_repo", {"pattern": "SELF_PROTECTED", "path": "backend"}
+    ))
+    assert out["error"] == "search_failed"
+    assert "matches" not in out
+
+
+@pytest.mark.asyncio
+async def test_genuine_zero_matches_is_still_zero_matches(monkeypatch):
+    """Exit 1 means 'searched, found nothing' and must stay a normal result."""
+    monkeypatch.setattr(agent_tools, "_has", lambda cmd: True)
+    monkeypatch.setattr(
+        agent_tools, "_run",
+        lambda *a, **k: {"ok": False, "code": 1, "stdout": "", "stderr": ""},
+    )
+    out = json.loads(await agent_tools.execute_engineering_tool(
+        "grep_repo", {"pattern": "zzz_no_such_symbol", "path": "backend"}
+    ))
+    assert out["matches"] == 0 and "error" not in out
+
+
+@pytest.mark.asyncio
+async def test_search_works_with_no_external_binary_available(monkeypatch):
+    """The toolset must not depend on ripgrep or grep being installed."""
+    monkeypatch.setattr(agent_tools, "_has", lambda cmd: False)
+    out = json.loads(await agent_tools.execute_engineering_tool(
+        "grep_repo", {"pattern": "SELF_PROTECTED", "path": "backend"}
+    ))
+    assert out["matches"] > 0, out

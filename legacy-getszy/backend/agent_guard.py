@@ -67,9 +67,22 @@ REPO_ROOT_VALID = REPO_ROOT is not None
 # edit them would let it grant itself permissions. Matched against the path
 # relative to REPO_ROOT, so a rename cannot dodge the check by changing depth.
 SELF_PROTECTED = {
+    # The guard and the toolset: the security decision and its enforcement points.
     "backend/agent_guard.py",
     "backend/agent_tools.py",
     "backend/agent_audit.py",
+    # The FACTORY RUNTIME. These decide how many repair attempts are allowed, what
+    # counts as verified success, which approvals are carried, and whether a stored
+    # agent config is trusted. An agent able to write these could rewrite verify()
+    # to always return True, or lift its own approval gate -- the spec forbids an
+    # agent silently modifying its own permission, approval or factory-runtime
+    # controls, and the guard alone does not cover them.
+    "backend/agent_runtime.py",
+    "backend/agent_factory.py",
+    "backend/agent_llm.py",
+    "backend/agent_persistence.py",
+    "backend/acceptance_agent_factory.py",
+    # Platform security and money.
     "backend/auth.py",
     "backend/credits.py",
     "backend/routes_razorpay.py",

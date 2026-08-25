@@ -150,6 +150,7 @@ async def run_task(
     agent_id: str = "master",
     worker_id: str | None = None,
     persist: bool = False,
+    allowed_tools: list[str] | set[str] | None = None,
 ) -> dict:
     """Execute one engineering task with bounded autonomous repair.
 
@@ -211,7 +212,7 @@ async def run_task(
             "Diagnose the cause and repair it."
         )
         try:
-            await _drive(prompt, system_prompt, audit, approvals, model_call)
+            await _drive(prompt, system_prompt, audit, approvals, model_call, allowed_tools)
         except NoModelAvailable:
             audit.result = "no_model_available"
             audit.finished_at = time.time()
@@ -250,17 +251,36 @@ async def _finalise(audit: AuditRecord, operation: dict | None, session_id: str 
     return out
 
 
-async def _drive(prompt, system_prompt, audit, approvals, model_call) -> None:
-    """One attempt: let the model call engineering tools, recording every call."""
+async def _drive(prompt, system_prompt, audit, approvals, model_call, allowed_tools=None) -> None:
+    """One attempt: let the model call engineering tools, recording every call.
+
+    When the agent's configuration restricts `allowed_tools`, that restriction is
+    enforced HERE as well as advertised. Filtering the schemas alone would not be
+    enforcement: a model can name a tool that was never offered to it, so the
+    executor refuses anything outside the set rather than trusting the prompt.
+    """
+    permitted = set(allowed_tools) if allowed_tools else None
+
     async def tool_executor(name: str, args: dict) -> str:
+        if permitted is not None and name not in permitted:
+            denied = json.dumps({
+                "error": "tool_not_permitted",
+                "detail": f"'{name}' is not in this agent's allowed tools.",
+            })
+            audit.record_action(name, args, denied)
+            return denied
         result = await execute_engineering_tool(name, args, approvals=approvals)
         audit.record_action(name, args, result)
         return result
 
+    schemas = ENGINEERING_SCHEMAS
+    if permitted is not None:
+        schemas = [s for s in ENGINEERING_SCHEMAS if s["function"]["name"] in permitted]
+
     await model_call(
         system=system_prompt,
         user=prompt,
-        tools=ENGINEERING_SCHEMAS,
+        tools=schemas,
         execute=tool_executor,
     )
 
