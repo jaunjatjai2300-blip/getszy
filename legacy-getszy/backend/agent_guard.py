@@ -83,6 +83,7 @@ SELF_PROTECTED = {
     "backend/agent_persistence.py",
     "backend/acceptance_agent_factory.py",
     "backend/acceptance_persistence.py",
+    "backend/acceptance_delegation.py",
     "backend/routes_agent_factory.py",
     # Platform security and money.
     "backend/auth.py",

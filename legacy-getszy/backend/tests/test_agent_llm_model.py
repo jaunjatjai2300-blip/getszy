@@ -209,6 +209,7 @@ def test_factory_runtime_files_are_self_protected():
         "backend/agent_persistence.py",
         "backend/acceptance_agent_factory.py",
         "backend/acceptance_persistence.py",
+        "backend/acceptance_delegation.py",
     ]:
         assert critical in SELF_PROTECTED, critical
 
