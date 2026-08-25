@@ -28,6 +28,7 @@ from agent_guard import APPROVAL_REQUIRED
 from agent_tools import (
     ENGINEERING_SCHEMAS,
     MUTATING_TOOLS,
+    FileVersionLedger,
     execute_engineering_tool,
 )
 
@@ -204,6 +205,11 @@ async def run_task(
             audit.plan = f"(continuing session with {len(prior)} prior message(s))"
         await remember(session_id, "user", request)
 
+    # One ledger for the whole task, deliberately spanning repair attempts: a file
+    # read in attempt 1 and written in attempt 2 is still checked, and a change
+    # made by a human between those attempts is still caught.
+    ledger = FileVersionLedger()
+
     last_error = ""
     for attempt in range(1, max_attempts + 1):
         audit.attempts = attempt
@@ -212,7 +218,7 @@ async def run_task(
             "Diagnose the cause and repair it."
         )
         try:
-            await _drive(prompt, system_prompt, audit, approvals, model_call, allowed_tools)
+            await _drive(prompt, system_prompt, audit, approvals, model_call, allowed_tools, ledger)
         except NoModelAvailable:
             audit.result = "no_model_available"
             audit.finished_at = time.time()
@@ -251,7 +257,8 @@ async def _finalise(audit: AuditRecord, operation: dict | None, session_id: str 
     return out
 
 
-async def _drive(prompt, system_prompt, audit, approvals, model_call, allowed_tools=None) -> None:
+async def _drive(prompt, system_prompt, audit, approvals, model_call, allowed_tools=None,
+                 ledger=None) -> None:
     """One attempt: let the model call engineering tools, recording every call.
 
     When the agent's configuration restricts `allowed_tools`, that restriction is
@@ -269,7 +276,7 @@ async def _drive(prompt, system_prompt, audit, approvals, model_call, allowed_to
             })
             audit.record_action(name, args, denied)
             return denied
-        result = await execute_engineering_tool(name, args, approvals=approvals)
+        result = await execute_engineering_tool(name, args, approvals=approvals, ledger=ledger)
         audit.record_action(name, args, result)
         return result
 

@@ -14,6 +14,7 @@ Every path-touching tool goes through `agent_guard` first.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -32,22 +33,83 @@ MAX_READ_BYTES = 200_000
 MAX_GREP_MATCHES = 200
 
 
+# ── optimistic concurrency ───────────────────────────────────────────────────
+#
+# An agent reads a file, thinks for a while, then writes. If a human edited that
+# file in between, a blind write destroys their work with no trace. The agent
+# cannot detect this itself: from inside the task the write simply succeeds.
+#
+# So a write is checked against the version the agent actually inspected. This is
+# optimistic concurrency, the same pattern as an HTTP ETag: no locking, no
+# blocking, and the loser of a race is told exactly what happened instead of
+# silently winning.
+
+def file_version(p: Path) -> str | None:
+    """Content hash of a file, or None if it does not exist.
+
+    A hash rather than mtime: mtime resolution is coarse on some filesystems, so
+    two different writes within the same tick can carry an identical timestamp
+    and a real concurrent change would slip through unnoticed.
+    """
+    try:
+        return hashlib.sha256(p.read_bytes()).hexdigest()
+    except (FileNotFoundError, IsADirectoryError, OSError):
+        return None
+
+
+def content_version(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+class FileVersionLedger:
+    """What this task has actually inspected, and at which version.
+
+    Scoped to ONE task: two concurrent tasks must not vouch for each other's
+    reads, or one agent's inspection would authorise another's overwrite.
+    """
+
+    def __init__(self) -> None:
+        self._seen: dict[str, str] = {}
+
+    def record(self, rel_path: str, version: str) -> None:
+        self._seen[rel_path] = version
+
+    def seen(self, rel_path: str) -> str | None:
+        return self._seen.get(rel_path)
+
+    def inspected(self) -> list[str]:
+        return sorted(self._seen)
+
+
 # ── read-only inspection ─────────────────────────────────────────────────────
 
-async def read_file(path: str, max_bytes: int = MAX_READ_BYTES) -> str:
-    """Read a repository file. Truncates rather than blowing up the context."""
+async def read_file(path: str, max_bytes: int = MAX_READ_BYTES, ledger=None) -> str:
+    """Read a repository file. Truncates rather than blowing up the context.
+
+    A COMPLETE read records the file's version, which is what later authorises a
+    write to it. A truncated read deliberately does not: the agent was not shown
+    the whole file, so it cannot claim to know the state it would be replacing.
+    """
     p = assert_readable(path)
     if not p.is_file():
         return json.dumps({"error": f"Not a file: {path}"})
-    data = p.read_bytes()[: int(max_bytes)]
+    raw = p.read_bytes()
+    version = hashlib.sha256(raw).hexdigest()
+    truncated = len(raw) > int(max_bytes)
     try:
-        text = data.decode("utf-8")
+        text = raw[: int(max_bytes)].decode("utf-8")
     except UnicodeDecodeError:
         return json.dumps({"error": f"Binary file, cannot read as text: {path}"})
+
+    rel = rel_to_repo(p)
+    if ledger is not None and not truncated:
+        ledger.record(rel, version)
+
     return json.dumps({
-        "path": rel_to_repo(p),
-        "bytes": p.stat().st_size,
-        "truncated": p.stat().st_size > int(max_bytes),
+        "path": rel,
+        "bytes": len(raw),
+        "truncated": truncated,
+        "version": version,
         "content": text,
     })
 
@@ -135,18 +197,81 @@ def _python_grep(pattern: str, root: Path, glob: str = "") -> str:
 
 # ── write (guarded) ──────────────────────────────────────────────────────────
 
-async def write_file(path: str, content: str) -> str:
-    """Write a repository file. Refused for self-protected control files."""
+async def write_file(path: str, content: str, expected_version: str | None = None,
+                     ledger=None) -> str:
+    """Write a repository file.
+
+    Refused for self-protected control files, and refused when the file changed
+    after the agent inspected it. The conflict is returned as evidence — the
+    version seen versus the version on disk — so the agent can re-read, re-plan
+    and retry within its existing attempt budget rather than destroying a change
+    it never saw.
+    """
     p = assert_writable(path)
+    rel = rel_to_repo(p)
+    current = file_version(p)
+    observed = expected_version or (ledger.seen(rel) if ledger is not None else None)
+    checked = ledger is not None or expected_version is not None
+
+    if checked:
+        if observed is None and current is not None:
+            return json.dumps({
+                "error": "unverified_overwrite",
+                "detail": (
+                    f"'{rel}' already exists and has not been read in this task, so "
+                    "overwriting it would discard content you have never seen. "
+                    "Read the file first, then write."
+                ),
+                "path": rel,
+                "current_version": current,
+            })
+        if observed is not None and current is None:
+            return json.dumps({
+                "error": "concurrent_change",
+                "detail": (
+                    f"'{rel}' was deleted after you inspected it. The write was refused. "
+                    "Re-check the repository and decide whether creating it is still correct."
+                ),
+                "path": rel,
+                "inspected_version": observed,
+                "current_version": None,
+            })
+        if observed is not None and current is not None and observed != current:
+            return json.dumps({
+                "error": "concurrent_change",
+                "detail": (
+                    f"'{rel}' changed after you inspected it. The write was refused so the "
+                    "newer content is not lost. Read the file again, re-plan against its "
+                    "current contents, then write."
+                ),
+                "path": rel,
+                "inspected_version": observed,
+                "current_version": current,
+            })
+
     p.parent.mkdir(parents=True, exist_ok=True)
-    existed = p.exists()
-    before = p.read_text(encoding="utf-8") if existed else None
-    p.write_text(content, encoding="utf-8")
+    existed = current is not None
+    previous_bytes = p.stat().st_size if existed else 0
+    # newline="" writes the content verbatim. Without it Python translates "\n"
+    # to the platform line ending, so the bytes on disk differ from the bytes the
+    # agent supplied -- which both mangles source files and makes the recorded
+    # version disagree with the file, producing a phantom conflict on the very
+    # next write.
+    p.write_text(content, encoding="utf-8", newline="")
+
+    # Read the version back from disk rather than hashing the string: the file is
+    # the authority on its own state.
+    new_version = file_version(p) or content_version(content)
+    if ledger is not None:
+        # The agent now knows this file's state, so a follow-up write is allowed.
+        ledger.record(rel, new_version)
+
     return json.dumps({
-        "path": rel_to_repo(p),
+        "path": rel,
         "created": not existed,
         "bytes_written": len(content.encode("utf-8")),
-        "previous_bytes": len(before.encode("utf-8")) if before is not None else 0,
+        "previous_bytes": previous_bytes,
+        "version": new_version,
     })
 
 
@@ -281,7 +406,11 @@ ENGINEERING_SCHEMAS = [
             {"path": {"type": "string"}, "pattern": {"type": "string"}, "limit": {"type": "integer"}}, []),
     _schema("grep_repo", "Search repository file contents for a regex pattern.",
             {"pattern": {"type": "string"}, "path": {"type": "string"}, "glob": {"type": "string"}}, ["pattern"]),
-    _schema("write_file", "Write a repository file. Refused for protected control files.",
+    _schema("write_file",
+            "Write a repository file. Refused for protected control files, and refused if the "
+            "file changed since you read it (error 'concurrent_change') or if it already exists "
+            "and you have not read it (error 'unverified_overwrite'). On either error, read the "
+            "file again and write based on its current contents.",
             {"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"]),
     _schema("git_status", "Show git status.", {}, []),
     _schema("git_diff", "Show git diff.", {"path": {"type": "string"}, "staged": {"type": "boolean"}}, []),
@@ -296,7 +425,8 @@ ENGINEERING_SCHEMAS = [
 ]
 
 
-async def execute_engineering_tool(name: str, arguments: dict, approvals: set[str] | None = None) -> str:
+async def execute_engineering_tool(name: str, arguments: dict, approvals: set[str] | None = None,
+                                   ledger: "FileVersionLedger | None" = None) -> str:
     """Dispatch one engineering tool.
 
     Guard failures are returned to the model as structured errors rather than
@@ -309,6 +439,10 @@ async def execute_engineering_tool(name: str, arguments: dict, approvals: set[st
     try:
         if name in {"git_commit", "git_push"}:
             args["approvals"] = approvals
+        if name in {"read_file", "write_file"}:
+            # Injected, never model-supplied: an agent must not be able to hand in
+            # its own ledger and vouch for a file it has not read.
+            args["ledger"] = ledger
         result = fn(**args)
         return await result if asyncio.iscoroutine(result) else str(result)
     except ApprovalRequired as e:
