@@ -158,7 +158,15 @@ class DelegationContext:
             asked = set(requested_approvals)
             unknown = sorted(asked - APPROVAL_REQUIRED)
             if unknown:
-                raise DelegationDenied(f"Unknown approvals requested: {unknown}")
+                # Naming a TOOL here instead of an approval is a common and
+                # honest mistake. Still refused -- never silently granted -- but
+                # the message says what would have been valid so the caller can
+                # correct itself instead of guessing.
+                raise DelegationDenied(
+                    f"Unknown approvals requested: {unknown}. Approvals are "
+                    f"operations, not tools. Valid names: {sorted(APPROVAL_REQUIRED)}. "
+                    "Most tasks need none; omit the field entirely."
+                )
             ungranted = sorted(asked - set(self.approvals))
             if ungranted:
                 raise DelegationDenied(

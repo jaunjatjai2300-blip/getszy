@@ -246,17 +246,31 @@ async def main() -> int:
     master_calls: list[str] = []
     spawn_results: list[dict] = []
 
+    spawn_calls: list[dict] = []
+
     async def model_call(system, user, tools, execute):
         async def traced(name, args):
             master_calls.append(name)
-            log(f"    -> [master] {name}({brief(args, 110)})")
+            delegating = name in dg.DELEGATION_TOOLS
+            # A delegation call is never truncated. The previous run's refusal
+            # reason was hidden behind the 110-character cut, which turned a
+            # diagnosable failure into a guess.
+            log(f"    -> [master] {name}({json.dumps(args, default=str) if delegating else brief(args, 110)})")
             out = await execute(name, args)
-            if name in dg.DELEGATION_TOOLS:
+            if delegating:
+                spawn_calls.append(args)
                 try:
-                    spawn_results.append(json.loads(out))
+                    parsed = json.loads(out)
+                    spawn_results.append(parsed)
+                    log(f"       status={parsed.get('status') or parsed.get('error')}")
+                    for err in (parsed.get("errors") or []):
+                        log(f"       REASON: {err}")
+                    if parsed.get("detail"):
+                        log(f"       REASON: {parsed['detail']}")
                 except Exception:
-                    pass
-            log(f"       {brief(out, 170)}")
+                    log(f"       {out[:500]}")
+            else:
+                log(f"       {brief(out, 170)}")
             return out
         return await agent_llm.engineering_tool_loop(
             system=system, user=user, execute=traced, tools=tools,
@@ -282,6 +296,7 @@ async def main() -> int:
     report["audit"] = audit
     report["master_tool_calls"] = master_calls
     report["spawn_results"] = spawn_results
+    report["spawn_arguments"] = spawn_calls
     report["ancestry"] = context.spawned
     head_after = git("rev-parse", "HEAD")["out"].strip()
 
