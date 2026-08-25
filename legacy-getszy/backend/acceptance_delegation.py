@@ -278,12 +278,32 @@ async def main() -> int:
             max_rounds=MASTER_ROUNDS,
         )
 
+    # Routing is decided per attempt so a task can escalate after the cheap local
+    # model has actually failed. With no escalation configured this keeps using
+    # the pinned local model and says so -- an honest limit, not a silent fallback.
+    escalation = agent_llm.escalation_target()
+    report["escalation_configured"] = escalation
+    plans: list[dict] = []
+    report["routing_plans"] = plans
+    log(f"\n== routing ==\n  escalation target: {escalation or 'none configured'}")
+
+    def master_router(attempt: int):
+        plan = agent_llm.plan_for_attempt(tier, attempt, env["installed_models"])
+        if not plan["escalated"]:
+            plan["model"] = model          # the operator pinned this for local attempts
+        plans.append({"attempt": attempt, **plan})
+        log(f"  attempt {attempt}: {plan['provider']}/{plan['model']} "
+            f"({'escalated' if plan['escalated'] else 'local'}) — {plan['reason']}")
+        if not plan["model"] and plan["provider"] == "ollama":
+            return None
+        return model_call
+
     log(f"\n== running (real model {model}, master delegates) ==")
     run_error = None
     try:
         audit = await runtime.run_task(
             TASK, system_prompt=MASTER_PROMPT, approvals=None,
-            model_call=model_call, max_attempts=MAX_ATTEMPTS,
+            model_router=master_router, max_attempts=MAX_ATTEMPTS,
             allowed_tools=master_tools, delegation=context,
         )
     except Exception as e:

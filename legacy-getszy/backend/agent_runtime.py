@@ -35,6 +35,10 @@ from agent_tools import (
 
 MAX_REPAIR_ATTEMPTS = 3
 
+# How much of a failing test's real output is carried into the next attempt.
+# Enough to name the failing assertion; small enough not to crowd the context.
+TEST_OUTPUT_TAIL = 1200
+
 
 class NoModelAvailable(RuntimeError):
     """Raised when no LLM provider can be reached. Never swallowed."""
@@ -79,7 +83,14 @@ class AuditRecord:
             if tool == "git_commit" and parsed.get("commit"):
                 entry["commit"] = parsed["commit"]
             if tool == "run_tests":
-                self.tests.append({"passed": parsed.get("passed"), "exit_code": parsed.get("exit_code")})
+                self.tests.append({
+                    "passed": parsed.get("passed"),
+                    "exit_code": parsed.get("exit_code"),
+                    # A bounded tail of the REAL output. Without it a repair
+                    # attempt is told only "tests failed", which is not enough
+                    # information to repair anything from.
+                    "output_tail": (parsed.get("output") or "")[-TEST_OUTPUT_TAIL:],
+                })
             if tool in DELEGATION_TOOLS:
                 self._absorb_child_evidence(tool, parsed, entry)
         self.actions.append(entry)
@@ -183,6 +194,7 @@ async def run_task(
     persist: bool = False,
     allowed_tools: list[str] | set[str] | None = None,
     delegation=None,
+    model_router=None,
 ) -> dict:
     """Execute one engineering task with bounded autonomous repair.
 
@@ -249,12 +261,18 @@ async def run_task(
     last_error = ""
     for attempt in range(1, max_attempts + 1):
         audit.attempts = attempt
-        prompt = request if attempt == 1 else (
-            f"{request}\n\nThe previous attempt did not pass verification: {last_error}\n"
-            "Diagnose the cause and repair it."
-        )
+        prompt = request if attempt == 1 else _repair_briefing(request, audit, last_error)
+        # A router picks the provider/model per attempt, so a task can escalate
+        # after the cheap local model has actually failed. Without one the
+        # single injected model_call is used for every attempt, as before.
+        attempt_call = model_router(attempt) if model_router else model_call
+        if attempt_call is None:
+            audit.result = "no_model_available"
+            audit.finished_at = time.time()
+            raise NoModelAvailable(
+                "No usable model for this attempt and no escalation target configured.")
         try:
-            await _drive(prompt, system_prompt, audit, approvals, model_call, allowed_tools,
+            await _drive(prompt, system_prompt, audit, approvals, attempt_call, allowed_tools,
                          ledger, delegation)
         except NoModelAvailable:
             audit.result = "no_model_available"
@@ -273,6 +291,58 @@ async def run_task(
     audit.result = "failed_needs_human"
     audit.finished_at = time.time()
     return await _finalise(audit, operation, session_id)
+
+
+def _repair_briefing(request: str, audit: AuditRecord, last_error: str) -> str:
+    """Compact, evidence-based account of what actually happened.
+
+    The previous prompt said only "the previous attempt did not pass
+    verification", which gives a model nothing to repair from. Replaying the
+    whole history instead would refill the context with the same dead ends and
+    invite the model to repeat them -- which is what a real specialist did,
+    running one failing command fifteen times.
+
+    So this carries FACTS and nothing else: what was changed, what the test
+    actually printed, and which tool calls were refused. No reasoning, no
+    speculation about the cause.
+    """
+    lines = [
+        request, "",
+        f"--- attempt {audit.attempts} of {MAX_REPAIR_ATTEMPTS}: the previous attempt did not pass ---",
+        f"Verification result: {last_error}",
+    ]
+
+    if audit.files_changed:
+        lines.append(f"Files you have already changed: {sorted(audit.files_changed)}")
+    else:
+        lines.append("You have not changed any file yet. Inspect, then write the change.")
+
+    failing = [t for t in audit.tests if not t.get("passed")]
+    if failing:
+        last = failing[-1]
+        lines.append(f"The test run exited {last.get('exit_code')} and printed:")
+        lines.append((last.get("output_tail") or "(no output captured)").strip())
+    elif audit.tests:
+        lines.append("The last test run passed but verification still failed; re-read the result.")
+    else:
+        lines.append("You never ran the tests. A change is not verified until they run and pass.")
+
+    # Distinct refusals only: repeating the same one adds nothing.
+    refusals, seen = [], set()
+    for f in audit.failures:
+        key = (f.get("tool"), f.get("error"))
+        if not f.get("error") or key in seen:
+            continue
+        seen.add(key)
+        refusals.append(f"  {f.get('tool')}: {f.get('error')} - {(f.get('detail') or '')[:200]}")
+    if refusals:
+        lines.append("Tool calls that were refused (do not simply retry these):")
+        lines.extend(refusals[:5])
+
+    lines.append("")
+    lines.append("Fix the cause shown above. Do not repeat a call that already failed "
+                 "unchanged; change the code first, then run the test again.")
+    return "\n".join(lines)
 
 
 async def _finalise(audit: AuditRecord, operation: dict | None, session_id: str | None) -> dict:
