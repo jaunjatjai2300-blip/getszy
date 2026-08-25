@@ -32,6 +32,12 @@ from agent_guard import APPROVAL_REQUIRED, SELF_PROTECTED
 from agent_tools import ENGINEERING_TOOLS, MUTATING_TOOLS
 
 READ_ONLY_TOOLS = {"read_file", "list_files", "grep_repo", "git_status", "git_diff", "git_log"}
+# Outbound, read-only research. GitHub is the primary technical source; general
+# web search is separate and secondary.
+RESEARCH_CAPABILITY_TOOLS = {
+    "github_search_code", "github_search_repositories", "github_search_issues",
+    "github_read_file", "web_search",
+}
 VERIFY_TOOLS = {"run_tests"}
 WRITE_TOOLS = {"write_file", "git_commit"}
 
@@ -41,58 +47,62 @@ CAPABILITIES: dict[str, dict] = {
     "frontend": {
         "signals": ["frontend", "react", "tailwind", "css", "ui", "component", "jsx", "responsive"],
         "focus": "frontend implementation in React and Tailwind",
-        "tools": READ_ONLY_TOOLS | WRITE_TOOLS | VERIFY_TOOLS,
+        "tools": READ_ONLY_TOOLS | WRITE_TOOLS | VERIFY_TOOLS | RESEARCH_CAPABILITY_TOOLS,
     },
     "backend": {
         "signals": ["backend", "api", "fastapi", "endpoint", "server", "route", "python"],
         "focus": "backend APIs and server-side logic",
-        "tools": READ_ONLY_TOOLS | WRITE_TOOLS | VERIFY_TOOLS,
+        "tools": READ_ONLY_TOOLS | WRITE_TOOLS | VERIFY_TOOLS | RESEARCH_CAPABILITY_TOOLS,
     },
     "database": {
         "signals": ["database", "mongo", "sql", "schema", "migration", "index", "query"],
         "focus": "data modelling, queries and indexes",
-        "tools": READ_ONLY_TOOLS | WRITE_TOOLS | VERIFY_TOOLS,
+        "tools": READ_ONLY_TOOLS | WRITE_TOOLS | VERIFY_TOOLS | RESEARCH_CAPABILITY_TOOLS,
     },
     "accessibility": {
         "signals": ["accessibility", "a11y", "wcag", "screen reader", "contrast", "aria"],
         "focus": "accessibility conformance (WCAG, semantics, focus, contrast)",
-        "tools": READ_ONLY_TOOLS | WRITE_TOOLS | VERIFY_TOOLS,
+        "tools": READ_ONLY_TOOLS | WRITE_TOOLS | VERIFY_TOOLS | RESEARCH_CAPABILITY_TOOLS,
     },
     "motion": {
         "signals": ["animation", "motion", "cinematic", "transition", "parallax"],
         "focus": "motion and animation, GPU-friendly transform/opacity only",
-        "tools": READ_ONLY_TOOLS | WRITE_TOOLS | VERIFY_TOOLS,
+        "tools": READ_ONLY_TOOLS | WRITE_TOOLS | VERIFY_TOOLS | RESEARCH_CAPABILITY_TOOLS,
     },
     "qa": {
         "signals": ["qa", "test", "testing", "quality", "regression", "verification"],
         "focus": "testing and verification of real behaviour",
-        "tools": READ_ONLY_TOOLS | VERIFY_TOOLS,
+        "tools": READ_ONLY_TOOLS | VERIFY_TOOLS | RESEARCH_CAPABILITY_TOOLS,
     },
     "security": {
         "signals": ["security", "vulnerability", "auth", "xss", "injection", "secrets"],
         "focus": "security review and hardening",
         # Deliberately read-only: a security reviewer reports, a human decides.
+        # Also deliberately WITHOUT research tools. This is the one capability
+        # whose job is to read every secret and credential in the repository;
+        # combining that with outbound network access is the exact pairing that
+        # turns a review into an exfiltration path.
         "tools": READ_ONLY_TOOLS | VERIFY_TOOLS,
     },
     "research": {
         "signals": ["research", "investigate", "audit", "inspect", "analyse", "analyze"],
         "focus": "repository investigation and evidence gathering",
-        "tools": READ_ONLY_TOOLS,
+        "tools": READ_ONLY_TOOLS | RESEARCH_CAPABILITY_TOOLS,
     },
     "devops": {
         "signals": ["devops", "deploy", "docker", "ci", "pipeline", "infrastructure"],
         "focus": "build and deployment preparation",
-        "tools": READ_ONLY_TOOLS | VERIFY_TOOLS,
+        "tools": READ_ONLY_TOOLS | VERIFY_TOOLS | RESEARCH_CAPABILITY_TOOLS,
     },
     "mobile": {
         "signals": ["mobile", "ios", "android", "react native", "responsive"],
         "focus": "mobile and small-viewport implementation",
-        "tools": READ_ONLY_TOOLS | WRITE_TOOLS | VERIFY_TOOLS,
+        "tools": READ_ONLY_TOOLS | WRITE_TOOLS | VERIFY_TOOLS | RESEARCH_CAPABILITY_TOOLS,
     },
     "ai": {
         "signals": ["ai", "ml", "model", "llm", "prompt", "embedding"],
         "focus": "AI/ML integration and prompt engineering",
-        "tools": READ_ONLY_TOOLS | WRITE_TOOLS | VERIFY_TOOLS,
+        "tools": READ_ONLY_TOOLS | WRITE_TOOLS | VERIFY_TOOLS | RESEARCH_CAPABILITY_TOOLS,
     },
 }
 
