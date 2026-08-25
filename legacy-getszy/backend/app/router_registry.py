@@ -137,6 +137,13 @@ ENGINE_ROUTERS = [
     ('creator_engine', 'creator_engine', 'creator-engine'),
 ]
 
+# ── Internal engineering (NOT customer-facing) ────────────────────────────────
+# Admin-only, and additionally disabled unless AGENT_FACTORY_HTTP_ENABLED is set,
+# so loading the router does not by itself expose the surface.
+INTERNAL_ROUTERS = [
+    ('agent_factory', 'routes_agent_factory', 'internal/agent-factory'),
+]
+
 
 def load_all_routers() -> APIRouter:
     """Load all routers into a single APIRouter."""
@@ -145,7 +152,7 @@ def load_all_routers() -> APIRouter:
         CORE_ROUTERS + LEARNING_ROUTERS + AI_ROUTERS + COMMERCE_ROUTERS +
         MEDIA_ROUTERS + CREATOR_ROUTERS + BUILD_ROUTERS + DEPLOY_ROUTERS +
         PLATFORM_ROUTERS + SUPPORT_ROUTERS + ANALYTICS_ROUTERS + MISC_ROUTERS +
-        AI_TOOLS_ROUTERS + ENGINE_ROUTERS
+        AI_TOOLS_ROUTERS + ENGINE_ROUTERS + INTERNAL_ROUTERS
     )
     for name, module_name, prefix in all_categories:
         try:
