@@ -82,6 +82,7 @@ SELF_PROTECTED = {
     "backend/agent_llm.py",
     "backend/agent_persistence.py",
     "backend/acceptance_agent_factory.py",
+    "backend/acceptance_persistence.py",
     # Platform security and money.
     "backend/auth.py",
     "backend/credits.py",
