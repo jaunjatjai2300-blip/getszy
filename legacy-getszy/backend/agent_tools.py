@@ -22,6 +22,12 @@ from pathlib import Path
 # Research reaches OUTSIDE the repository. Kept in its own module so the network
 # surface is visible in one place rather than scattered through the toolset.
 from agent_research import RESEARCH_TOOLS
+from agent_delegation import spawn_specialist, spawn_specialists
+
+DELEGATION_TOOL_FNS = {
+    "spawn_specialist": spawn_specialist,
+    "spawn_specialists": spawn_specialists,
+}
 from agent_guard import (
     REPO_ROOT,
     ApprovalRequired,
@@ -385,6 +391,7 @@ ENGINEERING_TOOLS = {
     "git_push": git_push,
     "run_tests": run_tests,
     **RESEARCH_TOOLS,
+    **DELEGATION_TOOL_FNS,
 }
 
 # Outbound network calls. Not mutating -- they change nothing -- but surfaced so
@@ -452,11 +459,27 @@ ENGINEERING_SCHEMAS = [
             "Search the web. Use only for what GitHub does not cover. Returns "
             "provider_unavailable when no search provider is configured.",
             {"query": {"type": "string"}, "limit": {"type": "integer"}}, ["query"]),
+    # Delegation. A specialist can never exceed the authority of the agent that
+    # spawned it; requesting more is refused, not trimmed.
+    _schema("spawn_specialist",
+            "Delegate a bounded task to a specialist agent described in natural language "
+            "(e.g. 'senior React frontend engineer'). The specialist inherits a subset of "
+            "your tools and approvals and returns structured evidence. It cannot exceed "
+            "your own authority.",
+            {"specialist": {"type": "string"}, "task": {"type": "string"},
+             "tools": {"type": "array", "items": {"type": "string"}},
+             "approvals": {"type": "array", "items": {"type": "string"}}},
+            ["specialist", "task"]),
+    _schema("spawn_specialists",
+            "Delegate several independent tasks to specialists in parallel. Each entry is "
+            "{specialist, task}. Conflicting writes are refused by the concurrency guard.",
+            {"requests": {"type": "array", "items": {"type": "object"}}}, ["requests"]),
 ]
 
 
 async def execute_engineering_tool(name: str, arguments: dict, approvals: set[str] | None = None,
-                                   ledger: "FileVersionLedger | None" = None) -> str:
+                                   ledger: "FileVersionLedger | None" = None,
+                                   delegation=None) -> str:
     """Dispatch one engineering tool.
 
     Guard failures are returned to the model as structured errors rather than
@@ -469,6 +492,10 @@ async def execute_engineering_tool(name: str, arguments: dict, approvals: set[st
     try:
         if name in {"git_commit", "git_push"}:
             args["approvals"] = approvals
+        if name in DELEGATION_TOOL_FNS:
+            # Injected, never model-supplied: an agent must not be able to hand in
+            # a context granting itself a wider scope than its parent allowed.
+            args["delegation"] = delegation
         if name in {"read_file", "write_file"}:
             # Injected, never model-supplied: an agent must not be able to hand in
             # its own ledger and vouch for a file it has not read.

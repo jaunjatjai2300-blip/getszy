@@ -24,6 +24,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, Awaitable
 
+from agent_delegation import DELEGATION_TOOLS
 from agent_guard import APPROVAL_REQUIRED
 from agent_tools import (
     ENGINEERING_SCHEMAS,
@@ -79,7 +80,36 @@ class AuditRecord:
                 entry["commit"] = parsed["commit"]
             if tool == "run_tests":
                 self.tests.append({"passed": parsed.get("passed"), "exit_code": parsed.get("exit_code")})
+            if tool in DELEGATION_TOOLS:
+                self._absorb_child_evidence(tool, parsed, entry)
         self.actions.append(entry)
+
+    def _absorb_child_evidence(self, tool: str, parsed: dict, entry: dict) -> None:
+        """Take a delegate's REAL evidence into this audit.
+
+        A child's passing test run is genuine evidence -- pytest actually ran --
+        so it counts towards the parent's verification. A child's FAILURE is
+        absorbed too, which is the important half: it lands in the parent's test
+        record and failures, so verify() cannot be satisfied while a delegate is
+        broken. The master therefore cannot turn a child failure into a success.
+        """
+        children = [parsed] if tool == "spawn_specialist" else (parsed.get("children") or [])
+        for child in children:
+            if not isinstance(child, dict):
+                continue
+            for test in child.get("tests") or []:
+                self.tests.append(test)
+            for path in child.get("files_changed") or []:
+                self.files_changed.add(path)
+            if child.get("commit"):
+                entry["commit"] = child["commit"]
+            if child.get("status") != "verified":
+                entry["ok"] = False
+                self.failures.append({
+                    "tool": tool,
+                    "error": f"child_{child.get('status')}",
+                    "detail": (child.get("errors") or [None])[0],
+                })
 
     def to_dict(self) -> dict:
         return {
@@ -152,6 +182,7 @@ async def run_task(
     worker_id: str | None = None,
     persist: bool = False,
     allowed_tools: list[str] | set[str] | None = None,
+    delegation=None,
 ) -> dict:
     """Execute one engineering task with bounded autonomous repair.
 
@@ -210,6 +241,11 @@ async def run_task(
     # made by a human between those attempts is still caught.
     ledger = FileVersionLedger()
 
+    # A delegation context identifies this task as a node in the tree, so an
+    # ancestry record points at a real execution rather than a placeholder.
+    if delegation is not None and not getattr(delegation, "task_id", ""):
+        delegation.task_id = audit.task_id
+
     last_error = ""
     for attempt in range(1, max_attempts + 1):
         audit.attempts = attempt
@@ -218,7 +254,8 @@ async def run_task(
             "Diagnose the cause and repair it."
         )
         try:
-            await _drive(prompt, system_prompt, audit, approvals, model_call, allowed_tools, ledger)
+            await _drive(prompt, system_prompt, audit, approvals, model_call, allowed_tools,
+                         ledger, delegation)
         except NoModelAvailable:
             audit.result = "no_model_available"
             audit.finished_at = time.time()
@@ -258,7 +295,7 @@ async def _finalise(audit: AuditRecord, operation: dict | None, session_id: str 
 
 
 async def _drive(prompt, system_prompt, audit, approvals, model_call, allowed_tools=None,
-                 ledger=None) -> None:
+                 ledger=None, delegation=None) -> None:
     """One attempt: let the model call engineering tools, recording every call.
 
     When the agent's configuration restricts `allowed_tools`, that restriction is
@@ -276,7 +313,8 @@ async def _drive(prompt, system_prompt, audit, approvals, model_call, allowed_to
             })
             audit.record_action(name, args, denied)
             return denied
-        result = await execute_engineering_tool(name, args, approvals=approvals, ledger=ledger)
+        result = await execute_engineering_tool(
+            name, args, approvals=approvals, ledger=ledger, delegation=delegation)
         audit.record_action(name, args, result)
         return result
 
