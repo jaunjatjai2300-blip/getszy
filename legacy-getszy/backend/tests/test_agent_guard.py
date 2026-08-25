@@ -161,3 +161,54 @@ async def test_grep_finds_a_known_symbol():
 async def test_schemas_cover_every_registered_tool():
     named = {s["function"]["name"] for s in agent_tools.ENGINEERING_SCHEMAS}
     assert named == set(agent_tools.ENGINEERING_TOOLS)
+
+
+# ── 6. sandbox root integrity (regression: root collapsed to "/") ────────────
+#
+# The original implementation computed REPO_ROOT as
+# Path(__file__).resolve().parent.parent, which yields "/" whenever this module
+# is not at <repo>/backend/agent_guard.py — e.g. when the backend directory is
+# bind-mounted alone into a container. The sandbox then contained the entire
+# filesystem, and EVERY escape test above passed trivially because /etc/passwd
+# really was "inside" the sandbox. Caught by running the suite in Docker.
+
+def test_repo_root_is_never_a_filesystem_root():
+    import agent_guard as g
+    assert g.REPO_ROOT is not None
+    assert not g._is_filesystem_root(g.REPO_ROOT), (
+        f"REPO_ROOT is a filesystem root ({g.REPO_ROOT}) — the sandbox would "
+        "contain everything and all escape checks would pass trivially."
+    )
+
+
+def test_repo_root_actually_contains_the_marker():
+    import agent_guard as g
+    assert (g.REPO_ROOT / "backend" / "agent_guard.py").is_file()
+
+
+def test_filesystem_root_detection():
+    from pathlib import Path
+    import agent_guard as g
+    assert g._is_filesystem_root(Path(Path(__file__).anchor))
+    assert not g._is_filesystem_root(Path(__file__).resolve().parent)
+
+
+def test_discovery_skips_filesystem_roots(monkeypatch):
+    """Even if an operator points AGENT_REPO_ROOT at /, it must be refused."""
+    import agent_guard as g
+    from pathlib import Path
+    monkeypatch.setenv("AGENT_REPO_ROOT", Path(Path(__file__).anchor).as_posix())
+    found = g._discover_repo_root()
+    # It must not accept the filesystem root; it may fall back to the real repo
+    # (discovered from __file__) or return None, but never a root.
+    assert found is None or not g._is_filesystem_root(found)
+
+
+def test_guard_fails_closed_when_no_root(monkeypatch):
+    """With no valid root there is no sandbox, so everything must be refused."""
+    import agent_guard as g
+    monkeypatch.setattr(g, "REPO_ROOT_VALID", False)
+    for path in ["backend/agent_guard.py", "anything.txt", "../escape"]:
+        with pytest.raises(GuardDenied) as exc:
+            g.resolve_in_repo(path)
+        assert "not configured" in str(exc.value)
