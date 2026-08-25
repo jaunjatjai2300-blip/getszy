@@ -7,15 +7,21 @@ no mock LLM, no simulated child.
 
 HOW DELEGATION IS PROVED RATHER THAN ASSUMED
 --------------------------------------------
-A master with write access could simply do the work itself and the run would
-still look successful. So the proof is structural, from the audit:
+A master holding write_file could quietly do the work itself and the run would
+still look successful, so the proof is made structural rather than hopeful: the
+master's OWN tool scope excludes write_file, while its DELEGATION scope still
+includes it. The child therefore inherits write_file legitimately and the
+child-subset-of-parent invariant is untouched, but the master's executor refuses
+the tool outright.
 
-    the MASTER's own tool calls must contain spawn_specialist
-    the MASTER's own tool calls must NOT contain write_file
-    the CHILD's tool calls must contain write_file and run_tests
+The audit then has to show:
 
-If the implementation file exists at the end and the master never called
-write_file, the only thing that could have written it is the specialist.
+    the MASTER's own tool calls contain spawn_specialist
+    the MASTER's write_file attempts, if any, were all refused
+    the CHILD's tool calls contain write_file and run_tests
+
+If the implementation file exists at the end, a specialist wrote it, because
+nothing else could have.
 
 Everything else matches acceptance_agent_factory.py: the task is proven undone
 first, the agent's own test result is ignored in favour of a pytest run this
@@ -192,9 +198,27 @@ async def main() -> int:
     report["head_before"] = head_before
 
     # ── the master ──────────────────────────────────────────────────────────
-    master_tools = sorted(agent_tools.ENGINEERING_TOOLS)
+    # The master may DELEGATE writing but may not perform it. Its delegation
+    # context still carries the full scope, so a specialist inherits write_file
+    # legitimately and the child-subset-of-parent invariant is untouched -- but
+    # the master's OWN executor will refuse write_file.
+    #
+    # This makes the result decisive instead of hopeful: a master holding
+    # write_file could quietly do the work itself and the run would still look
+    # successful. With it removed, if the module exists at the end then a
+    # specialist wrote it, because nothing else could have.
+    delegable_tools = sorted(agent_tools.ENGINEERING_TOOLS)
+    master_tools = [t for t in delegable_tools if t != "write_file"]
+    report["master_own_tools"] = master_tools
+    report["delegable_tools"] = delegable_tools
+    report["model_note"] = (
+        "qwen2.5-coder:14b is INSTALLED BUT NOT CAPACITY-VERIFIED on this hardware "
+        f"(needs ~{sizes.get('qwen2.5-coder:14b', '9.0')} GB against "
+        f"{have or '?'} GB available). It is not claimed as supported."
+    )
+
     context = dg.master_context(
-        task_id="", tools=frozenset(master_tools),
+        task_id="", tools=frozenset(delegable_tools),
         approvals=set(),            # no approvals at all: push must stay refused
         delegable=set(),
         model_tier=tier,
@@ -303,9 +327,13 @@ async def main() -> int:
         any(c in dg.DELEGATION_TOOLS for c in master_calls),
         f"master tool calls: {master_calls}",
     )
+    master_write_attempts = [a for a in (audit.get("actions") or [])
+                             if a.get("tool") == "write_file"]
     C["2_master_did_not_write_the_file_itself"] = (
-        "write_file" not in master_calls,
-        f"write_file in master's own calls: {'write_file' in master_calls}",
+        all(not a.get("ok") for a in master_write_attempts),
+        f"master write_file attempts: {len(master_write_attempts)}, all refused: "
+        f"{all(not a.get('ok') for a in master_write_attempts)} "
+        "(write_file is outside the master's own tool scope by design)",
     )
     C["3_specialist_executed_real_tools"] = (
         "write_file" in child_tools and "run_tests" in child_tools,
@@ -320,7 +348,7 @@ async def main() -> int:
         f"{sorted(spawn_results[0]) if spawn_results else 'none'}",
     )
     C["5_child_tools_subset_of_parent"] = (
-        all(set(r.get("specialist", {}).get("tool_scope") or []) <= set(master_tools)
+        all(set(r.get("specialist", {}).get("tool_scope") or []) <= set(delegable_tools)
             for r in spawn_results) if spawn_results else False,
         f"child scope(s): {[r.get('specialist', {}).get('tool_scope') for r in spawn_results]}",
     )
