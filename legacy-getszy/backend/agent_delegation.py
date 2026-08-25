@@ -71,6 +71,34 @@ def specialist_key(description: str) -> str:
     return f"spec-{digest[:16]}"
 
 
+def check_spawn_allowed(context, count: int = 1) -> tuple[bool, str]:
+    """Whether `count` more children may be spawned right now.
+
+    Single source of truth for the three bounds, so the dispatcher gate and the
+    context's own check can never disagree. Asking for N at once is checked as N,
+    not as one — a parallel spawn of 4 when 2 remain must be refused whole rather
+    than half-granted.
+    """
+    if context is None:
+        return False, "No delegation context is present, so nothing may be spawned."
+    if context.depth + 1 > MAX_DEPTH:
+        return False, (
+            f"Delegation depth limit reached (max {MAX_DEPTH}); this agent is at "
+            f"depth {context.depth} and cannot spawn further."
+        )
+    if context.children_spawned + count > MAX_CHILDREN_PER_TASK:
+        return False, (
+            f"This task has already spawned {context.children_spawned} specialists "
+            f"(max {MAX_CHILDREN_PER_TASK}); refusing {count} more."
+        )
+    if context.budget["descendants"] + count > MAX_TOTAL_DESCENDANTS:
+        return False, (
+            f"The delegation tree already contains {context.budget['descendants']} "
+            f"agents (max {MAX_TOTAL_DESCENDANTS}); refusing {count} more."
+        )
+    return True, ""
+
+
 @dataclass
 class DelegationContext:
     """One node in the delegation tree: who we are and what we may hand down."""
@@ -94,22 +122,10 @@ class DelegationContext:
     children_spawned: int = 0
     spawned: list = field(default_factory=list)
 
-    def _check_budget(self) -> None:
-        if self.depth + 1 > MAX_DEPTH:
-            raise DelegationDenied(
-                f"Delegation depth limit reached (max {MAX_DEPTH}); this agent is at "
-                f"depth {self.depth} and cannot spawn further."
-            )
-        if self.children_spawned >= MAX_CHILDREN_PER_TASK:
-            raise DelegationDenied(
-                f"This task already spawned {self.children_spawned} specialists "
-                f"(max {MAX_CHILDREN_PER_TASK})."
-            )
-        if self.budget["descendants"] >= MAX_TOTAL_DESCENDANTS:
-            raise DelegationDenied(
-                f"The delegation tree already contains {self.budget['descendants']} "
-                f"agents (max {MAX_TOTAL_DESCENDANTS})."
-            )
+    def _check_budget(self, count: int = 1) -> None:
+        allowed, reason = check_spawn_allowed(self, count)
+        if not allowed:
+            raise DelegationDenied(reason)
 
     def child(self, cfg: dict, *, requested_tools=None, requested_approvals=None) -> "DelegationContext":
         """Derive a child context that can only be narrower than this one."""

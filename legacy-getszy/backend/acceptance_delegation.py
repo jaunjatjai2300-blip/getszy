@@ -43,6 +43,23 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# The specialist runs pytest in a SUBPROCESS. If that process cannot import the
+# application because JWT_SECRET is absent, the suite fails for a reason that has
+# nothing to do with the delegated task -- and the harness would record the
+# specialist as having failed. Set a strong ephemeral secret so an environment
+# gap cannot be mistaken for an agent failure.
+#
+# This does not weaken authentication: the value is freshly random per run, is
+# never written anywhere, and auth.py's real strength check still applies to it.
+# Anything already supplied by the operator wins.
+if not os.environ.get("JWT_SECRET"):
+    import secrets
+
+    os.environ["JWT_SECRET"] = secrets.token_urlsafe(48)
+os.environ.setdefault("MONGO_URL", "mongodb://127.0.0.1:27017")
+os.environ.setdefault("INTEGRATION_ENCRYPTION_KEY", __import__("base64").urlsafe_b64encode(
+    __import__("secrets").token_bytes(32)).decode())
+
 import agent_delegation as dg  # noqa: E402
 import agent_guard as guard  # noqa: E402
 import agent_llm  # noqa: E402
@@ -81,7 +98,8 @@ Do NOT write the code yourself. Delegate it:
 
 1. Call spawn_specialist with a description of a senior Python backend engineer,
    and a task telling it to read {FIXTURE_PATH}, create {IMPL_PATH} so the tests
-   pass, and run the tests to confirm.
+   pass, and then run run_tests with target exactly "{FIXTURE_PATH}" to confirm.
+   Tell it to run ONLY that target, never the whole suite.
 2. Read the structured evidence the specialist returns.
 3. If its verification says verified, check git status and commit exactly
    {IMPL_PATH} and {FIXTURE_PATH}.
@@ -404,11 +422,25 @@ async def main() -> int:
         f"master attempts={audit.get('attempts')}, child attempts="
         f"{[(r.get('evidence', {}) or {}).get('attempts') for r in spawn_results]}",
     )
+    # A refused spawn creates no child, so counting attempts would report the
+    # limit working as though it had been breached. Created and refused are
+    # counted separately, and BOTH must hold: no more than the maximum was
+    # created, and every attempt past the limit was actually refused.
+    def _was_refused(r: dict) -> bool:
+        # Two refusal shapes: the dispatcher gate, and the context's own check.
+        return r.get("error") == "delegation_limit" or r.get("status") == "denied"
+
+    created = [r for r in spawn_results if not _was_refused(r)]
+    refused = [r for r in spawn_results if _was_refused(r)]
+    report["children_created"] = len(created)
+    report["spawns_refused"] = len(refused)
     C["16_delegation_bounds_respected"] = (
-        len(spawn_results) <= dg.MAX_CHILDREN_PER_TASK
-        and all(r.get("depth", 99) <= dg.MAX_DEPTH for r in spawn_results),
-        f"children={len(spawn_results)} (max {dg.MAX_CHILDREN_PER_TASK}), "
-        f"depths={[r.get('depth') for r in spawn_results]} (max {dg.MAX_DEPTH})",
+        len(created) <= dg.MAX_CHILDREN_PER_TASK
+        and all(r.get("depth", 99) <= dg.MAX_DEPTH for r in created)
+        and (len(spawn_results) <= dg.MAX_CHILDREN_PER_TASK or len(refused) > 0),
+        f"{len(spawn_results)} spawn attempt(s): {len(created)} created "
+        f"(max {dg.MAX_CHILDREN_PER_TASK}), {len(refused)} refused; "
+        f"depths={[r.get('depth') for r in created]} (max {dg.MAX_DEPTH})",
     )
 
     log("\n== criteria ==")

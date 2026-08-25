@@ -22,7 +22,7 @@ from pathlib import Path
 # Research reaches OUTSIDE the repository. Kept in its own module so the network
 # surface is visible in one place rather than scattered through the toolset.
 from agent_research import RESEARCH_TOOLS
-from agent_delegation import spawn_specialist, spawn_specialists
+from agent_delegation import check_spawn_allowed, spawn_specialist, spawn_specialists
 
 DELEGATION_TOOL_FNS = {
     "spawn_specialist": spawn_specialist,
@@ -496,6 +496,17 @@ async def execute_engineering_tool(name: str, arguments: dict, approvals: set[st
             # Injected, never model-supplied: an agent must not be able to hand in
             # a context granting itself a wider scope than its parent allowed.
             args["delegation"] = delegation
+            # Breadth/depth are refused HERE, at the executor, before any spawn
+            # machinery runs. The bounds are also checked inside the context, but
+            # a limit that exists only in the code being limited is not a limit:
+            # the dispatcher must be able to refuse child #5 on its own.
+            # No context at all is a different condition from an exhausted budget,
+            # and the tool reports it more precisely; both refuse.
+            if delegation is not None:
+                wanted = len(args.get("requests") or []) if name == "spawn_specialists" else 1
+                permitted, why = check_spawn_allowed(delegation, max(wanted, 1))
+                if not permitted:
+                    return json.dumps({"error": "delegation_limit", "detail": why})
         if name in {"read_file", "write_file"}:
             # Injected, never model-supplied: an agent must not be able to hand in
             # its own ledger and vouch for a file it has not read.

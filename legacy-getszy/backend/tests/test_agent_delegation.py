@@ -458,3 +458,105 @@ def test_delegation_tools_are_not_granted_to_generated_specialists():
                  "Senior React frontend engineer for responsive accessible UI"]:
         cfg = af.build_config(desc)
         assert set(cfg["allowed_tools"]) & dg.DELEGATION_TOOLS == set(), desc
+
+
+# ── breadth is refused by the EXECUTOR, not only by the spawn machinery ──────
+#
+# The real delegation acceptance recorded 7 spawn attempts against a limit of 4.
+# A bound that lives only inside the code it bounds is not a bound: the
+# dispatcher must be able to refuse child #5 on its own.
+
+@pytest.mark.asyncio
+async def test_the_executor_refuses_the_fifth_spawn():
+    context = ctx()
+    outcomes = []
+    for _ in range(dg.MAX_CHILDREN_PER_TASK + 3):
+        outcomes.append(json.loads(await agent_tools.execute_engineering_tool(
+            "spawn_specialist", {"specialist": RESEARCH, "task": "look"},
+            delegation=context)))
+
+    refused = [o for o in outcomes if o.get("error") == "delegation_limit"]
+    assert len(outcomes) - len(refused) <= dg.MAX_CHILDREN_PER_TASK
+    assert len(refused) == 3, [o.get("error") or o.get("status") for o in outcomes]
+    assert "max 4" in refused[0]["detail"] or "already spawned" in refused[0]["detail"]
+    assert context.children_spawned <= dg.MAX_CHILDREN_PER_TASK
+
+
+@pytest.mark.asyncio
+async def test_a_parallel_spawn_that_would_exceed_the_limit_is_refused_whole():
+    """Asking for 4 when 2 remain must be refused, not half-granted."""
+    context = ctx()
+    context.children_spawned = dg.MAX_CHILDREN_PER_TASK - 2
+    out = json.loads(await agent_tools.execute_engineering_tool(
+        "spawn_specialists",
+        {"requests": [{"specialist": RESEARCH, "task": "a"}] * 4},
+        delegation=context))
+    assert out["error"] == "delegation_limit"
+    assert context.children_spawned == dg.MAX_CHILDREN_PER_TASK - 2, "nothing was spawned"
+
+
+@pytest.mark.asyncio
+async def test_the_executor_refuses_a_spawn_past_the_depth_limit():
+    deep = ctx()
+    deep.depth = dg.MAX_DEPTH
+    out = json.loads(await agent_tools.execute_engineering_tool(
+        "spawn_specialist", {"specialist": RESEARCH, "task": "deeper"}, delegation=deep))
+    assert out["error"] == "delegation_limit" and "depth" in out["detail"]
+
+
+@pytest.mark.asyncio
+async def test_the_executor_refuses_a_spawn_past_the_shared_descendant_budget():
+    context = ctx()
+    context.budget["descendants"] = dg.MAX_TOTAL_DESCENDANTS
+    out = json.loads(await agent_tools.execute_engineering_tool(
+        "spawn_specialist", {"specialist": RESEARCH, "task": "one more"}, delegation=context))
+    assert out["error"] == "delegation_limit" and "tree already contains" in out["detail"]
+
+
+def test_the_two_bound_checks_share_one_implementation():
+    """A limit enforced twice must not be able to disagree with itself."""
+    context = ctx()
+    context.children_spawned = dg.MAX_CHILDREN_PER_TASK
+    allowed, reason = dg.check_spawn_allowed(context)
+    assert allowed is False
+    with pytest.raises(dg.DelegationDenied) as e:
+        context.child({"allowed_tools": ["read_file"]})
+    assert str(e.value) == reason
+
+
+# ── the acceptance harness's exact capability split ─────────────────────────
+
+def test_a_master_without_write_can_still_delegate_write():
+    """The configuration the delegation acceptance uses, asserted directly.
+
+    The master may not write; its delegation scope may. This is what lets the
+    acceptance prove a specialist wrote the file, and it must keep working.
+    """
+    delegable = frozenset(agent_tools.ENGINEERING_TOOLS)
+    master_own = delegable - {"write_file"}
+
+    context = dg.master_context(task_id="t", tools=delegable)
+    import agent_factory as af
+
+    child = context.child(af.build_config(BACKEND))
+    assert "write_file" in child.tools, "the specialist must inherit the write capability"
+    assert "write_file" not in master_own, "the master must not hold it itself"
+    assert set(child.tools) <= delegable
+
+
+@pytest.mark.asyncio
+async def test_a_master_restricted_from_writing_is_refused_at_its_own_executor():
+    refused = {}
+
+    async def master(system, user, tools, execute):
+        refused["offered"] = sorted(s["function"]["name"] for s in tools)
+        refused["write"] = json.loads(await execute(
+            "write_file", {"path": "backend/tests/_master_write_probe.txt", "content": "x"}))
+
+    master_own = sorted(set(agent_tools.ENGINEERING_TOOLS) - {"write_file"})
+    await rt.run_task("try to write", system_prompt="master", model_call=master,
+                      max_attempts=1, allowed_tools=master_own)
+
+    assert "write_file" not in refused["offered"]
+    assert refused["write"]["error"] == "tool_not_permitted"
+    assert not (REPO_ROOT / "backend/tests/_master_write_probe.txt").exists()
