@@ -94,6 +94,27 @@ SELF_PROTECTED = {
     "backend/metrics_protect.py",
 }
 
+# ── the two-tier contract ────────────────────────────────────────────────────
+#
+# TIER 1 — CAPABILITY. Which tools an agent may invoke at all. Decided by its
+# validated allowed_tools and enforced at the executor. read_file, write_file,
+# run_tests and the rest live here: they are ordinary engineering work.
+#
+# TIER 2 — AUTHORISATION. Which OPERATIONS additionally require an explicit
+# human token, whatever capabilities the agent holds. These are destructive,
+# outward-facing or financial.
+#
+# The tiers are orthogonal. Holding a capability never implies authorisation,
+# and an approval never grants a capability. A few names appear in both -- a
+# tool whose invocation IS the gated operation, like git_push -- and those must
+# clear both tiers.
+#
+# A model that names a tool where an approval belongs is making a category
+# error, and the fix is to correct the model's information, never to move the
+# tool into tier 2. Approval-gating run_tests would put a human in front of
+# verification itself, and evidence-only success depends on the agent being able
+# to run the tests unaided.
+
 # Operations that always require a human approval token, never auto-granted.
 APPROVAL_REQUIRED = {
     "git_push",
@@ -106,6 +127,47 @@ APPROVAL_REQUIRED = {
     "payment_change",
     "install_dependency",
 }
+
+# Ordinary engineering capabilities. These must NEVER require approval.
+NEVER_APPROVAL_GATED = {
+    # inspection
+    "read_file", "list_files", "grep_repo", "git_status", "git_diff", "git_log",
+    # change and verification
+    "write_file", "git_commit", "run_tests",
+    # read-only research
+    "github_search_code", "github_search_repositories", "github_search_issues",
+    "github_read_file", "web_search",
+    # delegation
+    "spawn_specialist", "spawn_specialists",
+}
+
+_TIER_OVERLAP = NEVER_APPROVAL_GATED & APPROVAL_REQUIRED
+if _TIER_OVERLAP:
+    # Fail at import, not at runtime. This is the exact mistake the contract
+    # exists to prevent: quietly gating an engineering tool to satisfy a model
+    # that mislabelled it, and thereby requiring a human to run the tests.
+    raise RuntimeError(
+        f"Agent two-tier contract violated: {sorted(_TIER_OVERLAP)} are engineering "
+        "capabilities and must never be approval-gated operations. Correct the "
+        "caller instead of moving a tool into APPROVAL_REQUIRED."
+    )
+
+
+def is_approval_gated(operation: str) -> bool:
+    """Whether this operation needs an explicit human token."""
+    return operation in APPROVAL_REQUIRED
+
+
+def classify(name: str) -> str:
+    """Which tier a name belongs to: 'capability', 'gated', or 'unknown'.
+
+    'gated' covers a tool whose invocation is itself the controlled operation.
+    """
+    if name in NEVER_APPROVAL_GATED:
+        return "capability"
+    if name in APPROVAL_REQUIRED:
+        return "gated"
+    return "unknown"
 
 
 class GuardDenied(PermissionError):

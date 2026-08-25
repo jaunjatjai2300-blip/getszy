@@ -131,6 +131,70 @@ def installed_models() -> list[str]:
         return []
 
 
+# ── escalation ───────────────────────────────────────────────────────────────
+#
+# A small local model is the right default: free, private, no quota. But some
+# tasks are genuinely beyond it, and grinding through three attempts with a model
+# that cannot do the work wastes an hour to reach the same answer.
+#
+# So a stronger target may be configured, and is used only after the local model
+# has actually failed. It is read from AGENT-FACTORY-OWNED variables, never from
+# the customer provider chain: internal engineering must not consume customer
+# quota, depend on customer model routing, or be affected by the free-tier gating
+# that applies to the dashboard.
+#
+# Nothing is a hard dependency. With no escalation configured the run simply
+# fails honestly after its attempts, which is a correct outcome and a signal for
+# a human, not something to paper over with a fabricated success.
+
+ESCALATION_PROVIDER_ENV = "AGENT_ESCALATION_PROVIDER"
+ESCALATION_MODEL_ENV = "AGENT_ESCALATION_MODEL"
+ESCALATE_AFTER_ATTEMPT = int(os.environ.get("AGENT_ESCALATE_AFTER_ATTEMPT", "1"))
+
+
+def escalation_target() -> dict | None:
+    """The stronger provider/model this deployment configured, or None."""
+    provider = os.environ.get(ESCALATION_PROVIDER_ENV, "").strip().lower()
+    model = os.environ.get(ESCALATION_MODEL_ENV, "").strip()
+    if not provider:
+        return None
+    if provider not in {"ollama", "lmstudio", "groq", "openrouter"}:
+        logger.warning("%s=%r is not a known provider; ignoring.", ESCALATION_PROVIDER_ENV, provider)
+        return None
+    if provider == "ollama" and model and model not in installed_models():
+        logger.warning("escalation model %r is not installed; ignoring.", model)
+        return None
+    return {"provider": provider, "model": model or None, "source": "agent_factory_config"}
+
+
+def plan_for_attempt(tier: str, attempt: int, installed: list[str] | None = None) -> dict:
+    """Which provider and model to use for this attempt.
+
+    Attempt 1 always uses the local tier model: escalating before the cheap
+    option has actually failed would spend a stronger resource on a task that
+    did not need it.
+    """
+    local = model_for_tier(tier, installed)
+    plan = {"provider": "ollama", "model": local, "escalated": False,
+            "reason": f"tier '{tier}' local model"}
+
+    if attempt <= ESCALATE_AFTER_ATTEMPT:
+        return plan
+
+    target = escalation_target()
+    if not target:
+        plan["reason"] = (
+            f"tier '{tier}' local model; no escalation configured "
+            f"(set {ESCALATION_PROVIDER_ENV} / {ESCALATION_MODEL_ENV} to enable one)"
+        )
+        return plan
+
+    return {
+        "provider": target["provider"], "model": target["model"], "escalated": True,
+        "reason": f"attempt {attempt}: local model failed, escalating to configured target",
+    }
+
+
 class NoEngineeringProvider(RuntimeError):
     """No provider with tool-calling support is currently usable."""
 
@@ -502,7 +566,32 @@ def _args(tool_call: dict) -> dict:
         return {}
 
 
+def router_for(tier: str, *, temperature: float = 0.1, max_rounds: int = MAX_TOOL_ROUNDS,
+               installed: list[str] | None = None, on_plan=None):
+    """A per-attempt model_call factory for agent_runtime.
+
+    Returns a callable taking the attempt number, so escalation is decided where
+    the attempt count actually lives rather than being guessed inside the loop.
+    """
+    def router(attempt: int):
+        plan = plan_for_attempt(tier, attempt, installed)
+        if on_plan:
+            on_plan(attempt, plan)
+        if not plan["model"] and plan["provider"] == "ollama":
+            return None          # run_task will fail honestly
+
+        async def call(system, user, tools, execute):
+            return await engineering_tool_loop(
+                system=system, user=user, execute=execute, tools=tools,
+                provider=plan["provider"], model=plan["model"],
+                temperature=temperature, max_rounds=max_rounds,
+            )
+        return call
+    return router
+
+
 __all__ = [
     "engineering_tool_loop", "available_providers", "NoEngineeringProvider",
-    "MAX_TOOL_ROUNDS", "TIER_MODELS", "model_for_tier", "installed_models",
+    "MAX_TOOL_ROUNDS", "MAX_IDENTICAL_REPEATS", "TIER_MODELS", "model_for_tier",
+    "installed_models", "escalation_target", "plan_for_attempt", "router_for",
 ]
