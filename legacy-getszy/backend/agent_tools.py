@@ -467,8 +467,16 @@ ENGINEERING_SCHEMAS = [
             "your tools and approvals and returns structured evidence. It cannot exceed "
             "your own authority.",
             {"specialist": {"type": "string"}, "task": {"type": "string"},
-             "tools": {"type": "array", "items": {"type": "string"}},
-             "approvals": {"type": "array", "items": {"type": "string"}}},
+             "tools": {"type": "array", "items": {"type": "string"},
+                       "description": "Optional. Narrow the specialist further. Omit to let "
+                                      "its role decide. Requesting anything you do not hold "
+                                      "is refused."},
+             "approvals": {"type": "array", "items": {"type": "string"},
+                           "description": "Optional and almost always omitted. These are "
+                                          "OPERATIONS, not tools: git_push, git_reset, "
+                                          "git_force_push, deploy, db_delete, db_migrate, "
+                                          "secrets_write, payment_change, install_dependency. "
+                                          "Do not put tool names here."}},
             ["specialist", "task"]),
     _schema("spawn_specialists",
             "Delegate several independent tasks to specialists in parallel. Each entry is "
