@@ -255,3 +255,13 @@ def test_missing_executable_is_reported_not_raised():
     out = acc.sh("definitely-not-a-real-binary-xyz")
     assert out["code"] == 127
     assert "not found" in out["err"]
+
+
+@pytest.mark.asyncio
+async def test_context_window_is_set_explicitly(stub_http):
+    """Ollama truncates silently, which would drop the task mid tool-loop."""
+    call = agent_llm._transport("ollama", "qwen2.5-coder:7b")
+    await call([{"role": "user", "content": "hi"}], [], 0.1)
+    options = stub_http.captured[0]["json"]["options"]
+    assert options["num_ctx"] == agent_llm.OLLAMA_NUM_CTX
+    assert options["num_ctx"] >= 4096

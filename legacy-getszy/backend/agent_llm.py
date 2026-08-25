@@ -37,6 +37,16 @@ MAX_TOOL_ROUNDS = 8
 # it was simply still thinking.
 OLLAMA_TIMEOUT_SEC = float(os.environ.get("AGENT_LLM_TIMEOUT_SEC", "600"))
 
+# Ollama's default context is small, and it TRUNCATES SILENTLY when the
+# conversation outgrows it. In a tool loop that means the original instruction
+# and the early tool results fall out of the window part-way through, and the
+# model starts answering a question it can no longer see -- which looks like the
+# model being incapable rather than the context being too short.
+#
+# Raising this costs KV-cache memory, so it is tunable: on a small host it has to
+# be traded against the model actually fitting in RAM.
+OLLAMA_NUM_CTX = int(os.environ.get("AGENT_LLM_NUM_CTX", "8192"))
+
 # Model tier -> concrete local model. The factory assigns a tier from the agent
 # description; without this mapping that tier was dead config, assigned and then
 # ignored. Cheapest capable model by default, escalating only for hard work.
@@ -216,7 +226,10 @@ def _ollama_pinned(model: str):
                     "messages": messages,
                     "tools": tools,
                     "stream": False,
-                    "options": {"temperature": temperature},
+                    "options": {
+                        "temperature": temperature,
+                        "num_ctx": OLLAMA_NUM_CTX,
+                    },
                 },
             )
             r.raise_for_status()
