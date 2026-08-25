@@ -75,16 +75,61 @@ async def list_files(path: str = ".", pattern: str = "*", limit: int = 200) -> s
 
 
 async def grep_repo(pattern: str, path: str = ".", glob: str = "") -> str:
-    """Search file contents. Uses ripgrep when present, falls back to grep -r."""
+    """Search file contents. Uses ripgrep, then grep, then a pure-Python scan.
+
+    A search that COULD NOT RUN must never look like a search that found nothing.
+    An earlier version returned `matches: 0` when the grep binary was absent
+    (exit 127), which would tell an agent "this symbol does not exist" about a
+    repository it had not actually searched. Exit 1 means no matches; anything
+    above that is a failure and is reported as one.
+    """
     d = assert_readable(path)
+    cmd = None
     if _has(["rg", "--version"]):
         cmd = ["rg", "-n", "--no-heading", "-m", str(MAX_GREP_MATCHES), pattern, str(d)]
         if glob:
             cmd[1:1] = ["--glob", glob]
-    else:
+    elif _has(["grep", "--version"]):
         cmd = ["grep", "-rn", "--exclude-dir=.git", "--exclude-dir=node_modules", pattern, str(d)]
-    out = _run(cmd)
-    lines = [ln for ln in out["stdout"].splitlines() if ln][:MAX_GREP_MATCHES]
+
+    if cmd is not None:
+        out = _run(cmd)
+        if out["code"] > 1:
+            return json.dumps({
+                "error": "search_failed",
+                "detail": f"exit {out['code']}: {(out['stderr'] or '').strip()[:400]}",
+            })
+        lines = [ln for ln in out["stdout"].splitlines() if ln][:MAX_GREP_MATCHES]
+        return json.dumps({"pattern": pattern, "matches": len(lines), "lines": lines})
+
+    return _python_grep(pattern, d, glob)
+
+
+def _python_grep(pattern: str, root: Path, glob: str = "") -> str:
+    """Fallback scan, so the toolset does not depend on an external binary."""
+    import re
+
+    try:
+        rx = re.compile(pattern)
+    except re.error as e:
+        return json.dumps({"error": "bad_pattern", "detail": str(e)})
+
+    lines: list[str] = []
+    targets = root.rglob(glob or "*") if root.is_dir() else [root]
+    for f in targets:
+        if not f.is_file():
+            continue
+        if any(p in {".git", "node_modules", "__pycache__", "build", "dist"} for p in f.parts):
+            continue
+        try:
+            text = f.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for n, line in enumerate(text.splitlines(), 1):
+            if rx.search(line):
+                lines.append(f"{f}:{n}:{line[:300]}")
+                if len(lines) >= MAX_GREP_MATCHES:
+                    return json.dumps({"pattern": pattern, "matches": len(lines), "lines": lines})
     return json.dumps({"pattern": pattern, "matches": len(lines), "lines": lines})
 
 
