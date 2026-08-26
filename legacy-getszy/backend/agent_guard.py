@@ -81,6 +81,10 @@ SELF_PROTECTED = {
     "backend/agent_factory.py",
     "backend/agent_llm.py",
     "backend/agent_persistence.py",
+    "backend/agent_delegation.py",
+    "backend/agent_evidence.py",
+    "backend/agent_knowledge.py",
+    "backend/agent_research.py",
     "backend/acceptance_agent_factory.py",
     "backend/acceptance_persistence.py",
     "backend/acceptance_delegation.py",
@@ -137,6 +141,8 @@ NEVER_APPROVAL_GATED = {
     # read-only research
     "github_search_code", "github_search_repositories", "github_search_issues",
     "github_read_file", "web_search",
+    # codebase retrieval (read-only, in-repo)
+    "search_codebase",
     # delegation
     "spawn_specialist", "spawn_specialists",
 }

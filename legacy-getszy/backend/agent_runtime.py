@@ -25,6 +25,12 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Awaitable
 
 from agent_delegation import DELEGATION_TOOLS
+from agent_evidence import (
+    STRATEGY_INSTRUCTIONS,
+    AttemptLedger,
+    next_strategy,
+    parse_failure,
+)
 from agent_guard import APPROVAL_REQUIRED
 from agent_tools import (
     ENGINEERING_SCHEMAS,
@@ -38,6 +44,19 @@ MAX_REPAIR_ATTEMPTS = 3
 # How much of a failing test's real output is carried into the next attempt.
 # Enough to name the failing assertion; small enough not to crowd the context.
 TEST_OUTPUT_TAIL = 1200
+
+# Deterministic lifecycle. A task is always in exactly one of these, and the
+# terminal state is derived from evidence rather than asserted by a caller.
+RECEIVED = "received"
+PLANNING = "planning"
+EXECUTING = "executing"
+VERIFYING = "verifying"
+REPAIRING = "repairing"
+SUCCEEDED = "verified"                 # kept as 'verified' for compatibility
+FAILED = "failed_needs_human"
+HUMAN_REVIEW = "human_review"
+LIFECYCLE = [RECEIVED, PLANNING, EXECUTING, VERIFYING, REPAIRING,
+             SUCCEEDED, FAILED, HUMAN_REVIEW]
 
 
 class NoModelAvailable(RuntimeError):
@@ -59,9 +78,19 @@ class AuditRecord:
     approvals_granted: list[str] = field(default_factory=list)
     approvals_denied: list[str] = field(default_factory=list)
     attempts: int = 0
+    state: str = RECEIVED
+    states_seen: list[str] = field(default_factory=list)
+    attempt_log: list = field(default_factory=list)
+    stuck: bool = False
     result: str = "pending"
     started_at: float = field(default_factory=time.time)
     finished_at: float | None = None
+
+    def enter(self, state: str) -> None:
+        """Move to a lifecycle state and record the transition."""
+        self.state = state
+        if not self.states_seen or self.states_seen[-1] != state:
+            self.states_seen.append(state)
 
     def record_action(self, tool: str, args: dict, result: str) -> None:
         parsed = _safe_json(result)
@@ -134,6 +163,10 @@ class AuditRecord:
             "approvals_granted": self.approvals_granted,
             "approvals_denied": self.approvals_denied,
             "attempts": self.attempts,
+            "state": self.state,
+            "states_seen": self.states_seen,
+            "attempt_log": self.attempt_log,
+            "stuck": self.stuck,
             "result": self.result,
             "duration_sec": round((self.finished_at or time.time()) - self.started_at, 2),
         }
@@ -258,39 +291,109 @@ async def run_task(
     if delegation is not None and not getattr(delegation, "task_id", ""):
         delegation.task_id = audit.task_id
 
+    # Runtime-owned record of what has already been tried and how it failed. The
+    # model never sees it directly and cannot edit it -- an agent able to rewrite
+    # its own history of dead ends could quietly forget it is going in circles.
+    attempts_ledger = AttemptLedger()
+    strategy = "default"
     last_error = ""
+
+    audit.enter(PLANNING)
     for attempt in range(1, max_attempts + 1):
         audit.attempts = attempt
-        prompt = request if attempt == 1 else _repair_briefing(request, audit, last_error)
+        record = attempts_ledger.open(attempt)
+        record.strategy = strategy
+
+        prompt = request if attempt == 1 else _repair_prompt(
+            request, audit, attempts_ledger, last_error, strategy)
+
         # A router picks the provider/model per attempt, so a task can escalate
         # after the cheap local model has actually failed. Without one the
         # single injected model_call is used for every attempt, as before.
         attempt_call = model_router(attempt) if model_router else model_call
         if attempt_call is None:
             audit.result = "no_model_available"
+            audit.enter(HUMAN_REVIEW)
             audit.finished_at = time.time()
             raise NoModelAvailable(
                 "No usable model for this attempt and no escalation target configured.")
+
+        audit.enter(EXECUTING if attempt == 1 else REPAIRING)
+        before_files = set(audit.files_changed)
         try:
             await _drive(prompt, system_prompt, audit, approvals, attempt_call, allowed_tools,
                          ledger, delegation)
         except NoModelAvailable:
             audit.result = "no_model_available"
+            audit.enter(HUMAN_REVIEW)
             audit.finished_at = time.time()
             raise
         except Exception as e:  # a tool crash is a failure, not a success
             audit.failures.append({"attempt": attempt, "error": type(e).__name__, "detail": str(e)[:400]})
 
+        # ── close out the attempt with real evidence ────────────────────────
+        record.files_changed = sorted(set(audit.files_changed) - before_files)
+        last_test = audit.tests[-1] if audit.tests else None
+        record.test_target = _last_test_target(audit)
+        if last_test is None:
+            attempts_ledger.close(passed=None, failure={})
+        else:
+            attempts_ledger.close(
+                passed=bool(last_test.get("passed")),
+                failure=parse_failure(last_test.get("output_tail") or "",
+                                      last_test.get("exit_code") or 1),
+            )
+        audit.attempt_log = attempts_ledger.to_evidence()
+        audit.stuck = attempts_ledger.is_stuck()
+
+        audit.enter(VERIFYING)
         ok, why = await verify(audit)
         if ok:
-            audit.result = "verified"
+            audit.result = SUCCEEDED
+            audit.enter(SUCCEEDED)
             audit.finished_at = time.time()
             return await _finalise(audit, operation, session_id)
         last_error = why
 
-    audit.result = "failed_needs_human"
+        # The same conceptual failure twice means the current approach is spent.
+        # Change strategy rather than spending the next attempt the same way.
+        if audit.stuck:
+            strategy = next_strategy(strategy)
+
+    audit.result = FAILED
+    audit.enter(HUMAN_REVIEW if audit.stuck else FAILED)
     audit.finished_at = time.time()
     return await _finalise(audit, operation, session_id)
+
+
+def _last_test_target(audit: AuditRecord) -> str:
+    for action in reversed(audit.actions):
+        if action.get("tool") == "run_tests":
+            return str((action.get("arguments") or {}).get("target") or "")
+    return ""
+
+
+def _repair_prompt(request: str, audit: AuditRecord, ledger: AttemptLedger,
+                   last_error: str, strategy: str) -> str:
+    """The next attempt's instruction: the task, the record, and a strategy.
+
+    Two complementary briefings, neither a transcript. `_repair_briefing` covers
+    the current state -- what changed, what the test printed, which calls were
+    refused. The ledger covers the ARC: which approaches have already been tried
+    and what each produced, which is what stops the model proposing the same idea
+    a third time in different code.
+
+    Replaying the full history instead would refill the context with the same
+    dead ends and invite the model to walk back into them, which is exactly what
+    a real specialist did.
+    """
+    parts = [_repair_briefing(request, audit, last_error), "", ledger.briefing()]
+    instruction = STRATEGY_INSTRUCTIONS.get(strategy, "")
+    if instruction:
+        parts += ["", instruction]
+    parts += ["", "Change the code first, then run the test again. Do not repeat a "
+                  "call that already failed unchanged."]
+    return "\n".join(p for p in parts if p is not None)
 
 
 def _repair_briefing(request: str, audit: AuditRecord, last_error: str) -> str:

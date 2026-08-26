@@ -40,6 +40,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 import agent_factory
+import agent_knowledge
 import agent_llm
 import agent_persistence
 import agent_research
@@ -122,6 +123,8 @@ async def health(admin=Depends(guard_enabled)):
             for tier in agent_llm.TIER_MODELS
         },
         "research_providers": agent_research.providers_status(),
+        "codebase_retrieval": agent_knowledge.status(),
+        "lifecycle": agent_runtime.LIFECYCLE,
         "grantable_approvals": sorted(_grantable()),
         "approval_required": sorted(APPROVAL_REQUIRED),
         "max_repair_attempts": agent_runtime.MAX_REPAIR_ATTEMPTS,
@@ -354,6 +357,7 @@ def _public_task(record: dict) -> dict:
         "request": (record.get("payload") or {}).get("request"),
         "failure_code": record.get("failure_code"),
         "evidence": record.get("evidence"),
+        "delegation": record.get("delegation"),
         "credit_state": record.get("credit_state"),
         "created_at": record.get("created_at"),
         "updated_at": record.get("updated_at"),
