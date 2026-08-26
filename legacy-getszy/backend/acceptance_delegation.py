@@ -67,7 +67,7 @@ import agent_runtime as runtime  # noqa: E402
 import agent_tools  # noqa: E402
 from acceptance_agent_factory import (  # noqa: E402
     Preflight, brief, git, log, memory_gb, model_sizes_gb, preflight,
-    sandbox_relative, sh,
+    resident_models, sandbox_relative, sh,
 )
 from agent_tools import execute_engineering_tool  # noqa: E402
 
@@ -185,12 +185,22 @@ async def main() -> int:
 
     sizes, mem = model_sizes_gb(), memory_gb()
     need, have = sizes.get(model), mem.get("MemAvailable")
+
+    # A model Ollama already holds costs nothing to use again. Without this the
+    # gate refuses a run that needs no new memory at all -- 5.5 GB resident,
+    # 0.7 GB free, and the very model we wanted already loaded.
+    resident = resident_models()
+    already_loaded = model in resident
     report["model"] = model
     report["model_size_gb"] = need
     report["host_memory_gb"] = mem
     log(f"\n== capacity ==\n  {model}: {need or '?'} GB   available: {have or '?'} GB "
         f"of {mem.get('MemTotal') or '?'} GB")
-    if need and have and need > have:
+    report["model_already_resident"] = already_loaded
+    if already_loaded:
+        log(f"  {model} is ALREADY RESIDENT ({resident[model]} GB) — reusing it "
+            "costs no new memory, so the capacity check does not apply.")
+    if need and have and need > have and not already_loaded:
         if os.environ.get("ACCEPTANCE_ALLOW_OVERSIZED_MODEL") != "1":
             log(f"\nRefusing to run: {model} needs about {need} GB but only {have} GB is "
                 f"available. Ollama would be OOM-killed and could take the host down.\n"

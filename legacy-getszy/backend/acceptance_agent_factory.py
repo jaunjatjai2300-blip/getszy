@@ -176,6 +176,29 @@ def model_sizes_gb() -> dict:
         return {}
 
 
+def resident_models() -> dict:
+    """Models Ollama currently holds in memory, name -> GB.
+
+    A model that is ALREADY resident costs nothing to use again: Ollama reuses
+    the loaded copy. Counting its footprint as "needed" makes the capacity gate
+    refuse a run that would in fact fit -- observed with 5.5 GB resident and
+    0.7 GB free, where the run was refused despite needing no new memory.
+
+    This corrects the gate's arithmetic, not its policy. A model that is NOT
+    resident is still checked against free memory exactly as before.
+    """
+    import httpx
+
+    try:
+        r = httpx.get(f"{agent_llm.ollama_base_url()}/api/ps", timeout=5.0)
+        if r.status_code != 200:
+            return {}
+        return {m.get("name"): round(m.get("size", 0) / 1e9, 1)
+                for m in (r.json() or {}).get("models", [])}
+    except Exception:
+        return {}
+
+
 def memory_gb() -> dict:
     """Host memory, for judging whether a model can actually be resident."""
     try:
@@ -316,11 +339,21 @@ async def main() -> int:
     # can take the whole host down -- that is what ended the previous run.
     sizes, mem = model_sizes_gb(), memory_gb()
     need, have = sizes.get(model), mem.get("MemAvailable")
+
+    # A model Ollama already holds costs nothing to use again. Without this the
+    # gate refuses a run that needs no new memory at all -- 5.5 GB resident,
+    # 0.7 GB free, and the very model we wanted already loaded.
+    resident = resident_models()
+    already_loaded = model in resident
     report["model_size_gb"] = need
     report["host_memory_gb"] = mem
     log(f"\n== capacity ==\n  {model}: {need or '?'} GB   "
         f"host available: {have or '?'} GB of {mem.get('MemTotal') or '?'} GB")
-    if need and have and need > have:
+    report["model_already_resident"] = already_loaded
+    if already_loaded:
+        log(f"  {model} is ALREADY RESIDENT ({resident[model]} GB) — reusing it "
+            "costs no new memory, so the capacity check does not apply.")
+    if need and have and need > have and not already_loaded:
         if os.environ.get("ACCEPTANCE_ALLOW_OVERSIZED_MODEL") != "1":
             log(
                 f"\nRefusing to run: {model} needs about {need} GB but only {have} GB is "
