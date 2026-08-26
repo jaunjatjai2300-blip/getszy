@@ -12,6 +12,24 @@ Flow:
 
 Key principle: NO arbitrary code execution. All actions go through
 existing capabilities with validation.
+
+SCOPE — PRODUCT/CONTENT, NOT ENGINEERING.
+
+This loop runs commerce capabilities (scripts, videos, storefronts) through
+`process_message`. It has no repository access and must never gain any: no
+filesystem writes, no git, no shell, no subprocess.
+
+The autonomous ENGINEERING runtime is `agent_runtime.py`, which is the single
+authoritative path for anything that touches the repository. It carries a bounded
+3-attempt repair loop, evidence-only verification, approval gates, an audit trail
+and optimistic concurrency — none of which exist here, because nothing here needs
+them. This loop's own 2-retry self-correction applies to capability parameters,
+not to code.
+
+The separation is enforced structurally in tests/test_agent_convergence.py. If
+this module ever needs to change code, it must delegate to agent_runtime rather
+than grow its own tools.
+
 """
 import json
 import logging

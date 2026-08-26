@@ -4,12 +4,18 @@ The existing `tools.py` registry is commerce-only (products, courses, pricing).
 The master agent needs to inspect and modify a repository, so these are the
 engineering tools, kept in a separate registry with its own schemas.
 
-Everything here is REAL: real filesystem reads, real ripgrep/grep, real git via
-the existing `git_ops`, real pytest execution. Nothing is mocked or simulated —
-a tool that cannot do the real thing raises instead of returning a plausible
-string, because a fabricated tool result is worse than a failure.
+Everything here is REAL: real filesystem reads, real ripgrep/grep, real git and
+real pytest execution. Nothing is mocked or simulated — a tool that cannot do the
+real thing raises instead of returning a plausible string, because a fabricated
+tool result is worse than a failure.
 
 Every path-touching tool goes through `agent_guard` first.
+
+NOTE ON GIT: these tools invoke git directly on guard-resolved paths. They do NOT
+use `git_ops.py`, which is a separate unguarded helper behind the admin-only
+/admin/git routes: no sandbox, no approval gate, no audit trail, and a commit
+that stages everything. An agent must never reach it, and no agent module imports
+it — asserted in tests/test_agent_convergence.py.
 """
 from __future__ import annotations
 
