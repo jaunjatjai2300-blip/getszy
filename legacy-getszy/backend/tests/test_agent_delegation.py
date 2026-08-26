@@ -589,8 +589,8 @@ async def test_a_master_that_cannot_write_delegates_a_child_that_can_and_the_fil
         def factory(tier):
             async def call(system, user, tools, execute):
                 child_result["offered"] = sorted(s["function"]["name"] for s in tools)
-                child_result["write"] = json.loads(await execute(
-                    "write_file", {"path": target, "content": "written by the specialist\n"}))
+                child_result.setdefault("writes", []).append(json.loads(await execute(
+                    "write_file", {"path": target, "content": "written by the specialist\n"})))
             return call
 
         delegable = frozenset(agent_tools.ENGINEERING_TOOLS)
@@ -611,9 +611,12 @@ async def test_a_master_that_cannot_write_delegates_a_child_that_can_and_the_fil
         # the master could not write, and was refused when it tried
         assert "write_file" not in master_attempt["offered"]
         assert master_attempt["write"]["error"] == "tool_not_permitted"
-        # the child could, and did
+        # the child could, and did. Its FIRST write is the real one; a repair
+        # attempt writing the same content again is correctly a no-op.
         assert "write_file" in child_result["offered"]
-        assert "error" not in child_result["write"]
+        writes = child_result["writes"]
+        assert "error" not in writes[0], writes[0]
+        assert all(w.get("error") == "no_change" for w in writes[1:]), writes[1:]
         assert path.read_text(encoding="utf-8") == "written by the specialist\n", \
             "only the specialist may have created this file"
         # and the child stayed inside the ceiling

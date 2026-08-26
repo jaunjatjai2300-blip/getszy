@@ -252,3 +252,141 @@ def test_retrieval_is_registered_and_schema_matches():
     assert "search_codebase" in agent_tools.ENGINEERING_TOOLS
     named = {s["function"]["name"] for s in agent_tools.ENGINEERING_SCHEMAS}
     assert named == set(agent_tools.ENGINEERING_TOOLS)
+
+
+# ── the three defects the real delegation run exposed ────────────────────────
+#
+# Evidence from that run, all of it orchestration rather than model:
+#   * versions 0fbb41e8 and ff5422d6 were each written TWICE -- identical
+#     content re-written, a whole round spent rediscovering the same failure
+#   * version 22e1614d was written by all THREE children, because each one
+#     started blind and re-walked the previous child's dead end
+#   * the model oscillated between three assertions, never told it was breaking
+#     a case that had been passing
+
+@pytest.mark.asyncio
+async def test_writing_identical_content_is_reported_as_a_no_op():
+    target = "backend/tests/_noop_probe.txt"
+    path = REPO_ROOT / target
+    path.unlink(missing_ok=True)
+    ledger = agent_tools.FileVersionLedger()
+
+    async def write(content):
+        return json.loads(await agent_tools.execute_engineering_tool(
+            "write_file", {"path": target, "content": content}, ledger=ledger))
+
+    try:
+        first = await write("same content\n")
+        assert "error" not in first and first["created"] is True
+
+        again = await write("same content\n")
+        assert again["error"] == "no_change"
+        assert "actually be different" in again["detail"]
+
+        # a genuine change still writes
+        changed = await write("different content\n")
+        assert "error" not in changed
+        assert path.read_text(encoding="utf-8") == "different content\n"
+    finally:
+        path.unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
+async def test_a_no_op_write_does_not_touch_the_file():
+    target = "backend/tests/_noop_mtime.txt"
+    path = REPO_ROOT / target
+    path.write_text("stable\n", encoding="utf-8", newline="")
+    ledger = agent_tools.FileVersionLedger()
+    try:
+        await agent_tools.execute_engineering_tool(
+            "read_file", {"path": target}, ledger=ledger)
+        before = agent_tools.file_version(path)
+        out = json.loads(await agent_tools.execute_engineering_tool(
+            "write_file", {"path": target, "content": "stable\n"}, ledger=ledger))
+        assert out["error"] == "no_change"
+        assert agent_tools.file_version(path) == before
+    finally:
+        path.unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
+async def test_run_tests_reports_every_failing_test_not_just_the_first():
+    """Oscillation is invisible when only one traceback is shown."""
+    probe = REPO_ROOT / "backend/tests/_multifail_test.py"
+    probe.write_text(
+        "def test_alpha():\n    assert 1 == 2\n\n"
+        "def test_beta():\n    assert 'a' == 'b'\n\n"
+        "def test_gamma():\n    assert True\n",
+        encoding="utf-8", newline="")
+    try:
+        out = json.loads(await agent_tools.execute_engineering_tool(
+            "run_tests", {"target": "backend/tests/_multifail_test.py"}))
+        assert out["passed"] is False
+        assert out["failed_count"] == 2
+        assert out["passed_count"] == 1
+        assert set(out["failing_tests"]) == {"test_alpha", "test_beta"}, out["failing_tests"]
+    finally:
+        probe.unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
+async def test_a_passing_run_reports_no_failing_tests():
+    probe = REPO_ROOT / "backend/tests/_allpass_test.py"
+    probe.write_text("def test_ok():\n    assert True\n", encoding="utf-8", newline="")
+    try:
+        out = json.loads(await agent_tools.execute_engineering_tool(
+            "run_tests", {"target": "backend/tests/_allpass_test.py"}))
+        assert out["passed"] is True
+        assert out.get("failing_tests") is None
+        assert out["passed_count"] == 1
+    finally:
+        probe.unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
+async def test_a_later_specialist_is_told_what_earlier_ones_tried():
+    """Three children wrote byte-identical failing code because none was briefed."""
+    import agent_delegation as dg
+
+    seen_tasks = []
+
+    def factory(tier):
+        async def call(system, user, tools, execute):
+            seen_tasks.append(user)
+            await execute("run_tests", {"target": "backend/tests/_brief_fail_test.py"})
+        return call
+
+    probe = REPO_ROOT / "backend/tests/_brief_fail_test.py"
+    probe.write_text("def test_no():\n    assert False\n", encoding="utf-8", newline="")
+    context = dg.master_context(
+        task_id="t", tools=frozenset(agent_tools.ENGINEERING_TOOLS), model_factory=factory)
+    try:
+        await dg.delegate(specialist="Senior Python backend engineer who runs pytest.",
+                          task="make it pass", context=context)
+        await dg.delegate(specialist="Senior Python backend engineer who runs pytest.",
+                          task="make it pass", context=context)
+
+        assert len(seen_tasks) >= 2
+        first, later = seen_tasks[0], seen_tasks[-1]
+        assert "earlier specialists" not in first, "the first child has no history yet"
+        assert "earlier specialists" in later, "a later child must be briefed"
+        assert "Attempt 1" in later
+        assert "structurally different" in later
+    finally:
+        probe.unlink(missing_ok=True)
+
+
+def test_the_briefing_carries_history_never_capability():
+    """A briefing must not be a channel for widening a child's authority."""
+    import agent_delegation as dg
+
+    context = dg.master_context(task_id="t", tools=frozenset({"read_file"}))
+    context.spawned.append({
+        "attempt": 1, "status": "failed_needs_human",
+        "outcome": {"files_changed": ["backend/x.py"], "failing_tests": ["test_a"],
+                    "last_error": "boom"},
+    })
+    text = dg._prior_attempts_briefing(context, "spec")
+    assert "backend/x.py" in text and "test_a" in text
+    for leaked in ("approval", "granted", "git_push", "allowed_tools", "sandbox"):
+        assert leaked not in text.lower(), f"briefing leaks {leaked}"
