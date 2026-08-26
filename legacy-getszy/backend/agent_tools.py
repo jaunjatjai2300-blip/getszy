@@ -265,6 +265,22 @@ async def write_file(path: str, content: str, expected_version: str | None = Non
                 "current_version": current,
             })
 
+    # A write whose content already matches the file changes nothing, and an
+    # agent that cannot see that spends a whole round rediscovering the same
+    # failure. Observed twice in one real run: identical content written, tests
+    # re-run, identical failure. Reported so the model learns something from it.
+    if current is not None and content_version(content) == current:
+        return json.dumps({
+            "error": "no_change",
+            "detail": (
+                f"'{rel}' already contains exactly this content, so nothing was "
+                "written -- re-running the tests would fail the same way. If the "
+                "tests are still failing, the code has to actually be different."
+            ),
+            "path": rel,
+            "version": current,
+        })
+
     p.parent.mkdir(parents=True, exist_ok=True)
     existed = current is not None
     previous_bytes = p.stat().st_size if existed else 0
@@ -352,16 +368,43 @@ async def run_tests(target: str = "", timeout: int = 300) -> str:
     that a pass is a pass.
     """
     backend = REPO_ROOT / "backend"
-    cmd = ["python", "-m", "pytest", "-q"]
+    # -rf lists EVERY failing test in the short summary. Without it the output
+    # leads with a single traceback, so an agent fixing that case cannot see that
+    # it has broken a different case which was passing -- which is how a real run
+    # oscillated between three assertions without ever noticing the trade.
+    cmd = ["python", "-m", "pytest", "-q", "-rf"]
     if target:
         cmd.append(str(assert_readable(target)))
     out = _run(cmd, cwd=backend, timeout=timeout)
-    tail = (out["stdout"] + out["stderr"]).strip().splitlines()[-25:]
+    combined = out["stdout"] + out["stderr"]
+    tail = combined.strip().splitlines()[-25:]
     return json.dumps({
         "exit_code": out["code"],
         "passed": out["code"] == 0,
+        **_test_summary(combined),
         "output": "\n".join(tail),
     })
+
+
+def _test_summary(output: str) -> dict:
+    """Every failing test name plus the counts, from pytest's own summary.
+
+    Surfaced as structured fields so the agent sees the whole picture rather
+    than inferring it from the first traceback.
+    """
+    import re
+
+    summary: dict = {}
+    failed = re.findall(r"^FAILED\s+(\S+)", output, re.MULTILINE)
+    m = re.search(r"(\d+) failed", output)
+    if m:
+        summary["failed_count"] = int(m.group(1))
+    m = re.search(r"(\d+) passed", output)
+    if m:
+        summary["passed_count"] = int(m.group(1))
+    if failed:
+        summary["failing_tests"] = [f.split("::")[-1] for f in failed][:12]
+    return summary
 
 
 # ── plumbing ─────────────────────────────────────────────────────────────────

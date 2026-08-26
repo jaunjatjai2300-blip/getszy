@@ -250,6 +250,12 @@ async def delegate(*, specialist: str, task: str, context: DelegationContext,
     except (DelegationDenied, agent_factory.FactoryRejected) as e:
         return _denied(specialist, task, context, str(e))
 
+    # What earlier specialists on this task already tried, and how it failed.
+    # Without it every child starts blind: in one real run three separate
+    # children wrote byte-identical failing code (version 22e1614d) because none
+    # of them knew the previous one had already been down that road.
+    briefed_task = task + _prior_attempts_briefing(context, specialist)
+
     import agent_runtime
 
     model_call = None
@@ -260,7 +266,7 @@ async def delegate(*, specialist: str, task: str, context: DelegationContext,
 
     try:
         audit = await agent_runtime.run_task(
-            task,
+            briefed_task,
             system_prompt=cfg["system_prompt"],
             approvals=set(child.approvals) or None,
             model_call=model_call,
@@ -277,7 +283,14 @@ async def delegate(*, specialist: str, task: str, context: DelegationContext,
         return _failure(specialist, task, child, cfg, f"{type(e).__name__}: {e}")
 
     result = _result(specialist, task, child, cfg, audit)
-    context.spawned.append(_ancestry_record(child, cfg, task, result["status"]))
+    record = _ancestry_record(child, cfg, task, result["status"])
+    record["attempt"] = len(context.spawned) + 1
+    record["outcome"] = {
+        "files_changed": result.get("files_changed", []),
+        "failing_tests": _failing_tests(audit),
+        "last_error": (result.get("errors") or [None])[0],
+    }
+    context.spawned.append(record)
 
     if should_persist and audit.get("operation_id"):
         await _persist_ancestry(audit["operation_id"], child, cfg, task, context)
@@ -391,6 +404,35 @@ def _failure(specialist, task, child, cfg, reason) -> dict:
     return out
 
 
+def _prior_attempts_briefing(context, specialist: str) -> str:
+    """Compact record of what earlier specialists on this task already tried.
+
+    Facts only -- which files they changed, which tests were still failing when
+    they stopped. No reasoning, and nothing the child could mistake for
+    permission: a briefing carries history, never capability.
+    """
+    prior = [r for r in context.spawned if r.get("outcome")]
+    if not prior:
+        return ""
+
+    lines = ["", "", "--- earlier specialists on this task ---"]
+    for r in prior[-3:]:
+        line = f"Attempt {r.get('attempt', '?')}: {r.get('status')}"
+        outcome = r.get("outcome") or {}
+        if outcome.get("files_changed"):
+            line += f"; changed {', '.join(outcome['files_changed'][:3])}"
+        if outcome.get("failing_tests"):
+            line += f"; still failing: {', '.join(outcome['failing_tests'][:4])}"
+        elif outcome.get("last_error"):
+            line += f"; {outcome['last_error'][:160]}"
+        lines.append(line)
+    lines.append(
+        "Those approaches did not work. Do not repeat them -- read the current "
+        "state of the file first, then try something structurally different."
+    )
+    return "\n".join(lines)
+
+
 def _ancestry_record(child, cfg, task, status) -> dict:
     return {
         "child_agent_id": child.agent_id,
@@ -403,6 +445,14 @@ def _ancestry_record(child, cfg, task, status) -> dict:
         "depth": child.depth,
         "status": status,
     }
+
+
+def _failing_tests(audit: dict) -> list:
+    """Names of the tests still failing when the specialist stopped."""
+    for test in reversed(audit.get("tests") or []):
+        if not test.get("passed") and test.get("failing_tests"):
+            return list(test["failing_tests"])[:6]
+    return []
 
 
 async def _persist_ancestry(operation_id, child, cfg, task, parent) -> None:
