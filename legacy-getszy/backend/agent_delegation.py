@@ -254,7 +254,10 @@ async def delegate(*, specialist: str, task: str, context: DelegationContext,
     # Without it every child starts blind: in one real run three separate
     # children wrote byte-identical failing code (version 22e1614d) because none
     # of them knew the previous one had already been down that road.
-    briefed_task = task + _prior_attempts_briefing(context, specialist)
+    briefing = _prior_attempts_briefing(context, specialist)
+    briefed_task = task + briefing
+    if briefing:
+        logger.info("specialist briefed with %d prior attempt(s)", len(context.spawned))
 
     import agent_runtime
 
@@ -282,7 +285,8 @@ async def delegate(*, specialist: str, task: str, context: DelegationContext,
         logger.exception("specialist %s failed", child.agent_id)
         return _failure(specialist, task, child, cfg, f"{type(e).__name__}: {e}")
 
-    result = _result(specialist, task, child, cfg, audit)
+    result = _result(specialist, task, child, cfg, audit,
+                     prior_count=len([r for r in context.spawned if r.get("outcome")]))
     record = _ancestry_record(child, cfg, task, result["status"])
     record["attempt"] = len(context.spawned) + 1
     record["outcome"] = {
@@ -345,7 +349,7 @@ async def delegate_parallel(*, requests: list[dict], context: DelegationContext)
 
 # ── structured results ───────────────────────────────────────────────────────
 
-def _result(specialist, task, child, cfg, audit) -> dict:
+def _result(specialist, task, child, cfg, audit, prior_count: int = 0) -> dict:
     commit = next((a.get("commit") for a in reversed(audit.get("actions") or [])
                    if a.get("commit")), None)
     verified = audit.get("result") == "verified"
@@ -380,6 +384,7 @@ def _result(specialist, task, child, cfg, audit) -> dict:
         },
         "ancestry": list(child.ancestry),
         "depth": child.depth,
+        "briefed_with_prior_attempts": prior_count,
     }
 
 

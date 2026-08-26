@@ -115,6 +115,11 @@ class AuditRecord:
                 self.tests.append({
                     "passed": parsed.get("passed"),
                     "exit_code": parsed.get("exit_code"),
+                    # Carried through so the ledger and any ancestry briefing can
+                    # name the tests that were still failing, not just say "failed".
+                    "failing_tests": parsed.get("failing_tests") or [],
+                    "failed_count": parsed.get("failed_count"),
+                    "passed_count": parsed.get("passed_count"),
                     # A bounded tail of the REAL output. Without it a repair
                     # attempt is told only "tests failed", which is not enough
                     # information to repair anything from.
