@@ -642,3 +642,24 @@ async def test_a_child_without_write_file_cannot_write():
         assert not path.exists()
     finally:
         path.unlink(missing_ok=True)
+
+
+def test_the_model_is_not_offered_an_approvals_parameter():
+    """A model could never succeed with it: `delegable` defaults to empty.
+
+    Offering the field bought nothing and cost a round every time the model put
+    a tool name in it, which a real run did twice.
+    """
+    schema = next(s for s in agent_tools.ENGINEERING_SCHEMAS
+                  if s["function"]["name"] == "spawn_specialist")
+    props = schema["function"]["parameters"]["properties"]
+    assert "approvals" not in props and "tools" not in props
+    assert sorted(props) == ["specialist", "task"]
+
+
+def test_the_approval_escalation_refusal_is_still_enforced():
+    """Removing the field from the schema must not remove the gate."""
+    parent = ctx(approvals=set(), delegable=set())
+    with pytest.raises(dg.DelegationDenied):
+        parent.child({"allowed_tools": ["read_file", "git_push"]},
+                     requested_approvals=["git_push"])

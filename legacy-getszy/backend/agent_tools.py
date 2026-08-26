@@ -473,12 +473,14 @@ ENGINEERING_SCHEMAS = [
              # leave the specialist unable to do its job with no way to recover.
              # The specialist's validated role decides its tools, intersected
              # with the parent. Programmatic callers can still pass tools.
-             "approvals": {"type": "array", "items": {"type": "string"},
-                           "description": "Optional and almost always omitted. These are "
-                                          "OPERATIONS, not tools: git_push, git_reset, "
-                                          "git_force_push, deploy, db_delete, db_migrate, "
-                                          "secrets_write, payment_change, install_dependency. "
-                                          "Do not put tool names here."}},
+             # `approvals` is deliberately NOT offered to the model either.
+             # A child may only ever receive an approval the parent both HOLDS
+             # and has marked delegable, and `delegable` defaults to empty -- so
+             # a model asking for one could never succeed, only fail. Offering
+             # the field bought nothing and cost a round every time the model
+             # put a tool name in it. Programmatic callers still pass
+             # requested_approvals, and every escalation refusal is still tested.
+            },
             ["specialist", "task"]),
     _schema("spawn_specialists",
             "Delegate several independent tasks to specialists in parallel. Each entry is "
