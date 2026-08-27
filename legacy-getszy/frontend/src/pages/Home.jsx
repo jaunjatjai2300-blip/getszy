@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { api } from "../lib/api";
 import NeoOrb from "@/experience/NeoOrb";
+import MeetReva from "../components/MeetReva";
 import { useCart } from "../lib/cart";
 import { useAuth } from "../lib/auth";
 
@@ -88,7 +89,7 @@ const BUILD_TOOLS = [
   { title: "Create Content", desc: "Posts, scripts & captions that convert.", Icon: Wand2, grad: "from-[#F4DDE6] to-[#F3E2C7]" },
   { title: "Run Marketing", desc: "Emails, ads & automations on autopilot.", Icon: Megaphone, grad: "from-[#F6C9B8] to-[#E79C86]" },
   { title: "Track Growth", desc: "Analytics & AI insights, simply.", Icon: LineChart, grad: "from-[#D7F0EE] to-[#F3E2C7]" },
-  { title: "Manage Projects", desc: "Plan, organise & ship with Neo.", Icon: FolderKanban, grad: "from-[#EDE6DD] to-[#FBF7F2]" },
+  { title: "Manage Projects", desc: "Plan, organise & ship with Reva.", Icon: FolderKanban, grad: "from-[#EDE6DD] to-[#FBF7F2]" },
 ];
 
 // Decoration only. Course titles / lesson counts are NEVER hardcoded here —
@@ -116,7 +117,7 @@ const TRUST_PILLARS = [
 ];
 
 const TESTIMONIALS = [
-  { name: "Ananya R.", role: "Home decor founder", text: "I launched my store in a weekend. Neo planned the whole thing while I slept.", grad: "from-[#F4DDE6] to-[#F3E2C7]" },
+  { name: "Ananya R.", role: "Home decor founder", text: "I launched my store in a weekend. Reva planned the whole thing while I slept.", grad: "from-[#F4DDE6] to-[#F3E2C7]" },
   { name: "Priya M.", role: "Content creator", text: "Getszy's courses + AI tools took my side hustle to a real income.", grad: "from-[#D7F0EE] to-[#F3E2C7]" },
   { name: "Sara K.", role: "Jewellery maker", text: "I sell to customers I'd never have reached. The Edit changed everything.", grad: "from-[#F6C9B8] to-[#E79C86]" },
 ];
@@ -196,7 +197,7 @@ function MobileBottomNav({ onAskNeo, navigate }) {
   const items = [
     { id: "home", label: "Home", icon: HomeIcon, to: "/" },
     { id: "search", label: "Search", icon: Search, to: "/shop" },
-    { id: "neo", label: "Neo", icon: Sparkles, action: onAskNeo, special: true },
+    { id: "neo", label: "Reva", icon: Sparkles, action: onAskNeo, special: true },
     { id: "cart", label: "Cart", icon: ShoppingBag, to: "/cart" },
     { id: "me", label: "Me", icon: User, to: "/account" },
   ];
@@ -277,16 +278,16 @@ function NeoShowcase() {
       <div className="gs-noise" />
       <div className="gs-container relative py-16 sm:py-24">
         <div className="max-w-3xl">
-          <span className="gs-eyebrow-light">Meet Neo</span>
-          <h2 className="font-display text-4xl sm:text-6xl text-white mt-4 leading-[1.02]">Meet Neo. <span className="text-[#F3E2C7] italic">Your Getszy AI Guide.</span></h2>
-          <p className="mt-5 text-lg text-[#D9CFC4] max-w-xl">You don't need to know which tool you need. Just tell Neo what you're trying to achieve.</p>
+          <span className="gs-eyebrow-light">Meet Reva</span>
+          <h2 className="font-display text-4xl sm:text-6xl text-white mt-4 leading-[1.02]">Meet Reva. <span className="text-[#F3E2C7] italic">Your Getszy AI Guide.</span></h2>
+          <p className="mt-5 text-lg text-[#D9CFC4] max-w-xl">You don't need to know which tool you need. Just tell Reva what you're trying to achieve.</p>
         </div>
 
         <div className="mt-12 grid lg:grid-cols-2 gap-8 items-start">
           <div className="gs-glass rounded-3xl p-6 sm:p-8">
             <div className="flex items-center gap-3 mb-6">
               <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#C58B7A] to-[#A86B5B] grid place-items-center"><Bot className="h-5 w-5 text-white" /></div>
-              <div><div className="text-white font-semibold">Neo</div><div className="text-xs text-[#B7AEA3]">Your guide · online</div></div>
+              <div><div className="text-white font-semibold">Reva</div><div className="text-xs text-[#B7AEA3]">Your guide · online</div></div>
             </div>
 
 
@@ -324,7 +325,7 @@ function NeoShowcase() {
 
 
           <div className="gs-glass rounded-3xl p-6 sm:p-8">
-            <div className="text-white font-semibold mb-1">Try Neo yourself</div>
+            <div className="text-white font-semibold mb-1">Try Reva yourself</div>
             <p className="text-sm text-[#B7AEA3] mb-4">Ask anything — a plan, a brand, a website, a gift.</p>
             <div ref={liveRef} className="h-44 overflow-y-auto space-y-3 pr-1">
               {live.length === 0 && <div className="text-sm text-[#9A8E82]">Your conversation will appear here…</div>}
@@ -364,11 +365,11 @@ function Hero({ onAskNeo }) {
           <div className="lg:col-span-7">
             <span className="gs-eyebrow">Shop · Learn · Build · Grow · Earn</span>
             <h1 className="font-display text-[44px] sm:text-6xl lg:text-[72px] leading-[0.98] mt-5 text-[#1B1A18]">Made for women<br/>who <span className="text-[#C58B7A] italic">do it all.</span></h1>
-            <p className="mt-6 text-lg text-[#5F5951] max-w-xl">One rooftop for your style, your skills and your business — shop women-led brands, learn real skills, and let Neo build the rest.</p>
+            <p className="mt-6 text-lg text-[#5F5951] max-w-xl">One rooftop for your style, your skills and your business — shop women-led brands, learn real skills, and let Reva build the rest.</p>
             <form onSubmit={submit} className="gs-glass-1 mt-8 flex items-center gap-2 !rounded-full p-2 pl-3 max-w-xl">
-              {/* Neo is present in the hero, not hidden behind a chat launcher. */}
+              {/* Reva is present in the hero, not hidden behind a chat launcher. */}
               <NeoOrb state={q.trim() ? "thinking" : "idle"} size={40} />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask Neo to plan, build or find anything…" className="flex-1 bg-transparent outline-none text-[#1B1A18] placeholder:text-[#9A8E82]" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask Reva to plan, build or find anything…" className="flex-1 bg-transparent outline-none text-[#1B1A18] placeholder:text-[#9A8E82]" />
               <button className="gs-btn-primary rounded-full">Go</button>
             </form>
             <div className="mt-4 flex flex-wrap gap-2">
@@ -378,7 +379,7 @@ function Hero({ onAskNeo }) {
             </div>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <button onClick={() => navigate("/shop")} className="gs-btn-primary inline-flex items-center gap-2">Shop the Edit <ArrowRight className="h-4 w-4" /></button>
-              <button onClick={() => onAskNeo && onAskNeo("What can you do for me?")} className="inline-flex items-center gap-2 font-semibold text-[#A86B5B] hover:gap-3 transition-all">Explore Neo <Sparkles className="h-4 w-4" /></button>
+              <button onClick={() => onAskNeo && onAskNeo("What can you do for me?")} className="inline-flex items-center gap-2 font-semibold text-[#A86B5B] hover:gap-3 transition-all">Explore Reva <Sparkles className="h-4 w-4" /></button>
             </div>
             <p className="mt-7 text-sm text-[#6B625B]">Made by women, for women — shopping, building & growing under one rooftop.</p>
           </div>
@@ -427,6 +428,8 @@ export default function Home() {
   return (
     <div className="bg-[#FBF7F2]">
       <Hero onAskNeo={askNeo} />
+
+      <MeetReva />
 
       <div className="gs-container">
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
@@ -505,7 +508,7 @@ export default function Home() {
 
       <Section className="bg-[#FBF1E9]">
         <div className="gs-container">
-          <div className="max-w-2xl"><span className="gs-eyebrow">Build & Grow</span><h2 className="font-display text-3xl sm:text-5xl text-[#1B1A18] mt-2">Turn the idea into income</h2><p className="mt-3 text-[#5F5951]">Neo builds the boring parts. You stay the founder.</p></div>
+          <div className="max-w-2xl"><span className="gs-eyebrow">Build & Grow</span><h2 className="font-display text-3xl sm:text-5xl text-[#1B1A18] mt-2">Turn the idea into income</h2><p className="mt-3 text-[#5F5951]">Reva builds the boring parts. You stay the founder.</p></div>
           <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {BUILD_TOOLS.map((t) => {
               const Icon = t.Icon;
@@ -518,7 +521,7 @@ export default function Home() {
               );
             })}
           </div>
-          <div className="mt-8"><button onClick={() => askNeo("Help me launch my business")} className="gs-btn-primary inline-flex items-center gap-2">Build with Neo <Sparkles className="h-4 w-4" /></button></div>
+          <div className="mt-8"><button onClick={() => askNeo("Help me launch my business")} className="gs-btn-primary inline-flex items-center gap-2">Build with Reva <Sparkles className="h-4 w-4" /></button></div>
         </div>
       </Section>
 
@@ -556,7 +559,7 @@ export default function Home() {
 
       <Section><div className="gs-container">
         <div className="rounded-[32px] bg-gradient-to-br from-[#F3E2C7] to-[#F6C9B8] p-8 sm:p-12 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="max-w-xl"><span className="gs-eyebrow">Gift Finder</span><h2 className="font-display text-3xl sm:text-4xl text-[#5F4535] mt-2">Stuck on a gift? Ask Neo.</h2><p className="mt-3 text-[#6B5A48]">Tell us the occasion and who it's for — we'll curate from women-led brands.</p></div>
+          <div className="max-w-xl"><span className="gs-eyebrow">Gift Finder</span><h2 className="font-display text-3xl sm:text-4xl text-[#5F4535] mt-2">Stuck on a gift? Ask Reva.</h2><p className="mt-3 text-[#6B5A48]">Tell us the occasion and who it's for — we'll curate from women-led brands.</p></div>
           <button onClick={() => askNeo("Help me find a gift for my mom's birthday")} className="gs-btn-primary inline-flex items-center gap-2 bg-[#1B1A18] hover:bg-[#000]">Find a gift <Gift className="h-4 w-4" /></button>
         </div>
       </div></Section>
@@ -579,7 +582,7 @@ export default function Home() {
         <div className="max-w-2xl"><span className="gs-eyebrow">Idea → Outcome</span><h2 className="font-display text-3xl sm:text-5xl text-[#1B1A18] mt-2">From a thought to a launched thing</h2></div>
         <div className="mt-10 grid sm:grid-cols-5 gap-4">
           {[
-            { n: "01", t: "Brief", d: "Tell Neo your idea", Icon: FileText },
+            { n: "01", t: "Brief", d: "Tell Reva your idea", Icon: FileText },
             { n: "02", t: "Brand", d: "Identity & voice", Icon: Palette },
             { n: "03", t: "Build", d: "Site, store & content", Icon: Store },
             { n: "04", t: "Preview", d: "Review with you", Icon: Eye },
@@ -646,7 +649,7 @@ export default function Home() {
 
       <Section><div className="gs-container">
         <div className="rounded-[32px] bg-gradient-to-br from-[#F3E2C7] to-[#F6C9B8] p-8 sm:p-12">
-          <div className="max-w-xl"><span className="gs-eyebrow">The Edit letter</span><h2 className="font-display text-3xl sm:text-4xl text-[#5F4535] mt-2">Get the good stuff weekly</h2><p className="mt-3 text-[#6B5A48]">New drops, creator tips & Neo updates — no spam, just value.</p></div>
+          <div className="max-w-xl"><span className="gs-eyebrow">The Edit letter</span><h2 className="font-display text-3xl sm:text-4xl text-[#5F4535] mt-2">Get the good stuff weekly</h2><p className="mt-3 text-[#6B5A48]">New drops, creator tips & Reva updates — no spam, just value.</p></div>
           {subbed ? (
             <p className="mt-6 inline-flex items-center gap-2 rounded-full bg-white/70 px-4 py-2 text-[#A86B5B] font-semibold"><Check className="h-4 w-4" /> You're on the list — welcome!</p>
           ) : (
@@ -662,10 +665,10 @@ export default function Home() {
         <div className="gs-noise" />
         <div className="gs-container relative py-16 sm:py-24 text-center">
           <h2 className="font-display text-4xl sm:text-6xl text-white">Ready to build something yours?</h2>
-          <p className="mt-4 text-[#D9CFC4] max-w-xl mx-auto">Shop, learn, build and earn — all under one rooftop, with Neo by your side.</p>
+          <p className="mt-4 text-[#D9CFC4] max-w-xl mx-auto">Shop, learn, build and earn — all under one rooftop, with Reva by your side.</p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
             <button onClick={() => navigate("/shop")} className="gs-btn-primary inline-flex items-center gap-2">Shop the Edit <ArrowRight className="h-4 w-4" /></button>
-            <button onClick={() => askNeo("Help me get started")} className="inline-flex items-center gap-2 rounded-full border border-white/30 px-6 py-3 font-semibold text-white hover:bg-white/10 transition">Talk to Neo <Sparkles className="h-4 w-4" /></button>
+            <button onClick={() => askNeo("Help me get started")} className="inline-flex items-center gap-2 rounded-full border border-white/30 px-6 py-3 font-semibold text-white hover:bg-white/10 transition">Talk to Reva <Sparkles className="h-4 w-4" /></button>
           </div>
         </div>
       </section>
