@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { api } from "@/lib/api";
 
 const PRIMARY = [
-  { to: "/dashboard", label: "Build with Neo", icon: Bot, end: true },
+  { to: "/dashboard", label: "Build with Reva", icon: Bot, end: true },
   { to: "/shop", label: "Shop Getszy", icon: ShoppingBag },
   { to: "/dashboard/my-getszy", label: "My Getszy", icon: UserRound },
 ];
