@@ -25,7 +25,7 @@ from paid_operations import (
     update_operation,
 )
 from builder_agents import (
-    ProfessionalCompositionError, compose_site_fast, build_site, refine_element,
+    ProfessionalCompositionError, compose_site_fast, compose_site_reliable, build_site, refine_element,
     _premium_template,
     plan_site, design_site, review_site,
 )
@@ -260,14 +260,27 @@ def _brief_to_generation_context(brief: dict | None) -> str:
 
 
 async def _safe_compose(prompt: str, session_id: str, brief: dict | None = None):
-    """Compose a premium draft, never raising on LLM/provider failure.
+    """Compose a premium draft through the reliability layer, never raising.
 
-    Returns (html, used_fallback). If every LLM provider is down we return the
+    Routes through compose_site_reliable so the live customer build is actually
+    governed by resource admission, per-task limits, failure isolation, bounded
+    output and the reviewer — not just compose_site_fast in isolation. The
+    (html, used_fallback) contract is unchanged.
+
+    Memory pressure DEGRADES inside compose_site_reliable (smaller shape / shorter
+    timeout); a paying customer's build is never rejected outright. If admission
+    genuinely refuses, or the pipeline fails for any reason, we fall back to the
     deterministic premium template so the customer ALWAYS receives a complete,
     on-brand page — the production suite never surfaces a blank/error result.
     """
     try:
-        return await compose_site_fast(prompt, session_id=session_id, brief=brief), False
+        result = await compose_site_reliable(prompt, brief, session_id)
+        html = result.get('html') if isinstance(result, dict) else None
+        if isinstance(result, dict) and result.get('success') and html:
+            return html, False
+        detail = (result.get('evidence') if isinstance(result, dict) else None) or 'no result'
+        logger.warning('Reliable composition did not succeed (%s); using premium template fallback', detail)
+        return _premium_template(prompt, brief), True
     except Exception as exc:  # noqa: BLE001 - last-resort guarantee
         logger.warning('Managed composition failed; using premium template fallback: %s', exc)
         return _premium_template(prompt, brief), True
