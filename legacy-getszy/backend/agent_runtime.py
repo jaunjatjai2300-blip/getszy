@@ -18,6 +18,7 @@ Nothing here simulates a model. If no provider is reachable the run FAILS with
 """
 from __future__ import annotations
 
+import inspect
 import json
 import time
 import uuid
@@ -233,6 +234,7 @@ async def run_task(
     allowed_tools: list[str] | set[str] | None = None,
     delegation=None,
     model_router=None,
+    max_rounds: int | None = None,
 ) -> dict:
     """Execute one engineering task with bounded autonomous repair.
 
@@ -327,7 +329,7 @@ async def run_task(
         before_files = set(audit.files_changed)
         try:
             await _drive(prompt, system_prompt, audit, approvals, attempt_call, allowed_tools,
-                         ledger, delegation)
+                         ledger, delegation, max_rounds)
         except NoModelAvailable:
             audit.result = "no_model_available"
             audit.enter(HUMAN_REVIEW)
@@ -473,7 +475,7 @@ async def _finalise(audit: AuditRecord, operation: dict | None, session_id: str 
 
 
 async def _drive(prompt, system_prompt, audit, approvals, model_call, allowed_tools=None,
-                 ledger=None, delegation=None) -> None:
+                 ledger=None, delegation=None, max_rounds=None) -> None:
     """One attempt: let the model call engineering tools, recording every call.
 
     When the agent's configuration restricts `allowed_tools`, that restriction is
@@ -500,11 +502,23 @@ async def _drive(prompt, system_prompt, audit, approvals, model_call, allowed_to
     if permitted is not None:
         schemas = [s for s in ENGINEERING_SCHEMAS if s["function"]["name"] in permitted]
 
+    # A role's max_rounds governs the inner tool loop, but only reaches a model
+    # call that actually accepts it. Passing it blindly would break the scripted
+    # calls used in tests, whose signature is (system, user, tools, execute).
+    extra = {}
+    if max_rounds is not None:
+        try:
+            if "max_rounds" in inspect.signature(model_call).parameters:
+                extra["max_rounds"] = max_rounds
+        except (TypeError, ValueError):
+            pass
+
     await model_call(
         system=system_prompt,
         user=prompt,
         tools=schemas,
         execute=tool_executor,
+        **extra,
     )
 
 

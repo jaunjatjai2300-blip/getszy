@@ -144,8 +144,9 @@ NEVER_APPROVAL_GATED = {
     # read-only research
     "github_search_code", "github_search_repositories", "github_search_issues",
     "github_read_file", "web_search",
-    # codebase retrieval (read-only, in-repo)
+    # codebase retrieval + structural map (read-only, in-repo)
     "search_codebase",
+    "repo_map_query",
     # delegation
     "spawn_specialist", "spawn_specialists",
 }

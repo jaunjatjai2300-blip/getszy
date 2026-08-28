@@ -259,6 +259,7 @@ async def submit_task(body: RunTaskIn, admin=Depends(guard_enabled)):
         allowed_tools=allowed_tools,
         model=model,
         operation_id=operation["operation_id"],
+        max_rounds=(cfg.get("max_rounds") if cfg else None),
     ))
 
     return {
@@ -292,15 +293,17 @@ _MASTER_PROMPT = (
 
 
 async def _execute(*, request, system_prompt, approvals, user_id, session_id,
-                   agent_id, allowed_tools, model, operation_id) -> None:
+                   agent_id, allowed_tools, model, operation_id, max_rounds=None) -> None:
     """Background execution. Failures are recorded, never swallowed."""
 
-    async def model_call(system, user, tools, execute):
+    async def model_call(system, user, tools, execute, max_rounds=None):
         # Pinned to a local model on purpose: internal work must not depend on,
-        # or consume, the customer-facing provider chain.
+        # or consume, the customer-facing provider chain. Declares max_rounds so a
+        # role's inner-loop budget threads through run_task._drive to the loop.
+        kw = {"max_rounds": max_rounds} if max_rounds is not None else {}
         return await agent_llm.engineering_tool_loop(
             system=system, user=user, execute=execute, tools=tools,
-            provider="ollama", model=model, temperature=0.1,
+            provider="ollama", model=model, temperature=0.1, **kw,
         )
 
     try:
@@ -315,6 +318,7 @@ async def _execute(*, request, system_prompt, approvals, user_id, session_id,
             allowed_tools=allowed_tools,
             persist=True,
             worker_id=f"http-{operation_id[:8]}",
+            max_rounds=max_rounds,
         )
     except Exception as e:
         logger.exception("agent task %s failed", operation_id)
