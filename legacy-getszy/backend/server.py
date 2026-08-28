@@ -1,4 +1,5 @@
-from fastapi import FastAPI, APIRouter, Response
+from fastapi import FastAPI, APIRouter, Response, Depends
+from auth import get_current_admin
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -70,9 +71,10 @@ async def health():
         return JSONResponse(status_code=503, content={'status': 'error', 'detail': 'database_unavailable'})
 
 
-@api_router.get('/factory/status')
+@api_router.get('/factory/status', dependencies=[Depends(get_current_admin)])
 async def factory_status():
-    """Agent Factory health and resource status endpoint."""
+    """Agent Factory health and resource status endpoint. Admin-only: it exposes
+    internal resource/limit/ledger internals that must not leak to customers."""
     try:
         from resource_admission import resource_status
         from task_limits import limits_status
