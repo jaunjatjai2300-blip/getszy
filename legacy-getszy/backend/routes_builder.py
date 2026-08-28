@@ -75,7 +75,7 @@ You will be given:
 OUTPUT RULES:
 1. Output ONLY the COMPLETE, UPDATED HTML document. No prose. No markdown.
 2. Apply the user's request precisely while keeping the rest of the design coherent.
-3. Maintain Tailwind CDN + responsive design.
+3. Keep ALL styling self-contained in the existing inline <style> design system (and inline styles) and keep it responsive; do NOT introduce Tailwind, any external CSS framework, or a styling CDN.
 4. Begin with <!DOCTYPE html>. End with </html>.
 
 START IMMEDIATELY WITH <!DOCTYPE html>."""
