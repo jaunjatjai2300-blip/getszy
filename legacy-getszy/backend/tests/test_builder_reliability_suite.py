@@ -34,8 +34,11 @@ def test_premium_template_is_valid_and_premium():
     assert 'lorem' not in html.lower()
     assert '[your' not in html.lower()
     assert 'guarantee' not in html.lower()
-    # Tailwind CDN present so the page renders styled.
-    assert 'cdn.tailwindcss.com' in html
+    # Self-contained: a real inline <style> design system renders the page styled
+    # with NO network/CDN dependency. (A CDN-dependent page ships unstyled in the
+    # sandboxed preview — the exact defect this hardening removes.)
+    assert '<style' in html.lower()
+    assert 'cdn.tailwindcss.com' not in html
 
 
 def test_premium_template_passes_core_quality_checks():
@@ -231,7 +234,10 @@ def test_premium_template_vertical_sections_render():
     assert 'Visit' in html
     # still exactly one H1, valid, premium
     assert html.lower().count('<h1') == 1
-    assert 'cdn.tailwindcss.com' in html
+    # self-contained: real inline <style> design system, NO Tailwind CDN dependency
+    # (a CDN-dependent page renders unstyled in the sandboxed preview)
+    assert '<style' in html.lower()
+    assert 'cdn.tailwindcss.com' not in html
     assert 'guarantee' not in html.lower()
 
 
