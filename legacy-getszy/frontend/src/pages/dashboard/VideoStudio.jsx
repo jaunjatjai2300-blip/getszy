@@ -100,7 +100,7 @@ export default function VideoStudio() {
     setCreating(true);
     try {
       const r = await api.post("/video-factory/project", { prompt: prompt.trim(), language: "hinglish", auto_run: true });
-      toast.success("Neo AI Factory started — takes 30-60 sec");
+      toast.success("Reva AI Factory started — takes 30-60 sec");
       setPrompt("");
       setActiveId(r.data.id);
       await loadProjects();
@@ -242,7 +242,7 @@ export default function VideoStudio() {
               <Film className="h-14 w-14 mx-auto text-[var(--gs-teal)] mb-3 opacity-40"/>
               <h3 className="font-display text-2xl mb-2">Turn any idea into a production-ready video</h3>
               <p className="text-sm text-[var(--gs-muted)] max-w-md">
-                Type your topic on the left. Neo AI runs 6 specialist agents:
+                Type your topic on the left. Reva AI runs 6 specialist agents:
                 Research → Script Variants → Hooks → Storyboard → Visual Plan.
                 Aap har stage regenerate, edit, ya lock kar sakte ho.
               </p>
@@ -572,7 +572,7 @@ function ShortsTab({ onDone }) {
       <div className="max-w-3xl">
         <div className="text-sm font-semibold mb-1">Long-form → Shorts Factory</div>
         <p className="text-xs text-[var(--gs-muted)] mb-3">
-          Paste a long video script/transcript. Neo finds the most viral moments and turns each into a vertical short with B-roll, premium voice &amp; captions.
+          Paste a long video script/transcript. Reva finds the most viral moments and turns each into a vertical short with B-roll, premium voice &amp; captions.
         </p>
         <Textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste your long-form video transcript or script here..." className="text-xs mb-2" data-testid="vf-shorts-input" />
         <div className="flex items-center gap-3 mb-3 flex-wrap">
@@ -719,7 +719,7 @@ function RenderTab({ project, onRefresh }) {
         <div className="p-4 rounded-lg bg-[var(--gs-teal)]/8 border border-[var(--gs-teal)]/20 mb-3">
           <div className="text-sm font-semibold mb-2">Ready to render your video</div>
           <div className="text-xs text-[var(--gs-muted)] mb-3">
-             Neo will generate {(stages.storyboard || []).length} scene images (AI), synthesize a premium voice-over (ElevenLabs when configured, else free neural TTS), pull real stock B-roll, and assemble a downloadable MP4 with burned-in captions + an SRT file.
+             Reva will generate {(stages.storyboard || []).length} scene images (AI), synthesize a premium voice-over (ElevenLabs when configured, else free neural TTS), pull real stock B-roll, and assemble a downloadable MP4 with burned-in captions + an SRT file.
           </div>
           <div className="flex items-center gap-2 mb-3">
             <div className="text-xs text-[var(--gs-muted)]">Orientation:</div>
