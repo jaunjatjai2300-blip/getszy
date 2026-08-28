@@ -286,6 +286,24 @@ async def _safe_compose(prompt: str, session_id: str, brief: dict | None = None)
         return _premium_template(prompt, brief), True
 
 
+def _verified_premium_floor(prompt: str, brief: dict | None):
+    """Policy A: the deterministic premium floor, verified against the SAME gate.
+
+    When the composed/repaired draft fails the premium baseline, a paying customer
+    still receives a guaranteed-premium page — the existing _premium_template —
+    but only after it passes the exact same quality gate. If the floor itself does
+    not verify, we never ship it: the existing controlled-failure/refund path is
+    used instead (never deliver a sub-premium page just to avoid a refund).
+    Returns (html, quality_report).
+    """
+    floor_html = _sanitize(_premium_template(prompt, brief))
+    floor_report = evaluate_landing_page_quality(floor_html, brief)
+    if floor_report.get('status') == 'needs_work':
+        raise ProfessionalCompositionError(
+            'premium quality baseline not met by the composed draft or the verified floor')
+    return floor_html, floor_report
+
+
 async def _run_website_operation(operation_id: str) -> None:
     """Execute one persisted builder operation after it has been acknowledged.
 
@@ -345,7 +363,10 @@ async def _run_website_operation(operation_id: str) -> None:
             html = _sanitize(html)
             quality_report = evaluate_landing_page_quality(html, brief_data)
         if quality_report.get('status') == 'needs_work' and not used_fallback:
-            raise ProfessionalCompositionError('professional quality baseline not met after repair')
+            # Policy A: deliver the verified premium floor rather than a sub-premium
+            # page or a hard failure for a paying customer.
+            html, quality_report = _verified_premium_floor(payload['prompt'], brief_data)
+            used_fallback = True
 
         # Always sanitize before persisting so stored HTML can never carry
         # injected scripts/handlers (preview sandbox + download stay safe).
@@ -481,9 +502,10 @@ async def create_project_legacy_synchronous_disabled(body: BuilderProjectIn, use
             quality_report = evaluate_landing_page_quality(html, brief_data)
 
         if quality_report.get('status') == 'needs_work' and not used_fallback:
-            raise ProfessionalCompositionError(
-                'The draft did not meet Getszy\'s private-review quality baseline after repair.'
-            )
+            # Policy A: deliver the verified premium floor rather than a sub-premium
+            # page or a hard failure for a paying customer.
+            html, quality_report = _verified_premium_floor(body.prompt, brief_data)
+            used_fallback = True
 
         name = (body.name or brief_data.get('brand_name') or _derive_name(body.prompt))[:80]
         history = [

@@ -240,17 +240,36 @@ async def test_refine_element_deduct_uses_element_scoped_ref_id(monkeypatch):
 # #5 review gate: pages that pass all required checks are reviewable.
 # ---------------------------------------------------------------------------
 def _good_page():
+    # A genuinely premium page: design tokens, fluid type scale, gradient hero,
+    # elevated cards and transitions across several sections — the visual bar the
+    # gate now requires (a flat structurally-valid page is intentionally rejected).
     return (
-        '<!DOCTYPE html><html><head>'
+        '<!DOCTYPE html><html lang="en"><head>'
+        '<meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        '<title>Coffee Shop</title>'
-        '<meta name="description" content="Best coffee">'
+        '<title>Bean &amp; Brew — Fresh coffee daily</title>'
+        '<meta name="description" content="Freshly roasted coffee and pastries in your neighbourhood.">'
+        '<style>'
+        ':root{--brand:#6f4e37;--ink:#1b1310;--bg:#fbf7f2;--surface:#fff;--radius:20px}'
+        "body{font-family:'Inter',system-ui,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6;margin:0}"
+        'h1{font-size:clamp(36px,6vw,64px);font-weight:800;letter-spacing:-0.02em;line-height:1.05}'
+        'h2{font-size:clamp(24px,4vw,38px);font-weight:700}'
+        '.hero{background:radial-gradient(900px 500px at 80% -10%, #6f4e3722, transparent),linear-gradient(135deg,#6f4e370d,#c58b7a08);padding:88px 24px}'
+        '.btn{display:inline-flex;gap:8px;background:var(--brand);color:#fff;padding:14px 26px;border-radius:999px;font-weight:700;text-decoration:none;transition:transform .2s ease, box-shadow .2s ease}'
+        '.btn:hover{transform:translateY(-2px);box-shadow:0 14px 32px #6f4e3733}'
+        '.card{background:var(--surface);border-radius:var(--radius);box-shadow:0 18px 40px rgba(27,19,16,.08);padding:26px;transition:transform .2s ease}'
+        'section{padding:76px 24px}'
+        '@media (min-width: 640px){.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}}'
+        '</style>'
         '</head><body>'
-        '<header><h1>Fresh Coffee Daily</h1></header>'
-        '<main><section><img src="hero.jpg" alt="Freshly brewed coffee"></section>'
-        '<section><a href="#order">Order now</a></section></main>'
+        '<header><a class="btn" href="#order">Order now</a></header>'
+        '<main>'
+        '<section class="hero"><h1>Fresh coffee, roasted daily</h1><p>Small-batch beans and warm pastries near you.</p><a class="btn" href="#order">Order now</a></section>'
+        '<section><h2>Why you will love it</h2><div class="grid"><div class="card">Roasted in-house</div><div class="card">Ethically sourced</div><div class="card">Ready in minutes</div></div></section>'
+        '<section><h2>Our space</h2><div class="card"><img src="hero.jpg" alt="Freshly brewed coffee on a wooden counter"></div></section>'
+        '<section id="order"><h2>Come in for a cup</h2><a class="btn" href="#visit">Order now</a></section>'
+        '</main>'
         '<footer>Visit us</footer>'
-        '<style>@media (min-width: 640px){.x{color:red}}</style>'
         '</body></html>'
     )
 
