@@ -84,8 +84,8 @@ CODER_PROMPT = """You are a world-class front-end designer, art director and con
 STRICT OUTPUT RULES:
 1. Output ONLY a SINGLE complete HTML document. No prose. No markdown fences.
 2. Begin with <!DOCTYPE html> and end with </html>.
-3. Use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
-4. Use Google Fonts via <link> for premium typography (e.g. Inter, Plus Jakarta Sans, Space Grotesk).
+3. Put ALL styling in a SINGLE inline <style> block in the <head> — a real design system (CSS custom-property tokens, a fluid clamp() type scale, shadows, gradients, rounded cards, transitions). The page MUST render fully styled with NO network access — do NOT use Tailwind, any external CSS framework, or a styling CDN.
+4. Fonts: use a system font stack, or at most ONE Google Fonts <link> for premium typography (e.g. Inter, Plus Jakarta Sans, Space Grotesk).
 5. Images: use ONLY real product images provided in the brief. If none are provided, use tasteful CSS gradients, brand colors, or inline SVG — NEVER use placeholder/random image services (no picsum, no lorem, no via.placeholder).
 6. Treat the supplied professional page brief as product truth. Do not invent testimonials, company logos, customer counts, pricing, guarantees, legal claims, integrations, or capabilities. If authentic proof is not supplied, use an honest editable proof-plan placeholder rather than a fake testimonial or statistic.
 7. Build around one conversion goal and one primary CTA. Include only sections that support that goal: hero with a benefit-led H1 and CTA, relevant benefits, how it works, real proof or proof-plan, offer/pricing only when supplied, FAQ, closing CTA and footer. Do not add distracting navigation or competing CTAs to a campaign landing page.
@@ -104,7 +104,7 @@ START IMMEDIATELY WITH <!DOCTYPE html>. End with </html>. Nothing else."""
 
 FAST_COMPOSITION_PROMPT = """You are Getszy's Professional Composition Engine. Create one distinctive, premium, conversion-grade, responsive private landing-page draft from the verified customer brief.
 
-OUTPUT: ONLY one complete HTML document, beginning with <!DOCTYPE html> and ending with </html>. Use Tailwind CSS via CDN and one refined premium Google Font pairing (e.g. Plus Jakarta Sans + Inter, or Space Grotesk + Source Serif).
+OUTPUT: ONLY one complete HTML document, beginning with <!DOCTYPE html> and ending with </html>. Put ALL styling in a SINGLE inline <style> block in the <head> — a real design system with CSS custom-property tokens (color/space/radius), a fluid type scale using clamp(), shadows, gradients, rounded surfaces and smooth transitions. The page MUST render fully styled with NO network access: do NOT use Tailwind, any external CSS framework, or a styling CDN. Fonts: a system font stack, or at most ONE Google Fonts <link>.
 
 PREMIUM DESIGN SYSTEM (apply deliberately, never a generic template):
 - Editorial hierarchy: one decisive hero with a benefit-led H1, a supporting sub-headline, and a single high-contrast primary CTA.

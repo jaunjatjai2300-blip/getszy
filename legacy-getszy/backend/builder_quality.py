@@ -71,37 +71,37 @@ def evaluate_landing_page_quality(
         has_images
         or _has(r"background(?:-image)?\s*:\s*(?:url|linear-gradient|radial-gradient)", html)
         or _has(r"<svg\b", html)
-        or _has(r"\bbg-gradient-", html)   # utility-class gradient hero (Tailwind)
     )
     all_images_have_alt = not _has(r"<img\b(?![^>]*\balt\s*=)[^>]*>", html)
     cta_labels = re.findall(r"<(?:a|button)\b[^>]*>(.*?)</(?:a|button)>", html, re.IGNORECASE | re.DOTALL)
     cta_text = " ".join(re.sub(r"<[^>]+>", " ", value).lower() for value in cta_labels)
 
-    # ── premium visual-quality signals (objective, framework-agnostic) ──
-    # These separate a genuinely premium page from a structurally-valid but flat
-    # one. They recognise both raw CSS and utility-class (Tailwind) styling, and
-    # are calibrated so the deterministic premium floor and the curated starters
-    # pass while a basic single-block page does not.
+    # ── premium visual-quality signals, measured from SELF-CONTAINED CSS ──
+    # The signals below are read only from CSS that renders WITHOUT any external
+    # runtime: the content of <style> blocks plus inline style="" attributes.
+    # Utility classes (Tailwind) are deliberately NOT counted: they render only if
+    # the Tailwind Play CDN loads and runs inside the sandboxed preview, and when
+    # it does not (a weak model omits/malforms the <script>, or the CDN is
+    # unavailable) the page ships visibly unstyled. Requiring self-contained CSS
+    # is what guarantees the customer actually SEES the premium design. The
+    # deterministic premium floor and curated starters are fully self-contained
+    # and pass; a Tailwind-class-only page does not.
     section_count = _count(r"<section\b", html) + _count(r"<article\b", html)
-    _style_block = re.search(r"<style\b[^>]*>(.*?)</style>", html, re.IGNORECASE | re.DOTALL)
-    _style_len = len(_style_block.group(1)) if _style_block else 0
-    uses_tailwind = _has(r"cdn\.tailwindcss|tailwind", html) or _count(
-        r"class=[\"'][^\"']*\b(?:flex|grid|rounded|shadow|bg-|text-|gap-|max-w-|min-h-|px-|py-)", html) >= 6
+    _style_css = " ".join(re.findall(r"<style\b[^>]*>(.*?)</style>", html, re.IGNORECASE | re.DOTALL))
+    _inline_css = " ".join(re.findall(r"style\s*=\s*[\"']([^\"']+)[\"']", html, re.IGNORECASE))
+    self_css = _style_css + " " + _inline_css
+    self_css_len = len(_style_css) + len(_inline_css)
     polish_signals = sum([
-        _has(r"box-shadow\s*:|\bshadow-(?:sm|md|lg|xl|2xl)\b", html),
-        _has(r"(?:linear|radial)-gradient\(|\bbg-gradient-", html),
-        _has(r"border-radius\s*:\s*(?:1[2-9]|[2-9]\d)px|\brounded-(?:lg|xl|2xl|3xl|full)\b", html),
-        _has(r"transition\s*:|\btransition\b|animation\s*:", html),
+        _has(r"box-shadow\s*:", self_css),
+        _has(r"(?:linear|radial)-gradient\(", self_css),
+        _has(r"border-radius\s*:\s*(?:1[2-9]|[2-9]\d)px|border-radius\s*:\s*9999", self_css),
+        _has(r"transition\s*:|animation\s*:", self_css),
     ])
     has_type_scale = (
-        _has(r"clamp\(", html)
-        or _has(r"\btext-(?:4xl|5xl|6xl|7xl)\b", html)
-        or len({m for m in re.findall(r"font-size\s*:\s*(\d+)", html, re.IGNORECASE)}) >= 3
+        _has(r"clamp\(", self_css)
+        or len({m for m in re.findall(r"font-size\s*:\s*(\d+)", self_css)}) >= 3
     )
-    has_design_system = (
-        _has(r"--[a-z][\w-]*\s*:", html) or uses_tailwind or _style_len >= 300
-        or _has(r"<link[^>]+stylesheet", html)
-    )
+    has_design_system = _has(r"--[a-z][\w-]*\s*:", self_css) or self_css_len >= 500
 
     checks = [
         _check(
@@ -224,6 +224,13 @@ def evaluate_landing_page_quality(
             "If the page collects personal data, add a real privacy-policy link before publishing.",
         ),
         # ── premium visual-quality baseline (the bar a basic-but-valid page fails) ──
+        _check(
+            "self_contained_styling",
+            "Self-contained styling (renders without a CDN)",
+            self_css_len >= 400,
+            True,
+            "Put the design system in an inline <style> block (or inline styles); do not rely on Tailwind or an external styling CDN, which may not load in the sandboxed private preview and leaves the page rendered unstyled.",
+        ),
         _check(
             "section_variety",
             "Rich, varied page sections",
