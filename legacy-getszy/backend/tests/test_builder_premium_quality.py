@@ -54,9 +54,45 @@ def test_basic_but_valid_is_rejected():
     assert {"section_variety", "visual_depth", "typographic_scale", "design_system"} & _failed(r)
 
 
-# 2 — genuinely premium (utility-class) output is accepted
-def test_premium_tailwind_page_is_accepted():
+# 2 — REGRESSION for the real root cause: a page whose styling is ONLY Tailwind
+# utility classes depends on the Play CDN runtime and renders UNSTYLED in the
+# sandboxed preview (verified in a real browser). It has "premium" class names in
+# source but loses all styling at render, so it MUST be rejected — never shipped
+# as premium. This test fails if the gate ever again rewards CDN-dependent styling.
+def test_tailwind_cdn_only_page_is_rejected():
     r = evaluate_landing_page_quality(PREMIUM_TAILWIND, {"primary_cta": "Join now", "primary_goal": "Sign up"})
+    assert r["status"] == "needs_work"
+    failed = _failed(r)
+    assert "self_contained_styling" in failed                       # the exact defect
+    assert {"visual_depth", "design_system", "typographic_scale"} <= failed  # its "premium" was CDN-only
+
+
+# 2b — a self-contained inline-CSS premium page (styling survives render) IS accepted
+SELF_CONTAINED_PREMIUM = (
+    '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+    '<meta name="viewport" content="width=device-width, initial-scale=1">'
+    '<title>Aura Studio — Wellness</title><meta name="description" content="Calm, guided wellness.">'
+    '<style>'
+    ':root{--brand:#0e7c66;--ink:#10201b;--bg:#f7fbf9;--surface:#fff;--radius:20px}'
+    "body{font-family:'Inter',system-ui,sans-serif;color:var(--ink);background:var(--bg);margin:0;line-height:1.6}"
+    'h1{font-size:clamp(38px,6vw,66px);font-weight:800;letter-spacing:-0.02em}'
+    'h2{font-size:clamp(24px,4vw,38px);font-weight:700}'
+    '.hero{background:radial-gradient(900px 480px at 80% -10%,#0e7c6622,transparent),linear-gradient(135deg,#0e7c660d,#c58b7a08);padding:92px 24px}'
+    '.btn{display:inline-flex;background:var(--brand);color:#fff;padding:14px 26px;border-radius:999px;font-weight:700;text-decoration:none;transition:transform .2s ease,box-shadow .2s ease}'
+    '.card{background:var(--surface);border-radius:var(--radius);box-shadow:0 18px 40px rgba(16,32,27,.08);padding:26px;transition:transform .2s ease}'
+    'section{padding:76px 24px}@media(max-width:640px){section{padding:52px 20px}}'
+    '</style></head><body>'
+    '<header><a class="btn" href="#book">Book a session</a></header><main>'
+    '<section class="hero"><h1>Calm, guided wellness</h1><p>Personalised sessions near you.</p><a class="btn" href="#book">Book a session</a></section>'
+    '<section><h2>How it works</h2><div class="card">Assess, plan, practise.</div></section>'
+    '<section><h2>Why Aura</h2><div class="card">Certified guides and a calm space.</div></section>'
+    '<section id="book"><h2>Ready to begin?</h2><a class="btn" href="#start">Book a session</a></section>'
+    '</main><footer>Aura Studio</footer></body></html>'
+)
+
+
+def test_self_contained_premium_page_is_accepted():
+    r = evaluate_landing_page_quality(SELF_CONTAINED_PREMIUM, {"primary_cta": "Book a session"})
     assert r["status"] == "ready_for_human_review", r["next_actions"]
 
 
