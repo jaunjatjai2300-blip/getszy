@@ -82,6 +82,7 @@ SELF_PROTECTED = {
     "backend/agent_llm.py",
     "backend/agent_persistence.py",
     "backend/agent_delegation.py",
+    "backend/agent_roles.py",
     "backend/agent_evidence.py",
     "backend/agent_knowledge.py",
     "backend/agent_research.py",
