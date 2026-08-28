@@ -132,11 +132,22 @@ class DelegationContext:
         self._check_budget()
 
         config_tools = set(cfg.get("allowed_tools") or [])
+        forbidden = frozenset(cfg.get("forbidden_tools") or [])
         # A generic template declaring more than we hold is intersected, not refused.
         allowed = frozenset(config_tools & set(self.tools))
+        # A role may forbid a tool the parent holds: forbidden always narrows, never
+        # widens, and applies to the ceiling any explicit request is checked against.
+        allowed = frozenset(allowed - forbidden)
 
         if requested_tools is not None:
             requested = set(requested_tools)
+            role_forbidden = sorted(requested & forbidden)
+            if role_forbidden:
+                # Asking for a tool the role forbids is an attempt, reported as one.
+                raise DelegationDenied(
+                    f"Requested tools forbidden for this role: {role_forbidden}. "
+                    "A role's forbidden tools are never granted, even when the parent holds them."
+                )
             outside = sorted(requested - allowed)
             if outside:
                 # An explicit request for something out of scope is an attempt, and
@@ -166,6 +177,14 @@ class DelegationContext:
                     f"Unknown approvals requested: {unknown}. Approvals are "
                     f"operations, not tools. Valid names: {sorted(APPROVAL_REQUIRED)}. "
                     "Most tasks need none; omit the field entirely."
+                )
+            role_forbidden_ops = sorted(asked & set(cfg.get("forbidden_operations") or []))
+            if role_forbidden_ops:
+                # A role's forbidden operations can never be granted to it, whatever
+                # the parent holds or is willing to delegate.
+                raise DelegationDenied(
+                    f"Operations forbidden for this role: {role_forbidden_ops}. "
+                    "This role may never be granted them."
                 )
             ungranted = sorted(asked - set(self.approvals))
             if ungranted:
@@ -240,7 +259,15 @@ async def delegate(*, specialist: str, task: str, context: DelegationContext,
     import agent_factory
 
     try:
-        cfg = agent_factory.build_config(specialist, owner_id=context.user_id or "system")
+        # An explicit role id (or "role:name") resolves to a deterministic role
+        # config; anything else is free text handled exactly as before. Both go
+        # through the SAME validate_config below — roles add no parallel path.
+        import agent_roles
+        role = agent_roles.resolve(specialist)
+        if role is not None:
+            cfg = agent_roles.config_for(role, owner_id=context.user_id or "system")
+        else:
+            cfg = agent_factory.build_config(specialist, owner_id=context.user_id or "system")
         cfg["id"] = specialist_key(specialist)
         problems = agent_factory.validate_config(cfg)
         if problems:
