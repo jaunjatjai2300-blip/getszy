@@ -55,12 +55,41 @@ async def root():
 async def health():
     try:
         await db.command('ping')
-        return {'status': 'ok', 'ai': 'Getszy AI'}
+        # Include resource status in health check
+        resource_info = {}
+        try:
+            from resource_admission import resource_status
+            resource_info = resource_status()
+        except Exception:
+            pass
+        return {'status': 'ok', 'ai': 'Getszy AI', 'resources': resource_info}
     except Exception:
         # A non-2xx response is required for Docker, uptime monitors, and reverse
         # proxies to recognise a database outage instead of treating an error body
         # as a healthy service.
         return JSONResponse(status_code=503, content={'status': 'error', 'detail': 'database_unavailable'})
+
+
+@api_router.get('/factory/status')
+async def factory_status():
+    """Agent Factory health and resource status endpoint."""
+    try:
+        from resource_admission import resource_status
+        from task_limits import limits_status
+        from attempt_ledger import ledger_status
+        from cache_utils import cache_info
+        from task_limits import active_task_count
+
+        return {
+            'status': 'ok',
+            'resources': resource_status(),
+            'limits': limits_status(),
+            'ledgers': ledger_status(),
+            'cache': cache_info(),
+            'active_tasks': active_task_count(),
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'status': 'error', 'detail': str(e)})
 
 
 @api_router.get('/health/llm')
@@ -214,6 +243,16 @@ async def _periodic_chain_recovery():
 async def startup():
     logger.info('getszy backend starting')
     try:
+        # Agent Factory config validation — must run before anything else
+        try:
+            from config_validation import run_startup_validation
+            config_result = run_startup_validation()
+            if not config_result.valid:
+                logger.error('CONFIG VALIDATION FAILED — %d errors. Continuing with warnings.',
+                             len(config_result.errors))
+        except Exception as cv_err:
+            logger.error('Config validation could not run: %s', cv_err)
+
         await _check_ai_providers()
         init_monitoring()
         _install_createdAt_stamp()

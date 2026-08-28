@@ -3,13 +3,36 @@ import asyncio
 
 Pipeline: Planner → Designer → Coder → Reviewer
 Each agent specializes in one aspect, producing better output than a single monolithic LLM call.
+
+This module integrates with the Agent Factory reliability layer:
+- resource_admission: memory-aware execution gate
+- task_limits: per-task resource limits
+- failure_isolation: timeout, cancellation, exception boundaries
+- attempt_ledger: structured evidence for repair loops
+- bounded_output: prevents unbounded string accumulation
+- reviewer: verification of task results
 """
 import re
 import json
 import html as _html
 import logging
+import uuid
+import time
 from llm_provider import professional_builder_completion
 from builder_quality import evaluate_landing_page_quality
+from resource_admission import admit_task, get_degraded_config, AdmissionDecision
+from task_limits import (
+    create_tracker, remove_tracker, LimitTracker, TaskLimits,
+    MAX_REPAIR_ATTEMPTS, MAX_TOOL_ROUNDS, DEFAULT_EXECUTION_TIMEOUT,
+)
+from failure_isolation import ExceptionBoundary, FailureType, FailureRecord, child_failure_to_evidence
+from attempt_ledger import (
+    AttemptLedger, AttemptOutcome, StrategyType,
+    get_ledger, remove_ledger,
+)
+from task_limits import MAX_REPAIR_ATTEMPTS as _FACTORY_MAX_REPAIR
+from bounded_output import bounded_llm_output, bounded_html_output, BoundedResult
+from reviewer import review_task_result, ReviewVerdict
 
 logger = logging.getLogger('getszy.builder.agents')
 
@@ -748,5 +771,212 @@ async def design_brief_fast(prompt: str, brief: dict | None = None, session_id: 
     if not design:
         logger.warning('Fast design-brief call returned no parseable JSON; falling back to single-call composition.')
     return design
+
+
+# ── Agent Factory Reliability Layer ───────────────────────────────────────────
+
+async def build_site_reliable(
+    prompt: str,
+    session_id: str = 'builder',
+    brief: dict | None = None,
+) -> dict:
+    """Full pipeline with resource admission, limit tracking, failure isolation,
+    attempt ledger, bounded output, and reviewer verification.
+
+    Returns a structured result dict with:
+    - html: the generated HTML (or None on failure)
+    - success: bool
+    - verdict: PASS/FAIL/NEEDS_HUMAN
+    - admission: admission result
+    - ledger: attempt history
+    - breaches: any limit breaches
+    - evidence: failure evidence if any
+    """
+    task_id = f'build-{session_id}-{uuid.uuid4().hex[:8]}'
+    brief = brief or {}
+    confirmed = {k: v for k, v in brief.items() if v not in (None, '', [])}
+
+    # Step 1: Resource admission
+    admission = await admit_task('builder_pipeline', task_id=task_id)
+    if admission.decision == AdmissionDecision.REJECT:
+        logger.warning('Build rejected: %s', admission.reason)
+        return {
+            'html': None, 'success': False, 'verdict': 'FAIL',
+            'admission': admission.to_dict(), 'ledger': {},
+            'breaches': [], 'evidence': {'reason': admission.reason},
+        }
+
+    # Step 2: Create limit tracker and ledger
+    limits = TaskLimits(execution_timeout=DEFAULT_EXECUTION_TIMEOUT)
+    if admission.decision == AdmissionDecision.DEGRADE:
+        degraded = get_degraded_config('builder_pipeline')
+        limits.max_tool_rounds = degraded.get('max_tool_rounds', 3)
+        limits.execution_timeout = degraded.get('timeout', 120.0)
+
+    tracker = create_tracker(task_id, agent_id='builder', limits=limits)
+    ledger = get_ledger(task_id, max_attempts=_FACTORY_MAX_REPAIR)
+
+    try:
+        # Step 3: Run pipeline with failure isolation and attempt tracking
+        html = None
+        last_error = None
+        max_retries = 2 if admission.decision == AdmissionDecision.DEGRADE else 3
+
+        for attempt in range(max_retries):
+            if tracker.check_timeout():
+                logger.warning('Build %s: timeout on attempt %d', task_id, attempt + 1)
+                break
+
+            strategy = ledger.recommend_next_strategy()
+            record = ledger.start_attempt(
+                strategy=strategy,
+                description=f'Pipeline attempt {attempt + 1}',
+                agent_id='builder',
+            )
+
+            try:
+                if attempt > 0 and ledger.last_attempt:
+                    # On retry: provide evidence of what failed
+                    briefing = ledger.build_briefing()
+                    logger.info('Build %s: retry with evidence — rejected strategies: %s',
+                                task_id, briefing.get('rejected_strategies', []))
+
+                enriched_prompt = f"{prompt}\n\nCONFIRMED CUSTOMER BRIEF (treat as product truth):\n{json.dumps(confirmed, ensure_ascii=False)}"
+
+                # Plan -> Design -> Code with bounded output
+                plan = await plan_site(enriched_prompt, session_id)
+                design = await design_site(plan, enriched_prompt, session_id)
+                raw_html = await code_site(enriched_prompt, plan, design, session_id)
+
+                # Bound the HTML output
+                bounded = bounded_html_output(raw_html)
+                if bounded.truncated:
+                    logger.warning('Build %s: HTML output truncated (%d -> %d bytes)',
+                                   task_id, bounded.original_length, bounded.returned_length)
+                    record.metadata['html_truncated'] = True
+
+                html = _repair_html(bounded.content)
+
+                # Step 4: Review with reviewer agent
+                review = review_task_result(
+                    result=html,
+                    task_type='builder',
+                    brief=confirmed,
+                )
+                record.metadata['review'] = review.to_dict()
+
+                if review.verdict == ReviewVerdict.FAIL:
+                    failed_checks = [c for c in review.checks if not c.passed and c.severity == 'required']
+                    quality_feedback = [c.message for c in failed_checks]
+                    html = _repair_html(await review_site(html, session_id, quality_feedback))
+                    # Re-review after fix
+                    review = review_task_result(html, 'builder', confirmed)
+                    record.metadata['post_fix_review'] = review.to_dict()
+
+                ledger.complete_attempt(
+                    record,
+                    outcome=AttemptOutcome.SUCCESS,
+                    observed_output=f'HTML: {len(html)} chars, review: {review.verdict.value}',
+                )
+                break
+
+            except Exception as e:
+                last_error = e
+                logger.warning('Build %s: attempt %d failed: %s', task_id, attempt + 1, e)
+                ledger.complete_attempt(
+                    record,
+                    outcome=AttemptOutcome.FAILED,
+                    error_message=str(e),
+                )
+                continue
+
+        # Final result
+        if html:
+            review = review_task_result(html, 'builder', confirmed)
+            return {
+                'html': html,
+                'success': True,
+                'verdict': review.verdict.value,
+                'admission': admission.to_dict(),
+                'ledger': ledger.summary(),
+                'breaches': [b.to_dict() for b in tracker.breaches],
+                'evidence': None,
+            }
+        else:
+            return {
+                'html': None,
+                'success': False,
+                'verdict': 'FAIL',
+                'admission': admission.to_dict(),
+                'ledger': ledger.summary(),
+                'breaches': [b.to_dict() for b in tracker.breaches],
+                'evidence': {
+                    'last_error': str(last_error) if last_error else 'Pipeline produced no output',
+                    'attempt_count': ledger.attempt_count,
+                },
+            }
+
+    finally:
+        remove_tracker(task_id)
+
+
+async def compose_site_reliable(
+    prompt: str,
+    brief: dict | None = None,
+    session_id: str = 'builder',
+    style_profile: str | None = None,
+) -> dict:
+    """Fast composition with resource admission and verification.
+
+    Same structure as build_site_reliable but uses the fast path.
+    """
+    task_id = f'fast-{session_id}-{uuid.uuid4().hex[:8]}'
+    brief = brief or {}
+    confirmed = {k: v for k, v in brief.items() if v not in (None, '', [])}
+
+    # Resource admission
+    admission = await admit_task('builder_fast', task_id=task_id)
+    if admission.decision == AdmissionDecision.REJECT:
+        return {
+            'html': None, 'success': False, 'verdict': 'FAIL',
+            'admission': admission.to_dict(), 'ledger': {},
+            'breaches': [], 'evidence': {'reason': admission.reason},
+        }
+
+    # Limit tracker
+    limits = TaskLimits(execution_timeout=180.0)
+    if admission.decision == AdmissionDecision.DEGRADE:
+        degraded = get_degraded_config('builder_fast')
+        limits.execution_timeout = degraded.get('timeout', 120.0)
+
+    tracker = create_tracker(task_id, agent_id='fast_composer', limits=limits)
+
+    try:
+        html = await compose_site_fast(prompt, brief, session_id, style_profile)
+
+        # Verify with reviewer
+        review = review_task_result(html, 'builder', confirmed)
+
+        return {
+            'html': html,
+            'success': True,
+            'verdict': review.verdict.value,
+            'admission': admission.to_dict(),
+            'ledger': {},
+            'breaches': [b.to_dict() for b in tracker.breaches],
+            'evidence': None,
+        }
+    except Exception as e:
+        return {
+            'html': None,
+            'success': False,
+            'verdict': 'FAIL',
+            'admission': admission.to_dict(),
+            'ledger': {},
+            'breaches': [b.to_dict() for b in tracker.breaches],
+            'evidence': {'error': str(e)},
+        }
+    finally:
+        remove_tracker(task_id)
 
 
