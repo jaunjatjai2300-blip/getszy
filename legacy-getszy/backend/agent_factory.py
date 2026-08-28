@@ -31,7 +31,8 @@ from datetime import datetime, timezone
 from agent_guard import APPROVAL_REQUIRED, SELF_PROTECTED
 from agent_tools import ENGINEERING_TOOLS, MUTATING_TOOLS
 
-READ_ONLY_TOOLS = {"read_file", "list_files", "grep_repo", "git_status", "git_diff", "git_log"}
+READ_ONLY_TOOLS = {"read_file", "list_files", "grep_repo", "git_status", "git_diff", "git_log",
+                   "repo_map_query"}
 # Outbound, read-only research. GitHub is the primary technical source; general
 # web search is separate and secondary.
 RESEARCH_CAPABILITY_TOOLS = {

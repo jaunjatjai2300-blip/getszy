@@ -307,6 +307,9 @@ async def delegate(*, specialist: str, task: str, context: DelegationContext,
             allowed_tools=sorted(child.tools),
             persist=should_persist,
             delegation=child,
+            # A role governs its own inner-loop budget; free-text specialists
+            # pass None and keep the runtime default.
+            max_rounds=cfg.get("max_rounds"),
         )
     except Exception as e:
         logger.exception("specialist %s failed", child.agent_id)
@@ -390,6 +393,11 @@ def _result(specialist, task, child, cfg, audit, prior_count: int = 0) -> dict:
             "tool_scope": sorted(child.tools),
             "approvals": sorted(child.approvals),
             "sandbox": cfg.get("sandbox"),
+            # Role contract (present for a named role, None for free-text) so a
+            # reviewer or human can check the work against what the role promised.
+            "role_id": cfg.get("role_id"),
+            "output_contract": cfg.get("output_contract"),
+            "verification_requirements": cfg.get("verification_requirements"),
         },
         "task": task[:500],
         "files_changed": audit.get("files_changed", []),
