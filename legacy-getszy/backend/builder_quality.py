@@ -67,10 +67,41 @@ def evaluate_landing_page_quality(
     has_form = _has(r"<form\b", html)
     has_privacy = _has(r"privacy\s*(policy|notice)|privacy-policy", html)
     has_images = _has(r"<img\b", html)
-    has_visual_foundation = has_images or _has(r"background(?:-image)?\s*:\s*(?:url|linear-gradient|radial-gradient)", html) or _has(r"<svg\b", html)
+    has_visual_foundation = (
+        has_images
+        or _has(r"background(?:-image)?\s*:\s*(?:url|linear-gradient|radial-gradient)", html)
+        or _has(r"<svg\b", html)
+        or _has(r"\bbg-gradient-", html)   # utility-class gradient hero (Tailwind)
+    )
     all_images_have_alt = not _has(r"<img\b(?![^>]*\balt\s*=)[^>]*>", html)
     cta_labels = re.findall(r"<(?:a|button)\b[^>]*>(.*?)</(?:a|button)>", html, re.IGNORECASE | re.DOTALL)
     cta_text = " ".join(re.sub(r"<[^>]+>", " ", value).lower() for value in cta_labels)
+
+    # ── premium visual-quality signals (objective, framework-agnostic) ──
+    # These separate a genuinely premium page from a structurally-valid but flat
+    # one. They recognise both raw CSS and utility-class (Tailwind) styling, and
+    # are calibrated so the deterministic premium floor and the curated starters
+    # pass while a basic single-block page does not.
+    section_count = _count(r"<section\b", html) + _count(r"<article\b", html)
+    _style_block = re.search(r"<style\b[^>]*>(.*?)</style>", html, re.IGNORECASE | re.DOTALL)
+    _style_len = len(_style_block.group(1)) if _style_block else 0
+    uses_tailwind = _has(r"cdn\.tailwindcss|tailwind", html) or _count(
+        r"class=[\"'][^\"']*\b(?:flex|grid|rounded|shadow|bg-|text-|gap-|max-w-|min-h-|px-|py-)", html) >= 6
+    polish_signals = sum([
+        _has(r"box-shadow\s*:|\bshadow-(?:sm|md|lg|xl|2xl)\b", html),
+        _has(r"(?:linear|radial)-gradient\(|\bbg-gradient-", html),
+        _has(r"border-radius\s*:\s*(?:1[2-9]|[2-9]\d)px|\brounded-(?:lg|xl|2xl|3xl|full)\b", html),
+        _has(r"transition\s*:|\btransition\b|animation\s*:", html),
+    ])
+    has_type_scale = (
+        _has(r"clamp\(", html)
+        or _has(r"\btext-(?:4xl|5xl|6xl|7xl)\b", html)
+        or len({m for m in re.findall(r"font-size\s*:\s*(\d+)", html, re.IGNORECASE)}) >= 3
+    )
+    has_design_system = (
+        _has(r"--[a-z][\w-]*\s*:", html) or uses_tailwind or _style_len >= 300
+        or _has(r"<link[^>]+stylesheet", html)
+    )
 
     checks = [
         _check(
@@ -191,6 +222,42 @@ def evaluate_landing_page_quality(
             (not has_form) or has_privacy,
             False,
             "If the page collects personal data, add a real privacy-policy link before publishing.",
+        ),
+        # ── premium visual-quality baseline (the bar a basic-but-valid page fails) ──
+        _check(
+            "section_variety",
+            "Rich, varied page sections",
+            section_count >= 3,
+            True,
+            "A premium landing page needs several distinct sections (hero, value, proof, features, CTA); one flat block reads as a basic draft.",
+        ),
+        _check(
+            "visual_depth",
+            "Premium visual depth",
+            polish_signals >= 2,
+            True,
+            "Add real depth — shadows, gradients, rounded surfaces or smooth transitions; a flat page is not a premium deliverable.",
+        ),
+        _check(
+            "typographic_scale",
+            "Deliberate typography scale",
+            has_type_scale,
+            True,
+            "Use a real type scale — fluid clamp() sizes or a clear large-to-small heading ramp — not a single default font size.",
+        ),
+        _check(
+            "design_system",
+            "Coherent design system",
+            has_design_system,
+            True,
+            "Build on a coherent style system — design tokens/CSS variables or a utility framework — not a few ad-hoc inline styles.",
+        ),
+        _check(
+            "cta_prominence",
+            "Prominent styled call to action",
+            _has(r"\.btn\b|class=[\"'][^\"']*\b(?:btn|button|bg-[a-z])|<(?:a|button)[^>]+style=[\"'][^\"']*background", html),
+            False,
+            "Give the primary CTA a prominent, styled button treatment so the next step is unmistakable.",
         ),
     ]
 
