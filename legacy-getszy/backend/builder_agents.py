@@ -608,7 +608,8 @@ def _compose_sections(vertical, brand, audience, goal, cta, proof_points, p, a):
     return "".join(out), play
 
 
-def _premium_template(prompt: str, brief: dict | None = None) -> str:
+def _premium_template(prompt: str, brief: dict | None = None,
+                      direction: dict | None = None) -> str:
     """Deterministic, always-available premium landing page.
 
     FINAL GUARANTEE: if every LLM provider is unavailable we still return a
@@ -616,6 +617,15 @@ def _premium_template(prompt: str, brief: dict | None = None) -> str:
     never sees an error or a blank draft. No external calls, no randomness.
     Picks a vertical family (SaaS / hospitality / studio / retail / wellness /
     default) so the fallback is tuned to the business, not generic.
+
+    ART DIRECTION: the page's visual system now comes from the vetted
+    design_registry, chosen by design_intent from the customer's own words --
+    a cinematic gym, a glass salon and an editorial boutique render as genuinely
+    different designs rather than one template in different colours. `direction`
+    may be supplied by the caller (so the composer and the floor agree on one
+    look); when omitted it is inferred here. An unknown or missing direction
+    falls back to the safe professional recipe, so this function keeps its
+    "always returns a complete page" contract.
     """
     brief = brief or {}
     confirmed = {k: v for k, v in brief.items() if v not in (None, '', [])}
@@ -628,11 +638,32 @@ def _premium_template(prompt: str, brief: dict | None = None) -> str:
     vertical = _vertical_for(brief, prompt)
     vlabel = _VERTICAL_LABELS.get(vertical, 'Business')
 
-    palette = _PREMIUM_PALETTES[sum(ord(c) for c in brand) % len(_PREMIUM_PALETTES)]
-    p, a, bg, tx, sf = palette['primary'], palette['accent'], palette['bg'], palette['text'], palette['surface']
+    # ── art direction (vetted registry) ──────────────────────────────────────
+    # The recipe owns the visual system: palette roles, type pairing, spacing,
+    # surface treatment and motion. Failing safe here matters more than failing
+    # loudly -- this function is the last line before the customer sees a page.
+    try:
+        import design_registry as _dr
+        import design_intent as _di
+        if not direction:
+            direction = _di.infer_direction(prompt, brief, vertical)
+        recipe = _dr.get_recipe(direction.get('recipe_id'))
+        style = _dr.stylesheet(recipe)
+        fonts_query = recipe.fonts_query()
+        pal = recipe.palette
+        p, a, bg, tx, sf = pal['p'], pal['a'], pal['bg'], pal['tx'], pal['sf']
+    except Exception:          # registry unavailable -> legacy visual system
+        recipe, direction, fonts_query = None, direction or {}, (
+            "family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700;800")
+        palette = _PREMIUM_PALETTES[sum(ord(c) for c in brand) % len(_PREMIUM_PALETTES)]
+        p, a, bg, tx, sf = (palette['primary'], palette['accent'], palette['bg'],
+                            palette['text'], palette['surface'])
+        style = None
     glyph = _GLYPH.get(vertical, '✦')
 
-    style = (
+    # Legacy single-system stylesheet, retained ONLY as the fallback when the
+    # design registry cannot be loaded. The registry is the normal path.
+    _legacy = (
         ":root{--p:#__P__;--a:#__A__;--bg:#__BG__;--tx:#__TX__;--sf:#__SF__;--maxw:1140px;--r:20px}"
         "*{box-sizing:border-box;margin:0;padding:0}"
         "html{scroll-behavior:smooth}"
@@ -679,7 +710,9 @@ def _premium_template(prompt: str, brief: dict | None = None) -> str:
         "@media(max-width:520px){.footgrid{grid-template-columns:1fr}}"
     )
     for k, v in (('__P__', p), ('__A__', a), ('__BG__', bg), ('__TX__', tx), ('__SF__', sf)):
-        style = style.replace(k, v)
+        _legacy = _legacy.replace(k, v)
+    if style is None:
+        style = _legacy
 
     body, play = _compose_sections(vertical, brand, audience, goal, cta, proof_points, p, a)
     hero_sub = _fmt(play['hero'], brand, audience)
@@ -702,7 +735,7 @@ def _premium_template(prompt: str, brief: dict | None = None) -> str:
 <meta property="og:description" content="{_esc(goal)}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?{fonts_query}&display=swap" rel="stylesheet">
 <style>{style}</style>
 </head>
 <body>
@@ -897,10 +930,36 @@ async def compose_site_fast(prompt: str, brief: dict | None = None, session_id: 
         design_block = (
             f"\n\nDESIGN BRIEF:\n{json.dumps(design_brief, ensure_ascii=False, indent=2)}\n"
         )
+    # Give the model the SAME vetted art direction the deterministic floor would
+    # use. Without this the composer invents a look per request while the floor
+    # renders another, so a repair or fallback visibly switches design language
+    # mid-pipeline. Best-effort by design: the composer must never fail because
+    # direction inference did.
+    direction_block = ""
+    try:
+        import design_intent as _di
+        import design_registry as _dr
+        _dir = _di.infer_direction(prompt, confirmed, _vertical_for(confirmed, prompt))
+        _rec = _dr.get_recipe(_dir["recipe_id"])
+        direction_block = (
+            f"\n\nART DIRECTION — {_rec.label} (vetted; follow it): {_rec.notes}\n"
+            f"Palette: primary {_rec.palette['p']}, accent {_rec.palette['a']}, "
+            f"background {_rec.palette['bg']}, text {_rec.palette['tx']}, "
+            f"surface {_rec.palette['sf']}.\n"
+            f"Type: '{_rec.display_font}' for display/headings, '{_rec.body_font}' for body "
+            f"(always with a system fallback stack).\n"
+            f"Motion budget: {_rec.motion}. Layout density: {_rec.density}. "
+            f"Imagery: {_dir['asset_policy']}.\n"
+            "Express this direction in SELF-CONTAINED CSS inside <style>. "
+            "No CDN, no external stylesheet, no utility-class framework.\n"
+        )
+    except Exception:
+        direction_block = ""
+
     context = (
         f"CUSTOMER REQUEST:\n{prompt}\n\n"
         f"VERIFIED CUSTOMER BRIEF:\n{json.dumps(confirmed, ensure_ascii=False, indent=2)}\n"
-        f"{design_block}{style_directive}\n"
+        f"{design_block}{direction_block}{style_directive}\n"
         "Compose the complete private draft now."
     )
     raw = await professional_builder_completion(

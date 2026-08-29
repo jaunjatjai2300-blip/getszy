@@ -91,11 +91,27 @@ def evaluate_landing_page_quality(
     _inline_css = " ".join(re.findall(r"style\s*=\s*[\"']([^\"']+)[\"']", html, re.IGNORECASE))
     self_css = _style_css + " " + _inline_css
     self_css_len = len(_style_css) + len(_inline_css)
+    # Depth comes in two legitimate design vocabularies and the gate must be
+    # literate in both, or it rejects real craft.
+    #
+    # MAXIMALIST depth: shadows, gradients, rounded surfaces, motion.
+    # EDITORIAL depth: deliberately flat -- a premium magazine layout builds
+    # hierarchy from hairline rules, letterspacing discipline and a wide type
+    # ramp, and would carry no shadow at all. Judging that page by shadows alone
+    # marks genuine high-end design as "flat".
+    #
+    # This does NOT lower the bar: the threshold stays at >=2 signals, and the
+    # editorial signals require SYSTEMATIC use (>=3 occurrences), so one stray
+    # border or a single letter-spacing declaration still counts for nothing.
+    _rule_system = len(re.findall(r"border-(?:top|bottom|right|left)\s*:\s*1(?:\.5)?px", self_css)) >= 3
+    _tracking = len(re.findall(r"letter-spacing\s*:\s*[-.\d]+em", self_css)) >= 3
     polish_signals = sum([
         _has(r"box-shadow\s*:", self_css),
         _has(r"(?:linear|radial)-gradient\(", self_css),
         _has(r"border-radius\s*:\s*(?:1[2-9]|[2-9]\d)px|border-radius\s*:\s*9999", self_css),
         _has(r"transition\s*:|animation\s*:", self_css),
+        _rule_system,
+        _tracking,
     ])
     has_type_scale = (
         _has(r"clamp\(", self_css)
