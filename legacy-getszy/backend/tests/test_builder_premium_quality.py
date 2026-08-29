@@ -149,3 +149,43 @@ def test_responsive_and_accessibility_preserved_on_floor():
               evaluate_landing_page_quality(_premium_template("a cafe", {"brand_name": "Bean"}), {})["checks"]}
     assert checks["responsive_rules"]["passed"] and checks["mobile_viewport"]["passed"]
     assert checks["image_alt_text"]["passed"]
+
+
+# ── business-aware composition across representative business types ───────────
+import pytest as _pytest  # noqa: E402
+from builder_agents import _premium_template as _pt  # noqa: E402
+
+
+@_pytest.mark.parametrize("prompt,brief", [
+    ("solapur fitness club", {"brand_name": "Solapur Fitness Club", "vertical": "fitness"}),
+    ("luxe hair and beauty salon", {"brand_name": "Luxe Salon"}),
+    ("forno family pizzeria", {"brand_name": "Forno", "vertical": "restaurant"}),
+    ("sharma business consulting", {"brand_name": "Sharma Advisory", "vertical": "consultant"}),
+    ("urban threads fashion store", {"brand_name": "Urban Threads", "vertical": "ecommerce"}),
+    ("rapid home repair services", {"brand_name": "Rapid Repair", "vertical": "service"}),
+])
+def test_business_examples_are_composed_and_premium(prompt, brief):
+    html = _pt(prompt, brief)
+    r = evaluate_landing_page_quality(html, brief)
+    low = html.lower()
+    # passes the premium gate, self-contained, bounded
+    assert r["status"] == "ready_for_human_review", r["next_actions"]
+    assert "<style" in low and "cdn.tailwindcss.com" not in html
+    assert len(html) < 40000
+    # composed from a varied component vocabulary — never a single repeated grid
+    assert 'class="nav"' in html and "featrow" in html
+    assert 'class="steps"' in html and "<details" in low
+    assert html.count("<h1") == 1
+    # customer business name survives into the composition
+    assert brief["brand_name"] in html
+    # honest: no fabricated proof when none supplied
+    assert "trusted by" not in low and "5-star" not in low
+
+
+def test_different_business_types_produce_different_content():
+    fit = _pt("fitness club", {"brand_name": "Brand", "vertical": "fitness"})
+    rest = _pt("restaurant", {"brand_name": "Brand", "vertical": "restaurant"})
+    # same brand, different business -> materially different composed content
+    assert fit != rest
+    assert "training" in fit.lower() and "training" not in rest.lower()
+    assert "menu" in rest.lower()

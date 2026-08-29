@@ -249,15 +249,24 @@ _PREMIUM_PALETTES = [
 # whose LLM call fails still gets a page tuned to their business type — not a
 # one-size-fits-all shell. Copy stays honest (no invented testimonials/promises).
 _VERTICAL_LABELS = {
-    'saas': 'Software', 'restaurant': 'Hospitality', 'portfolio': 'Studio',
-    'ecommerce': 'Retail', 'health': 'Wellness', 'default': 'Business',
+    'fitness': 'Fitness', 'salon': 'Beauty & Wellness', 'restaurant': 'Hospitality',
+    'education': 'Education', 'consultant': 'Advisory', 'ecommerce': 'Retail',
+    'service': 'Local Service', 'portfolio': 'Studio', 'saas': 'Software',
+    'health': 'Wellness', 'default': 'Business',
 }
+# Order matters: the first matching family wins, so more specific families come
+# before broader ones (fitness/salon before the generic health family).
 _VERTICAL_RULES = [
-    ('restaurant', ('restaurant', 'cafe', 'coffee', 'bakery', 'bar', 'food', 'pizza', 'dining', 'menu', 'kitchen', 'bistro')),
-    ('ecommerce', ('shop', 'store', 'ecommerce', 'e-commerce', 'retail', 'product', 'fashion', 'boutique', 'sell', 'marketplace')),
-    ('portfolio', ('portfolio', 'agency', 'freelance', 'designer', 'photographer', 'artist', 'studio', 'creative', 'illustrator')),
-    ('health', ('health', 'wellness', 'clinic', 'fitness', 'yoga', 'therapy', 'medical', 'spa', 'coach', 'nutrition')),
+    ('fitness', ('gym', 'fitness', 'workout', 'crossfit', 'strength', 'personal train', 'bootcamp', 'pilates', 'cycling', 'martial', 'boxing', 'athletic')),
+    ('salon', ('salon', 'spa', 'beauty', 'hair', 'nail', 'makeup', 'barber', 'skincare', 'lash', 'brow', 'aesthetic', 'grooming')),
+    ('restaurant', ('restaurant', 'cafe', 'coffee', 'bakery', 'bar', 'food', 'pizza', 'dining', 'menu', 'kitchen', 'bistro', 'catering')),
+    ('education', ('academy', 'school', 'course', 'tutor', 'coaching class', 'education', 'learning', 'institute', 'classes', 'college', 'training center')),
+    ('consultant', ('consultant', 'consulting', 'coach', 'advisory', 'mentor', 'strategist', 'accountant', 'lawyer', 'advisor')),
+    ('ecommerce', ('shop', 'store', 'ecommerce', 'e-commerce', 'retail', 'product', 'fashion', 'boutique', 'sell', 'marketplace', 'apparel', 'jewel')),
+    ('service', ('plumb', 'electric', 'cleaning', 'repair', 'contractor', 'handyman', 'moving', 'landscap', 'roofing', 'pest', 'locksmith', 'detailing')),
+    ('portfolio', ('portfolio', 'agency', 'freelance', 'designer', 'photographer', 'artist', 'studio', 'creative', 'illustrator', 'creator', 'videographer')),
     ('saas', ('saas', 'software', 'platform', 'app', 'tool', 'startup', 'ai', 'api', 'tech', 'automation', 'dashboard')),
+    ('health', ('health', 'wellness', 'clinic', 'yoga', 'therapy', 'medical', 'nutrition', 'dental', 'physio', 'counsel')),
 ]
 _VERTICAL_SECTIONS = {
     'saas': [
@@ -337,34 +346,266 @@ def _vertical_for(brief: dict, prompt: str) -> str:
     return 'default'
 
 
-def _render_vertical_sections(vertical: str, cta_lower: str) -> str:
-    """Return vertical-specific <section> blocks (h2 + card grids)."""
-    blocks = _VERTICAL_SECTIONS.get(vertical)
-    if not blocks:
-        # default: the generic outcome block
-        return (
-            '<section class="wrap">'
-            '<span class="eyebrow">Why it works</span>'
-            '<h2>Built around one outcome</h2>'
-            '<div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:24px">'
-            '<div class="card"><h3 class="display" style="font-size:20px;margin-bottom:8px">Clarity</h3><p class="muted">One message, one audience, one goal — no competing calls to action.</p></div>'
-            f'<div class="card"><h3 class="display" style="font-size:20px;margin-bottom:8px">Trust</h3><p class="muted">Honest proof and a clean, professional presentation your visitors recognise.</p></div>'
-            f'<div class="card"><h3 class="display" style="font-size:20px;margin-bottom:8px">Momentum</h3><p class="muted">A single high-contrast path from first glance to {_esc(cta_lower)}.</p></div>'
-            '</div></section>'
-        )
+# ── business-aware composition playbook ─────────────────────────────────────
+# Per family: navigation, a supporting hero line, two alternating feature rows,
+# a services block, a numbered process, and an FAQ. Copy is honest and generic-
+# but-tailored — it never states unverified facts (counts, awards, ratings,
+# hours, addresses, testimonials). {brand}/{audience} are filled at render time.
+_PLAY = {
+    'fitness': {
+        'nav': ['Programs', 'Coaching', 'Process', 'FAQ'],
+        'hero': 'Structured training, real coaching and a room that actually keeps you coming back.',
+        'rows': [
+            ('Programs', 'Training built around your goal', 'Strength, conditioning and mobility programmed properly — so every session moves you forward instead of just tiring you out.',
+             ['Clear progression, not random workouts', 'Scalable for every level', 'Coaches who watch your form']),
+            ('Coaching', 'People who actually coach', 'Attentive coaching that adjusts the plan to your body, your schedule and your goal — the difference between a gym and a result.',
+             ['Personalised adjustments', 'Honest, supportive feedback', 'A community that shows up']),
+        ],
+        'services': ('What you can train', 'Choose your focus', [
+            ('Strength', 'Barbell and functional strength with real progression.'),
+            ('Conditioning', 'Efficient sessions that build a genuine engine.'),
+            ('Mobility', 'Move well and stay injury-free for the long run.'),
+            ('Personal training', 'One-to-one coaching tuned entirely to you.')]),
+        'process': ('How to start', 'Three simple steps', [
+            ('Book an intro', 'Tell us your goal and where you are today.'),
+            ('Get your plan', 'A realistic program you can actually follow.'),
+            ('Train and progress', 'Show up, get coached, see the change.')]),
+        'faq': [('Do I need to be fit to start?', 'No. Every program scales to your current level and progresses from there.'),
+                ('How often should I train?', 'Most members train two to four times a week; we help you set a realistic rhythm.'),
+                ('Is coaching included?', 'Yes — coaching and form guidance are part of every session.')],
+    },
+    'salon': {
+        'nav': ['Services', 'Experience', 'Process', 'FAQ'],
+        'hero': 'A calm space, skilled hands and a finish you will actually want to show off.',
+        'rows': [
+            ('Craft', 'Considered, not rushed', 'Time taken to understand what suits you, then execute it with care. You leave looking like the best version of yourself, not a trend you did not ask for.',
+             ['A proper consultation first', 'Skilled, attentive stylists', 'Products chosen for your hair and skin']),
+            ('Experience', 'The visit should feel good too', 'A relaxed, unhurried atmosphere from the moment you walk in — because how it feels matters as much as how it looks.',
+             ['A calm, welcoming room', 'Honest advice, never a hard sell', 'Easy online booking']),
+        ],
+        'services': ('What we offer', 'Services', [
+            ('Hair', 'Cuts, colour and styling tailored to you.'),
+            ('Skin', 'Treatments that leave skin genuinely healthier.'),
+            ('Nails', 'Precise, long-lasting and beautifully finished.'),
+            ('Occasion', 'Looks prepared for the days that matter.')]),
+        'process': ('How it works', 'From booking to finish', [
+            ('Book online', 'Pick a service and a time that suits you.'),
+            ('Consult', 'We understand the look you are after.'),
+            ('Enjoy the result', 'Leave polished, relaxed and ready.')]),
+        'faq': [('Do I need to book ahead?', 'Booking ahead is recommended so we can give you an unhurried appointment.'),
+                ('Can I get a consultation first?', 'Yes — every appointment begins with a short consultation.'),
+                ('What products do you use?', 'We choose professional products suited to your hair and skin.')],
+    },
+    'restaurant': {
+        'nav': ['Menu', 'Atmosphere', 'Visit', 'FAQ'],
+        'hero': 'Honest cooking, a warm room and a table worth coming back to.',
+        'rows': [
+            ('Kitchen', 'Cooked with care', 'A short, confident menu built from good ingredients and treated with respect. Fewer dishes, done properly — the way food should be.',
+             ['Fresh, seasonal ingredients', 'A menu that changes with what is good', 'Options for every table']),
+            ('Room', 'A place that feels right', 'A warm, easy atmosphere for a quick lunch, a long dinner or something in between — comfortable, unhurried and genuinely welcoming.',
+             ['Comfortable seating', 'Friendly, attentive service', 'Easy to reach and easy to enjoy']),
+        ],
+        'services': ('On the menu', 'What to expect', [
+            ('Starters', 'Small plates made to share and enjoy.'),
+            ('Mains', 'Considered dishes built on good produce.'),
+            ('Desserts', 'A short list worth saving room for.'),
+            ('Drinks', 'A thoughtful selection to match the food.')]),
+        'process': ('Plan your visit', 'Simple and welcoming', [
+            ('Choose a time', 'Drop in or reserve a table online.'),
+            ('Settle in', 'Relax into a warm, easy room.'),
+            ('Enjoy', 'Eat well and leave looking forward to next time.')]),
+        'faq': [('Do you take reservations?', 'Yes — you can reserve a table online in a few taps.'),
+                ('Are there options for dietary needs?', 'We do our best to accommodate; just let us know when you book.'),
+                ('Is it good for groups?', 'Yes — get in touch and we will help arrange the table.')],
+    },
+    'consultant': {
+        'nav': ['Services', 'Approach', 'Process', 'FAQ'],
+        'hero': 'Clear thinking, practical advice and work that actually moves the needle.',
+        'rows': [
+            ('Focus', 'Advice you can act on', 'No jargon and no filler — a sharp read of your situation and a concrete plan you can put to work this week.',
+             ['A clear diagnosis first', 'Practical, prioritised recommendations', 'Support through the follow-through']),
+            ('Partnership', 'In it with you', 'Not a report that gathers dust — a working partnership focused on the outcome you actually care about.',
+             ['Straight, honest guidance', 'Tailored to your business, not a template', 'Measured by results, not slides']),
+        ],
+        'services': ('How I can help', 'Services', [
+            ('Strategy', 'A clear direction and the priorities that matter.'),
+            ('Advisory', 'A trusted sounding board when it counts.'),
+            ('Execution', 'Hands-on help to make the plan real.'),
+            ('Review', 'An honest audit of where you are today.')]),
+        'process': ('How we work', 'A simple engagement', [
+            ('Discovery', 'Understand your goal and your constraints.'),
+            ('Plan', 'Agree a focused, practical way forward.'),
+            ('Deliver', 'Execute and review against real outcomes.')]),
+        'faq': [('How do engagements start?', 'With a short discovery conversation to understand your goal — no obligation.'),
+                ('Do you work remotely?', 'Yes — engagements are run in whatever way suits you best.'),
+                ('How is success measured?', 'Against the real outcomes we agree at the start, not activity.')],
+    },
+    'ecommerce': {
+        'nav': ['Shop', 'Why us', 'Process', 'FAQ'],
+        'hero': 'Pieces worth keeping, presented properly and delivered without the fuss.',
+        'rows': [
+            ('Product', 'Made to last', 'Considered materials and honest construction — quiet quality you can feel, not a trend you will regret next season.',
+             ['Materials we stand behind', 'Details that hold up', 'Designed to be worn, not stored']),
+            ('Service', 'Buying should be easy', 'Clear information, fast tracked delivery and real help when you need it — the parts of shopping online that usually go wrong, done right.',
+             ['Fast, tracked delivery', 'Simple, fair returns', 'Support from people who know the product']),
+        ],
+        'services': ('The collection', 'Explore', [
+            ('New', 'The latest pieces, curated and in stock.'),
+            ('Bestsellers', 'The pieces customers return for.'),
+            ('Essentials', 'Quiet staples that complete the look.'),
+            ('Gifting', 'Easy choices for the people who matter.')]),
+        'process': ('How it works', 'From cart to doorstep', [
+            ('Browse', 'Find the pieces that are right for you.'),
+            ('Checkout', 'A quick, secure and simple checkout.'),
+            ('Delivered', 'Fast, tracked shipping to your door.')]),
+        'faq': [('What is your returns policy?', 'Simple, fair returns — if it is not right, we make it easy to put right.'),
+                ('How fast is delivery?', 'Orders ship quickly with tracking so you always know where it is.'),
+                ('Do you ship widely?', 'Yes — delivery options are shown clearly at checkout.')],
+    },
+    'service': {
+        'nav': ['Services', 'Why us', 'Process', 'FAQ'],
+        'hero': 'Reliable work, fair pricing and a job done properly the first time.',
+        'rows': [
+            ('Reliability', 'Turn up and do it right', 'On time, tidy and straightforward — the basics most people wish they could count on, done every single visit.',
+             ['Punctual and dependable', 'Clean, careful work', 'Clear pricing, no surprises']),
+            ('Trust', 'Treated like it is our own', 'Honest advice about what actually needs doing — and what does not — from people who take pride in the work.',
+             ['Upfront, honest quotes', 'Respect for your home or site', 'Work we stand behind']),
+        ],
+        'services': ('What we do', 'Services', [
+            ('Callouts', 'Prompt help when something needs fixing.'),
+            ('Installations', 'Done properly, checked and tidy.'),
+            ('Maintenance', 'Keep things running before they fail.'),
+            ('Advice', 'An honest opinion, obligation-free.')]),
+        'process': ('How it works', 'Easy from the first call', [
+            ('Get in touch', 'Tell us what you need — we listen first.'),
+            ('Clear quote', 'A fair, upfront price with no surprises.'),
+            ('Job done', 'Work completed properly and left tidy.')]),
+        'faq': [('Do you give free quotes?', 'Yes — we provide a clear, upfront quote before any work begins.'),
+                ('Are you insured?', 'We carry appropriate cover; ask us for details when you get in touch.'),
+                ('How soon can you come?', 'Get in touch and we will give you the earliest realistic time.')],
+    },
+}
+
+
+def _play(vertical: str, vlabel: str) -> dict:
+    """Content for a family, falling back to a strong generic business playbook."""
+    if vertical in _PLAY:
+        return _PLAY[vertical]
+    return {
+        'nav': ['What we do', 'Why us', 'Process', 'FAQ'],
+        'hero': 'A clear, honest offer and a single focused next step for {audience}.',
+        'rows': [
+            ('What we do', 'Focused on one outcome', 'One message, one audience and one goal — a clean, professional presentation that makes the next step obvious.',
+             ['A clear, single-minded offer', 'A professional, trustworthy presentation', 'One confident call to action']),
+            ('Why it works', 'Built to convert, honestly', 'No noise and no invented claims — just a considered layout that earns attention and guides {audience} to act.',
+             ['Honest, review-ready copy', 'A considered visual system', 'Designed to move visitors forward']),
+        ],
+        'services': ('What we offer', 'How we help', [
+            ('Clarity', 'A message {audience} understand in seconds.'),
+            ('Quality', 'A presentation that looks genuinely professional.'),
+            ('Momentum', 'A single, high-contrast path to act.'),
+            ('Trust', 'Honest content, never invented proof.')]),
+        'process': ('How it works', 'Three simple steps', [
+            ('Get in touch', 'Tell us what you need.'),
+            ('We prepare', 'A focused plan built around your goal.'),
+            ('Move forward', 'A clear next step, ready to go.')]),
+        'faq': [('How do we start?', 'Reach out and tell us your goal — we take it from there.'),
+                ('Is the content accurate?', 'Yes — we never invent facts, claims or testimonials.'),
+                ('Can it be tailored?', 'Absolutely; everything is built around your business.')],
+    }
+
+
+def _fmt(text: str, brand: str, audience: str) -> str:
+    return _esc(text.replace('{brand}', brand).replace('{audience}', audience))
+
+
+def _svg_panel(p: str, a: str, glyph: str) -> str:
+    """A self-contained decorative hero/feature visual — pure CSS/SVG, no assets."""
+    return (
+        f'<div class="panel" aria-hidden="true">'
+        f'<svg viewBox="0 0 400 300" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">'
+        f'<defs><linearGradient id="g{glyph}" x1="0" y1="0" x2="1" y2="1">'
+        f'<stop offset="0" stop-color="#{p}"/><stop offset="1" stop-color="#{a}"/></linearGradient></defs>'
+        f'<rect width="400" height="300" fill="url(#g{glyph})" opacity="0.14"/>'
+        f'<circle cx="320" cy="70" r="120" fill="#{a}" opacity="0.10"/>'
+        f'<circle cx="90" cy="240" r="90" fill="#{p}" opacity="0.10"/>'
+        f'<text x="50%" y="54%" text-anchor="middle" font-size="86" opacity="0.9">{glyph}</text>'
+        f'</svg></div>'
+    )
+
+
+_GLYPH = {'fitness': '🏋️', 'salon': '💇', 'restaurant': '🍽️', 'consultant': '📈',
+          'ecommerce': '🛍️', 'service': '🛠️', 'education': '🎓', 'portfolio': '🎨',
+          'saas': '⚡', 'health': '🌿', 'default': '✦'}
+
+
+def _compose_sections(vertical, brand, audience, goal, cta, proof_points, p, a):
+    """Assemble the body from distinct components — never a repeated card grid.
+    Rows alternate direction; sections alternate background for real rhythm."""
+    play = _play(vertical, _VERTICAL_LABELS.get(vertical, 'Business'))
+    glyph = _GLYPH.get(vertical, '✦')
     out = []
-    for eyebrow, heading, items in blocks:
-        cards = "".join(
-            f'<div class="card"><h3 class="display" style="font-size:20px;margin-bottom:8px">{_esc(t)}</h3>'
-            f'<p class="muted">{_esc(d)}</p></div>'
-            for t, d in items
+
+    # alternating feature rows (media + text) — the core layout variety
+    for i, (eyebrow, heading, body, bullets) in enumerate(play['rows']):
+        flip = ' flip' if i % 2 else ''
+        tint = ' tint' if i % 2 else ''
+        items = "".join(f'<li>{_fmt(b, brand, audience)}</li>' for b in bullets)
+        text = (
+            f'<div class="rowtext"><span class="eyebrow">{_fmt(eyebrow, brand, audience)}</span>'
+            f'<h2>{_fmt(heading, brand, audience)}</h2>'
+            f'<p class="muted">{_fmt(body, brand, audience)}</p>'
+            f'<ul class="ticks">{items}</ul></div>'
         )
         out.append(
-            f'<section class="wrap"><span class="eyebrow">{_esc(eyebrow)}</span>'
-            f'<h2>{_esc(heading)}</h2>'
-            f'<div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:24px">{cards}</div></section>'
+            f'<section class="section{tint}"><div class="wrap featrow{flip}">'
+            f'{text}{_svg_panel(p, a, glyph)}</div></section>'
         )
-    return "".join(out)
+
+    # services grid (icon dot + title + desc)
+    s_eyebrow, s_head, s_items = play['services']
+    cards = "".join(
+        f'<div class="scard"><span class="dot"></span>'
+        f'<h3>{_fmt(t, brand, audience)}</h3><p class="muted">{_fmt(d, brand, audience)}</p></div>'
+        for t, d in s_items
+    )
+    out.append(
+        f'<section id="services" class="section"><div class="wrap">'
+        f'<span class="eyebrow">{_esc(s_eyebrow)}</span><h2>{_esc(s_head)}</h2>'
+        f'<div class="grid3">{cards}</div></div></section>'
+    )
+
+    # numbered process
+    pr_eyebrow, pr_head, pr_steps = play['process']
+    steps = "".join(
+        f'<div class="step"><span class="num">{i+1:02d}</span>'
+        f'<h3>{_fmt(t, brand, audience)}</h3><p class="muted">{_fmt(d, brand, audience)}</p></div>'
+        for i, (t, d) in enumerate(pr_steps)
+    )
+    out.append(
+        f'<section id="process" class="section tint"><div class="wrap">'
+        f'<span class="eyebrow">{_esc(pr_eyebrow)}</span><h2>{_esc(pr_head)}</h2>'
+        f'<div class="steps">{steps}</div></div></section>'
+    )
+
+    # stats band — ONLY when the customer supplied real proof points (never invented)
+    if proof_points:
+        stat_items = "".join(f'<div class="stat"><strong>{_esc(str(pt))}</strong></div>' for pt in proof_points[:4])
+        out.append(
+            f'<section class="section"><div class="wrap"><span class="eyebrow">Proof</span>'
+            f'<h2>Results customers can stand behind</h2><div class="stats">{stat_items}</div></div></section>'
+        )
+
+    # FAQ accordion (self-contained, no JS)
+    faqs = "".join(
+        f'<details class="faq"><summary>{_esc(q)}</summary><p class="muted">{_esc(ans)}</p></details>'
+        for q, ans in play['faq']
+    )
+    out.append(
+        f'<section id="faq" class="section"><div class="wrap narrow">'
+        f'<span class="eyebrow">Questions</span><h2>Good to know</h2>{faqs}</div></section>'
+    )
+    return "".join(out), play
 
 
 def _premium_template(prompt: str, brief: dict | None = None) -> str:
@@ -389,49 +630,59 @@ def _premium_template(prompt: str, brief: dict | None = None) -> str:
 
     palette = _PREMIUM_PALETTES[sum(ord(c) for c in brand) % len(_PREMIUM_PALETTES)]
     p, a, bg, tx, sf = palette['primary'], palette['accent'], palette['bg'], palette['text'], palette['surface']
+    glyph = _GLYPH.get(vertical, '✦')
 
     style = (
-        ":root{--p:#__P__;--a:#__A__;--bg:#__BG__;--tx:#__TX__;--sf:#__SF__}"
+        ":root{--p:#__P__;--a:#__A__;--bg:#__BG__;--tx:#__TX__;--sf:#__SF__;--maxw:1140px;--r:20px}"
         "*{box-sizing:border-box;margin:0;padding:0}"
         "html{scroll-behavior:smooth}"
-        "body{font-family:'Inter',system-ui,sans-serif;color:#__TX__;background:#__BG__;line-height:1.6;-webkit-font-smoothing:antialiased}"
+        "body{font-family:'Inter',system-ui,sans-serif;color:#__TX__;background:#__BG__;line-height:1.65;-webkit-font-smoothing:antialiased}"
+        "img{max-width:100%;display:block}svg{display:block}"
         ".display{font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-weight:800;letter-spacing:-0.02em;line-height:1.05}"
-        ".wrap{max-width:1120px;margin:0 auto;padding:0 24px}"
-        ".hero{background:radial-gradient(1200px 600px at 80% -10%, #__A__22, transparent),linear-gradient(135deg,#__P__0d,#__A__05);color:#__TX__}"
-        ".btn{display:inline-flex;align-items:center;gap:8px;background:#__P__;color:#fff;padding:14px 26px;border-radius:999px;font-weight:700;text-decoration:none;transition:transform .2s ease, box-shadow .2s ease}"
-        ".btn:hover{transform:translateY(-2px);box-shadow:0 12px 30px #__A__33}"
-        "section{padding:88px 0}"
-        ".eyebrow{text-transform:uppercase;letter-spacing:.18em;font-size:12px;font-weight:700;color:#__A__}"
-        ".card{background:#__SF__;border:1px solid #__P__22;border-radius:20px;padding:28px;transition:transform .2s ease, box-shadow .2s ease}"
-        ".card:hover{transform:translateY(-4px);box-shadow:0 18px 40px rgba(15,23,42,.08)}"
-        "h2{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:clamp(28px,4vw,40px);letter-spacing:-0.02em;margin-bottom:14px}"
-        ".muted{opacity:.72}"
-        "a:focus-visible,button:focus-visible{outline:3px solid #__A__;outline-offset:3px;border-radius:6px}"
-        "@media(max-width:720px){section{padding:56px 0}.hero{padding-top:64px}}"
+        ".wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}.narrow{max-width:760px}"
+        ".muted{opacity:.74}p{max-width:64ch}a{color:inherit}"
+        ".eyebrow{display:inline-block;text-transform:uppercase;letter-spacing:.16em;font-size:12px;font-weight:700;color:#__A__;margin-bottom:12px}"
+        "h1{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;letter-spacing:-0.03em;line-height:1.04;font-size:clamp(38px,6.2vw,66px)}"
+        "h2{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:clamp(26px,3.6vw,40px);letter-spacing:-0.02em;margin-bottom:14px}"
+        "h3{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:19px;margin-bottom:8px}"
+        "a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid #__A__;outline-offset:3px;border-radius:6px}"
+        ".btn{display:inline-flex;align-items:center;gap:8px;background:#__P__;color:#fff;padding:14px 28px;border-radius:999px;font-weight:700;text-decoration:none;transition:transform .2s ease,box-shadow .2s ease;box-shadow:0 10px 24px -8px #__P__66}"
+        ".btn:hover{transform:translateY(-2px);box-shadow:0 16px 34px -8px #__P__aa}"
+        ".btn.ghost{background:transparent;color:#__P__;box-shadow:none;border:1.5px solid #__P__44}.btn.ghost:hover{background:#__P__0f}"
+        ".nav{position:sticky;top:0;z-index:50;background:#__BG__cc;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid #__P__1a}"
+        ".nav .row{display:flex;align-items:center;justify-content:space-between;height:68px}"
+        ".nav .brand{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:20px;color:#__P__;text-decoration:none}"
+        ".nav .links{display:flex;gap:28px;align-items:center}"
+        ".nav .links a{text-decoration:none;font-weight:600;font-size:15px;opacity:.8}.nav .links a:hover{opacity:1;color:#__P__}"
+        ".section{padding:clamp(56px,8vw,104px) 0}.section.tint{background:#__SF__}"
+        ".hero{background:radial-gradient(1100px 560px at 82% -12%,#__A__26,transparent),linear-gradient(160deg,#__P__12,#__A__06);overflow:hidden}"
+        ".herogrid{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:center;padding:clamp(56px,8vw,108px) 0}"
+        ".hero .sub{font-size:clamp(17px,2vw,20px);margin:18px 0 30px;opacity:.82}.cluster{display:flex;gap:14px;flex-wrap:wrap;align-items:center}"
+        ".panel{border-radius:26px;overflow:hidden;aspect-ratio:4/3;background:#__SF__;border:1px solid #__P__1a;box-shadow:0 30px 60px -30px #__P__55}"
+        ".featrow{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}.featrow.flip .rowtext{order:2}"
+        ".ticks{list-style:none;margin-top:20px;display:grid;gap:12px}.ticks li{position:relative;padding-left:30px;opacity:.86}"
+        ".ticks li::before{content:'';position:absolute;left:0;top:7px;width:16px;height:16px;border-radius:50%;background:#__A__;box-shadow:0 0 0 4px #__A__22}"
+        ".grid3{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));margin-top:32px}"
+        ".scard{background:#__BG__;border:1px solid #__P__1f;border-radius:var(--r);padding:26px;transition:transform .2s ease,box-shadow .2s ease}"
+        ".scard:hover{transform:translateY(-4px);box-shadow:0 22px 44px -22px #__P__66}"
+        ".scard .dot{display:block;width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#__P__,#__A__);margin-bottom:16px}"
+        ".steps{display:grid;gap:22px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:32px}"
+        ".step .num{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:42px;color:#__P__;opacity:.26;display:block;margin-bottom:4px}"
+        ".stats{display:flex;flex-wrap:wrap;gap:18px;margin-top:28px}.stat{flex:1 1 200px;background:#__BG__;border:1px solid #__P__1f;border-radius:var(--r);padding:24px}"
+        ".faq{border-bottom:1px solid #__P__1f}.faq summary{cursor:pointer;list-style:none;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px;padding:18px 0;display:flex;justify-content:space-between;align-items:center;gap:16px}"
+        ".faq summary::-webkit-details-marker{display:none}.faq summary::after{content:'+';font-size:26px;color:#__A__;line-height:1}.faq[open] summary::after{content:'\\2013'}.faq p{padding:0 0 18px}"
+        ".ctaband{background:linear-gradient(135deg,#__P__,#__A__);color:#fff;border-radius:30px;padding:clamp(48px,7vw,84px) 24px;text-align:center}.ctaband h2{color:#fff}.ctaband p{margin:0 auto 24px}.ctaband .btn{background:#fff;color:#__P__;box-shadow:0 14px 30px -10px rgba(0,0,0,.35)}"
+        ".foot{border-top:1px solid #__P__1a;padding:48px 0 28px}.footgrid{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:32px}"
+        ".foot .brand{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:20px;color:#__P__}.foot nav{display:grid;gap:10px}.foot nav a{text-decoration:none;opacity:.75;font-size:14px}"
+        ".foot .base{margin-top:28px;padding-top:18px;border-top:1px solid #__P__14;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:13px;opacity:.7}"
+        "@media(max-width:860px){.herogrid,.featrow{grid-template-columns:1fr}.featrow.flip .rowtext{order:0}.nav .links{display:none}.panel{aspect-ratio:16/10}.footgrid{grid-template-columns:1fr 1fr}}"
+        "@media(max-width:520px){.footgrid{grid-template-columns:1fr}}"
     )
-    style = (
-        style.replace('__P__', p).replace('__A__', a)
-        .replace('__BG__', bg).replace('__TX__', tx).replace('__SF__', sf)
-    )
+    for k, v in (('__P__', p), ('__A__', a), ('__BG__', bg), ('__TX__', tx), ('__SF__', sf)):
+        style = style.replace(k, v)
 
-    if proof_points:
-        proof_items = "".join(
-            f'<li class="card"><strong>{_esc(pt)}</strong></li>' for pt in proof_points[:4]
-        )
-        proof_block = (
-            '<section class="wrap"><span class="eyebrow">Proof</span>'
-            '<h2>Results customers can stand behind</h2>'
-            f'<ul style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));list-style:none;margin-top:24px">{proof_items}</ul></section>'
-        )
-    else:
-        proof_block = (
-            '<section class="wrap"><span class="eyebrow">Proof plan</span>'
-            '<h2>Add verified results</h2>'
-            '<p class="muted" style="max-width:60ch">Replace this section with real customer outcomes — metrics, case notes, or a short quote you are authorised to publish. '
-            'We never invent testimonials or statistics, so the published page stays truthful and review-ready.</p></section>'
-        )
-
-    vertical_sections = _render_vertical_sections(vertical, cta_lower)
+    body, play = _compose_sections(vertical, brand, audience, goal, cta, proof_points, p, a)
+    hero_sub = _fmt(play['hero'], brand, audience)
 
     script = (
         "<script>document.addEventListener('click',function(e){"
@@ -455,31 +706,36 @@ def _premium_template(prompt: str, brief: dict | None = None) -> str:
 <style>{style}</style>
 </head>
 <body>
-<header class="wrap" style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px">
-  <span class="display" style="font-size:20px;color:#{p}">{_esc(brand)}</span>
+<header class="nav"><div class="wrap row">
+  <a class="brand" href="#top">{_esc(brand)}</a>
+  <nav class="links"><a href="#services">Services</a><a href="#process">How it works</a><a href="#faq">FAQ</a></nav>
   <a class="btn" href="#cta">{_esc(cta)}</a>
-</header>
-<main>
-  <section class="hero">
-    <div class="wrap" style="padding:96px 24px">
+</div></header>
+<main id="top">
+  <section class="hero"><div class="wrap herogrid">
+    <div>
       <span class="eyebrow">For {_esc(audience)} · {_esc(vlabel)}</span>
-      <h1 class="display" style="font-size:clamp(40px,7vw,72px);max-width:16ch;margin:14px 0">{_esc(brand)} helps {_esc(audience)} {_esc(goal)}</h1>
-      <p class="muted" style="max-width:56ch;font-size:19px;margin-bottom:28px">{_esc(brand)} turns attention into action with a clear, honest offer and a single focused next step.</p>
-      <a class="btn" href="#cta">{_esc(cta)}</a>
+      <h1>{_esc(brand)} — {_esc(goal)}</h1>
+      <p class="sub">{hero_sub}</p>
+      <div class="cluster"><a class="btn" href="#cta">{_esc(cta)}</a><a class="btn ghost" href="#services">See what we offer</a></div>
     </div>
-  </section>
-  {vertical_sections}
-  {proof_block}
-  <section id="cta" class="wrap" style="text-align:center;background:#{sf};border-radius:28px;padding:64px 24px;margin:40px auto">
+    {_svg_panel(p, a, glyph)}
+  </div></section>
+  {body}
+  <section class="section"><div class="wrap"><div class="ctaband">
     <h2>Ready to begin?</h2>
-    <p class="muted" style="max-width:52ch;margin:0 auto 24px">{_esc(brand)} is ready for {_esc(audience)}. {_esc(cta)} and move forward with confidence.</p>
-    <a class="btn" href="#">{_esc(cta)}</a>
-  </section>
+    <p class="muted" style="color:#fff;opacity:.9;max-width:52ch">{_esc(brand)} is ready for {_esc(audience)}. {_esc(cta)} and move forward with confidence.</p>
+    <a class="btn" href="#cta" id="cta">{_esc(cta)}</a>
+  </div></div></section>
 </main>
-<footer class="wrap" style="padding:32px 24px;opacity:.7;font-size:14px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px">
-  <span>&copy; {_esc(brand)}</span>
-  <span>Made with Getszy</span>
-</footer>
+<footer class="foot"><div class="wrap">
+  <div class="footgrid">
+    <div><div class="brand">{_esc(brand)}</div><p class="muted" style="margin-top:10px;max-width:34ch">{hero_sub}</p></div>
+    <nav><strong style="opacity:.9">Explore</strong><a href="#services">Services</a><a href="#process">How it works</a><a href="#faq">FAQ</a></nav>
+    <nav><strong style="opacity:.9">Get started</strong><a href="#cta">{_esc(cta)}</a></nav>
+  </div>
+  <div class="base"><span>&copy; {_esc(brand)}</span><span>Made with Getszy</span></div>
+</div></footer>
 {script}
 </body>
 </html>'''

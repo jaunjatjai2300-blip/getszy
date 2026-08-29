@@ -230,15 +230,20 @@ def test_premium_template_selects_vertical():
 def test_premium_template_vertical_sections_render():
     from builder_agents import _premium_template
     html = _premium_template('a family pizza restaurant', {'brand_name': 'Forno', 'vertical': 'restaurant'})
-    assert 'Menu' in html
-    assert 'Visit' in html
+    low = html.lower()
+    # restaurant-relevant content is composed for the business type
+    assert 'menu' in low and 'visit' in low
+    # composed from a varied component vocabulary — NOT a repeated card grid:
+    # sticky nav, alternating feature rows, a numbered process, and an FAQ accordion
+    assert 'class="nav"' in html and 'featrow' in html
+    assert 'class="steps"' in html and '<details' in low
     # still exactly one H1, valid, premium
-    assert html.lower().count('<h1') == 1
+    assert low.count('<h1') == 1
     # self-contained: real inline <style> design system, NO Tailwind CDN dependency
     # (a CDN-dependent page renders unstyled in the sandboxed preview)
-    assert '<style' in html.lower()
+    assert '<style' in low
     assert 'cdn.tailwindcss.com' not in html
-    assert 'guarantee' not in html.lower()
+    assert 'guarantee' not in low
 
 
 def test_premium_template_vertical_default_fallback():
