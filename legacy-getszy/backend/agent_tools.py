@@ -26,6 +26,7 @@ import subprocess
 from dataclasses import asdict
 from pathlib import Path
 
+import agent_resources
 import repo_map
 
 # Research reaches OUTSIDE the repository. Kept in its own module so the network
@@ -437,6 +438,8 @@ def _has(cmd: list[str]) -> bool:
 # same repository facts. Built once from the real sandbox root and cached; a
 # caller may force a rebuild after it has changed files.
 _REPO_MAP_CACHE = None
+# One bounded cache for repo-map query answers (deterministic, non-sensitive).
+_REPO_MAP_RESULTS = agent_resources.BoundedLRU(max_entries=256, max_bytes=1_000_000)
 _REPO_MAP_QUERIES = {"where_is", "who_calls", "routes_using", "tests_covering", "impact_of"}
 
 
@@ -461,15 +464,24 @@ async def repo_map_query(query_type: str = "", symbol: str = "", limit: int = 50
                            "detail": f"query_type must be one of {sorted(_REPO_MAP_QUERIES)}."})
     if not (symbol or "").strip():
         return json.dumps({"error": "bad_arguments", "detail": "A symbol is required."})
+    sym = symbol.strip()
+    lim = max(1, int(limit or 50))
+    if rebuild:
+        _REPO_MAP_RESULTS.clear()          # the index changed; stale answers must go
+    else:
+        cached = _REPO_MAP_RESULTS.get(f"{qt}|{sym}|{lim}")
+        if cached is not None:
+            return cached
     rm = _repo_map_index(rebuild=bool(rebuild))
     if rm is None:
         return json.dumps({"error": "unavailable",
                            "detail": "Repository root is not configured; structural map unavailable."})
-    results = getattr(rm, qt)(symbol.strip())
+    results = getattr(rm, qt)(sym)
     items = [asdict(r) if hasattr(r, "__dataclass_fields__") else r for r in results]
-    items = items[:max(1, int(limit or 50))]
-    return json.dumps({"query_type": qt, "symbol": symbol.strip(),
-                       "count": len(items), "results": items})
+    items = items[:lim]
+    out = json.dumps({"query_type": qt, "symbol": sym, "count": len(items), "results": items})
+    _REPO_MAP_RESULTS.set(f"{qt}|{sym}|{lim}", out)
+    return out
 
 
 ENGINEERING_TOOLS = {
