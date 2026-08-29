@@ -44,6 +44,42 @@ def test_role_assignment_is_deterministic_and_sane():
     assert sp.build_spec("do the needful").assigned_role == "researcher"
 
 
+def test_author_task_mentioning_tests_gets_a_write_capable_role():
+    """Regression: a task to CREATE/IMPLEMENT a source file that also names a test
+    file for verification must be assigned an engineer WITH write_file — never the
+    verify-only tester role. The tester has run_tests but no write_file, so it
+    could not author the deliverable and looped on reads until it ran out of rounds
+    (observed on a real 14B model in the spec E2E). The precedence is narrow: a
+    task whose deliverable is the tests themselves stays with tester."""
+    for req in (
+        "Create backend/spec_demo.py with a function to_snake_case so backend/tests/test_spec_demo.py passes",
+        "implement backend/util.py so that tests/test_util.py passes",
+        "add a to_snake_case function in backend/text.py and make its unit tests pass",
+    ):
+        spec = sp.build_spec(req)
+        assert spec.assigned_role == "backend_engineer", req
+        assert "write_file" in spec.allowed_tools, req      # can actually produce the file
+    # deliverable-is-the-tests still routes to the verify-only tester (unchanged)
+    assert sp.build_spec("write tests and verify regression coverage").assigned_role == "tester"
+
+
+def test_decomposed_followon_step_is_self_contained():
+    """Regression: a decomposed follow-on step is a FRESH delegation with no memory
+    of the prior step, so 'run that test target to confirm' must carry the prior
+    step's objective (its referent) into the briefing — otherwise the specialist
+    cannot know what 'that' is and loops."""
+    specs = sp.decompose(
+        "Create backend/spec_demo.py so backend/tests/test_spec_demo.py passes; "
+        "run ONLY that test target to confirm")
+    assert len(specs) == 2
+    follow = specs[1].briefing()
+    assert "test_spec_demo.py" in follow                     # the referent is now present
+    assert "earlier step" in follow                          # explicitly framed as a continuation
+    # the first (authoring) step is a writer; the confirm step needs no write
+    assert "write_file" in specs[0].allowed_tools
+    assert "write_file" not in specs[1].allowed_tools
+
+
 # ── decomposition + dependency ordering ──────────────────────────────────────
 
 def test_simple_request_stays_one_spec():

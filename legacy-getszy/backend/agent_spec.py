@@ -85,11 +85,32 @@ def _spec_id(text: str, n: int = 0) -> str:
 def _pick_role(objective: str) -> str:
     """Deterministically assign a specialist role from the objective. Falls back
     to a safe read-only researcher when the intent is unclear (never a
-    write-capable role by default)."""
+    write-capable role by default).
+
+    AUTHORING PRECEDENCE (wiring correctness): creating or implementing a source
+    artifact REQUIRES write_file, and only the engineer roles hold it. Such a task
+    must never be routed to a verify-only role — the tester role has run_tests but
+    NO write_file — merely because the objective also names a test file for
+    verification. That mis-assignment hands the specialist a toolset that cannot
+    produce the deliverable, so it loops reading the same files until it runs out
+    of rounds (observed on a real 14B model in the spec E2E). So an
+    author-of-implementation objective is matched to an engineer BEFORE the generic
+    keyword signals. A task whose deliverable is the TESTS themselves ("write tests
+    and verify coverage") names no non-test code artifact here and still resolves
+    to tester in the signal table below — the precedence is deliberately narrow."""
     exact = agent_roles.resolve(objective)
     if exact is not None:
         return exact.id
     text = objective.lower()
+
+    _AUTHOR_VERB = ("create", "implement", "build ", "make ", "generate", "refactor", "add ")
+    _CODE_ARTIFACT = (".py", ".ts", ".tsx", ".js", "function", "module", "class ",
+                      "endpoint", "route", "api ", "backend", "frontend",
+                      "server", "database")
+    _UI = ("frontend", "react", "css", " ui", "component", "tailwind", ".tsx", ".jsx")
+    if any(v in text for v in _AUTHOR_VERB) and any(a in text for a in _CODE_ARTIFACT):
+        return "frontend_engineer" if any(u in text for u in _UI) else "backend_engineer"
+
     signals = [
         ("security_reviewer", ("security", "vulnerab", "auth", "secret", "injection", "xss")),
         ("tester", ("test", "qa", "regression", "verify behaviour", "coverage")),
@@ -129,16 +150,30 @@ def _criteria_for_role(role) -> list:
 
 
 def build_spec(request: str, *, index: int = 0, dependencies: list | None = None,
-               role_id: str | None = None) -> TaskSpec:
-    """Turn one request into a structured, reviewable TaskSpec. Deterministic."""
+               role_id: str | None = None, prior_step: str | None = None) -> TaskSpec:
+    """Turn one request into a structured, reviewable TaskSpec. Deterministic.
+
+    `prior_step` carries the PRECEDING step's objective in a decomposed plan so a
+    follow-on step ("run that test target to confirm", "review the change") is
+    self-contained. Each delegation is a fresh specialist with no memory of the
+    sibling steps, so a dangling reference ("it"/"that") would otherwise leave the
+    specialist guessing and looping — the same class of failure as an unusable
+    toolset, just at the task-context layer."""
     objective = (request or "").strip()
     rid = role_id or _pick_role(objective)
     role = agent_roles.get_role(rid)
+    constraints = []
+    if prior_step and prior_step.strip():
+        constraints.append(
+            f'This step follows an earlier step in the same plan: "{prior_step.strip()}". '
+            'Resolve any reference like "it", "that", or "the change" to that step.'
+        )
     return TaskSpec(
         id=_spec_id(objective, index),
         objective=objective,
         acceptance_criteria=_criteria_for_role(role),
         dependencies=list(dependencies or []),
+        constraints=constraints,
         assigned_role=rid,
         allowed_tools=(role.allowed_tools if role else frozenset()),
         verification=(role.verification if role else {}),
@@ -165,11 +200,13 @@ def decompose(request: str) -> list[TaskSpec]:
         return [build_spec(request)]
     specs: list[TaskSpec] = []
     prev_id: str | None = None
+    prev_part: str | None = None
     for i, part in enumerate(parts):
         deps = [prev_id] if prev_id else []
-        spec = build_spec(part, index=i, dependencies=deps)
+        spec = build_spec(part, index=i, dependencies=deps, prior_step=prev_part)
         specs.append(spec)
         prev_id = spec.id
+        prev_part = part
     return specs
 
 
