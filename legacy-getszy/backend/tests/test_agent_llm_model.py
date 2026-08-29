@@ -447,3 +447,28 @@ async def test_the_repeat_guard_says_the_tool_was_not_run(stub_http):
     guard_messages = [m for m in fed if "repeated_call" in m["content"]]
     assert guard_messages, "the model must be told it is repeating itself"
     assert "not run again" in guard_messages[0]["content"]
+
+
+# ── regression: the tool loop bounds honestly (surfaced by the spec_e2e run) ──
+@pytest.mark.asyncio
+async def test_tool_loop_bounds_and_reports_when_model_never_finishes(stub_http):
+    """A model that keeps calling tools and never emits a final answer must hit
+    the max_rounds bound and RAISE an honest failure — never hang, never fabricate
+    a success. This is exactly what surfaced the spec_e2e failure: an ill-posed
+    task with no reachable stopping condition. The runtime is correct; it bounds
+    and reports rather than looping forever or claiming success."""
+    async def execute(name, args):
+        return json.dumps({"exit_code": 1, "passed": False})   # never a passing state
+
+    # every round is another (distinct, so repeat-detection does not short-circuit)
+    # tool call — the model never produces a final answer
+    stub_http.replies = [
+        {"content": "", "tool_calls": [
+            {"id": str(i), "function": {"name": "read_file", "arguments": {"path": f"backend/x{i}.py"}}}]}
+        for i in range(12)
+    ]
+    with pytest.raises(agent_llm.NoEngineeringProvider) as e:
+        await agent_llm.engineering_tool_loop(
+            system="s", user="u", execute=execute, tools=[],
+            provider="ollama", model="qwen2.5-coder:14b", max_rounds=8)
+    assert "exceeded 8 rounds" in str(e.value)          # honest bound, not a silent success
