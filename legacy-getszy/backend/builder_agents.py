@@ -519,19 +519,166 @@ def _fmt(text: str, brand: str, audience: str) -> str:
     return _esc(text.replace('{brand}', brand).replace('{audience}', audience))
 
 
-def _svg_panel(p: str, a: str, glyph: str) -> str:
-    """A self-contained decorative hero/feature visual — pure CSS/SVG, no assets."""
+def _media_panel(p: str, a: str, treatment: str = "plain", *, asset=None,
+                 alt: str = "", index: int = 0, label: str = "") -> str:
+    """The page's principal visual.
+
+    REAL PHOTOGRAPHY IS THE NORMAL PATH. `asset` is a licence-cleared, locally
+    stored image; it is used only when it is actually publishable (an approved
+    provenance state AND a delivery URL), so bytes on disk are never mistaken
+    for permission to publish.
+
+    When no acceptable real image resolves, we degrade to a DESIGNED composition
+    matched to the art direction -- layered gradients and lighting for cinematic,
+    translucent depth for glass, grid/product geometry for futuristic, typographic
+    negative space and rules for editorial, restrained brand shapes for local.
+    These are never an emoji, mascot, cartoon figure, generic human silhouette or
+    an empty grey rectangle: a giant emoji in the hero is exactly what made the
+    old output read as clip-art, and a fake person is worse than honest geometry.
+    """
+    if asset is not None and getattr(asset, "publishable", lambda: False)():
+        credit = ""
+        try:
+            import media_sourcing as _ms
+            credit = _ms.attribute(asset)
+        except Exception:
+            credit = ""
+        return (
+            f'<figure class="panel shotwrap t-{_esc(treatment)}">'
+            f'<img class="shot" src="{_esc(asset.public_url)}" alt="{_esc(alt)}" '
+            f'loading="lazy" decoding="async">{credit}</figure>'
+        )
+
+    seed = index % 3
+    # Sized to fit the 400-wide viewBox under preserveAspectRatio="slice":
+    # a long brand at display size gets cropped into unreadable fragments.
+    _raw = (label or "").strip()
+    tag = _esc(_raw[:14].rstrip() + ("\u2026" if len(_raw) > 14 else ""))
+
+    if treatment == "cinematic-scrim":
+        # Typography-led, layered light. Depth from stacked gradients + grain.
+        return (
+            f'<div class="panel pv-cinematic" aria-hidden="true">'
+            f'<svg viewBox="0 0 400 300" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">'
+            f'<defs>'
+            f'<linearGradient id="cs{seed}" x1="0" y1="0" x2="0.3" y2="1">'
+            f'<stop offset="0" stop-color="{a}" stop-opacity="0.55"/>'
+            f'<stop offset="0.55" stop-color="{p}" stop-opacity="0.22"/>'
+            f'<stop offset="1" stop-color="#000" stop-opacity="0.85"/></linearGradient>'
+            f'<radialGradient id="cl{seed}" cx="0.72" cy="0.18" r="0.75">'
+            f'<stop offset="0" stop-color="{a}" stop-opacity="0.75"/>'
+            f'<stop offset="1" stop-color="{a}" stop-opacity="0"/></radialGradient>'
+            f'<radialGradient id="cv{seed}" cx="0.5" cy="0.5" r="0.75">'
+            f'<stop offset="0.55" stop-color="#000" stop-opacity="0"/>'
+            f'<stop offset="1" stop-color="#000" stop-opacity="0.55"/></radialGradient>'
+            f'</defs>'
+            f'<rect width="400" height="300" fill="#0a0a0c"/>'
+            f'<rect width="400" height="300" fill="url(#cs{seed})"/>'
+            f'<rect width="400" height="300" fill="url(#cl{seed})"/>'
+            f'<rect width="400" height="300" fill="url(#cv{seed})"/>'
+            f'<rect x="0" y="214" width="400" height="1" fill="{a}" opacity="0.5"/>'
+            f'<text x="50%" y="250" text-anchor="middle" font-family="Georgia,serif" font-size="24" font-weight="700" '
+            f'fill="{a}" opacity="0.92" letter-spacing="2">{tag}</text>'
+            f'</svg></div>'
+        )
+
+    if treatment == "behind-glass":
+        # Translucent stacked panes over a lit colour field.
+        return (
+            f'<div class="panel pv-glass" aria-hidden="true">'
+            f'<svg viewBox="0 0 400 300" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">'
+            f'<defs>'
+            f'<radialGradient id="gl{seed}" cx="0.25" cy="0.15" r="0.85">'
+            f'<stop offset="0" stop-color="{p}" stop-opacity="0.85"/>'
+            f'<stop offset="1" stop-color="{p}" stop-opacity="0.05"/></radialGradient>'
+            f'<radialGradient id="gm{seed}" cx="0.82" cy="0.8" r="0.8">'
+            f'<stop offset="0" stop-color="{a}" stop-opacity="0.8"/>'
+            f'<stop offset="1" stop-color="{a}" stop-opacity="0"/></radialGradient>'
+            f'<linearGradient id="gp{seed}" x1="0" y1="0" x2="1" y2="1">'
+            f'<stop offset="0" stop-color="#fff" stop-opacity="0.75"/>'
+            f'<stop offset="1" stop-color="#fff" stop-opacity="0.18"/></linearGradient>'
+            f'</defs>'
+            f'<rect width="400" height="300" fill="#fff"/>'
+            f'<rect width="400" height="300" fill="url(#gl{seed})"/>'
+            f'<rect width="400" height="300" fill="url(#gm{seed})"/>'
+            f'<rect x="44" y="42" width="196" height="140" rx="22" fill="url(#gp{seed})" '
+            f'stroke="#fff" stroke-opacity="0.85"/>'
+            f'<rect x="150" y="120" width="206" height="142" rx="22" fill="url(#gp{seed})" '
+            f'stroke="#fff" stroke-opacity="0.7" opacity="0.92"/>'
+            f'<circle cx="330" cy="66" r="34" fill="#fff" opacity="0.4"/>'
+            f'</svg></div>'
+        )
+
+    if treatment == "gradient-mesh":
+        # Engineering grid + abstract product form with layered depth.
+        return (
+            f'<div class="panel pv-future" aria-hidden="true">'
+            f'<svg viewBox="0 0 400 300" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">'
+            f'<defs>'
+            f'<radialGradient id="fa{seed}" cx="0.3" cy="0.2" r="0.9">'
+            f'<stop offset="0" stop-color="{p}" stop-opacity="0.8"/>'
+            f'<stop offset="1" stop-color="{p}" stop-opacity="0"/></radialGradient>'
+            f'<linearGradient id="fb{seed}" x1="0" y1="0" x2="1" y2="1">'
+            f'<stop offset="0" stop-color="{a}" stop-opacity="0.85"/>'
+            f'<stop offset="1" stop-color="{p}" stop-opacity="0.35"/></linearGradient>'
+            f'</defs>'
+            f'<rect width="400" height="300" fill="#07070c"/>'
+            + "".join(f'<line x1="0" y1="{y}" x2="400" y2="{y}" stroke="{a}" stroke-opacity="0.12"/>'
+                      for y in range(30, 300, 30))
+            + "".join(f'<line x1="{x}" y1="0" x2="{x}" y2="300" stroke="{a}" stroke-opacity="0.12"/>'
+                      for x in range(40, 400, 40))
+            + f'<rect width="400" height="300" fill="url(#fa{seed})"/>'
+            f'<g transform="translate(200 150) skewY(-12)">'
+            f'<rect x="-92" y="-62" width="184" height="118" rx="12" fill="url(#fb{seed})" opacity="0.9"/>'
+            f'<rect x="-72" y="-42" width="144" height="8" rx="4" fill="#fff" opacity="0.55"/>'
+            f'<rect x="-72" y="-22" width="96" height="8" rx="4" fill="#fff" opacity="0.35"/>'
+            f'<rect x="-72" y="-2" width="120" height="8" rx="4" fill="#fff" opacity="0.25"/>'
+            f'</g>'
+            f'<rect x="-2" y="-2" width="404" height="304" fill="none" stroke="{a}" stroke-opacity="0.25"/>'
+            f'</svg></div>'
+        )
+
+    if treatment == "editorial-crop":
+        # Typography and negative space, held by a rule system. Paper ground.
+        return (
+            f'<div class="panel pv-editorial" aria-hidden="true">'
+            f'<svg viewBox="0 0 400 300" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">'
+            f'<rect width="400" height="300" fill="{p}" opacity="0.05"/>'
+            f'<rect x="34" y="30" width="332" height="1" fill="{p}" opacity="0.5"/>'
+            f'<text x="50%" y="112" text-anchor="middle" font-family="Georgia,serif" font-size="30" fill="{p}" '
+            f'opacity="0.9">{tag}</text>'
+            f'<rect x="34" y="146" width="332" height="1" fill="{p}" opacity="0.32"/>'
+            f'<rect x="34" y="170" width="150" height="1" fill="{p}" opacity="0.22"/>'
+            f'<rect x="34" y="188" width="212" height="1" fill="{p}" opacity="0.22"/>'
+            f'<rect x="34" y="206" width="96" height="1" fill="{p}" opacity="0.22"/>'
+            f'<rect x="286" y="188" width="80" height="80" fill="{a}" opacity="0.16"/>'
+            f'<rect x="34" y="268" width="332" height="1" fill="{p}" opacity="0.5"/>'
+            f'</svg></div>'
+        )
+
+    # professional / plain: restrained branded composition, calm and solid.
     return (
-        f'<div class="panel" aria-hidden="true">'
+        f'<div class="panel pv-plain" aria-hidden="true">'
         f'<svg viewBox="0 0 400 300" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">'
-        f'<defs><linearGradient id="g{glyph}" x1="0" y1="0" x2="1" y2="1">'
-        f'<stop offset="0" stop-color="#{p}"/><stop offset="1" stop-color="#{a}"/></linearGradient></defs>'
-        f'<rect width="400" height="300" fill="url(#g{glyph})" opacity="0.14"/>'
-        f'<circle cx="320" cy="70" r="120" fill="#{a}" opacity="0.10"/>'
-        f'<circle cx="90" cy="240" r="90" fill="#{p}" opacity="0.10"/>'
-        f'<text x="50%" y="54%" text-anchor="middle" font-size="86" opacity="0.9">{glyph}</text>'
+        f'<defs><linearGradient id="pl{seed}" x1="0" y1="0" x2="1" y2="1">'
+        f'<stop offset="0" stop-color="{p}" stop-opacity="0.16"/>'
+        f'<stop offset="1" stop-color="{a}" stop-opacity="0.10"/></linearGradient></defs>'
+        f'<rect width="400" height="300" fill="url(#pl{seed})"/>'
+        f'<rect x="40" y="60" width="150" height="10" rx="5" fill="{p}" opacity="0.34"/>'
+        f'<rect x="40" y="84" width="104" height="10" rx="5" fill="{p}" opacity="0.2"/>'
+        f'<rect x="40" y="130" width="320" height="126" rx="16" fill="#fff" opacity="0.72"/>'
+        f'<rect x="62" y="156" width="118" height="9" rx="4" fill="{p}" opacity="0.3"/>'
+        f'<rect x="62" y="176" width="196" height="9" rx="4" fill="{p}" opacity="0.18"/>'
+        f'<rect x="62" y="210" width="92" height="26" rx="13" fill="{p}" opacity="0.75"/>'
+        f'<circle cx="330" cy="86" r="30" fill="{a}" opacity="0.22"/>'
         f'</svg></div>'
     )
+
+
+def _svg_panel(p: str, a: str, glyph: str = "") -> str:
+    """Backwards-compatible shim. The emoji glyph argument is intentionally
+    IGNORED: emoji-led hero art is what the premium gate now rejects."""
+    return _media_panel(p, a, "plain")
 
 
 _GLYPH = {'fitness': '🏋️', 'salon': '💇', 'restaurant': '🍽️', 'consultant': '📈',
@@ -539,72 +686,174 @@ _GLYPH = {'fitness': '🏋️', 'salon': '💇', 'restaurant': '🍽️', 'consu
           'saas': '⚡', 'health': '🌿', 'default': '✦'}
 
 
-def _compose_sections(vertical, brand, audience, goal, cta, proof_points, p, a):
-    """Assemble the body from distinct components — never a repeated card grid.
-    Rows alternate direction; sections alternate background for real rhythm."""
+def _compose_sections(vertical, brand, audience, goal, cta, proof_points, p, a,
+                      recipe=None, assets=None):
+    """Assemble the page body FROM THE ART DIRECTION'S OWN SECTION PLAN.
+
+    Two directions must not merely recolour one layout. `recipe.composition` is
+    an ordered plan naming which components appear and in what order, so a
+    cinematic page (gallery strip, proof band, expressive rows) and an editorial
+    page (manifesto, lookbook, index list) have materially different STRUCTURE
+    for the very same business.
+
+    Falls back to the historical order when no recipe is supplied, so existing
+    callers keep working unchanged.
+    """
     play = _play(vertical, _VERTICAL_LABELS.get(vertical, 'Business'))
-    glyph = _GLYPH.get(vertical, '✦')
+    treatment = 'plain'
+    if recipe is not None:
+        treatment = (recipe.assets or {}).get('treatment', 'plain')
+    assets = list(assets or [])
+
+    def _asset(i):
+        return assets[i] if i < len(assets) else None
+
+    def _panel(i, label=None):
+        # Each panel carries its OWN section context, so a page does not repeat
+        # one identical mark down the page.
+        return _media_panel(p, a, treatment, asset=_asset(i),
+                            alt=f'{brand} — {vertical}', index=i,
+                            label=label if label is not None else brand)
+
+    # ── component builders ───────────────────────────────────────────────────
+    def feature_rows():
+        out = []
+        for i, (eyebrow, heading, body, bullets) in enumerate(play['rows']):
+            flip = ' flip' if i % 2 else ''
+            tint = ' tint' if i % 2 else ''
+            items = "".join(f'<li>{_fmt(b, brand, audience)}</li>' for b in bullets)
+            text = (
+                f'<div class="rowtext"><span class="eyebrow">{_fmt(eyebrow, brand, audience)}</span>'
+                f'<h2>{_fmt(heading, brand, audience)}</h2>'
+                f'<p class="muted">{_fmt(body, brand, audience)}</p>'
+                f'<ul class="ticks">{items}</ul></div>'
+            )
+            out.append(
+                f'<section class="section{tint} reveal"><div class="wrap featrow{flip}">'
+                f'{text}{_panel(i, _fmt(eyebrow, brand, audience))}</div></section>'
+            )
+        return "".join(out)
+
+    def service_grid():
+        e, h, items = play['services']
+        cards = "".join(
+            f'<div class="scard"><span class="dot"></span>'
+            f'<h3>{_fmt(t, brand, audience)}</h3><p class="muted">{_fmt(d, brand, audience)}</p></div>'
+            for t, d in items
+        )
+        return (f'<section id="services" class="section reveal"><div class="wrap">'
+                f'<span class="eyebrow">{_esc(e)}</span><h2>{_esc(h)}</h2>'
+                f'<div class="grid3">{cards}</div></div></section>')
+
+    def glass_cards():
+        e, h, items = play['services']
+        cards = "".join(
+            f'<div class="scard glass"><span class="dot"></span>'
+            f'<h3>{_fmt(t, brand, audience)}</h3><p class="muted">{_fmt(d, brand, audience)}</p></div>'
+            for t, d in items
+        )
+        return (f'<section id="services" class="section tint reveal"><div class="wrap">'
+                f'<span class="eyebrow">{_esc(e)}</span><h2>{_esc(h)}</h2>'
+                f'<div class="grid3">{cards}</div></div></section>')
+
+    def spec_grid():
+        e, h, items = play['services']
+        rows = "".join(
+            f'<div class="scard"><h3>{_fmt(t, brand, audience)}</h3>'
+            f'<p class="muted">{_fmt(d, brand, audience)}</p></div>'
+            for t, d in items
+        )
+        return (f'<section id="services" class="section tint reveal"><div class="wrap">'
+                f'<span class="eyebrow">{_esc(e)}</span><h2>{_esc(h)}</h2>'
+                f'<div class="grid3 specs">{rows}</div></div></section>')
+
+    def process():
+        e, h, steps = play['process']
+        body = "".join(
+            f'<div class="step"><span class="num">{i+1:02d}</span>'
+            f'<h3>{_fmt(t, brand, audience)}</h3><p class="muted">{_fmt(d, brand, audience)}</p></div>'
+            for i, (t, d) in enumerate(steps)
+        )
+        return (f'<section id="process" class="section tint reveal"><div class="wrap">'
+                f'<span class="eyebrow">{_esc(e)}</span><h2>{_esc(h)}</h2>'
+                f'<div class="steps">{body}</div></div></section>')
+
+    def index_list():
+        """Editorial index: the same process content as a numbered contents
+        list rather than cards -- a different structure, not a restyle."""
+        e, h, steps = play['process']
+        rows = "".join(
+            f'<li class="idx"><span class="num">{i+1:02d}</span>'
+            f'<span class="idxt"><strong>{_fmt(t, brand, audience)}</strong>'
+            f'<em class="muted">{_fmt(d, brand, audience)}</em></span></li>'
+            for i, (t, d) in enumerate(steps)
+        )
+        return (f'<section id="process" class="section reveal"><div class="wrap narrow">'
+                f'<span class="eyebrow">{_esc(e)}</span><h2>{_esc(h)}</h2>'
+                f'<ol class="indexlist">{rows}</ol></div></section>')
+
+    def manifesto():
+        """A single large editorial statement -- whitespace as the design."""
+        return (f'<section class="section reveal"><div class="wrap narrow">'
+                f'<span class="eyebrow">{_esc(brand)}</span>'
+                f'<h2 class="manifesto">{_fmt(play["hero"], brand, audience)}</h2>'
+                f'</div></section>')
+
+    def gallery_strip():
+        tiles = "".join(f'<div class="gtile">{_panel(i + 1, "")}</div>' for i in range(3))
+        return (f'<section class="section gallery reveal"><div class="wrap">'
+                f'<span class="eyebrow">Inside {_esc(brand)}</span>'
+                f'<div class="gstrip">{tiles}</div></div></section>')
+
+    def lookbook():
+        tiles = "".join(f'<div class="ltile">{_panel(i + 1, "")}</div>' for i in range(2))
+        return (f'<section class="section lookbook reveal"><div class="wrap">'
+                f'<div class="lgrid">{tiles}</div></div></section>')
+
+    def proof_band():
+        # Honest by construction: rendered ONLY from customer-supplied proof.
+        if not proof_points:
+            return ""
+        items = "".join(f'<div class="stat"><strong>{_esc(str(x))}</strong></div>'
+                        for x in proof_points[:4])
+        return (f'<section class="section reveal"><div class="wrap">'
+                f'<span class="eyebrow">Proof</span>'
+                f'<h2>Results customers can stand behind</h2>'
+                f'<div class="stats">{items}</div></div></section>')
+
+    def trust_row():
+        if not proof_points:
+            return ""
+        items = "".join(f'<div class="stat"><strong>{_esc(str(x))}</strong></div>'
+                        for x in proof_points[:4])
+        return (f'<section class="section tint"><div class="wrap">'
+                f'<div class="stats">{items}</div></div></section>')
+
+    def faq():
+        body = "".join(
+            f'<details class="faq"><summary>{_esc(q)}</summary><p class="muted">{_esc(ans)}</p></details>'
+            for q, ans in play['faq']
+        )
+        return (f'<section id="faq" class="section reveal"><div class="wrap narrow">'
+                f'<span class="eyebrow">Questions</span><h2>Good to know</h2>{body}</div></section>')
+
+    BUILDERS = {
+        'feature_rows': feature_rows, 'service_grid': service_grid,
+        'glass_cards': glass_cards, 'spec_grid': spec_grid,
+        'process': process, 'index_list': index_list, 'manifesto': manifesto,
+        'gallery_strip': gallery_strip, 'lookbook': lookbook,
+        'proof_band': proof_band, 'metrics': proof_band, 'trust_row': trust_row,
+        'faq': faq,
+    }
+
+    plan = tuple(getattr(recipe, 'composition', ()) or
+                 ('feature_rows', 'service_grid', 'process', 'proof_band', 'faq'))
     out = []
-
-    # alternating feature rows (media + text) — the core layout variety
-    for i, (eyebrow, heading, body, bullets) in enumerate(play['rows']):
-        flip = ' flip' if i % 2 else ''
-        tint = ' tint' if i % 2 else ''
-        items = "".join(f'<li>{_fmt(b, brand, audience)}</li>' for b in bullets)
-        text = (
-            f'<div class="rowtext"><span class="eyebrow">{_fmt(eyebrow, brand, audience)}</span>'
-            f'<h2>{_fmt(heading, brand, audience)}</h2>'
-            f'<p class="muted">{_fmt(body, brand, audience)}</p>'
-            f'<ul class="ticks">{items}</ul></div>'
-        )
-        out.append(
-            f'<section class="section{tint}"><div class="wrap featrow{flip}">'
-            f'{text}{_svg_panel(p, a, glyph)}</div></section>'
-        )
-
-    # services grid (icon dot + title + desc)
-    s_eyebrow, s_head, s_items = play['services']
-    cards = "".join(
-        f'<div class="scard"><span class="dot"></span>'
-        f'<h3>{_fmt(t, brand, audience)}</h3><p class="muted">{_fmt(d, brand, audience)}</p></div>'
-        for t, d in s_items
-    )
-    out.append(
-        f'<section id="services" class="section"><div class="wrap">'
-        f'<span class="eyebrow">{_esc(s_eyebrow)}</span><h2>{_esc(s_head)}</h2>'
-        f'<div class="grid3">{cards}</div></div></section>'
-    )
-
-    # numbered process
-    pr_eyebrow, pr_head, pr_steps = play['process']
-    steps = "".join(
-        f'<div class="step"><span class="num">{i+1:02d}</span>'
-        f'<h3>{_fmt(t, brand, audience)}</h3><p class="muted">{_fmt(d, brand, audience)}</p></div>'
-        for i, (t, d) in enumerate(pr_steps)
-    )
-    out.append(
-        f'<section id="process" class="section tint"><div class="wrap">'
-        f'<span class="eyebrow">{_esc(pr_eyebrow)}</span><h2>{_esc(pr_head)}</h2>'
-        f'<div class="steps">{steps}</div></div></section>'
-    )
-
-    # stats band — ONLY when the customer supplied real proof points (never invented)
-    if proof_points:
-        stat_items = "".join(f'<div class="stat"><strong>{_esc(str(pt))}</strong></div>' for pt in proof_points[:4])
-        out.append(
-            f'<section class="section"><div class="wrap"><span class="eyebrow">Proof</span>'
-            f'<h2>Results customers can stand behind</h2><div class="stats">{stat_items}</div></div></section>'
-        )
-
-    # FAQ accordion (self-contained, no JS)
-    faqs = "".join(
-        f'<details class="faq"><summary>{_esc(q)}</summary><p class="muted">{_esc(ans)}</p></details>'
-        for q, ans in play['faq']
-    )
-    out.append(
-        f'<section id="faq" class="section"><div class="wrap narrow">'
-        f'<span class="eyebrow">Questions</span><h2>Good to know</h2>{faqs}</div></section>'
-    )
+    for name in plan:
+        build = BUILDERS.get(name)
+        if build is None:          # hero_* / cta_* are emitted by the template
+            continue
+        out.append(build())
     return "".join(out), play
 
 
@@ -714,7 +963,8 @@ def _premium_template(prompt: str, brief: dict | None = None,
     if style is None:
         style = _legacy
 
-    body, play = _compose_sections(vertical, brand, audience, goal, cta, proof_points, p, a)
+    body, play = _compose_sections(vertical, brand, audience, goal, cta, proof_points, p, a,
+                                   recipe=recipe, assets=(brief or {}).get('_media_assets'))
     hero_sub = _fmt(play['hero'], brand, audience)
 
     script = (
@@ -752,7 +1002,7 @@ def _premium_template(prompt: str, brief: dict | None = None,
       <p class="sub">{hero_sub}</p>
       <div class="cluster"><a class="btn" href="#cta">{_esc(cta)}</a><a class="btn ghost" href="#services">See what we offer</a></div>
     </div>
-    {_svg_panel(p, a, glyph)}
+    {_media_panel(p, a, (recipe.assets or {}).get('treatment','plain') if recipe else 'plain', asset=(brief or {}).get('_hero_asset'), alt=f'{brand}', index=0)}
   </div></section>
   {body}
   <section class="section"><div class="wrap"><div class="ctaband">

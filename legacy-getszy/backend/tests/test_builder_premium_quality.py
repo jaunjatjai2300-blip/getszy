@@ -172,9 +172,14 @@ def test_business_examples_are_composed_and_premium(prompt, brief):
     assert r["status"] == "ready_for_human_review", r["next_actions"]
     assert "<style" in low and "cdn.tailwindcss.com" not in html
     assert len(html) < 40000
-    # composed from a varied component vocabulary — never a single repeated grid
+    # Composed from a varied component vocabulary — never a single repeated grid.
+    # The process step is direction-dependent: card "steps" for most directions,
+    # an editorial "indexlist" for the magazine direction. Requiring one specific
+    # class would re-encode the single-template assumption this system removed,
+    # so the assertion demands the COMPONENT, not one styling of it.
     assert 'class="nav"' in html and "featrow" in html
-    assert 'class="steps"' in html and "<details" in low
+    assert ('class="steps"' in html or "indexlist" in html)
+    assert "<details" in low
     assert html.count("<h1") == 1
     # customer business name survives into the composition
     assert brief["brand_name"] in html

@@ -49,6 +49,33 @@ _BASE = (
     ".narrow{max-width:760px}.muted{opacity:.74}"
     ".cluster{display:flex;gap:14px;flex-wrap:wrap;align-items:center}"
     "@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}"
+    # components the direction plans compose with. Kept in the shared base so
+    # each recipe overrides look, not layout plumbing.
+    ".shotwrap{margin:0;position:relative}"
+    ".shotwrap .shot{width:100%;height:100%;object-fit:cover}"
+    ".credit{position:absolute;left:0;bottom:0;font-size:11px;padding:6px 10px;background:rgba(0,0,0,.55);color:#fff;opacity:.9}"
+    ".credit a{color:#fff;text-decoration:underline}"
+    ".gstrip{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:28px}"
+    ".gtile .panel{aspect-ratio:3/4}"
+    ".lgrid{display:grid;grid-template-columns:1.25fr .75fr;gap:clamp(20px,4vw,54px);align-items:start}"
+    ".ltile:nth-child(2){margin-top:clamp(28px,7vw,96px)}"
+    ".indexlist{list-style:none;margin-top:28px;display:grid;gap:0}"
+    ".idx{display:grid;grid-template-columns:64px 1fr;gap:18px;padding:22px 0;border-top:1px solid currentColor;border-color:color-mix(in srgb,currentColor 16%,transparent)}"
+    ".idx .num{font-size:14px;opacity:.5;letter-spacing:.12em}"
+    ".idxt strong{display:block;font-size:19px;margin-bottom:5px}"
+    ".idxt em{font-style:normal;font-size:15px}"
+    ".manifesto{max-width:20ch}"
+    ".specs .scard{display:grid;gap:6px}"
+    ".reveal{opacity:1}"
+    # Scroll-driven reveal. The from-state deliberately keeps content LEGIBLE
+    # (opacity .35, not 0): a section that never enters its animation range --
+    # print, full-page capture, landing mid-page via an anchor -- must still be
+    # readable. Stranding customer content at opacity 0 is not an acceptable
+    # failure mode for a deliverable website.
+    "@supports (animation-timeline:view()){"
+    "@keyframes reveal-in{from{opacity:.35;transform:translateY(18px)}to{opacity:1;transform:none}}"
+    ".reveal{animation:reveal-in linear both;animation-timeline:view();animation-range:entry 0% entry 60%}}"
+    "@media(max-width:860px){.gstrip{grid-template-columns:1fr 1fr}.lgrid{grid-template-columns:1fr}.ltile:nth-child(2){margin-top:0}}"
 )
 
 # Focus styling is an accessibility requirement, never a per-recipe choice.
@@ -75,6 +102,32 @@ class DesignRecipe:
     density: str           # 'airy' | 'balanced' | 'dense'
     css: Callable[[dict], str] = field(repr=False, default=None)
     notes: str = ""
+
+    # ── structural art direction (a recipe must control more than colour) ──
+    # Ordered section plan. Different directions tell a different STORY in a
+    # different ORDER with different components -- this is what makes two
+    # directions structurally different rather than palette-swapped.
+    composition: tuple = ()
+    # Interaction/motion vocabulary this direction is allowed to use.
+    motion_rules: dict = field(default_factory=dict)
+    # Surface language: borders, elevation, blur, corner treatment.
+    surface_rules: dict = field(default_factory=dict)
+    # Detailed, art-direction-aware asset policy (see ASSET_* contract below).
+    assets: dict = field(default_factory=dict)
+
+    # ── governance metadata (required for every recipe) ──
+    provenance: dict = field(default_factory=dict)
+    license: str = ""
+    security_review: str = ""
+    render_verification: dict = field(default_factory=dict)
+
+    def requires_photography(self) -> bool:
+        """True when this direction is not honestly deliverable without real
+        imagery. Used by the quality gate to reject emoji/blob stand-ins."""
+        return self.assets.get("photography") == "required"
+
+    def forbids_illustration_hero(self) -> bool:
+        return self.assets.get("illustration_hero") == "forbidden"
 
     def fonts_query(self) -> str:
         """Google Fonts css2 query for this pairing. Families are requested by
@@ -118,6 +171,10 @@ def _css_cinematic(t: dict) -> str:
         ".hero{position:relative;min-height:min(92vh,860px);display:flex;align-items:flex-end;"
         "overflow:hidden;background:var(--sf)}"
         ".hero .shot{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(.85) contrast(1.08)}"
+        # the hero visual is the backdrop; copy sits above it
+        ".hero .panel{position:absolute;inset:0;z-index:0;aspect-ratio:auto;border:0;opacity:.6}"
+        ".hero .panel svg{width:100%;height:100%}"
+        ".hero .herogrid{display:block}"
         ".hero::after{content:'';position:absolute;inset:0;background:"
         "linear-gradient(180deg,rgba(8,8,10,.30) 0%,rgba(8,8,10,.72) 62%,rgba(8,8,10,.94) 100%)}"
         ".herogrid{position:relative;z-index:2;padding:0 0 clamp(48px,8vw,96px);max-width:900px}"
@@ -529,6 +586,14 @@ RECIPES: tuple = (
         motion="expressive", asset_policy="photo", density="airy",
         css=_css_cinematic,
         notes="Dark theatrical ground; photography is the hero. Type is the second subject.",
+        composition=('hero_cinematic','feature_rows','gallery_strip','service_grid','process','proof_band','faq','cta_band'),
+        motion_rules={'budget':'expressive','allowed':('reveal-on-scroll','image-zoom','parallax-scrim'),'forbidden':('bounce','confetti'),'duration_ms':(350,1100)},
+        surface_rules={'corner':'square','elevation':'none','divider':'hairline-light','contrast':'high','ground':'dark'},
+        assets={'photography':'required','people':'preferred','illustration_hero':'forbidden','hero_media':'required','treatment':'cinematic-scrim','orientation':'landscape','min_width':1600},
+        license='Original work (Getszy). CSS proprietary-internal. No inherited licence.',
+        provenance={'author':'Getszy','origin':'original','third_party':(),'techniques':('CSS grid','object-fit','backdrop-filter','gradient scrim')},
+        security_review='No JS dependency, no CDN, no external stylesheet, no url(http) in CSS. Generated markup is escaped upstream by builder_agents._esc.',
+        render_verification={'status':'pending','harness':'tools/design_render_check.py'},
     ),
     DesignRecipe(
         id="glassmorphism",
@@ -543,6 +608,14 @@ RECIPES: tuple = (
         motion="subtle", asset_policy="photo", density="balanced",
         css=_css_glass,
         notes="Layered translucent surfaces over an ambient colour field. Depth without weight.",
+        composition=('hero_split_glass','glass_cards','feature_rows','process','proof_band','faq','cta_band'),
+        motion_rules={'budget':'subtle','allowed':('hover-lift','fade-in','soft-scale'),'forbidden':('parallax','marquee'),'duration_ms':(200,600)},
+        surface_rules={'corner':'rounded-lg','elevation':'soft','divider':'translucent','blur':'required','contrast':'medium','ground':'light'},
+        assets={'photography':'preferred','people':'optional','illustration_hero':'discouraged','hero_media':'preferred','treatment':'behind-glass','orientation':'landscape','min_width':1200},
+        license='Original work (Getszy). CSS proprietary-internal. No inherited licence.',
+        provenance={'author':'Getszy','origin':'original','third_party':(),'techniques':('backdrop-filter','radial-gradient field','CSS grid')},
+        security_review='No JS dependency, no CDN, no external stylesheet, no url(http) in CSS. Generated markup is escaped upstream by builder_agents._esc.',
+        render_verification={'status':'pending','harness':'tools/design_render_check.py'},
     ),
     DesignRecipe(
         id="futuristic_saas",
@@ -557,6 +630,14 @@ RECIPES: tuple = (
         motion="subtle", asset_policy="gradient", density="dense",
         css=_css_futuristic,
         notes="Engineering grid + aurora field in pure CSS. No canvas/WebGL runtime cost.",
+        composition=('hero_product','feature_rows','spec_grid','process','metrics','faq','cta_band'),
+        motion_rules={'budget':'subtle','allowed':('glow-hover','fade-up','grid-drift'),'forbidden':('parallax-hero','autoplay-video'),'duration_ms':(180,520)},
+        surface_rules={'corner':'rounded-md','elevation':'glow','divider':'hairline-accent','contrast':'high','ground':'dark'},
+        assets={'photography':'optional','people':'optional','illustration_hero':'allowed','hero_media':'optional','treatment':'gradient-mesh','orientation':'landscape','min_width':1200},
+        license='Original work (Getszy). CSS proprietary-internal. No inherited licence.',
+        provenance={'author':'Getszy','origin':'original','third_party':(),'techniques':('repeating grid background','radial aurora','background-clip text')},
+        security_review='No JS dependency, no CDN, no external stylesheet, no url(http) in CSS. Generated markup is escaped upstream by builder_agents._esc.',
+        render_verification={'status':'pending','harness':'tools/design_render_check.py'},
     ),
     DesignRecipe(
         id="editorial_fashion",
@@ -571,6 +652,14 @@ RECIPES: tuple = (
         motion="subtle", asset_policy="photo", density="airy",
         css=_css_editorial,
         notes="Magazine discipline: rules, whitespace, asymmetry. Restraint signals luxury.",
+        composition=('hero_editorial','manifesto','lookbook','feature_rows','index_list','faq','cta_minimal'),
+        motion_rules={'budget':'subtle','allowed':('grayscale-reveal','slow-zoom','underline-slide'),'forbidden':('glow','bounce','parallax'),'duration_ms':(300,1200)},
+        surface_rules={'corner':'square','elevation':'none','divider':'rule-system','contrast':'high','ground':'paper'},
+        assets={'photography':'required','people':'preferred','illustration_hero':'forbidden','hero_media':'required','treatment':'editorial-crop','orientation':'portrait','min_width':1400},
+        license='Original work (Getszy). CSS proprietary-internal. No inherited licence.',
+        provenance={'author':'Getszy','origin':'original','third_party':(),'techniques':('asymmetric CSS grid','hairline rule system','type ramp')},
+        security_review='No JS dependency, no CDN, no external stylesheet, no url(http) in CSS. Generated markup is escaped upstream by builder_agents._esc.',
+        render_verification={'status':'pending','harness':'tools/design_render_check.py'},
     ),
     DesignRecipe(
         id="professional_local",
@@ -586,6 +675,14 @@ RECIPES: tuple = (
         motion="none", asset_policy="photo", density="balanced",
         css=_css_professional,
         notes="Trust-first. Big tap targets, obvious contact paths, zero spectacle.",
+        composition=('hero_local','trust_row','service_grid','feature_rows','process','faq','cta_band'),
+        motion_rules={'budget':'none','allowed':('hover-lift',),'forbidden':('parallax','autoplay','marquee','glow'),'duration_ms':(120,260)},
+        surface_rules={'corner':'rounded-md','elevation':'soft','divider':'solid-light','contrast':'medium','ground':'light'},
+        assets={'photography':'preferred','people':'preferred','illustration_hero':'discouraged','hero_media':'preferred','treatment':'plain','orientation':'landscape','min_width':1200},
+        license='Original work (Getszy). CSS proprietary-internal. No inherited licence.',
+        provenance={'author':'Getszy','origin':'original','third_party':(),'techniques':('CSS grid','solid borders','system type stack')},
+        security_review='No JS dependency, no CDN, no external stylesheet, no url(http) in CSS. Generated markup is escaped upstream by builder_agents._esc.',
+        render_verification={'status':'pending','harness':'tools/design_render_check.py'},
     ),
 )
 
