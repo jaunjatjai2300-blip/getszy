@@ -284,6 +284,84 @@ def evaluate_landing_page_quality(
         ),
     ]
 
+    # ── anti-template checks ────────────────────────────────────────────────
+    # A page can satisfy every structural check above and still be a recoloured
+    # template with clip-art. These checks target that failure mode directly.
+    #
+    # Emoji/cartoon-led art: an emoji rendered as page artwork (inside the SVG
+    # artwork or at display size) is clip-art, not design. Emoji used as small
+    # inline text is not the target, so the test is scoped to the artwork.
+    _svg_blocks = " ".join(re.findall(r"<svg\b.*?</svg>", html, re.IGNORECASE | re.DOTALL))
+    _emoji = re.compile(
+        "[\U0001F300-\U0001FAFF\U00002600-\U000027BF\U0001F1E6-\U0001F1FF]")
+    _emoji_art = bool(_emoji.search(_svg_blocks))
+    _big_emoji_text = bool(re.search(
+        r"font-size\s*[:=]\s*[\"']?\s*(?:[4-9]\d|\d{3,})", _svg_blocks)) and _emoji_art
+    # Generic human/mascot illustration standing in for real imagery.
+    _cartoon = bool(re.search(
+        r"(?:cartoon|mascot|avatar|clipart|clip-art|undraw|storyset)", html, re.IGNORECASE))
+
+    # Component vocabulary: distinct component types, not one grid repeated.
+    _component_kinds = sum(bool(re.search(pat, html, re.IGNORECASE)) for pat in (
+        r'class="[^"]*\bnav\b', r'class="[^"]*\bfeatrow\b', r'class="[^"]*\bsteps?\b',
+        r'class="[^"]*\bgrid3\b', r'<details', r'class="[^"]*\bctaband\b',
+        r'class="[^"]*\b(?:gstrip|lgrid|indexlist|manifesto|specs|stats)\b',
+    ))
+
+    # Direction-declared expectations, when the caller supplied one.
+    _direction = (brief or {}).get("design_recipe") or (brief or {}).get("_direction_id") or ""
+    _recipe = None
+    if _direction:
+        try:
+            import design_registry as _dr
+            _recipe = _dr.get_recipe(_direction)
+        except Exception:
+            _recipe = None
+    _motion_expected = bool(_recipe and (_recipe.motion_rules or {}).get("budget") not in (None, "none"))
+    _motion_present = _has(r"transition\s*:|animation\s*:|@keyframes", self_css)
+    _illustration_hero_forbidden = bool(_recipe and _recipe.forbids_illustration_hero())
+
+    checks.extend([
+        _check(
+            "no_placeholder_art",
+            "No emoji or cartoon stand-in artwork",
+            not (_emoji_art or _big_emoji_text or _cartoon),
+            True,
+            "Emoji, mascots and cartoon people are clip-art, not design. Use real licensed "
+            "photography, or a composed abstract treatment for the art direction.",
+        ),
+        _check(
+            "composition_richness",
+            "Rich component vocabulary",
+            _component_kinds >= 4,
+            # Binding only when the page CLAIMS a high-end art direction. A page
+            # that promises "cinematic"/"editorial" and delivers a generic 3-4
+            # section template is a failed deliverable. A modest page that makes
+            # no such claim is judged by the universal checks alone -- this check
+            # exists to catch broken promises, not to outlaw simple pages.
+            bool(_direction),
+            "Compose from several distinct component types (navigation, feature rows, a "
+            "process or index, an accordion, a CTA band) — a page that claims a premium art "
+            "direction but is built from one repeated card grid reads as a template.",
+        ),
+        _check(
+            "art_direction_motion",
+            "Motion matches the declared art direction",
+            (not _motion_expected) or _motion_present,
+            False,
+            "This art direction declares a motion budget, so the page should carry the "
+            "corresponding transition/animation vocabulary.",
+        ),
+        _check(
+            "art_direction_imagery",
+            "Imagery matches the declared art direction",
+            (not _illustration_hero_forbidden) or not (_emoji_art or _cartoon),
+            False,
+            "This art direction forbids illustration as the primary hero media; supply real "
+            "photography or the direction's composed treatment.",
+        ),
+    ])
+
     required_checks = [check for check in checks if check["required"]]
     passed_required = sum(1 for check in required_checks if check["passed"])
     passed_optional = sum(1 for check in checks if not check["required"] and check["passed"])

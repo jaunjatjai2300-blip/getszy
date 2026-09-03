@@ -129,3 +129,126 @@ def test_editorial_depth_requires_systematic_use_not_one_stray_border():
     failed = {c["key"] for c in r["checks"] if not c["passed"]}
     assert "visual_depth" in failed          # one border + one tracking != depth
     assert r["status"] == "needs_work"
+
+
+# ── art direction must be STRUCTURAL, not a recolour ─────────────────────────
+SOLAPUR = "premium modern fitness club website for Solapur Fitness Club"
+SOLAPUR_BRIEF = {"brand_name": "Solapur Fitness Club", "vertical": "fitness"}
+
+
+def _page(recipe_id):
+    b = dict(SOLAPUR_BRIEF, design_recipe=recipe_id)
+    return _premium_template(SOLAPUR, b)
+
+
+def test_same_business_different_direction_changes_STRUCTURE_not_only_colour():
+    """The core claim of the art-direction system: one business rendered in two
+    directions must differ in section plan and component vocabulary, not merely
+    in palette. Colour-swapping one template is the failure this prevents."""
+    cine, edit = _page("cinematic_luxury"), _page("editorial_fashion")
+    assert cine != edit
+
+    cine_plan = dr.get_recipe("cinematic_luxury").composition
+    edit_plan = dr.get_recipe("editorial_fashion").composition
+    assert cine_plan != edit_plan, "section plans must differ"
+
+    # Compare MARKUP, not the whole document: the shared base stylesheet defines
+    # every component class, so matching on the full HTML proves nothing about
+    # structure.
+    strip = lambda h: re.sub(r"<style\b.*?</style>", "", h, flags=re.S | re.I)
+    cine_m, edit_m = strip(cine), strip(edit)
+    assert cine_m != edit_m, "markup must differ, not only CSS"
+
+    # components unique to each direction actually appear in its MARKUP
+    assert "gstrip" in cine_m and "gstrip" not in edit_m      # cinematic gallery strip
+    for marker in ("manifesto", "lgrid", "indexlist"):        # editorial-only components
+        assert marker in edit_m, marker
+        assert marker not in cine_m, marker + " leaked into cinematic"
+
+
+def test_each_direction_uses_its_own_visual_treatment():
+    seen = {}
+    for rid, marker in (("cinematic_luxury", "pv-cinematic"), ("glassmorphism", "pv-glass"),
+                        ("futuristic_saas", "pv-future"), ("editorial_fashion", "pv-editorial"),
+                        ("professional_local", "pv-plain")):
+        html = _page(rid)
+        assert marker in html, f"{rid} should render its own {marker} treatment"
+        seen[rid] = marker
+    assert len(set(seen.values())) == 5
+
+
+# ── the Solapur visual failure, pinned ───────────────────────────────────────
+def test_solapur_never_ships_emoji_cartoon_or_svg_human():
+    """REGRESSION for the rejected real-world result: the fitness page shipped a
+    giant emoji figure over abstract blobs. Any emoji/mascot/cartoon artwork on a
+    real-world premium request is a FAILED visual result."""
+    for rid in ("cinematic_luxury", "glassmorphism", "professional_local"):
+        html = _page(rid)
+        emoji = [c for c in html if ord(c) > 0x2500]
+        assert not emoji, f"{rid} shipped emoji artwork: {emoji[:5]}"
+        low = html.lower()
+        for banned in ("cartoon", "mascot", "clipart", "clip-art", "undraw", "storyset"):
+            assert banned not in low, f"{rid} contains {banned}"
+
+
+def test_emoji_artwork_fails_the_gate_outright():
+    """Even an otherwise well-formed premium page must fail when its artwork is
+    an emoji glyph — the exact shape of the old _svg_panel hero."""
+    from tests.test_builder_premium_quality import SELF_CONTAINED_PREMIUM
+    emoji_art = SELF_CONTAINED_PREMIUM.replace(
+        "<main>",
+        '<main><svg viewBox="0 0 400 300"><text x="50%" y="54%" font-size="86">'
+        + chr(0x1F3CB) + "</text></svg>")
+    report = evaluate_landing_page_quality(emoji_art, {"primary_cta": "Book a session"})
+    failed = {c["key"] for c in report["checks"] if not c["passed"]}
+    assert "no_placeholder_art" in failed
+    assert report["status"] == "needs_work"
+
+
+# ── governance metadata is mandatory ─────────────────────────────────────────
+def test_every_recipe_carries_licence_and_provenance_metadata():
+    for r in dr.RECIPES:
+        assert r.license, f"{r.id} has no licence statement"
+        assert r.provenance.get("author"), f"{r.id} has no provenance author"
+        assert r.provenance.get("origin"), f"{r.id} has no provenance origin"
+        assert r.security_review, f"{r.id} has no security review note"
+        assert "status" in r.render_verification, f"{r.id} has no render-verification record"
+        # third-party code must be declared, never implied to be original
+        assert isinstance(r.provenance.get("third_party", ()), (tuple, list))
+
+
+def test_asset_policy_is_declared_per_direction_and_enforceable():
+    cine = dr.get_recipe("cinematic_luxury")
+    edit = dr.get_recipe("editorial_fashion")
+    fut = dr.get_recipe("futuristic_saas")
+    assert cine.requires_photography() and cine.forbids_illustration_hero()
+    assert edit.requires_photography() and edit.forbids_illustration_hero()
+    assert not fut.requires_photography()      # gradient-led direction, honestly declared
+    for r in dr.RECIPES:
+        assert r.assets.get("photography") in ("required", "preferred", "optional")
+        assert r.motion_rules.get("budget") in ("none", "subtle", "expressive")
+
+
+def test_claiming_a_premium_direction_while_shipping_a_generic_template_fails():
+    """The anti-template rule, stated as the directive states it: a page that
+    CLAIMS a high-end art direction but delivers a generic 3-4 section template
+    is a failed deliverable, even though the same markup is acceptable from a
+    page that makes no such claim."""
+    from tests.test_builder_premium_quality import SELF_CONTAINED_PREMIUM
+    plain_brief = {"primary_cta": "Book a session"}
+    claiming = dict(plain_brief, design_recipe="cinematic_luxury")
+
+    # identical HTML, judged differently because of the promise it makes
+    assert evaluate_landing_page_quality(SELF_CONTAINED_PREMIUM, plain_brief)["status"] \
+        == "ready_for_human_review"
+    claimed = evaluate_landing_page_quality(SELF_CONTAINED_PREMIUM, claiming)
+    assert claimed["status"] == "needs_work"
+    assert "composition_richness" in {c["key"] for c in claimed["checks"] if not c["passed"]}
+
+
+def test_real_direction_output_satisfies_its_own_claim():
+    """And the system's own output must clear the bar it sets for itself."""
+    for rid in dr.all_recipe_ids():
+        brief = dict(SOLAPUR_BRIEF, design_recipe=rid)
+        report = evaluate_landing_page_quality(_page(rid), brief)
+        assert report["status"] == "ready_for_human_review", (rid, report["next_actions"])
