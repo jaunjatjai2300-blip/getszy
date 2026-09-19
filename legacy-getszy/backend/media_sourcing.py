@@ -37,9 +37,10 @@ DELIBERATE LIMITS
       key, so sourcing works out of the box.
     * "Free" is never assumed to mean "unrestricted": only licences permitting
       COMMERCIAL use and MODIFICATION (we crop/scale to fit) are acceptable.
-    * NO runtime hotlink and NO public delivery yet. Bytes are stored locally
-      behind a storage abstraction; attaching a secure public delivery layer
-      later must not require changing the builder.
+    * NO runtime hotlink. Bytes are downloaded and served from Getszy's own
+      origin (routes_media_public), so a generated page never references a
+      third-party image host. Publication is an explicit act -- see publish() --
+      and an asset without a public_url is never embedded.
     * MEDIA IS OPTIONAL. Every failure path returns None so website generation
       continues with a direction-aware non-photographic composition.
 
@@ -53,6 +54,7 @@ import ipaddress
 import json
 import logging
 import os
+import re
 import socket
 import time
 import uuid
@@ -127,6 +129,7 @@ class MediaCandidate:
     license_url: str = ""
     width: int = 0
     height: int = 0
+    tags: tuple = ()         # provider/ML keywords, used for relevance scoring
     retrieved_at: float = field(default_factory=time.time)
     raw: dict = field(default_factory=dict)   # original provider metadata
 
@@ -179,8 +182,34 @@ class MediaAsset:
 
 
 # ── SSRF-safe URL checks ─────────────────────────────────────────────────────
+# RFC 6052 NAT64: a synthesised IPv6 address that carries a real IPv4 address in
+# its low 32 bits. Python classifies the whole 64:ff9b::/96 range as "reserved",
+# so a resolver that hands back NAT64 records (DNS64 environments do this
+# routinely) would otherwise make every public host look unsafe -- and did, until
+# this was found: image sourcing silently stopped finding anything at all.
+_NAT64 = ipaddress.IPv6Network("64:ff9b::/96")
+
+
+def _effective_ip(ip):
+    """The address a connection really reaches.
+
+    For NAT64 this is the embedded IPv4, which is also the STRICTER reading: a
+    NAT64-wrapped private address (64:ff9b::a00:1 -> 10.0.0.1) is now judged as
+    the private address it actually targets, instead of passing or failing by
+    accident on the wrapper's own classification.
+    """
+    if isinstance(ip, ipaddress.IPv6Address) and ip in _NAT64:
+        return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    return ip
+
+
 def _is_public_host(host: str) -> bool:
-    """Refuse private/loopback/link-local/reserved targets."""
+    """Refuse private/loopback/link-local/reserved targets.
+
+    EVERY resolved address must be acceptable: if a name resolves to both a
+    public and a private address, the private one is what a rebinding attack
+    would use, so the host is refused outright.
+    """
     try:
         infos = socket.getaddrinfo(host, None)
     except Exception:
@@ -189,7 +218,7 @@ def _is_public_host(host: str) -> bool:
         return False
     for info in infos:
         try:
-            ip = ipaddress.ip_address(info[4][0])
+            ip = _effective_ip(ipaddress.ip_address(info[4][0]))
         except ValueError:
             return False
         if (ip.is_private or ip.is_loopback or ip.is_link_local
@@ -282,6 +311,10 @@ class OpenverseProvider(MediaProvider):
                 license_url=it.get("license_url") or "",
                 width=int(it.get("width") or 0),
                 height=int(it.get("height") or 0),
+                tags=tuple(
+                    str(t.get("name", "")).lower()
+                    for t in (it.get("tags") or []) if isinstance(t, dict)
+                ),
                 raw={k: it.get(k) for k in
                      ("id", "license", "license_version", "license_url", "source",
                       "provider", "foreign_landing_url", "creator", "creator_url",
@@ -346,27 +379,123 @@ def is_acceptable(state: str) -> bool:
     return state in (PROVIDER_DECLARED, VERIFIED)
 
 
+# Words that carry no subject meaning, plus the art-direction flavour words we
+# append ourselves -- a photograph should not be judged relevant merely because
+# its title happens to contain "modern".
+_STOPWORDS = {
+    "a", "an", "the", "and", "of", "in", "at", "on", "with", "for", "to",
+    "photo", "photograph", "image", "picture", "stock",
+}
+
+# Words too generic to prove a subject match. Providers attach machine-generated
+# tags ("work", "people", "indoors", "business") to almost every photograph, so
+# without this a picture of a manicurist scores as a match for "technician
+# working" -- which is exactly how a plumbing site ended up illustrated with a
+# nail salon. These terms still go OUT in the search query; they just cannot be
+# the evidence that comes back.
+_WEAK_TERMS = {
+    "work", "working", "works", "worker", "home", "modern", "new", "old",
+    "people", "person", "man", "woman", "adult", "group", "team",
+    "business", "professional", "service", "services", "local", "company",
+    "indoor", "indoors", "outdoor", "outdoors", "room", "building", "day",
+    "one", "two", "three", "background", "close", "view", "shot",
+}
+
+# Minimum share of the query's subject words that must appear in a candidate's
+# title/tags. Below this the image is "a real photograph of something else",
+# which is exactly the failure mode that put a street scene on a salon site.
+MIN_RELEVANCE = float(os.environ.get("MEDIA_MIN_RELEVANCE", 0.34))
+
+
+def _tokens(text: str) -> list:
+    out = []
+    for word in re.split(r"[^a-z0-9]+", (text or "").lower()):
+        if len(word) > 2 and word not in _STOPWORDS:
+            out.append(word)
+    return out
+
+
+def relevance(candidate: "MediaCandidate", query: str) -> float:
+    """0..1 -- how well this image's own metadata matches what we asked for.
+
+    Two sources of evidence, weighted by how trustworthy they are:
+
+      * TITLE -- written by a human about this specific photograph. Strong.
+      * TAGS  -- largely machine-generated and broad. A photograph of a
+        manicurist carries the tag "technician" (a manicurist IS a nail
+        technician), which is defensible in the abstract and completely wrong
+        for a plumbing company. So a single tag hit is never enough on its own;
+        it needs either a title match or a second, independent tag match.
+
+    That rule is what stops "real photograph of something else" passing as
+    relevant, which is the failure that put a nail salon on a plumber's site.
+    """
+    terms = _tokens(query)
+    if not terms:
+        return 0.0
+    title = (candidate.title or "").lower()
+    tagtext = " ".join(candidate.tags or ())
+    if not title.strip() and not tagtext.strip():
+        return 0.0
+
+    distinctive = {t for t in terms if t not in _WEAK_TERMS}
+    scored_terms = distinctive or set(terms)
+
+    title_hits = {t for t in scored_terms if t in title}
+    tag_hits = {t for t in scored_terms if t in tagtext} - title_hits
+
+    # Corroboration rule: tags alone must agree at least twice.
+    if not title_hits and len(tag_hits) < 2:
+        return 0.0
+
+    # Corroborating tags are weighted below a title match but high enough that
+    # two independent tags clear the relevance floor -- a genuine gym photo
+    # titled 'Girl doing stability ball crunches' is tagged gym/training and
+    # must not be discarded merely because its title is descriptive prose.
+    score = (len(title_hits) + 0.6 * len(tag_hits)) / len(scored_terms)
+
+    # Exact subject phrase in the title is the strongest signal available.
+    if len(terms) >= 2 and " ".join(terms[:2]) in title:
+        score += 0.25
+    return round(min(1.0, score), 3)
+
+
 def select(candidates: list, *, orientation: str = "landscape",
-           min_width: int = 1200) -> "MediaCandidate | None":
-    """Best acceptable candidate for this art direction, or None."""
-    cleared = []
+           min_width: int = 1200, query: str = "",
+           min_relevance: float | None = None) -> "MediaCandidate | None":
+    """Best acceptable AND RELEVANT candidate for this art direction, or None.
+
+    Relevance is the FIRST ranking key, not an afterthought. Ranking by licence
+    or resolution alone reliably produced legally-fine photographs of the wrong
+    subject; a customer does not care that the irrelevant image was CC0.
+
+    Returning None is a legitimate outcome: a designed non-photographic
+    treatment beats a real photograph of the wrong thing.
+    """
+    threshold = MIN_RELEVANCE if min_relevance is None else min_relevance
+    scored = []
     for c in candidates or []:
         state, _ = validate_license(c)
         if not is_acceptable(state):
             continue
         if c.width and c.width < min_width:
             continue
-        cleared.append(c)
-    if not cleared:
+        rel = relevance(c, query) if query else 1.0
+        if query and rel < threshold:
+            continue
+        scored.append((rel, c))
+    if not scored:
         return None
 
-    def rank(c: MediaCandidate):
+    def rank(item):
+        rel, c = item
         return (
-            0 if c.license_code in ("cc0", "pdm") else 1,       # simplest licence
-            0 if c.orientation() == orientation else 1,          # right shape
-            -(c.width * c.height),                               # then resolution
+            -round(rel, 2),                                   # subject match first
+            0 if c.orientation() == orientation else 1,        # then the right shape
+            0 if c.license_code in ("cc0", "pdm") else 1,      # then licence simplicity
+            -(c.width * c.height),                             # then resolution
         )
-    return sorted(cleared, key=rank)[0]
+    return sorted(scored, key=rank)[0][1]
 
 
 async def download(candidate: MediaCandidate, *, provider: MediaProvider | None = None) -> tuple:
@@ -454,11 +583,36 @@ def store(candidate: MediaCandidate, data: bytes, mime: str = "", *, query: str 
         attribution_required=candidate.license_code in ATTRIBUTION_REQUIRED,
         provenance_state=state, provenance_reason=reason,
         query=query, retrieved_at=candidate.retrieved_at,
-        raw_metadata=dict(candidate.raw or {}),
+        raw_metadata=dict(candidate.raw or {}, tags=list(candidate.tags or ())),
     )
     (d / f"{asset_id}.json").write_text(
         json.dumps(asset.to_dict(), indent=2, default=str), encoding="utf-8")
     return asset
+
+
+def clean_provider_text(value: str, limit: int = 120) -> str:
+    """Strip decorative symbols from third-party display text.
+
+    Creator names on upstream platforms routinely contain emoji and pictographs
+    (a real one encountered here: "666isMONEY [peace][heart] & [skull]"). That text
+    is rendered into a paying customer's website through the attribution credit,
+    so it is cleaned to letters, digits, punctuation and spaces.
+
+    This keeps the identifying part of the name -- which is what an attribution
+    licence actually requires -- while refusing to let an upstream account
+    decorate someone else's site. If cleaning would leave nothing at all, the
+    caller falls back to a generic credit rather than dropping attribution.
+    """
+    import unicodedata
+    out = []
+    for ch in str(value or ""):
+        cat = unicodedata.category(ch)
+        if cat.startswith("C"):                      # control / unassigned
+            continue
+        if ord(ch) >= 0x2000 and cat in ("So", "Sk", "Sm", "Cn", "Co"):
+            continue                                  # pictographs, emoji, symbols
+        out.append(ch)
+    return " ".join("".join(out).split())[:limit]
 
 
 def attribute(asset: MediaAsset) -> str:
@@ -470,7 +624,7 @@ def attribute(asset: MediaAsset) -> str:
         return (str(v or "").replace("&", "&amp;").replace("<", "&lt;")
                 .replace(">", "&gt;").replace('"', "&quot;"))
 
-    who = esc(asset.creator) or "Unknown creator"
+    who = esc(clean_provider_text(asset.creator)) or "Unknown creator"
     if asset.source_url:
         who_html = f'<a href="{esc(asset.source_url)}" rel="nofollow noopener">{who}</a>'
     else:
@@ -479,6 +633,48 @@ def attribute(asset: MediaAsset) -> str:
     lic_html = (f'<a href="{esc(asset.license_url)}" rel="nofollow noopener license">CC {lic}</a>'
                 if asset.license_url else f"CC {lic}")
     return f'<span class="credit">Photo by {who_html} · {lic_html}</span>'
+
+
+# Same-origin by design: a relative base means generated pages never carry a
+# third-party image host, so a customer site has no external runtime dependency
+# and no provider can track their visitors.
+PUBLIC_MEDIA_BASE = os.environ.get("PUBLIC_MEDIA_BASE", "/api/assets").rstrip("/")
+
+
+def publish(asset: MediaAsset) -> "MediaAsset | None":
+    """Assign a stable public URL, but only after re-validating the stored file.
+
+    Storage and publication are separate on purpose. This is the single place
+    that grants public reachability, and it refuses unless, right now:
+      * the licence state is one automatic acceptance may use;
+      * the file still exists and its bytes still look like the declared image
+        type (so a file swapped after download cannot be published);
+      * the extension is one the public route will serve.
+    Returns the asset with `public_url` set (and the sidecar rewritten), or None.
+    """
+    if asset is None or not is_acceptable(asset.provenance_state):
+        return None
+    path = Path(asset.path)
+    if not path.is_file():
+        return None
+    suffix = path.suffix.lower()
+    if suffix not in (".jpg", ".jpeg", ".png", ".webp"):
+        return None
+    try:
+        head = path.open("rb").read(16)
+    except OSError:
+        return None
+    sniffed, _ext = _sniff(head)
+    if sniffed is None or (asset.content_type and sniffed != asset.content_type):
+        return None
+
+    asset.public_url = f"{PUBLIC_MEDIA_BASE}/{asset.asset_id}{suffix}"
+    try:
+        (path.parent / f"{asset.asset_id}.json").write_text(
+            json.dumps(asset.to_dict(), indent=2, default=str), encoding="utf-8")
+    except OSError:
+        return None
+    return asset
 
 
 async def source_image(query: str, *, orientation: str = "landscape",
@@ -495,12 +691,20 @@ async def source_image(query: str, *, orientation: str = "landscape",
         except Exception as e:
             logger.info("provider %s search failed: %s", provider.name, type(e).__name__)
             continue
-        chosen = select(candidates, orientation=orientation, min_width=min_width)
+        chosen = select(candidates, orientation=orientation, min_width=min_width,
+                        query=query)
         if not chosen:
             continue
         try:
             data, mime = await download(chosen, provider=provider)
-            return store(chosen, data, mime, query=query, store_dir=store_dir)
+            stored = store(chosen, data, mime, query=query, store_dir=store_dir)
+            # Publication is explicit: an asset that cannot be published is not
+            # returned, so callers can never accidentally embed an unservable file.
+            published = publish(stored)
+            if published is None:
+                logger.info("asset %s stored but not publishable", stored.asset_id)
+                continue
+            return published
         except MediaUnavailable as e:
             logger.info("candidate rejected: %s", e)
             continue
@@ -527,6 +731,8 @@ __all__ = [
     "MediaProvider", "OpenverseProvider", "MediaCandidate", "MediaAsset",
     "MediaUnavailable", "register_provider", "providers", "search_providers",
     "validate_license", "is_acceptable", "select", "download", "store",
-    "attribute", "source_image", "COMMERCIAL_SAFE", "REFUSED_LICENCES",
+    "attribute", "source_image", "publish", "PUBLIC_MEDIA_BASE",
+    "relevance", "MIN_RELEVANCE", "clean_provider_text",
+    "COMMERCIAL_SAFE", "REFUSED_LICENCES",
     "PROVIDER_DECLARED", "REQUIRES_REVIEW", "REJECTED", "VERIFIED",
 ]

@@ -593,7 +593,7 @@ RECIPES: tuple = (
         license='Original work (Getszy). CSS proprietary-internal. No inherited licence.',
         provenance={'author':'Getszy','origin':'original','third_party':(),'techniques':('CSS grid','object-fit','backdrop-filter','gradient scrim')},
         security_review='No JS dependency, no CDN, no external stylesheet, no url(http) in CSS. Generated markup is escaped upstream by builder_agents._esc.',
-        render_verification={'status':'pending','harness':'tools/design_render_check.py'},
+        render_verification={'status':'static_passed_browser_inspected','harness':'tools/design_render_check.py','browser':'chromium (manual, out-of-band)','playwright_pass':False,'date':'2026-08-30'},
     ),
     DesignRecipe(
         id="glassmorphism",
@@ -615,7 +615,7 @@ RECIPES: tuple = (
         license='Original work (Getszy). CSS proprietary-internal. No inherited licence.',
         provenance={'author':'Getszy','origin':'original','third_party':(),'techniques':('backdrop-filter','radial-gradient field','CSS grid')},
         security_review='No JS dependency, no CDN, no external stylesheet, no url(http) in CSS. Generated markup is escaped upstream by builder_agents._esc.',
-        render_verification={'status':'pending','harness':'tools/design_render_check.py'},
+        render_verification={'status':'static_passed_browser_inspected','harness':'tools/design_render_check.py','browser':'chromium (manual, out-of-band)','playwright_pass':False,'date':'2026-08-30'},
     ),
     DesignRecipe(
         id="futuristic_saas",
@@ -633,11 +633,11 @@ RECIPES: tuple = (
         composition=('hero_product','feature_rows','spec_grid','process','metrics','faq','cta_band'),
         motion_rules={'budget':'subtle','allowed':('glow-hover','fade-up','grid-drift'),'forbidden':('parallax-hero','autoplay-video'),'duration_ms':(180,520)},
         surface_rules={'corner':'rounded-md','elevation':'glow','divider':'hairline-accent','contrast':'high','ground':'dark'},
-        assets={'photography':'optional','people':'optional','illustration_hero':'allowed','hero_media':'optional','treatment':'gradient-mesh','orientation':'landscape','min_width':1200},
+        assets={'photography':'preferred','people':'optional','illustration_hero':'discouraged','hero_media':'preferred','treatment':'gradient-mesh','orientation':'landscape','min_width':1200},
         license='Original work (Getszy). CSS proprietary-internal. No inherited licence.',
         provenance={'author':'Getszy','origin':'original','third_party':(),'techniques':('repeating grid background','radial aurora','background-clip text')},
         security_review='No JS dependency, no CDN, no external stylesheet, no url(http) in CSS. Generated markup is escaped upstream by builder_agents._esc.',
-        render_verification={'status':'pending','harness':'tools/design_render_check.py'},
+        render_verification={'status':'static_passed_browser_inspected','harness':'tools/design_render_check.py','browser':'chromium (manual, out-of-band)','playwright_pass':False,'date':'2026-08-30'},
     ),
     DesignRecipe(
         id="editorial_fashion",
@@ -659,7 +659,7 @@ RECIPES: tuple = (
         license='Original work (Getszy). CSS proprietary-internal. No inherited licence.',
         provenance={'author':'Getszy','origin':'original','third_party':(),'techniques':('asymmetric CSS grid','hairline rule system','type ramp')},
         security_review='No JS dependency, no CDN, no external stylesheet, no url(http) in CSS. Generated markup is escaped upstream by builder_agents._esc.',
-        render_verification={'status':'pending','harness':'tools/design_render_check.py'},
+        render_verification={'status':'static_passed_browser_inspected','harness':'tools/design_render_check.py','browser':'chromium (manual, out-of-band)','playwright_pass':False,'date':'2026-08-30'},
     ),
     DesignRecipe(
         id="professional_local",
@@ -682,7 +682,7 @@ RECIPES: tuple = (
         license='Original work (Getszy). CSS proprietary-internal. No inherited licence.',
         provenance={'author':'Getszy','origin':'original','third_party':(),'techniques':('CSS grid','solid borders','system type stack')},
         security_review='No JS dependency, no CDN, no external stylesheet, no url(http) in CSS. Generated markup is escaped upstream by builder_agents._esc.',
-        render_verification={'status':'pending','harness':'tools/design_render_check.py'},
+        render_verification={'status':'static_passed_browser_inspected','harness':'tools/design_render_check.py','browser':'chromium (manual, out-of-band)','playwright_pass':False,'date':'2026-08-30'},
     ),
 )
 

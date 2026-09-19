@@ -38,3 +38,10 @@ frontend/node_modules/.cache/default-development/23.pack
 frontend/node_modules/.cache/default-development/24.pack
 frontend/node_modules/.cache/default-development/20.pack
 .push-config
+
+# Runtime media cache: downloaded stock photography and generated assets.
+# These are fetched at runtime with their own upstream licences and must never
+# be committed as source (licence provenance lives in the .json sidecars beside
+# the bytes, and the repo is not their distribution channel).
+backend/media_cache/
+media_cache/
