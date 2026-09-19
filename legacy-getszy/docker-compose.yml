@@ -130,6 +130,14 @@ services:
       # HF_TOKEN unlocks FLUX (images), XTTS (voice), SadTalker (avatar), CogVideoX.
       HF_TOKEN: "${HF_TOKEN:-}"
       MEDIA_PROVIDER: "${MEDIA_PROVIDER:-free}"
+      # Real licensed photography for generated customer sites. OFF by default:
+      # it makes outbound calls, and every failure path degrades to the art
+      # direction's designed non-photographic composition, so a provider outage
+      # can never block a customer build.
+      MEDIA_SOURCING_ENABLED: "${MEDIA_SOURCING_ENABLED:-false}"
+      MEDIA_SOURCING_BUDGET: "${MEDIA_SOURCING_BUDGET:-12}"
+      MEDIA_MIN_WIDTH: "${MEDIA_MIN_WIDTH:-900}"
+      MEDIA_MIN_RELEVANCE: "${MEDIA_MIN_RELEVANCE:-0.34}"
       FAL_KEY: "${FAL_KEY:-}"
       REPLICATE_TOKEN: "${REPLICATE_TOKEN:-}"
       # Self-hosted GPU box running a /lipsync endpoint (real lip-sync).
