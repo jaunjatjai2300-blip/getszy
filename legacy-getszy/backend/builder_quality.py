@@ -301,12 +301,28 @@ def evaluate_landing_page_quality(
     _cartoon = bool(re.search(
         r"(?:cartoon|mascot|avatar|clipart|clip-art|undraw|storyset)", html, re.IGNORECASE))
 
-    # Component vocabulary: distinct component types, not one grid repeated.
-    _component_kinds = sum(bool(re.search(pat, html, re.IGNORECASE)) for pat in (
-        r'class="[^"]*\bnav\b', r'class="[^"]*\bfeatrow\b', r'class="[^"]*\bsteps?\b',
-        r'class="[^"]*\bgrid3\b', r'<details', r'class="[^"]*\bctaband\b',
-        r'class="[^"]*\b(?:gstrip|lgrid|indexlist|manifesto|specs|stats)\b',
-    ))
+    # Component vocabulary, measured STRUCTURALLY rather than by class name.
+    #
+    # The first version of this check looked for the deterministic floor's own
+    # classes (nav/featrow/steps/grid3/ctaband). That made it a template
+    # detector, not a composition detector: a perfectly well-composed page that
+    # happened to use different class names -- which is exactly what a model
+    # generating its own markup produces -- scored zero. These signals describe
+    # the SHAPE of a rich page, so any vocabulary that genuinely composes one
+    # satisfies them.
+    _low = html.lower()
+    _composition_signals = [
+        bool(re.search(r"<nav\b", _low)) or bool(re.search(r"<header\b", _low)),
+        len(re.findall(r"<section\b|<article\b", _low)) >= 4,
+        "<footer" in _low,
+        bool(re.search(r"<img\b|<svg\b|<picture\b", _low)),
+        bool(re.search(r"display\s*:\s*(?:grid|flex)", self_css, re.IGNORECASE)),
+        bool(re.search(r"<ul\b|<ol\b|<details\b", _low)),
+        _count(r"<h2\b", html) > 0 and _count(r"<h3\b", html) > 0,
+        len(re.findall(r'class="[^"]*\b(?:card|scard|tile|item|feature)\b', _low)) >= 3,
+        len(re.findall(r'<(?:a|button)\b[^>]*class="[^"]*\b(?:btn|button|cta)\b', _low)) >= 2,
+    ]
+    _component_kinds = sum(_composition_signals)
 
     # Direction-declared expectations, when the caller supplied one.
     _direction = (brief or {}).get("design_recipe") or (brief or {}).get("_direction_id") or ""
@@ -333,7 +349,7 @@ def evaluate_landing_page_quality(
         _check(
             "composition_richness",
             "Rich component vocabulary",
-            _component_kinds >= 4,
+            _component_kinds >= 5,
             # Binding only when the page CLAIMS a high-end art direction. A page
             # that promises "cinematic"/"editorial" and delivers a generic 3-4
             # section template is a failed deliverable. A modest page that makes

@@ -963,8 +963,13 @@ def _premium_template(prompt: str, brief: dict | None = None,
     if style is None:
         style = _legacy
 
+    # The hero consumes the first sourced image, so the body starts at the next
+    # one -- otherwise the same photograph appears twice on one page and reads
+    # as a rendering fault rather than a design.
+    _all_assets = list((brief or {}).get('_media_assets') or [])
+    _body_assets = _all_assets[1:] if (brief or {}).get('_hero_asset') else _all_assets
     body, play = _compose_sections(vertical, brand, audience, goal, cta, proof_points, p, a,
-                                   recipe=recipe, assets=(brief or {}).get('_media_assets'))
+                                   recipe=recipe, assets=_body_assets)
     hero_sub = _fmt(play['hero'], brand, audience)
 
     script = (

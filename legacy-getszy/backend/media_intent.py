@@ -51,37 +51,45 @@ async def gather_assets(prompt: str, brief: dict | None, vertical: str | None,
     except Exception:
         return []
 
-    queries = di.image_queries(prompt, brief, vertical, limit=MAX_IMAGES)
+    queries = di.image_queries(prompt, brief, vertical, limit=MAX_IMAGES,
+                               recipe_id=recipe.id)
     orientation = (recipe.assets or {}).get("orientation", "landscape")
-    min_width = int((recipe.assets or {}).get("min_width", 1200))
+    # Openly-licensed catalogues routinely top out near 1024px on the direct
+    # URL. Demanding the recipe's aspirational min_width would reject almost
+    # everything and silently yield no photography at all.
+    min_width = int(os.environ.get("MEDIA_MIN_WIDTH", 900))
 
-    async def one(q):
-        try:
-            return await ms.source_image(q, orientation=orientation, min_width=min_width)
-        except Exception as e:
-            logger.info("media sourcing failed for %r: %s", q, type(e).__name__)
-            return None
+    async def collect():
+        """Try queries IN ORDER (flavoured first, plain fallback after) and stop
+        as soon as we have enough distinct images."""
+        assets, seen = [], set()
+        for q in queries:
+            if len(assets) >= MAX_IMAGES:
+                break
+            try:
+                asset = await ms.source_image(q, orientation=orientation,
+                                              min_width=min_width)
+            except Exception as e:
+                logger.info("media sourcing failed for %r: %s", q, type(e).__name__)
+                continue
+            if asset is None:
+                continue
+            # never show the same photograph twice on one page
+            if asset.content_sha256 and asset.content_sha256 in seen:
+                continue
+            seen.add(asset.content_sha256)
+            if getattr(asset, "publishable", lambda: False)():
+                assets.append(asset)
+        return assets
 
     try:
-        results = await asyncio.wait_for(
-            asyncio.gather(*(one(q) for q in queries), return_exceptions=True),
-            timeout=BUDGET_SECONDS,
-        )
+        return await asyncio.wait_for(collect(), timeout=BUDGET_SECONDS)
     except asyncio.TimeoutError:
         logger.info("media sourcing exceeded its %ss budget; continuing without photos",
                     BUDGET_SECONDS)
         return []
     except Exception:
         return []
-
-    assets = []
-    for r in results:
-        if isinstance(r, Exception) or r is None:
-            continue
-        # Bytes on disk are not permission to publish.
-        if getattr(r, "publishable", lambda: False)():
-            assets.append(r)
-    return assets
 
 
 __all__ = ["gather_assets", "ENABLED"]

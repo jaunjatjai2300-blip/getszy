@@ -35,6 +35,7 @@ COMMERCE_ROUTERS = [
     ('subscription', 'routes_subscription', 'subscription'),
     ('razorpay', 'routes_razorpay', 'razorpay'),
     ('credits', 'routes_credits', 'credits'),
+    ('public_media', 'routes_media_public', 'assets'),
     ('commerce_extra', 'routes_commerce_extra', 'commerce-extra'),
     ('sourcing', 'routes_sourcing', 'sourcing'),
 ]

@@ -126,32 +126,75 @@ def _asset_policy(text: str, recipe: "dr.DesignRecipe") -> str:
     return recipe.asset_policy
 
 
-def image_queries(prompt: str, brief: dict | None = None, vertical: str | None = None,
-                  limit: int = 3) -> list:
-    """Concrete, subject-specific stock-photo queries for this business.
+# Each art direction wants a different KIND of photograph, not the same stock
+# image recoloured. These modifiers are appended to the subject query so a
+# cinematic gym asks for dramatic, high-contrast frames while a local trade
+# business asks for authentic on-site work.
+_DIRECTION_LOOK = {
+    "cinematic_luxury": ("dramatic lighting", "high contrast", "moody"),
+    "glassmorphism": ("bright airy", "clean minimal", "soft light"),
+    "futuristic_saas": ("technology", "modern workspace", "abstract tech"),
+    "editorial_fashion": ("editorial fashion", "studio portrait", "minimal styling"),
+    "professional_local": ("at work", "local business", "candid"),
+}
 
-    Generic queries ("business", "office") return generic stock; the resulting
-    page then looks like every other template. These are built from the actual
-    vertical and brand context so the imagery is relevant to THIS customer.
+_SUBJECTS = {
+    "fitness": ("gym strength training", "athlete workout", "fitness coach"),
+    "salon": ("hair salon interior", "beauty treatment", "salon styling"),
+    "restaurant": ("restaurant food plating", "chef cooking", "restaurant interior"),
+    "health": ("wellness therapy", "clinic care", "yoga wellness"),
+    "ecommerce": ("retail boutique interior", "product photography studio", "shopping display"),
+    "saas": ("server data center", "computer circuit technology", "developer coding screen"),
+    "consultant": ("business meeting", "consulting office", "team strategy"),
+    # "technician" alone also describes nail/lab technicians, so trade queries
+    # name the trade explicitly.
+    "service": ("plumbing repair", "handyman tools", "electrician wiring"),
+    "education": ("students learning", "classroom teaching", "study workspace"),
+    "portfolio": ("creative studio", "designer working", "artist workspace"),
+}
+
+
+# Subjects a direction names better than the vertical does. Only directions
+# whose whole identity IS a subject belong here; everything else defers to the
+# business vertical.
+_DIRECTION_SUBJECTS = {
+    "editorial_fashion": ("fashion model portrait", "clothing boutique",
+                          "fashion editorial studio"),
+}
+
+
+def image_queries(prompt: str, brief: dict | None = None, vertical: str | None = None,
+                  limit: int = 3, recipe_id: str | None = None) -> list:
+    """Ordered search attempts: art-direction flavour first, plain subject after.
+
+    A generic query ("business", "office") returns generic stock and the page
+    looks like every other template, so the direction's visual language is tried
+    FIRST. But a heavily-qualified query ("gym strength training dramatic
+    lighting") frequently returns nothing at all on openly-licensed catalogues,
+    and silently ending up with no photography is a worse outcome than a slightly
+    less stylised photograph. So every flavoured query is followed by its plain
+    subject as a fallback, and callers try the list in order.
     """
     brief = brief or {}
-    base = {
-        "fitness": ["gym strength training", "athlete workout", "fitness coach training"],
-        "salon": ["hair salon interior", "beauty treatment", "salon styling"],
-        "restaurant": ["restaurant food plating", "chef cooking", "restaurant interior"],
-        "health": ["wellness therapy", "clinic care", "yoga wellness"],
-        "ecommerce": ["product photography studio", "retail boutique", "fashion product"],
-        "saas": ["team working laptop", "modern office technology", "developer workspace"],
-        "consultant": ["business meeting professional", "consulting office", "team strategy"],
-        "service": ["technician at work", "home service professional", "tools workshop"],
-        "education": ["students learning", "classroom teaching", "study workspace"],
-        "portfolio": ["creative studio workspace", "designer portfolio", "artist working"],
-    }
-    qs = list(base.get(vertical or "", ["professional business workspace"]))
-    city = (brief.get("city") or brief.get("location") or "").strip()
+    subjects = list(_DIRECTION_SUBJECTS.get(recipe_id or "", ())
+                    or _SUBJECTS.get(vertical or "", ("professional workspace",)))
+    looks = _DIRECTION_LOOK.get(recipe_id or "", ())
+    city = str(brief.get("city") or brief.get("location") or "").strip()
+
+    chain = []
+    for i, subject in enumerate(subjects[:max(1, limit)]):
+        if looks:
+            chain.append(f"{subject} {looks[i % len(looks)]}")
+        chain.append(subject)
     if city:
-        qs.insert(0, f"{qs[0]} {city}")
-    return qs[:limit]
+        chain.append(f"{subjects[0]} {city}")
+    # de-duplicate, preserving order
+    seen, out = set(), []
+    for q in chain:
+        if q not in seen:
+            seen.add(q)
+            out.append(q)
+    return out
 
 
 __all__ = ["infer_direction", "image_queries"]

@@ -259,6 +259,40 @@ def _brief_to_generation_context(brief: dict | None) -> str:
     )
 
 
+async def _with_sourced_media(prompt: str, brief: dict | None) -> dict:
+    """Return a brief enriched with licence-cleared, self-hosted photography.
+
+    Sourcing happens ONCE here, in the async request path, and the resulting
+    assets are handed to the (synchronous) composer and deterministic floor
+    through the brief, so a draft and its fallback show the same imagery.
+
+    Never raises and never blocks a build: on any failure the brief comes back
+    unchanged and the page renders the art direction's designed non-photographic
+    treatment instead.
+    """
+    brief = dict(brief or {})
+    try:
+        import design_intent as _di
+        import design_registry as _dr
+        import media_intent as _mi
+        from builder_agents import _vertical_for
+
+        vertical = _vertical_for(brief, prompt)
+        direction = _di.infer_direction(prompt, brief, vertical)
+        recipe = _dr.get_recipe(direction.get('recipe_id'))
+        assets = await _mi.gather_assets(prompt, brief, vertical, recipe)
+        if assets:
+            # Only assets the delivery layer has actually published reach the page.
+            usable = [a for a in assets if getattr(a, 'publishable', lambda: False)()]
+            if usable:
+                brief['_media_assets'] = usable
+                brief['_hero_asset'] = usable[0]
+                logger.info('sourced %d licence-cleared image(s) for the build', len(usable))
+    except Exception as exc:      # media is an enhancement, never a dependency
+        logger.info('media sourcing skipped (%s)', type(exc).__name__)
+    return brief
+
+
 async def _safe_compose(prompt: str, session_id: str, brief: dict | None = None):
     """Compose a premium draft through the reliability layer, never raising.
 
@@ -273,6 +307,7 @@ async def _safe_compose(prompt: str, session_id: str, brief: dict | None = None)
     deterministic premium template so the customer ALWAYS receives a complete,
     on-brand page — the production suite never surfaces a blank/error result.
     """
+    brief = await _with_sourced_media(prompt, brief)
     try:
         result = await compose_site_reliable(prompt, brief, session_id)
         html = result.get('html') if isinstance(result, dict) else None
