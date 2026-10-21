@@ -83,5 +83,11 @@ legacy-getszy/deploy/*.bak
 attached_assets/
 attached_assets-security-backup/
 
+# Runtime media output (per-job dirs carry generated assets + upstream licences)
+legacy-getszy/backend/media/video_factory/*/
+
+# AI-agent local memory (operational notes; do not publish)
+.agents/
+
 *.bak
 production-hardening.*
