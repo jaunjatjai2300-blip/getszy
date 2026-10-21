@@ -28,12 +28,13 @@ class FakeCollection:
         self.inserts = []
 
     async def find_one(self, q, proj=None):
-        if isinstance(q, dict) and q.get('order_number'):
-            return self.docs.get(q['order_number'])
-        if isinstance(q, dict) and q.get('payment_id'):
-            for doc in self.docs.values():
-                if doc.get('payment_id') == q['payment_id']:
-                    return doc
+        if not isinstance(q, dict) or not q:
+            return None
+        if q.get('order_number') and q.get('order_number') in self.docs:
+            return self.docs[q['order_number']]
+        for doc in self.docs.values():
+            if all(doc.get(k) == v for k, v in q.items() if not str(k).startswith('$')):
+                return doc
         return None
 
     async def insert_one(self, doc):
@@ -182,6 +183,29 @@ def test_order_verify_rejects_one_rupee_attack(mod, monkeypatch):
     assert setup.orders.docs['ORD1001']['payment_status'] == 'pending'
 
 
+def test_order_verify_rejects_authorized_not_captured(mod, monkeypatch):
+    mod.KEY_ID = 'key_abc'
+    mod.KEY_SECRET = 'sec_xyz'
+    payment_id = 'pay_123'
+    setup = FakeDB()
+    setup.orders.docs['ORD1001'] = {
+        'order_number': 'ORD1001', 'user_id': 'u1', 'payment_status': 'pending',
+        'total': 500.0, 'razorpay_order_id': 'rz_ORD1001',
+    }
+    monkeypatch.setattr(mod, 'db', setup)
+    monkeypatch.setattr(
+        mod, '_client', lambda: FakeRzClient(_captured_payment(50000, status='authorized')))
+    import live_events
+    monkeypatch.setattr(live_events, 'broadcast_admin_event', lambda *a, **k: None)
+    with pytest.raises(Exception) as exc_info:
+        asyncio.run(mod.order_verify(
+            type('B', (), {'razorpay_payment_id': payment_id, 'razorpay_order_id': 'rz_ORD1001',
+                           'razorpay_signature': _sig('sec_xyz', 'rz_ORD1001', payment_id),
+                           'order_number': 'ORD1001'})(), user={'id': 'u1'}))
+    assert 'captured' in str(exc_info.value)
+    assert setup.orders.docs['ORD1001']['payment_status'] == 'pending'
+
+
 def test_order_verify_rejects_foreign_razorpay_order_id(mod, monkeypatch):
     mod.KEY_ID = 'key_abc'
     mod.KEY_SECRET = 'sec_xyz'
@@ -237,3 +261,67 @@ def test_order_verify_bad_signature(mod, monkeypatch):
         asyncio.run(mod.order_verify(
             type('B', (), {'razorpay_payment_id': 'pay_123', 'razorpay_order_id': 'rz_ORD1001',
                            'razorpay_signature': 'deadbeef', 'order_number': 'ORD1001'})(), user={'id': 'u1'}))
+
+
+# ---------- subscription checkout /verify (captured-only enforcement) ----------
+
+class FakeSubDB:
+    def __init__(self):
+        self.billing_subscriptions = FakeCollection()
+        self.billing_processed_payments = FakeCollection()
+
+
+def _sub_mod_user(mod, monkeypatch, payment, payment_id='pay_sub1', rz_sub_id='sub_abc'):
+    setup = FakeSubDB()
+    real_pack = next(iter(mod.ALL_PACKS))
+    setup.billing_subscriptions.docs[rz_sub_id] = {
+        'user_id': 'u1', 'plan': real_pack, 'razorpay_subscription_id': rz_sub_id,
+        'status': 'created',
+    }
+    monkeypatch.setattr(mod, 'db', setup)
+    monkeypatch.setattr(mod, '_client', lambda: FakeRzClient(payment))
+    monkeypatch.setattr(mod, 'add_credits', lambda *a, **k: asyncio.sleep(0, result=100))
+    monkeypatch.setattr(mod, 'set_subscription_plan_active', lambda *a, **k: asyncio.sleep(0, result=None))
+    import live_events
+    monkeypatch.setattr(live_events, 'broadcast_admin_event', lambda *a, **k: None)
+    return setup
+
+
+def _verify_body(payment_id='pay_sub1', rz_sub_id='sub_abc', secret='sec_xyz'):
+    return type('B', (), {
+        'razorpay_payment_id': payment_id,
+        'razorpay_subscription_id': rz_sub_id,
+        'razorpay_signature': _sig(secret, payment_id, rz_sub_id),
+    })()
+
+
+def test_subscription_verify_rejects_authorized(mod, monkeypatch):
+    mod.KEY_ID = 'key_abc'
+    mod.KEY_SECRET = 'sec_xyz'
+    setup = _sub_mod_user(mod, monkeypatch, _captured_payment(29900, status='authorized'))
+    with pytest.raises(Exception) as exc_info:
+        asyncio.run(mod.verify(_verify_body(), user={'id': 'u1'}))
+    assert 'captured' in str(exc_info.value)
+    assert setup.billing_subscriptions.docs['sub_abc']['status'] == 'created'
+    assert setup.billing_processed_payments.inserts == []
+
+
+def test_subscription_verify_rejects_foreign_subscription_id(mod, monkeypatch):
+    mod.KEY_ID = 'key_abc'
+    mod.KEY_SECRET = 'sec_xyz'
+    setup = _sub_mod_user(mod, monkeypatch, _captured_payment(29900))
+    with pytest.raises(Exception) as exc_info:
+        asyncio.run(mod.verify(_verify_body(), user={'id': 'u1'}))
+    assert 'does not belong' in str(exc_info.value)
+    assert setup.billing_processed_payments.inserts == []
+
+
+def test_subscription_verify_accepts_captured(mod, monkeypatch):
+    mod.KEY_ID = 'key_abc'
+    mod.KEY_SECRET = 'sec_xyz'
+    payment = _captured_payment(29900)
+    payment['subscription_id'] = 'sub_abc'
+    setup = _sub_mod_user(mod, monkeypatch, payment)
+    resp = asyncio.run(mod.verify(_verify_body(), user={'id': 'u1'}))
+    assert resp['ok'] is True
+    assert any(i.get('payment_id') == 'pay_sub1' for i in setup.billing_processed_payments.inserts)

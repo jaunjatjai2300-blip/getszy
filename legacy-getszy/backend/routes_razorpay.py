@@ -205,6 +205,17 @@ async def verify(body: VerifyIn, user=Depends(get_current_user)):
     if not rec:
         raise HTTPException(404, 'Subscription record not found')
 
+    client = _client()
+    try:
+        payment = client.payment.fetch(body.razorpay_payment_id)
+    except Exception:
+        logger.exception('razorpay payment.fetch failed')
+        raise HTTPException(400, 'Could not verify payment with Razorpay')
+    if payment.get('status') != 'captured':
+        raise HTTPException(400, 'Payment is not captured yet')
+    if payment.get('subscription_id') != body.razorpay_subscription_id:
+        raise HTTPException(400, 'Payment does not belong to this subscription')
+
     balance = await _grant_pack_credits_once(user['id'], rec['plan'], body.razorpay_payment_id, source='verify')
     await set_subscription_plan_active(user['id'], PACK_TO_PLAN.get(rec['plan'], 'pro'), days=30)
     await db.billing_subscriptions.update_one(
@@ -393,7 +404,7 @@ async def order_verify(body: OrderVerifyIn, user=Depends(get_current_user)):
     except Exception:
         logger.exception('razorpay payment.fetch failed')
         raise HTTPException(400, 'Could not verify payment with Razorpay')
-    if payment.get('status') not in ('captured', 'authorized'):
+    if payment.get('status') != 'captured':
         raise HTTPException(400, 'Payment is not captured yet')
     if payment.get('amount') != expected_amount:
         raise HTTPException(400, 'Payment amount does not match the order total')
