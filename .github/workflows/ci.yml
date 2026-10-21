@@ -87,33 +87,29 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Security scan (bandit + safety)
+      - name: Security scan (bandit + pip-audit)
         run: |
-          # Patch the runner's setuptools before Safety scans installed packages.
-          # Safety currently identifies CVE-2026-59890 in setuptools <83.0.0.
-          python -m pip install --upgrade "setuptools>=83.0.0" bandit safety
+          # Patch the runner's setuptools before the audit scans installed packages.
+          # Safety previously flagged CVE-2026-59890 in setuptools <83.0.0.
+          python -m pip install --upgrade "setuptools>=83.0.0" bandit pip-audit
           cd legacy-getszy/backend
-          # Install the APP's dependencies into this environment FIRST: `safety
-          # check` scans the running interpreter's environment, so without this
-          # it scans only the scanner's own packages (bandit/safety deps) and
-          # reports nothing about the application. emergentintegrations is on a
-          # private index and skipped here (same as the backend-tests job).
+          # `pip-audit -e/-l`-style inventory audit needs the APP deps installed:
+          # this is the environment we are auditing. emergentintegrations is on
+          # a private index and skipped here (same as the backend-tests job).
           grep -v '^emergentintegrations' requirements.txt > /tmp/req-ci.txt
           pip install -r /tmp/req-ci.txt
           # High-severity only for bandit (low/medium are too noisy to gate on).
           bandit -r . -x ./tests,./venv -lll
-          # Dependency CVE scan — fails loudly. Ignored advisories, each with
-          # rationale:
-          #  - 64396 / 64459: ecdsa (transitive via web3/eth libs). 0.19.2 is
-          #    its latest release and it is NOT used for security-critical
-          #    signing in this app, so the over-broad Minerva advisory is
-          #    ignored.
-          #  - SFTY-20260902-58666 (CVE-2026-81726, nltk path traversal): nltk
-          #    is a dependency of the safety CLI itself, never of this app
-          #    (verified: no nltk in requirements.txt, no `import nltk` in the
-          #    codebase, no nltk in Dockerfile.backend) — false positive from
-          #    the scanner shipping the flagged package.
-          safety check --ignore 64396 --ignore 64459 --ignore SFTY-20260902-58666
+          # Dependency CVE audit via PyPA's pip-audit (OSV + PyPA advisories).
+          # NOTE: `safety check` is DEPRECATED (its own banner says so) and its
+          # vendored httpx2 crashes with
+          # `TypeError: 'Timeout' object cannot be interpreted as an integer`
+          # when its CLI deps share an interpreter with the app env — replaced
+          # with pip-audit. Ignored vulns, each with rationale:
+          #  - GHSA-wj6h-64fc-9mpg (ecdsa Minerva timing attack): ecdsa is a
+          #    transitive dep via web3/eth libs, 0.19.2 is its latest release
+          #    and it is NOT used for security-critical signing in this app.
+          pip-audit --skip-editable --ignore-vuln GHSA-wj6h-64fc-9mpg
 
   frontend-build:
     runs-on: ubuntu-latest
