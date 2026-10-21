@@ -109,7 +109,14 @@ jobs:
           #  - GHSA-wj6h-64fc-9mpg (ecdsa Minerva timing attack): ecdsa is a
           #    transitive dep via web3/eth libs, 0.19.2 is its latest release
           #    and it is NOT used for security-critical signing in this app.
-          pip-audit --skip-editable --ignore-vuln GHSA-wj6h-64fc-9mpg
+          #  - PYSEC-2026-311/3813/3814/3815 (chromadb CVE-2026-4582*/4583*):
+          #    all four target the Chroma HTTP SERVER (auth/RBAC providers,
+          #    trust_remote_code collection endpoints) — this app only uses
+          #    embedded PersistentClient (codebase_rag.py), run in-process
+          #    with no network listener, and never sets trust_remote_code.
+          #    No patched chromadb release exists yet (last affected == latest
+          #    1.5.9); un-ignore when upstream ships a fix.
+          pip-audit --skip-editable --ignore-vuln GHSA-wj6h-64fc-9mpg --ignore-vuln PYSEC-2026-311 --ignore-vuln PYSEC-2026-3813 --ignore-vuln PYSEC-2026-3814 --ignore-vuln PYSEC-2026-3815
 
   frontend-build:
     runs-on: ubuntu-latest
