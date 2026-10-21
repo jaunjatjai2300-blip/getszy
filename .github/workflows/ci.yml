@@ -115,26 +115,19 @@ jobs:
       - name: Install frontend dependencies
         run: cd legacy-getszy/frontend && yarn install --no-progress
       - name: Build frontend
-        run: cd legacy-getszy/frontend && CI=false yarn build
+        run: cd legacy-getszy/frontend && yarn build
+      - name: Frontend unit tests (vitest)
+        run: cd legacy-getszy/frontend && yarn test
 
   deploy:
     needs: [backend-tests, security, frontend-build]
-    # Non-blocking: the app code is already verified by backend-tests + security.
-    # A deploy failure here means the VPS target is misconfigured (e.g. a missing
-    # secret in its .env such as INTEGRATION_ENCRYPTION_KEY), which is an
-    # environment concern, not a code regression. Keep the pipeline green and
-    # surface the deploy error separately.
-    continue-on-error: true
+    # Blocking: backend tests, security scan and frontend build must pass AND the
+    # VPS deploy must succeed (webhook verified + /api/health up) before main is
+    # considered green. A failure here IS actionable — investigate the deploy.
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Trigger VPS Deploy
-        # Fail-soft: the app code is already verified by backend-tests + security.
-        # A failed webhook here means the VPS target is misconfigured (e.g. a
-        # missing secret such as INTEGRATION_ENCRYPTION_KEY in its .env), which is
-        # an environment concern, not a code regression. We surface it as a
-        # warning so the pipeline stays green while the deploy gap remains visible.
-        continue-on-error: true
         run: |
           # Surface the webhook result instead of failing silently. Non-2xx makes
           # the job fail so a broken deploy is never invisible.
