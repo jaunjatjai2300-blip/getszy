@@ -25,10 +25,10 @@ export default function AdminSourcing() {
   const [cjSearch, setCjSearch] = useState({ keyword: "fashion", results: [], loading: false });
 
   const loadStatus = async () => {
-    try { const r = await api.get("/admin/sourcing/status"); setStatus(r.data); setTrending(r.data.last_scan || { items: [], at: null }); } catch (e) {}
+    try { const r = await api.get("/admin/sourcing/status"); setStatus(r.data); setTrending(r.data.last_scan || { items: [], at: null }); } catch (e) { toast.error("Failed to load sourcing status"); }
   };
   const loadTrending = async () => {
-    try { const r = await api.get("/admin/sourcing/trending"); setTrending(r.data); } catch (e) {}
+    try { const r = await api.get("/admin/sourcing/trending"); setTrending(r.data); } catch (e) { toast.error("Failed to load trending"); }
   };
   const saveKeys = async () => {
     setSavingKeys(true);
@@ -71,7 +71,7 @@ export default function AdminSourcing() {
     try {
       const r = await api.post("/admin/sourcing/markup/check", { cost_price: Number(calc.cost), is_digital: calc.is_digital });
       setCalc((c) => ({ ...c, result: r.data }));
-    } catch (e) {}
+    } catch (e) { toast.error("Failed to check markup"); }
   };
 
   useEffect(() => { loadStatus(); loadTrending(); }, []);

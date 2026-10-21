@@ -47,7 +47,7 @@ export default function ChatHome() {
   const [activeId, setActiveId] = useState(sessionId || null);
 
   const loadSessions = useCallback(async () => {
-    try { const r = await api.get("/chat/sessions?limit=50"); setSessions(r.data.items || []); } catch (e) {}
+    try { const r = await api.get("/chat/sessions?limit=50"); setSessions(r.data.items || []); } catch (e) { toast.error("Failed to load chats"); }
   }, []);
   useEffect(() => { loadSessions(); }, [loadSessions]);
   useEffect(() => { setActiveId(sessionId || null); }, [sessionId]);
@@ -179,7 +179,7 @@ function ChatWorkspace({ sessionId, onProjectUpdate }) {
       setAssets(r.data.assets || []);
       sinceRef.current = r.data.project?.updated_at || "";
       if (r.data.assets?.length) setActiveAsset(a => a || r.data.assets[r.data.assets.length - 1]);
-    } catch (e) {}
+    } catch (e) { toast.error("Failed to load chat"); }
   }, [sessionId]);
 
   useEffect(() => { loadFull(); return () => { if (pollRef.current) clearTimeout(pollRef.current); }; }, [loadFull]);
@@ -213,7 +213,7 @@ function ChatWorkspace({ sessionId, onProjectUpdate }) {
         setSending(false);
         onProjectUpdate?.();
       }
-    } catch (e) {}
+    } catch (e) { /* transient — poll retries on next tick */ }
     // If still sending, schedule next poll
     if (sending) pollRef.current = setTimeout(poll, 1200);
   }, [sessionId, sending, onProjectUpdate]);
@@ -380,7 +380,7 @@ function VideoPreview({ asset }) {
         const r = await api.get(d.status_endpoint);
         setJob(r.data);
         if (r.data.status !== "done" && r.data.status !== "failed") t = setTimeout(tick, 5000);
-      } catch (e) {}
+      } catch (e) { /* transient — poll retries on next tick */ }
     };
     tick();
     return () => t && clearTimeout(t);

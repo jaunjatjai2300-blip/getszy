@@ -5,7 +5,8 @@
 #   docker build -f deploy/Dockerfile.webhook -t getszy-webhook deploy/
 #
 # Run (the docker.sock mount is required so the listener can run
-# 'docker compose' against the parent stack):
+# 'docker compose' against the parent stack; the host must have the Docker
+# Engine + CLI preinstalled — this image does NOT bootstrap Docker itself):
 #   docker run -d --name getszy-webhook --restart=always \
 #     -p 9000:9000 \
 #     -e WEBHOOK_TOKEN="<your-secret>" \
@@ -18,9 +19,6 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl git docker-compose-plugin \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Docker CLI so we can call `docker compose` from inside
-RUN curl -fsSL https://get.docker.com | sh
 
 RUN pip install --no-cache-dir fastapi 'uvicorn[standard]'
 

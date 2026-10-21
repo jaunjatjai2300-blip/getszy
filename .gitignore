@@ -91,3 +91,12 @@ legacy-getszy/backend/media/video_factory/*/
 
 *.bak
 production-hardening.*
+
+# Dev/regeneratable artifacts (never commit)
+legacy-getszy/backend/openapi_generated.json
+legacy-getszy/backend/audit_report.json
+legacy-getszy/backend/admin_audit_report.json
+legacy-getszy/plan.md
+legacy-getszy/test_result.md
+main.py
+

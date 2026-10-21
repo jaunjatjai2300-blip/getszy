@@ -235,10 +235,10 @@ export default function VideoStudio() {
       const r = await api.get("/video/voices");
       setVoices(r.data);
       if (r.data.flux_hd_available) setFluxAvailable(true);
-    } catch (_) {}
-    try { const r = await api.get("/video/jobs?limit=30"); setJobs(r.data.items || []); } catch (_) {}
-    try { const r = await api.get("/social/accounts"); setPlatforms(r.data.platforms || []); } catch (_) {}
-    try { const r = await api.get("/social/scheduled"); setScheduled(r.data.items || []); } catch (_) {}
+    } catch (_) { /* transient — polled again every 6s */ }
+    try { const r = await api.get("/video/jobs?limit=30"); setJobs(r.data.items || []); } catch (_) { /* transient — polled again every 6s */ }
+    try { const r = await api.get("/social/accounts"); setPlatforms(r.data.platforms || []); } catch (_) { /* transient — polled again every 6s */ }
+    try { const r = await api.get("/social/scheduled"); setScheduled(r.data.items || []); } catch (_) { /* transient — polled again every 6s */ }
   }, []);
 
   useEffect(() => { load(); const t = setInterval(load, 6000); return () => clearInterval(t); }, [load]);

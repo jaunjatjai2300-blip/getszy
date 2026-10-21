@@ -8,6 +8,16 @@ from websocket_manager import manager
 
 router = APIRouter(tags=['websocket'])
 
+# Channels carrying privileged traffic (admin feed, per-user notification
+# inboxes). The generic `/ws` endpoint must never admit them for non-admin
+# users or any JWT holder could subscribe to someone's PII stream.
+RESERVED_CHANNEL_PREFIXES = ('notifications', 'admin-live')
+WS_CHANNEL_FORBIDDEN = 'reserved channel (admins only)'
+
+
+def _is_reserved_channel(channel: str) -> bool:
+    return any(channel == p or channel.startswith(f'{p}:') for p in RESERVED_CHANNEL_PREFIXES)
+
 
 async def _verify_ws_user(token: str, *, require_admin: bool = False) -> dict | None:
     """Return the active database user represented by a non-revoked WS JWT."""
@@ -33,6 +43,9 @@ async def websocket_endpoint(websocket: WebSocket, channel: str = 'general', tok
     user = await _verify_ws_user(token)
     if not user:
         await websocket.close(code=4001, reason='Invalid or missing token')
+        return
+    if _is_reserved_channel(channel) and user.get('role') != 'admin':
+        await websocket.close(code=4003, reason=WS_CHANNEL_FORBIDDEN)
         return
     user_id = user['id']
     await manager.connect(websocket, channel, user_id)

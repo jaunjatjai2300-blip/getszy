@@ -1,3 +1,4 @@
+import logging
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,6 +8,8 @@ from subscription import (
     PLAN_PRO, PLAN_ELITE, plan_features,
 )
 from db import db
+
+logger = logging.getLogger('getszy.subscription')
 
 router = APIRouter(tags=['subscription'])
 
@@ -35,51 +38,61 @@ async def trial(user=Depends(get_current_user)):
 @router.post('/me/subscription/upgrade')
 async def upgrade(body: dict, user=Depends(get_current_user)):
     """Initiate subscription upgrade via Razorpay.
-    When Razorpay is configured, creates a checkout order.
-    When unconfigured, grants plan directly (admin bypass mode)."""
+    When Razorpay is configured, creates a checkout order — any Razorpay error
+    fails closed with 503. When unconfigured, grants plan directly (admin-only bypass)."""
     plan = body.get('plan')
     interval = body.get('interval', 'monthly')
     if plan not in (PLAN_PRO, PLAN_ELITE):
         raise HTTPException(400, 'Invalid plan')
 
-    # Try Razorpay billing route if configured
     try:
         from routes_razorpay import _is_configured, _client, _plan_id_for
-        if _is_configured():
-            plan_id = _plan_id_for(plan)
-            if plan_id:
-                client = _client()
-                sub = client.subscription.create({
-                    'plan_id': plan_id,
-                    'total_count': 120,
-                    'customer_notify': 1,
-                    'notes': {'user_id': user['id'], 'plan': plan},
-                })
-                from db import db
-                import uuid
-                from datetime import datetime, timezone
-                await db.billing_subscriptions.insert_one({
-                    'id': str(uuid.uuid4()),
-                    'user_id': user['id'],
-                    'plan': plan,
-                    'razorpay_subscription_id': sub['id'],
-                    'razorpay_plan_id': plan_id,
-                    'status': sub.get('status', 'created'),
-                    'created_at': datetime.now(timezone.utc).isoformat(),
-                    'updated_at': datetime.now(timezone.utc).isoformat(),
-                })
-                return {
-                    'status': 'checkout_ready',
-                    'subscription_id': sub['id'],
-                    'short_url': sub.get('short_url'),
-                    'key_id': os.environ.get('RAZORPAY_KEY_ID', ''),
-                    'plan': plan,
-                    'interval': interval,
-                }
     except Exception:
-        pass
+        logger.exception('failed to load razorpay billing module')
+        raise HTTPException(503, 'Billing is temporarily unavailable')
 
-    # Fallback: direct grant (works without Razorpay)
+    if _is_configured():
+        plan_id = _plan_id_for(plan)
+        if not plan_id:
+            logger.warning('upgrade requested for plan %s but its Razorpay plan id is not configured', plan)
+            raise HTTPException(503, 'Razorpay plan for this tier is not configured yet. Please try again later.')
+        client = _client()
+        try:
+            sub = client.subscription.create({
+                'plan_id': plan_id,
+                'total_count': 120,
+                'customer_notify': 1,
+                'notes': {'user_id': user['id'], 'plan': plan},
+            })
+        except Exception as e:
+            logger.exception('razorpay subscription.create failed for plan %s', plan)
+            raise HTTPException(503, f'Razorpay error: {str(e)[:180]}')
+        import uuid
+        from datetime import datetime, timezone
+        await db.billing_subscriptions.insert_one({
+            'id': str(uuid.uuid4()),
+            'user_id': user['id'],
+            'plan': plan,
+            'razorpay_subscription_id': sub['id'],
+            'razorpay_plan_id': plan_id,
+            'status': sub.get('status', 'created'),
+            'created_at': datetime.now(timezone.utc).isoformat(),
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+        })
+        return {
+            'status': 'checkout_ready',
+            'subscription_id': sub['id'],
+            'short_url': sub.get('short_url'),
+            'key_id': os.environ.get('RAZORPAY_KEY_ID', ''),
+            'plan': plan,
+            'interval': interval,
+        }
+
+    # Fallback: direct grant only without Razorpay, and only for admins
+    if user.get('role') != 'admin':
+        logger.warning('rejected free plan grant fallback for non-admin user %s while Razorpay is unconfigured', user.get('id'))
+        raise HTTPException(503, 'Online payments are temporarily unavailable. Please try again later.')
+    logger.warning('admin bypass: granting %s directly to user %s (Razorpay not configured)', plan, user.get('id'))
     from subscription import grant_plan
     sub = await grant_plan(user['id'], plan, days=30)
     return {

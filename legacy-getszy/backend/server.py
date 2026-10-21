@@ -22,6 +22,11 @@ from llm_provider import LLMServiceUnavailable
 app = FastAPI(title='getszy API')
 api_router = APIRouter(prefix='/api')
 
+# Flipped False when the financial idempotency unique indexes fail to build at
+# startup (duplicate legacy data, etc.). Surfaced by /api/health as
+# indexes=missing so double-spend protection being off is visible to monitors.
+INDEXES_ENSURED = True
+
 
 @app.exception_handler(LLMServiceUnavailable)
 async def _llm_unavailable_handler(request, exc):
@@ -56,19 +61,32 @@ async def root():
 async def health():
     try:
         await db.command('ping')
-        # Include resource status in health check
-        resource_info = {}
-        try:
-            from resource_admission import resource_status
-            resource_info = resource_status()
-        except Exception:
-            pass
-        return {'status': 'ok', 'ai': 'Getszy AI', 'resources': resource_info}
     except Exception:
         # A non-2xx response is required for Docker, uptime monitors, and reverse
         # proxies to recognise a database outage instead of treating an error body
         # as a healthy service.
         return JSONResponse(status_code=503, content={'status': 'error', 'detail': 'database_unavailable'})
+    # Redis is optional for serving traffic, so a Redis outage degrades the
+    # health status (not an error): alerting watches the 'degraded' state.
+    from redis_client import check_redis_health
+    redis_ok = await check_redis_health()
+    if not redis_ok:
+        logger.warning('health: redis ping failed — status degraded (auth revocation lists and rate limits are disabled)')
+    # Resource admission involves a blocking pgrep/subprocess probe; keep it off
+    # the event loop.
+    try:
+        from resource_admission import resource_status_async
+        resource_info = await resource_status_async()
+    except Exception:
+        resource_info = {}
+    return {
+        'status': 'ok' if redis_ok else 'degraded',
+        'mongo': True,
+        'redis': bool(redis_ok),
+        'indexes': 'ok' if INDEXES_ENSURED else 'missing',
+        'ai': 'Getszy AI',
+        'resources': resource_info,
+    }
 
 
 @api_router.get('/factory/status', dependencies=[Depends(get_current_admin)])
@@ -248,6 +266,19 @@ async def _periodic_chain_recovery():
 @app.on_event('startup')
 async def startup():
     logger.info('getszy backend starting')
+    # Fail fast at boot if Mongo is unreachable: the index builds below silently
+    # swallowing a dead database meant the app came up without unique indexes
+    # (double-spend idempotency protection disabled). Bounded retry per policy.
+    for attempt in range(1, 13):
+        try:
+            await db.command('ping')
+            break
+        except Exception as e:
+            if attempt >= 12:
+                raise RuntimeError(f'Mongo unreachable after {attempt} ping attempts — aborting startup: {e}')
+            logger.warning('mongo not reachable yet (ping %d/12): %s — retrying in 5s', attempt, e)
+            await asyncio.sleep(5)
+    global INDEXES_ENSURED
     try:
         # Agent Factory config validation — must run before anything else
         try:
@@ -274,8 +305,36 @@ async def startup():
         # Ensure all premium-level courses are flagged
         await db.courses.update_many({'level': 'Advanced'}, {'$set': {'is_premium': True}})
         await db.courses.update_many({'level': {'$in': ['Beginner', 'Intermediate']}}, {'$set': {'is_premium': False}})
-        # Unique index so a Razorpay payment_id can only ever grant credits once
-        await db.billing_processed_payments.create_index('payment_id', unique=True)
+        # Financial idempotency unique indexes (payment/credit double-spend
+        # protection) get their OWN error boundary: if these fail, the app must
+        # still boot, but the gap is recorded (INDEXES_ENSURED) and surfaced by
+        # /api/health as indexes=missing instead of the giant try/except hiding it.
+        try:
+            # Unique index so a Razorpay payment_id can only ever grant credits once
+            await db.billing_processed_payments.create_index('payment_id', unique=True)
+            # Operation-aware spend ledger projection: one operation reference has one spend row.
+            # The users.paid_debit_markers entry remains the financial authority across a crash.
+            await db.credit_transactions.create_index(
+                [('user_id', 1), ('type', 1), ('ref_id', 1)],
+                unique=True,
+                partialFilterExpression={'type': 'spend', 'ref_id': {'$exists': True}},
+                name='uniq_operation_spend_ref',
+            )
+            # Race-free refund idempotency: a refund with the same (user_id, ref_id) can
+            # only ever be inserted once, so a retried job failure cannot double-refund.
+            # NOTE: MongoDB partial filters cannot use `$ne`; `$gt: None` is the supported
+            # idiom for "field exists and is not null". credits.refund() omits `ref_id`
+            # entirely when absent, so legacy ref_id-less refunds are not uniqueness-bound.
+            await db.credit_transactions.create_index(
+                [('user_id', 1), ('ref_id', 1), ('type', 1)],
+                unique=True,
+                partialFilterExpression={'ref_id': {'$gt': None}},
+            )
+            INDEXES_ENSURED = True
+        except Exception as e:
+            INDEXES_ENSURED = False
+            logger.critical('CRITICAL: financial idempotency unique indexes failed to build — '
+                            'payment/credit double-spend protection may be disabled: %s', e)
         # Production indexes
         await db.users.create_index('email', unique=True)
         await db.users.create_index('id', unique=True)
@@ -305,24 +364,6 @@ async def startup():
         # New indexes from audit
         await db.credit_transactions.create_index('user_id')
         await db.credit_transactions.create_index('created_at')
-        # Operation-aware spend ledger projection: one operation reference has one spend row.
-        # The users.paid_debit_markers entry remains the financial authority across a crash.
-        await db.credit_transactions.create_index(
-            [('user_id', 1), ('type', 1), ('ref_id', 1)],
-            unique=True,
-            partialFilterExpression={'type': 'spend', 'ref_id': {'$exists': True}},
-            name='uniq_operation_spend_ref',
-        )
-        # Race-free refund idempotency: a refund with the same (user_id, ref_id) can
-        # only ever be inserted once, so a retried job failure cannot double-refund.
-        # NOTE: MongoDB partial filters cannot use `$ne`; `$gt: None` is the supported
-        # idiom for "field exists and is not null". credits.refund() omits `ref_id`
-        # entirely when absent, so legacy ref_id-less refunds are not uniqueness-bound.
-        await db.credit_transactions.create_index(
-            [('user_id', 1), ('ref_id', 1), ('type', 1)],
-            unique=True,
-            partialFilterExpression={'ref_id': {'$gt': None}},
-        )
         await db.admin_chat.create_index('session_id')
         await db.chat_projects.create_index('user_id')
         await db.chat_messages.create_index('project_id')

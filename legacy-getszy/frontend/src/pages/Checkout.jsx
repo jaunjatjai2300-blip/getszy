@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
 
 function loadRazorpayScript() {
   return new Promise((resolve) => {
@@ -41,6 +42,7 @@ async function openRazorpay({ key, orderId, amount, orderNumber, name, email, ph
           });
           resolve(true);
         } catch {
+          toast.error("Payment failed — order not placed. Please try again.");
           resolve(false);
         }
       },
@@ -98,10 +100,17 @@ export default function Checkout() {
           });
         }
       } catch (payErr) {
-        console.warn("Razorpay init failed, falling back to COD", payErr);
+        console.warn("Razorpay init failed", payErr);
+        toast.error("Payment failed — order not placed. Please try again.");
+        return;
       }
 
-      setPlaced({ ...data, payment_status: paid ? "paid" : "pending" });
+      if (!paid) {
+        setErrorMsg("Payment was not completed — order not placed. Please try again.");
+        return;
+      }
+
+      setPlaced({ ...data, payment_status: "paid" });
       setErrorMsg("");
     } catch (err) {
       setErrorMsg(err?.response?.data?.detail || "Failed to place order");

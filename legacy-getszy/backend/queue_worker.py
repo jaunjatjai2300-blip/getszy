@@ -1,7 +1,7 @@
 """Background queue worker + backup scheduler."""
 import uuid
 import os
-import subprocess
+import asyncio
 import logging
 from datetime import datetime, timezone
 from db import db
@@ -57,7 +57,17 @@ async def _backup_mongodb(params: dict):
     ts = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
     path = f"{backup_dir}/getszy_{ts}"
     try:
-        subprocess.run(['mongodump', '--uri', os.environ.get('MONGO_URL', 'mongodb://localhost:27017'), '--out', path], check=True, timeout=300)
+        proc = await asyncio.create_subprocess_exec(
+            'mongodump', '--uri', os.environ.get('MONGO_URL', 'mongodb://localhost:27017'), '--out', path,
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
+        try:
+            _, err = await asyncio.wait_for(proc.communicate(), timeout=300)
+        except asyncio.TimeoutError:
+            try: proc.kill()
+            except Exception as e: logger.warning('mongodump kill failed: %s', e)
+            return {'status': 'error', 'error': 'mongodump timed out after 300s'}
+        if proc.returncode != 0:
+            return {'status': 'error', 'error': f'mongodump exited {proc.returncode}: {(err or b"")[:300].decode("utf-8", "ignore")}'}
         return {'status': 'success', 'path': path}
     except Exception as e:
         return {'status': 'error', 'error': str(e)}

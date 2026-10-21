@@ -7,7 +7,10 @@ Requires=docker.service
 Type=simple
 User=root
 WorkingDirectory=/opt/getszy/deploy
-Environment="WEBHOOK_TOKEN=CHANGE_ME_TO_A_LONG_RANDOM_STRING"
+# Token comes from the repo's .env (kept 600 root-owned) so it is never baked
+# into the unit file. .env must define WEBHOOK_TOKEN; update-vps-token.sh
+# maintains it alongside DEPLOY_WEBHOOK_TOKEN/GITHUB_TOKEN.
+EnvironmentFile=/opt/getszy/legacy-getszy/.env
 Environment="REPO_DIR=/opt/getszy"
 Environment="WEBHOOK_PORT=9000"
 ExecStart=/usr/bin/python3 /opt/getszy/deploy/webhook_listener.py

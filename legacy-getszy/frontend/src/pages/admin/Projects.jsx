@@ -79,7 +79,7 @@ function DatabaseTab({ project }) {
   const [newCol, setNewCol] = useState({ name: "", type: "string", required: false });
 
   const load = useCallback(async () => {
-    try { const r = await api.get(`/projects/${project.id}/schema`); setTables(r.data.tables || []); } catch {}
+    try { const r = await api.get(`/projects/${project.id}/schema`); setTables(r.data.tables || []); } catch { toast.error("Failed to load database schema"); }
     finally { setLoading(false); }
   }, [project.id]);
 
@@ -157,7 +157,7 @@ function ApiTab({ project }) {
   const [form, setForm] = useState({ method: "GET", path: "", description: "", auth_required: true });
 
   const load = useCallback(async () => {
-    try { const r = await api.get(`/projects/${project.id}/endpoints`); setEps(r.data.endpoints || []); } catch {} finally { setLoading(false); }
+    try { const r = await api.get(`/projects/${project.id}/endpoints`); setEps(r.data.endpoints || []); } catch { toast.error("Failed to load endpoints"); } finally { setLoading(false); }
   }, [project.id]);
   useEffect(() => { load(); }, [load]);
 
@@ -165,7 +165,7 @@ function ApiTab({ project }) {
     if (!form.path) return toast.error("Path chahiye");
     try { await api.post(`/projects/${project.id}/endpoints`, form); setForm({ method:"GET", path:"", description:"", auth_required:true }); await load(); toast.success("Endpoint added"); } catch { toast.error("Error"); }
   };
-  const del = async (eid) => { try { await api.delete(`/projects/${project.id}/endpoints/${eid}`); await load(); } catch {} };
+  const del = async (eid) => { try { await api.delete(`/projects/${project.id}/endpoints/${eid}`); await load(); } catch { toast.error("Failed to delete endpoint"); } };
 
   const METHOD_COLORS = { GET:"text-emerald-600 bg-emerald-50", POST:"text-blue-600 bg-blue-50", PUT:"text-amber-600 bg-amber-50", DELETE:"text-rose-600 bg-rose-50", PATCH:"text-purple-600 bg-purple-50" };
   return (
@@ -200,10 +200,10 @@ function ApiTab({ project }) {
 function EnvTab({ project }) {
   const [envs, setEnvs] = useState([]);
   const [form, setForm] = useState({ key: "", value: "", is_secret: false });
-  const load = useCallback(async()=>{try{const r=await api.get(`/projects/${project.id}/env`);setEnvs(r.data.env||[]);}catch{}}, [project.id]);
+  const load = useCallback(async()=>{try{const r=await api.get(`/projects/${project.id}/env`);setEnvs(r.data.env||[]);}catch{toast.error("Failed to load env vars");}}, [project.id]);
   useEffect(()=>{load();},[load]);
   const add = async()=>{if(!form.key||!form.value)return;try{await api.post(`/projects/${project.id}/env`,form);setForm({key:"",value:"",is_secret:false});await load();toast.success("Saved");}catch{toast.error("Error");}};
-  const del = async(key)=>{try{await api.delete(`/projects/${project.id}/env/${key}`);await load();}catch{}};
+  const del = async(key)=>{try{await api.delete(`/projects/${project.id}/env/${key}`);await load();}catch{toast.error("Failed to delete env var");}};
   return (
     <div className="space-y-3">
       <div className="flex gap-2">
@@ -231,9 +231,9 @@ function EnvTab({ project }) {
 function LogsTab({ project }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const load = useCallback(async()=>{setLoading(true);try{const r=await api.get(`/projects/${project.id}/logs`);setLogs(r.data.logs||[]);}catch{}finally{setLoading(false);}}, [project.id]);
+  const load = useCallback(async()=>{setLoading(true);try{const r=await api.get(`/projects/${project.id}/logs`);setLogs(r.data.logs||[]);}catch{toast.error("Failed to load logs");}finally{setLoading(false);}}, [project.id]);
   useEffect(()=>{load();},[load]);
-  const clear = async()=>{try{await api.delete(`/projects/${project.id}/logs`);await load();toast.success("Logs cleared");}catch{}};
+  const clear = async()=>{try{await api.delete(`/projects/${project.id}/logs`);await load();toast.success("Logs cleared");}catch{toast.error("Failed to clear logs");}};
   const LEVEL_CL = { info:"text-[var(--gs-teal)]", error:"text-rose-400", warn:"text-amber-400", debug:"text-[var(--gs-muted)]" };
   return (
     <div>
@@ -276,7 +276,7 @@ function DeployTab({ project, onUpdate }) {
   const [deploys, setDeploys] = useState([]);
   const [deploying, setDeploying] = useState(false);
   const [env, setEnv] = useState("production");
-  const load = useCallback(async()=>{try{const r=await api.get(`/projects/${project.id}/deploys`);setDeploys(r.data.deploys||[]);}catch{}},[project.id]);
+  const load = useCallback(async()=>{try{const r=await api.get(`/projects/${project.id}/deploys`);setDeploys(r.data.deploys||[]);}catch{toast.error("Failed to load deploys");}},[project.id]);
   useEffect(()=>{load();},[load]);
   const deploy = async()=>{
     setDeploying(true);
@@ -371,7 +371,7 @@ function ProjectSettings({ project, onDelete, onUpdate }) {
 // ─────────────── Project Workspace ───────────────
 function ProjectWorkspace({ project: initial, onBack }) {
   const [project, setProject] = useState(initial);
-  const reload = useCallback(async()=>{ try{ const r=await api.get(`/projects/${project.id}`); setProject(r.data); } catch{} },[project.id]);
+  const reload = useCallback(async()=>{ try{ const r=await api.get(`/projects/${project.id}`); setProject(r.data); } catch{ toast.error("Failed to load project"); } },[project.id]);
   const TABS = [
     { id:"overview", label:"Overview", icon:Layers },
     { id:"database", label:"Database", icon:Database },

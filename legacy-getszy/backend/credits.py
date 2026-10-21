@@ -13,7 +13,7 @@ Design (per founder decision, July 2026):
 """
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from pymongo.errors import DuplicateKeyError
 from db import db
@@ -205,6 +205,12 @@ async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] =
         )
         if updated:
             await reconcile_operation_debit_ledger(user_id, action, qty, ref_id, meta)
+            if int(updated.get('credits', 0) or 0) == 0:
+                try:
+                    from subscription import end_subscription_if_no_credits
+                    await end_subscription_if_no_credits(user_id)
+                except Exception:
+                    logger.exception('failed to end subscription for zero-balance user %s', user_id)
             return True, '', int(updated.get('credits', 0) or 0)
         existing_marker = await db.users.find_one(
             {'id': user_id, 'paid_debit_markers.ref_id': ref_id}, {'_id': 0, 'credits': 1}
@@ -244,6 +250,12 @@ async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] =
     # A zero balance blocks the next paid action. We retain the historical pack
     # record for customer support and ledger transparency; it implies no calendar
     # subscription or recurring access state.
+    if balance_after == 0:
+        try:
+            from subscription import end_subscription_if_no_credits
+            await end_subscription_if_no_credits(user_id)
+        except Exception:
+            logger.exception('failed to end subscription for zero-balance user %s', user_id)
     return True, '', balance_after
 
 
@@ -256,6 +268,22 @@ async def refund(user_id: str, action: str, qty: int = 1, reason: str = 'generat
     can supply a stable id (job/project id) should do so.
     """
     amount = cost_of(action, qty)
+    if not ref_id:
+        # Legacy ref_id-less refunds cannot be uniqueness-guarded, so only allow
+        # one when a matching spend of at least this amount happened in the last
+        # 24h; otherwise refuse (return balance unchanged).
+        since = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+        try:
+            prior_spend = await db.credit_transactions.find_one(
+                {'user_id': user_id, 'type': 'spend', 'amount': {'$lte': -amount}, 'created_at': {'$gte': since}},
+                {'_id': 1},
+            )
+        except Exception:
+            logger.exception('could not scan credit_transactions for a matching spend (user %s, action %s)', user_id, action)
+            prior_spend = None
+        if not prior_spend:
+            logger.warning('refused ref_id-less refund of %s credits (action %s, user %s): no matching spend in last 24h', amount, action, user_id)
+            return await get_balance(user_id)
     txn = {
         'user_id': user_id,
         'type': 'refund',

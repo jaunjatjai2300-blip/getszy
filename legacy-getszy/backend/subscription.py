@@ -168,22 +168,26 @@ async def increment_studio_builds(user_id: str):
 
 async def start_trial(user: dict) -> dict:
     sub = await ensure_subscription(user)
-    # Disallow second trial
-    if sub.get('trial_started_at'):
-        raise ValueError('Trial already used')
     now = _now()
     ends = now + timedelta(days=7)
-    sub.update({
-        'plan': PLAN_PRO,
-        'status': STATUS_TRIAL,
-        'trial_started_at': _iso(now),
-        'trial_ends_at': _iso(ends),
-        'current_period_end': _iso(ends),
-    })
-    await db.users.update_one({'id': user['id']}, {'$set': {'subscription': sub}})
+    # Atomic claim: only the first concurrent caller matches (trial_started_at still None),
+    # so a race or double-submit can never grant the trial credit bucket twice.
+    updated = await db.users.find_one_and_update(
+        {'id': user['id'], 'subscription.trial_started_at': None},
+        {'$set': {
+            'subscription.plan': PLAN_PRO,
+            'subscription.status': STATUS_TRIAL,
+            'subscription.trial_started_at': _iso(now),
+            'subscription.trial_ends_at': _iso(ends),
+            'subscription.current_period_end': _iso(ends),
+        }},
+        return_document=True,
+    )
+    if not updated:
+        raise ValueError('Trial already used')
     # Trial is the Pro tier — grant its credit bucket too.
     await grant_credits_for_plan(user['id'], PLAN_PRO)
-    return sub
+    return (updated.get('subscription') or sub)
 
 
 async def grant_credits_for_plan(user_id: str, plan: str) -> int:

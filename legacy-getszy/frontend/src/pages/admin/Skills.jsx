@@ -26,8 +26,8 @@ export default function AdminSkills() {
   const [result, setResult] = useState(null);
   const [runs, setRuns] = useState([]);
 
-  const load = async () => { try { const r = await api.get("/admin/skills"); setSkills(r.data); } catch (e) {} };
-  const loadRuns = async () => { try { const r = await api.get("/admin/skills/runs/recent?limit=10"); setRuns(r.data.items || []); } catch (e) {} };
+  const load = async () => { try { const r = await api.get("/admin/skills"); setSkills(r.data); } catch (e) { toast.error("Failed to load skills"); } };
+  const loadRuns = async () => { try { const r = await api.get("/admin/skills/runs/recent?limit=10"); setRuns(r.data.items || []); } catch (e) { toast.error("Failed to load recent runs"); } };
   useEffect(() => { load(); loadRuns(); }, []);
 
   const openSkill = (skill) => {

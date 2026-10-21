@@ -53,8 +53,23 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 from redis_client import redis as _ai_redis
 
 _AI_HITS: dict[str, list[float]] = defaultdict(list)
+# The in-memory fallback is only a best-effort limiter, but without a bound the
+# key set grows forever under attacker-controlled identifiers (slow leak).
+AI_FALLBACK_MAX_KEYS = int(os.environ.get('AI_RATE_LIMIT_MAX_KEYS', '10000'))
 AI_RATE_LIMIT = int(os.environ.get('AI_RATE_LIMIT_PER_USER', '30'))
 AI_RATE_WINDOW = int(os.environ.get('AI_RATE_WINDOW_SEC', '60'))
+
+
+def _prune_ai_hits(now: float, window: int) -> None:
+    """Bound the fallback store: first drop identifiers whose last hit is older
+    than the window, then (if still oversized) evict the least-recently used."""
+    cutoff = now - window
+    for k in [k for k, v in _AI_HITS.items() if not v or v[-1] <= cutoff]:
+        del _AI_HITS[k]
+    if len(_AI_HITS) > AI_FALLBACK_MAX_KEYS:
+        ordered = sorted(_AI_HITS.items(), key=lambda kv: kv[1][-1] if kv[1] else 0.0)
+        for k, _ in ordered[:len(_AI_HITS) - AI_FALLBACK_MAX_KEYS]:
+            del _AI_HITS[k]
 
 
 async def ai_rate_limit_allowed(identifier: str, limit: int = AI_RATE_LIMIT, window: int = AI_RATE_WINDOW) -> bool:
@@ -85,6 +100,10 @@ async def ai_rate_limit_allowed(identifier: str, limit: int = AI_RATE_LIMIT, win
     if len(_AI_HITS[identifier]) >= limit:
         return False
     _AI_HITS[identifier].append(now)
+    try:
+        _prune_ai_hits(now, window)
+    except Exception:
+        pass
     return True
 
 

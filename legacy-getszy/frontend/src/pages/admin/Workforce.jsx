@@ -20,7 +20,7 @@ export default function Workforce() {
 
   const load = async () => {
     try { const r = await api.get("/workforce/agents"); setAgents(r.data.agents || []); } catch (e) { toast.error("Couldn't load agents — check connection and refresh"); }
-    try { const r = await api.get("/workforce/history?limit=15"); setHistory(r.data.items || []); } catch (e) {}
+    try { const r = await api.get("/workforce/history?limit=15"); setHistory(r.data.items || []); } catch (e) { toast.error("Failed to load history"); }
   };
   useEffect(() => { load(); }, []);
 

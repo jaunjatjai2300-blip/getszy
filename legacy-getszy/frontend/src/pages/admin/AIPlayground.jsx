@@ -45,7 +45,7 @@ export default function AIPlayground() {
     try {
       const r = await api.get("/admin/ai-platform/playground/history?limit=10");
       setHistory(r.data || []);
-    } catch {}
+    } catch { toast.error("Failed to load history"); }
   };
 
   const send = async () => {

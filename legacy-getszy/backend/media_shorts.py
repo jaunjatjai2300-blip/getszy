@@ -12,12 +12,13 @@ import os
 import re
 import logging
 import tempfile
-import subprocess
+import asyncio
 from typing import List, Dict, Any, Optional
 
 from video.ffmpeg_bin import get_ffmpeg
 
 logger = logging.getLogger('getszy.media_shorts')
+FFMPEG_TIMEOUT = 600  # seconds; matches the previous sync subprocess timeout
 
 
 def split_sentences(text: str) -> List[str]:
@@ -106,7 +107,7 @@ def _resolve_source(source: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     return {'error': 'no usable video source provided'}
 
 
-def run_shorts(source: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+async def run_shorts(source: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     """End-to-end shorts generation. Returns {'output': path, 'captions': [...],
     'provider': ...} or {'error': ...}. Never raises on missing tools."""
     orientation = params.get('orientation', '9:16')
@@ -121,10 +122,10 @@ def run_shorts(source: Any, params: Dict[str, Any]) -> Dict[str, Any]:
         from whisper_stt import transcribe as whisper_transcribe
         with open(input_path, 'rb') as fh:
             audio = fh.read()
-        result = whisper_transcribe(audio, os.path.basename(input_path))
+        result = await whisper_transcribe(audio, os.path.basename(input_path))
         text = result.get('text', '')
         # Duration via ffprobe (guarded)
-        duration = _ffprobe_duration(input_path) or 30.0
+        duration = await asyncio.to_thread(_ffprobe_duration, input_path) or 30.0
         captions = assign_timeline(split_sentences(text), duration)
     except Exception as e:  # noqa: BLE001
         logger.warning('shorts transcription failed: %s', e)
@@ -141,7 +142,17 @@ def run_shorts(source: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     output_path = os.path.join(out_dir, 'shorts_out.mp4')
     cmd = build_shorts_command(input_path, output_path, srt_path, orientation)
     try:
-        subprocess.run(cmd, check=True, capture_output=True, timeout=600)
+        # Async subprocess so a 10-minute render does not freeze the event loop.
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
+        try:
+            _, err = await asyncio.wait_for(proc.communicate(), timeout=FFMPEG_TIMEOUT)
+        except asyncio.TimeoutError:
+            try: proc.kill()
+            except Exception as e: logger.warning('shorts ffmpeg kill failed: %s', e)
+            return {'error': 'ffmpeg render failed: timeout'}
+        if proc.returncode != 0:
+            return {'error': f'ffmpeg render failed: {(err or b"")[:300].decode("utf-8", "ignore")}'}
     except Exception as e:  # noqa: BLE001
         return {'error': f'ffmpeg render failed: {e}'}
 

@@ -219,8 +219,7 @@ async def verify(body: VerifyIn, user=Depends(get_current_user)):
 async def webhook(request: Request):
     body_bytes = await request.body()
     if not WEBHOOK_SECRET:
-        # Silently accept in unconfigured mode to allow Razorpay's ping-tests
-        return {'ok': True, 'unconfigured': True}
+        raise HTTPException(401, 'Webhook secret not configured')
     sig = request.headers.get('X-Razorpay-Signature', '')
     expected = hmac.new(WEBHOOK_SECRET.encode(), body_bytes, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected, sig):
@@ -235,8 +234,8 @@ async def webhook(request: Request):
     event = payload.get('event') or ''
     entity = (payload.get('payload') or {}).get('subscription', {}).get('entity', {})
     sub_id = entity.get('id')
-    notes = entity.get('notes') or {}
-    user_id = notes.get('user_id')
+    rec = await db.billing_subscriptions.find_one({'razorpay_subscription_id': sub_id}) if sub_id else None
+    user_id = (rec or {}).get('user_id')
 
     await db.billing_events.insert_one({
         'id': str(uuid.uuid4()),
@@ -248,16 +247,27 @@ async def webhook(request: Request):
     })
 
     # Handle key events
-    if event in ('subscription.charged', 'subscription.activated', 'subscription.resumed') and user_id and sub_id:
-        rec = await db.billing_subscriptions.find_one({'razorpay_subscription_id': sub_id})
+    if event == 'subscription.charged' and rec and user_id:
         payment_entity = (payload.get('payload') or {}).get('payment', {}).get('entity', {})
-        payment_id = payment_entity.get('id') or f'{sub_id}:{event}:{entity.get("current_end", "")}'
-        if rec:
+        payment_id = payment_entity.get('id')
+        pack_info = ALL_PACKS.get(rec['plan'])
+        if not payment_id:
+            logger.warning('webhook %s has no real payment entity id for sub %s — not granting credits', event, sub_id)
+        elif not pack_info:
+            logger.warning('webhook %s references unknown pack %r for sub %s — not granting credits', event, rec['plan'], sub_id)
+        elif payment_entity.get('amount') != pack_info['price_inr'] * 100 or payment_entity.get('currency') != 'INR':
+            logger.warning(
+                'webhook %s payment %s amount/currency mismatch for pack %s (amount=%r currency=%r) — not granting credits',
+                event, payment_id, rec['plan'], payment_entity.get('amount'), payment_entity.get('currency'),
+            )
+        else:
             await _grant_pack_credits_once(user_id, rec['plan'], payment_id, source='webhook')
             await set_subscription_plan_active(user_id, PACK_TO_PLAN.get(rec['plan'], 'pro'), days=30)
-        await db.billing_subscriptions.update_one({'razorpay_subscription_id': sub_id}, {'$set': {'status': 'active', 'updated_at': _iso()}})
     elif event in ('subscription.paused', 'subscription.cancelled', 'subscription.completed'):
         await db.billing_subscriptions.update_one({'razorpay_subscription_id': sub_id}, {'$set': {'status': event.split('.')[-1], 'updated_at': _iso()}})
+
+    if rec and sub_id and event not in ('subscription.paused', 'subscription.cancelled', 'subscription.completed'):
+        await db.billing_subscriptions.update_one({'razorpay_subscription_id': sub_id}, {'$set': {'status': 'active', 'updated_at': _iso()}})
 
     return {'ok': True, 'event': event}
 
@@ -329,10 +339,13 @@ async def order_create(body: OrderPayIn, user=Depends(get_current_user)):
     order = await db.orders.find_one({'order_number': body.order_number, 'user_id': user['id']}, {'_id': 0})
     if not order:
         raise HTTPException(404, 'Order not found')
+    if abs(float(body.amount) - float(order.get('total') or 0)) > 0.01:
+        raise HTTPException(409, 'Amount does not match the order total')
+    order_total = float(order['total'])
     client = _client()
     try:
         rz_order = client.order.create({
-            'amount': int(round(body.amount * 100)),
+            'amount': int(round(order_total * 100)),
             'currency': 'INR',
             'receipt': body.order_number,
             'notes': {'order_number': body.order_number, 'user_id': user['id']},
@@ -340,11 +353,15 @@ async def order_create(body: OrderPayIn, user=Depends(get_current_user)):
     except Exception as e:
         logger.exception('razorpay order.create failed')
         raise HTTPException(500, f'Razorpay error: {str(e)[:180]}')
+    await db.orders.update_one(
+        {'order_number': body.order_number, 'user_id': user['id']},
+        {'$set': {'razorpay_order_id': rz_order['id']}},
+    )
     return {
         'configured': True,
         'key_id': KEY_ID,
         'razorpay_order_id': rz_order['id'],
-        'amount': body.amount,
+        'amount': order_total,
         'currency': 'INR',
     }
 
@@ -367,10 +384,61 @@ async def order_verify(body: OrderVerifyIn, user=Depends(get_current_user)):
     order = await db.orders.find_one({'order_number': body.order_number, 'user_id': user['id']}, {'_id': 0})
     if not order:
         raise HTTPException(404, 'Order not found')
-    await db.orders.update_one(
-        {'order_number': body.order_number},
+    if order.get('razorpay_order_id') != body.razorpay_order_id:
+        raise HTTPException(400, 'Payment does not belong to this order')
+    expected_amount = int(round(float(order.get('total') or 0) * 100))
+    client = _client()
+    try:
+        payment = client.payment.fetch(body.razorpay_payment_id)
+    except Exception:
+        logger.exception('razorpay payment.fetch failed')
+        raise HTTPException(400, 'Could not verify payment with Razorpay')
+    if payment.get('status') not in ('captured', 'authorized'):
+        raise HTTPException(400, 'Payment is not captured yet')
+    if payment.get('amount') != expected_amount:
+        raise HTTPException(400, 'Payment amount does not match the order total')
+    if payment.get('order_id') != body.razorpay_order_id:
+        raise HTTPException(400, 'Payment does not belong to this order')
+    if payment.get('currency') != 'INR':
+        raise HTTPException(400, 'Unsupported payment currency')
+    try:
+        existing_proc = await db.billing_processed_payments.find_one({'payment_id': body.razorpay_payment_id})
+    except Exception:
+        existing_proc = None
+    if existing_proc and existing_proc.get('order_number') != body.order_number:
+        raise HTTPException(409, 'Payment already used for another order')
+    res = await db.orders.update_one(
+        {'order_number': body.order_number, 'user_id': user['id'], 'payment_status': {'$ne': 'paid'}},
         {'$set': {'payment_status': 'paid', 'razorpay_payment_id': body.razorpay_payment_id, 'paid_at': _iso()}},
     )
+    if res.matched_count == 0:
+        current = await db.orders.find_one(
+            {'order_number': body.order_number, 'user_id': user['id']},
+            {'_id': 0, 'payment_status': 1, 'razorpay_payment_id': 1},
+        )
+        if current and current.get('payment_status') == 'paid' and current.get('razorpay_payment_id') == body.razorpay_payment_id:
+            try:
+                await db.billing_processed_payments.insert_one({
+                    'payment_id': body.razorpay_payment_id,
+                    'user_id': user['id'],
+                    'order_number': body.order_number,
+                    'source': 'order_verify',
+                    'created_at': _iso(),
+                })
+            except Exception:
+                pass
+            return {'ok': True, 'order_number': body.order_number, 'payment_status': 'paid'}
+        raise HTTPException(409, 'Order is not in a payable state')
+    try:
+        await db.billing_processed_payments.insert_one({
+            'payment_id': body.razorpay_payment_id,
+            'user_id': user['id'],
+            'order_number': body.order_number,
+            'source': 'order_verify',
+            'created_at': _iso(),
+        })
+    except Exception:
+        pass
     # Mark the auto-generated GST invoice as paid.
     try:
         await db.gs_invoices.update_one(

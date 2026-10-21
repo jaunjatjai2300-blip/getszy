@@ -41,7 +41,7 @@ export default function AdminStacks() {
   const [busy, setBusy] = useState(false);
   const [run, setRun] = useState(null);
 
-  const load = async () => { try { const r = await api.get("/admin/stacks"); setStacks(r.data.items || []); } catch (e) {} };
+  const load = async () => { try { const r = await api.get("/admin/stacks"); setStacks(r.data.items || []); } catch (e) { toast.error("Failed to load stacks"); } };
   useEffect(() => { load(); }, []);
 
   const parse = async () => {

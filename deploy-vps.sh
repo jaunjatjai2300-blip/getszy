@@ -11,9 +11,14 @@ LEGACY_DIR="$REPO_DIR/legacy-getszy"
 
 echo "=== GETSZY Deploy $(date) ==="
 
-# 1. Pull latest code
+# 1. Sync code to origin/main (deploy checkout must mirror the repo; local
+#    commits on the server are reset away with a loud note in the output)
 cd "$REPO_DIR"
-git pull origin main
+git fetch origin main
+if ! git merge-base --is-ancestor HEAD origin/main 2>/dev/null; then
+    echo "WARNING: local commits on this checkout diverge from origin/main — resetting to the repo state"
+fi
+git reset --hard origin/main
 
 # 2. Verify Ollama is running and qwen model is available
 echo "--- Checking Ollama ---"
@@ -23,7 +28,7 @@ if curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
         echo "Qwen model found"
     else
         echo "WARNING: qwen model not found. Pulling..."
-        ollama pull qwen2.5:7b
+        ollama pull qwen2.5:7b || echo "WARNING: ollama pull failed (continuing; models can be pulled later)"
     fi
 else
     echo "WARNING: Ollama not responding on port 11434"
@@ -47,16 +52,25 @@ echo "--- Restarting services ---"
 docker compose down
 docker compose up -d
 
-# 5. Wait for health
+# 5. Wait for health (FATAL: a deploy whose API never comes up is a failure,
+#    never report "Deploy complete")
 echo "--- Waiting for backend health check ---"
+HEALTH_OK=0
 for i in $(seq 1 30); do
     if curl -sf http://localhost/api/health > /dev/null 2>&1; then
         echo "Backend is healthy!"
+        HEALTH_OK=1
         break
     fi
     echo "Waiting... ($i/30)"
     sleep 5
 done
+if [ "$HEALTH_OK" -ne 1 ]; then
+    echo "ERROR: backend /api/health did not come up after 150s — deploy FAILED"
+    docker compose ps || true
+    docker compose logs --tail=50 backend || true
+    exit 1
+fi
 
 # 6. Verify Ollama connectivity from backend
 echo "--- Verifying Ollama connectivity ---"

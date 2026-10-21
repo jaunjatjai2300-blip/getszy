@@ -6,20 +6,15 @@ internal Docker network (172.x / 10.x / 192.168.x), so the telemetry can only be
 read from inside the cluster.
 """
 import logging
-from fastapi import Request, HTTPException
+from fastapi import Request
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+
+from redis_rate_limit import _client_ip
 
 logger = logging.getLogger('getszy')
 
 INTERNAL_PREFIXES = ('127.0.0.1', '::1', '172.', '10.', '192.168.')
-
-
-def _client_ip(request: Request) -> str:
-    return (
-        request.headers.get('CF-Connecting-IP')
-        or request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
-        or (request.client.host if request.client else '')
-    )
 
 
 class MetricsProtectionMiddleware(BaseHTTPMiddleware):
@@ -29,8 +24,8 @@ class MetricsProtectionMiddleware(BaseHTTPMiddleware):
             is_internal = any(client_ip.startswith(p) for p in INTERNAL_PREFIXES)
             if not is_internal:
                 logger.warning(f'metrics_access_denied: {client_ip}')
-                raise HTTPException(
+                return JSONResponse(
                     status_code=403,
-                    detail='Forbidden: Metrics access restricted to internal network.',
+                    content={'detail': 'Forbidden: Metrics access restricted to internal network.'},
                 )
         return await call_next(request)

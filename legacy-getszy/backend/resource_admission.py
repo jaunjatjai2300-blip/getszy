@@ -330,3 +330,9 @@ def resource_status() -> dict:
         'queue_depth': get_queue_depth(),
         'system_overhead_mb': SYSTEM_OVERHEAD_MB,
     }
+
+
+async def resource_status_async() -> dict:
+    """Async wrapper: resource_status() does a blocking subprocess (pgrep) probe,
+    so it must run off the event loop when called from request handlers."""
+    return await asyncio.to_thread(resource_status)

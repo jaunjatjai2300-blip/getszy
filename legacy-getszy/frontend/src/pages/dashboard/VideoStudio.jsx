@@ -544,7 +544,7 @@ function ShortsTab({ onDone }) {
             setStatus(d.render_status);
             if (d.shorts && d.shorts.length) setShorts(d.shorts);
             if (["complete", "error", "cancelled"].includes(d.render_status)) { es.close(); finish(); }
-          } catch (_) {}
+          } catch (_) { /* malformed SSE event — loop continues */ }
         };
         es.onerror = () => es.close();
       } else {
@@ -555,7 +555,7 @@ function ShortsTab({ onDone }) {
             setStatus(p.data.render_status);
             if (p.data.shorts) setShorts(p.data.shorts);
             if (["complete", "error"].includes(p.data.render_status)) { clearInterval(iv); finish(); }
-          } catch (_) {}
+          } catch (_) { /* transient — poll retries next interval */ }
         }, 3000);
       }
       toast.success("Shorts engine started â€” extracting highlights...");

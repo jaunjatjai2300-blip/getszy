@@ -14,6 +14,12 @@ export class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error("Unhandled UI error:", error, info);
+    const msg = error?.message || "";
+    const isChunkLoadError = /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk \d+ failed|Loading CSS chunk/i.test(msg);
+    if (isChunkLoadError && !sessionStorage.getItem("getszy_chunk_reload")) {
+      sessionStorage.setItem("getszy_chunk_reload", "1");
+      window.location.reload();
+    }
   }
 
   render() {

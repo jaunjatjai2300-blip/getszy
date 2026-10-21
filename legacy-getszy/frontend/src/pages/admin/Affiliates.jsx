@@ -64,7 +64,7 @@ export default function Affiliates() {
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
-        {[[<TrendingUp className="h-5 w-5 text-blue-500"/>,"Total Clicks",totalClicks],[<ShoppingCart className="h-5 w-5 text-emerald-500"/>,"Conversions",totalConversions],[<DollarSign className="h-5 w-5 text-amber-500"/>,"Total Earnings",`₹${totalEarnings.toFixed(2)}`]].map(([ic,k,v],i)=>(
+        {[[<TrendingUp key="clicks" className="h-5 w-5 text-blue-500"/>,"Total Clicks",totalClicks],[<ShoppingCart key="conv" className="h-5 w-5 text-emerald-500"/>,"Conversions",totalConversions],[<DollarSign key="earn" className="h-5 w-5 text-amber-500"/>,"Total Earnings",`₹${totalEarnings.toFixed(2)}`]].map(([ic,k,v],i)=>(
           <Card key={i} className="p-4 flex items-center gap-3">{ic}<div><p className="text-[10px] text-[var(--gs-muted)]">{k}</p><p className="text-xl font-bold">{v}</p></div></Card>
         ))}
       </div>

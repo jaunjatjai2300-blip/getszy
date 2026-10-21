@@ -37,9 +37,9 @@ export default function Publishing() {
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
-    try { const r = await api.get("/publishing/connections"); setConnections(r.data.platforms || {}); } catch (e) {}
-    try { const r = await api.get("/publishing/queue?limit=40"); setQueue(r.data.items || []); } catch (e) {}
-    try { const r = await api.get("/video/jobs?limit=20"); setVideos((r.data.items || []).filter(j => j.status === "done")); } catch (e) {}
+    try { const r = await api.get("/publishing/connections"); setConnections(r.data.platforms || {}); } catch (e) { toast.error("Failed to load connections"); }
+    try { const r = await api.get("/publishing/queue?limit=40"); setQueue(r.data.items || []); } catch (e) { toast.error("Failed to load queue"); }
+    try { const r = await api.get("/video/jobs?limit=20"); setVideos((r.data.items || []).filter(j => j.status === "done")); } catch (e) { toast.error("Failed to load videos"); }
   };
   useEffect(() => { load(); }, []);
 

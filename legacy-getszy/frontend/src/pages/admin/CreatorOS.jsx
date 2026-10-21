@@ -97,10 +97,10 @@ export default function CreatorOS() {
   const [repurposeOut, setRepurposeOut] = useState(null);
 
   const loadProviders = async () => {
-    try { const r = await api.get("/creator/providers"); setProviders(r.data); } catch (e) {}
+    try { const r = await api.get("/creator/providers"); setProviders(r.data); } catch (e) { toast.error("Failed to load providers"); }
   };
   const loadHistory = async () => {
-    try { const r = await api.get("/creator/history?limit=15"); setHistory(r.data.items || []); } catch (e) {}
+    try { const r = await api.get("/creator/history?limit=15"); setHistory(r.data.items || []); } catch (e) { toast.error("Failed to load history"); }
   };
   useEffect(() => { loadProviders(); loadHistory(); }, []);
 

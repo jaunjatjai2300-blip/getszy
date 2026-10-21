@@ -1,6 +1,7 @@
 import os
 import uuid
 import asyncio
+import logging
 import bcrypt
 import jwt
 import math
@@ -9,6 +10,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from db import db, serialize_doc
 from redis_client import redis
+
+logger = logging.getLogger('getszy')
 
 # ── Secret strength validation ────────────────────────────────────────────────
 # Guards every security-critical secret this app reads from the environment
@@ -146,9 +149,11 @@ async def revoke_refresh_token(user_id: str, rti: str) -> None:
 async def is_refresh_token_valid(user_id: str, rti: str) -> bool:
     try:
         if not redis:
-            return True
+            logger.error('refresh token validation is not possible: redis unavailable (failing closed)')
+            return False
         return bool(await redis.exists(f'rt:{user_id}:{rti}'))
-    except Exception:
+    except Exception as e:
+        logger.error(f'refresh token validation failed: redis unavailable, failing closed: {e}')
         return False
 
 
@@ -159,14 +164,18 @@ async def is_refresh_token_valid(user_id: str, rti: str) -> bool:
 # have no `jti` and are simply never revocable (treated as valid).
 async def revoke_token(jti: str, exp: int) -> None:
     if not jti or redis is None:
+        logger.warning(
+            'revoke_token: revocation cannot be persisted (matching jti=%s, redis=%s) — '
+            'token stays valid until its natural expiry', jti, redis is not None,
+        )
         return
     try:
         ttl = max(1, int(exp - datetime.now(timezone.utc).timestamp()))
         await redis.set(f'jwt:revoked:{jti}', '1', ex=ttl)
-    except Exception:
+    except Exception as e:
         # If Redis is unavailable we cannot persist the revocation. Fail open to
         # avoid bricking auth entirely; the token still expires naturally.
-        pass
+        logger.error(f'revoke_token: persisting revocation for jti={jti} failed: {e}')
 
 
 async def is_token_revoked(jti: str) -> bool:

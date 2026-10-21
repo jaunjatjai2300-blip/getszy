@@ -18,37 +18,9 @@
         Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://assets.emergent.sh; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.{$DOMAIN} https://assets.emergent.sh; frame-ancestors 'self'"
     }
 
-    # The preview hostname uses the proven production TLS listener but routes to
-    # an isolated frontend container. It is read-only except for customer sign-in.
+    # Preview traffic is served by the dedicated preview.{$DOMAIN} site block
+    # below; nothing preview-related belongs in this production route.
     route {
-        @preview_docs {
-            host preview.{$DOMAIN}
-            path /docs /docs/* /redoc /redoc/* /openapi.json /api/docs /api/docs/* /api/redoc /api/redoc/* /api/openapi.json
-        }
-        respond @preview_docs "Not Found" 404
-
-        @preview_login {
-            host preview.{$DOMAIN}
-            method POST
-            path /api/auth/login
-        }
-        reverse_proxy @preview_login backend:8001
-
-        @preview_mutation {
-            host preview.{$DOMAIN}
-            method POST PUT PATCH DELETE
-        }
-        respond @preview_mutation "Dashboard preview is read-only. Review the UI here; create, publish, and other write actions are disabled." 405
-
-        @preview_api {
-            host preview.{$DOMAIN}
-            path /api/*
-        }
-        reverse_proxy @preview_api backend:8001
-
-        @preview_frontend host preview.{$DOMAIN}
-        reverse_proxy @preview_frontend getszy-dashboard-preview:80
-
         # Production documentation is available only from an authenticated internal
         # environment; never publish API schemas or interactive docs to the internet.
         @internal_docs path /docs /docs/* /redoc /redoc/* /openapi.json /api/docs /api/docs/* /api/redoc /api/redoc/* /api/openapi.json

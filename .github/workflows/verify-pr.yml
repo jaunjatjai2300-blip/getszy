@@ -11,12 +11,13 @@ on:
 jobs:
   lane:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
           - { lane: 1, kind: backend,  serve: true,  cmd: 'cd legacy-getszy/backend && python -m pytest tests/ -q -p no:cacheprovider -m "not integration"' }
-          - { lane: 2, kind: frontend, serve: false, optional: true, cmd: 'cd legacy-getszy/frontend && yarn install --no-progress && CI=false yarn build' }
+          - { lane: 2, kind: frontend, serve: false, cmd: 'cd legacy-getszy/frontend && yarn install --no-progress && CI=false yarn build' }
           - { lane: 3, kind: frontend, serve: false, cmd: 'cd legacy-getszy/frontend && npx playwright test --grep "(?i)builder" --project=chromium --project="Mobile Chrome"', optional: true }
           - { lane: 4, kind: backend,  serve: true,  cmd: 'cd legacy-getszy/backend && python -m pytest tests/test_builder_preview_security.py tests/test_security.py -q' }
           - { lane: 5, kind: backend,  serve: true,  cmd: 'cd legacy-getszy/backend && python -m pytest tests/test_production_hardening.py -q' }

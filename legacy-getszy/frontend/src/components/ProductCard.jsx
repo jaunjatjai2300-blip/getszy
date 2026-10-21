@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +6,6 @@ import { fmtINR } from "@/lib/api";
 import { imageProps } from "@/commerce/responsiveImage";
 import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/cart";
-import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 export function ProductCard({ product }) {

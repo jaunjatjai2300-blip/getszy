@@ -64,7 +64,7 @@ export default function AvatarSetup() {
       ]);
       if (avatarR.status === "fulfilled") setStatus(avatarR.value.data);
       if (sysR.status === "fulfilled") setGpuData(sysR.value.data?.gpu);
-    } catch (e) {}
+    } catch (e) { toast.error("Failed to load avatar setup"); }
     finally { setLoading(false); }
   };
 

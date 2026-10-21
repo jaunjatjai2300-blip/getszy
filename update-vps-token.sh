@@ -27,13 +27,22 @@ ESC=$(printf '%s' "$NEW_PAT" | sed -e 's/[\\/|&]/\\&/g')
 
 # Remote script is generated locally (with the token substituted in) and
 # streamed to `bash -s` over ssh stdin — no argv exposure, no history, no ps.
+# __ESC_TOKEN__ is sed-escaped for in-place edits; __RAW_TOKEN__ is used for
+# append-only writes where escaping would corrupt the value.
 REMOTE=$(cat <<'SCRIPT'
 set -e
 UPDATED=0
 for ENVF in /opt/getszy/.env /opt/getszy/legacy-getszy/.env; do
   if [ -f "$ENVF" ]; then
-    sed -i "s/^GITHUB_TOKEN=.*/GITHUB_TOKEN=__NEW_TOKEN__/" "$ENVF"
-    sed -i "s/^DEPLOY_WEBHOOK_TOKEN=.*/DEPLOY_WEBHOOK_TOKEN=__NEW_TOKEN__/" "$ENVF"
+    sed -i "s/^GITHUB_TOKEN=.*/GITHUB_TOKEN=__ESC_TOKEN__/" "$ENVF"
+    sed -i "s/^DEPLOY_WEBHOOK_TOKEN=.*/DEPLOY_WEBHOOK_TOKEN=__ESC_TOKEN__/" "$ENVF"
+    # The systemd unit (getszy-webhook) reads WEBHOOK_TOKEN from this .env via
+    # EnvironmentFile — keep it in sync with the new PAT.
+    if grep -q '^WEBHOOK_TOKEN=' "$ENVF"; then
+      sed -i "s/^WEBHOOK_TOKEN=.*/WEBHOOK_TOKEN=__ESC_TOKEN__/" "$ENVF"
+    else
+      printf 'WEBHOOK_TOKEN=%s\n' '__RAW_TOKEN__' >> "$ENVF"
+    fi
     chmod 600 "$ENVF"
     echo "Updated $ENVF"
     UPDATED=1
@@ -47,10 +56,18 @@ cd /opt/getszy/legacy-getszy
 # Compose interpolates .env at container *creation*; `restart` does not re-read
 # it, so recreate the backend instead.
 docker compose up -d backend || docker-compose up -d backend
+# Reload the systemd webhook listener with the new token (it reads WEBHOOK_TOKEN
+# from .env via EnvironmentFile).
+if command -v systemctl >/dev/null 2>&1 && systemctl cat getszy-webhook >/dev/null 2>&1; then
+  systemctl daemon-reload
+  systemctl restart getszy-webhook
+  echo "getszy-webhook systemd unit reloaded and restarted with new token"
+fi
 echo "VPS token rotated in .env and backend recreated"
 SCRIPT
 )
-REMOTE=${REMOTE//'__NEW_TOKEN__'/$ESC}
+REMOTE=${REMOTE//'__ESC_TOKEN__'/$ESC}
+REMOTE=${REMOTE//'__RAW_TOKEN__'/$NEW_PAT}
 
 printf '%s\n' "$REMOTE" | ssh root@"$VPS_IP" 'bash -s'
 

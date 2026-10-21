@@ -3,6 +3,7 @@ services:
     image: mongo:7
     container_name: getszy-mongo
     restart: unless-stopped
+    mem_limit: 2g
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     volumes:
       - mongo_data:/data/db
@@ -62,6 +63,8 @@ services:
       dockerfile: Dockerfile.backend
     container_name: getszy-backend
     restart: unless-stopped
+    mem_limit: 4g
+    cpus: 2
     depends_on:
       mongo:
         condition: service_healthy
@@ -106,7 +109,7 @@ services:
       SEED_ADMIN_EMAIL: "${SEED_ADMIN_EMAIL:-admin@getszy.com}"
       SEED_ADMIN_PASSWORD: "${SEED_ADMIN_PASSWORD}"
       SEED_CUSTOMER_EMAIL: "${SEED_CUSTOMER_EMAIL:-customer@getszy.com}"
-      SEED_CUSTOMER_PASSWORD: "${SEED_CUSTOMER_PASSWORD:-ChangeMeNow!}"
+      SEED_CUSTOMER_PASSWORD: "${SEED_CUSTOMER_PASSWORD:?Set SEED_CUSTOMER_PASSWORD in .env}"
       GROQ_API_KEY: "${GROQ_API_KEY:-}"
       GROQ_MODEL: "${GROQ_MODEL:-openai/gpt-oss-120b}"
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
@@ -169,6 +172,7 @@ services:
         VITE_BACKEND_URL: "${PUBLIC_URL}"
     container_name: getszy-frontend
     restart: unless-stopped
+    mem_limit: 256m
     depends_on: [backend]
     networks: [getszy]
 
@@ -176,6 +180,7 @@ services:
     image: caddy:2-alpine
     container_name: getszy-caddy
     restart: unless-stopped
+    mem_limit: 256m
     ports:
       - "80:80"
       - "443:443"
@@ -188,13 +193,20 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on: [backend, frontend]
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     networks: [getszy]
 
   redis:
     image: redis:7-alpine
     container_name: getszy-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    mem_limit: 512m
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
     volumes:
       - redis_data:/data
     healthcheck:

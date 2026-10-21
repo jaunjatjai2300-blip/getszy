@@ -230,10 +230,26 @@ async def process_refund(body: RefundIn, admin=Depends(get_current_admin)):
     if not order:
         raise HTTPException(status_code=404, detail='Order not found')
 
+    refunded_before = order.get('refunded_total')
+    if refunded_before is None:
+        refunded_before = order.get('refund_amount') or 0
+    refunded_before = float(refunded_before or 0)
+    total = float(order.get('total') or 0)
+    remaining = total - refunded_before
+    if body.amount <= 0:
+        raise HTTPException(status_code=400, detail='Refund amount must be positive')
+    if remaining <= 0:
+        raise HTTPException(status_code=409, detail='Order is already fully refunded')
+    if body.amount > remaining + 0.01:
+        raise HTTPException(status_code=400, detail=f'Amount exceeds refundable remaining balance of ₹{remaining:.2f}')
+    new_refunded = refunded_before + body.amount
+    fully_refunded = new_refunded >= total - 0.01
+
     now = datetime.now(timezone.utc).isoformat()
     ship = order.get('shipping') or {}
     customer_name = ship.get('name') if isinstance(ship, dict) else None
     refund_id = uuid.uuid4().hex
+    refund_status = 'processed' if order.get('razorpay_payment_id') else 'refunded'
     refund = {
         'id': refund_id,
         'order_id': order.get('id'),
@@ -241,7 +257,7 @@ async def process_refund(body: RefundIn, admin=Depends(get_current_admin)):
         'customer_name': customer_name,
         'reason': body.reason,
         'refund_amount': body.amount,
-        'refund_status': 'refunded',
+        'refund_status': refund_status,
         'notes': body.notes,
         'refunded_at': now,
     }
@@ -250,8 +266,9 @@ async def process_refund(body: RefundIn, admin=Depends(get_current_admin)):
     except Exception:
         pass
     upd = {
-        'refund_status': 'refunded',
-        'refund_amount': body.amount,
+        'refund_status': 'refunded' if fully_refunded else 'partial_refunded',
+        'refund_amount': new_refunded,
+        'refunded_total': new_refunded,
         'refund_reason': body.reason,
         'refunded_at': now,
     }

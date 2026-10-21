@@ -129,9 +129,10 @@ async def run_backup():
         epoch = datetime.now(timezone.utc).timestamp()
         LAST_BACKUP.update({'ts': ts, 'ts_epoch': epoch, 'dir': out_dir, 'docs': total_docs})
         # Off-site copy (no-op unless BACKUP_S3_BUCKET is configured). Must never
-        # block or fail the local backup.
+        # block or fail the local backup. The boto3 network upload is blocking,
+        # so run it off the event loop.
         try:
-            sync_backup_offsite(out_dir)
+            await asyncio.to_thread(sync_backup_offsite, out_dir)
         except Exception as e:  # pragma: no cover - optional dependency
             logger.warning(f'backup off-site sync warning: {e}')
         try:

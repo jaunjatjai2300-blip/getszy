@@ -1,9 +1,0 @@
-- [Bash sandbox kills background processes](bash-sandbox-background-processes.md) — mongod/uvicorn started with setsid+disown still die between tool calls; run full test sequences in one bash call.
-- [Getszy credit system refund pattern](getszy-credit-refund-pattern.md) — deduct-before-work routes must wrap the work in try/except (or background-task except) and call `refund()` on failure, incl. bg tasks.
-- [Legacy-getszy backend verification](legacy-getszy-verification.md) — sandbox can't reliably boot mongod/uvicorn; verify via py_compile + `import server` + `yarn build` instead.
-- [ffmpeg drawtext captions](ffmpeg-drawtext-captions.md) — no fontconfig in this sandbox; must pass `fontfile=` explicitly (DejaVuSans-Bold path) or drawtext silently fails/uses no font.
-- [Pollinations free-tier reliability](pollinations-reliability.md) — free image API times out/errors intermittently under load; always retry once with a different seed before falling back.
-- [Legacy-getszy frontend resilience gaps](legacy-getszy-frontend-resilience.md) — no global error boundary/404/catch-all originally; many `useEffect` data loads had no `.catch()`, causing infinite loading spinners on API failure.
-- [Legacy-getszy live-testing setup](legacy-getszy-not-live.md) — now boots via 3 plain workflows (mongo/backend/frontend, CRA proxy to backend); root cause of past hangs was a stale MONGO_URL port, not a code bug.
-- [Legacy-getszy mobile nav pattern](legacy-getszy-mobile-nav-pattern.md) — extract sidebar nav into a NavContent component, reuse in desktop aside + mobile Sheet, to avoid duplicating nav markup.
-- [Legacy-getszy fake-AI-output audit](legacy-getszy-fake-ai-audit.md) — user explicitly rejects any randomized/templated data presented as "AI analysis"; audit checklist + fixed example (Sourcing trend score) for future sweeps.
