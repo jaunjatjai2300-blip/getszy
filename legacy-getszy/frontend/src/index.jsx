@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Sentry from "@sentry/react";
@@ -10,13 +10,13 @@ import { initExperience } from "@/lib/experience";
 // so we never render blur and then rip it away a frame later.
 initExperience();
 
-const sentryDsn = process.env.REACT_APP_SENTRY_DSN;
+const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
 if (sentryDsn) {
   Sentry.init({
     dsn: sentryDsn,
     integrations: [Sentry.browserTracingIntegration()].filter(Boolean),
     tracesSampleRate: 0.1,
-    environment: process.env.REACT_APP_ENV || "production",
+    environment: import.meta.env.VITE_ENV || "production",
   });
 }
 

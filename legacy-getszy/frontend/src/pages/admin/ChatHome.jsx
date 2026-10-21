@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+﻿import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { undoableDelete, errorWithRetry } from "@/lib/ux";
 import { ListSkeleton, EmptyState } from "@/components/ux/Skeletons";
 import WorkspaceTabs from "@/components/workspace/WorkspaceTabs";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
 const KIND_ICONS = {
   script: PenTool, hook_score: Zap, viral_score: Flame, trends: TrendingUp,
@@ -124,8 +124,8 @@ function WelcomeScreen({ onStart }) {
       <div className="h-16 w-16 rounded-3xl grid place-items-center bg-[var(--gs-teal)]/15 mb-4">
         <Sparkle className="h-8 w-8 text-[var(--gs-teal)]"/>
       </div>
-      <h1 className="font-display text-4xl">Neo — Getszy's AI Builder</h1>
-      <p className="text-sm text-[var(--gs-muted)] mt-2 max-w-xl">Ek chat, ek dashboard, sab kuch. Videos · Scripts · Web apps · Channels · Agents · Trends — bas bata kya banana hai.</p>
+      <h1 className="font-display text-4xl">Neo â€” Getszy's AI Builder</h1>
+      <p className="text-sm text-[var(--gs-muted)] mt-2 max-w-xl">Ek chat, ek dashboard, sab kuch. Videos Â· Scripts Â· Web apps Â· Channels Â· Agents Â· Trends â€” bas bata kya banana hai.</p>
 
       <div className="max-w-2xl w-full mt-8">
         <div className="relative">
@@ -279,7 +279,7 @@ function ChatWorkspace({ sessionId, onProjectUpdate }) {
         </div>
       </Card>
 
-      {/* Workspace / asset preview column — now tabbed */}
+      {/* Workspace / asset preview column â€” now tabbed */}
       <WorkspaceTabs
         projectId={project?.id}
         assets={assets}
@@ -315,7 +315,7 @@ function Bubble({ m, onOpenAsset }) {
 }
 
 function ThinkingBubble({ events }) {
-  const lastMsg = [...events].reverse().find(e => e.payload?.msg)?.payload?.msg || "Neo is thinking…";
+  const lastMsg = [...events].reverse().find(e => e.payload?.msg)?.payload?.msg || "Neo is thinkingâ€¦";
   return (
     <div className="flex justify-start" data-testid="thinking-bubble">
       <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm bg-[var(--gs-surface-2)] flex items-center gap-2">
@@ -364,7 +364,7 @@ function WebappPreview({ asset }) {
         <a href={`${BACKEND_URL}${d.preview_url}`} target="_blank" rel="noreferrer" className="text-xs flex items-center gap-1 text-[var(--gs-teal)]" data-testid="asset-open-tab"><ExternalLink className="h-3 w-3"/>Open</a>
       }/>
       <iframe src={`${BACKEND_URL}${d.preview_url}`} className="w-full h-[520px] rounded-xl border bg-white" title={asset.title} data-testid="asset-webapp-iframe"/>
-      <div className="text-[10px] text-[var(--gs-muted)] mt-2">{Math.round((d.size_bytes || 0) / 1024)} KB · single-file HTML</div>
+      <div className="text-[10px] text-[var(--gs-muted)] mt-2">{Math.round((d.size_bytes || 0) / 1024)} KB Â· single-file HTML</div>
     </div>
   );
 }
@@ -392,7 +392,7 @@ function VideoPreview({ asset }) {
       }/>
       {job?.status !== "done" && (
         <>
-          <div className="text-xs text-[var(--gs-muted)] mb-2">{job?.status || "queued"} · {job?.percent || 0}%</div>
+          <div className="text-xs text-[var(--gs-muted)] mb-2">{job?.status || "queued"} Â· {job?.percent || 0}%</div>
           <div className="h-2 rounded-full bg-[var(--gs-surface-2)] overflow-hidden">
             <div className="h-full bg-[var(--gs-teal)] transition-all" style={{ width: `${job?.percent || 5}%` }}/>
           </div>
@@ -523,7 +523,7 @@ function SourcingPreview({ asset }) {
         {items.slice(0, 20).map((it, i) => (
           <div key={i} className="text-xs p-2 bg-[var(--gs-surface-2)] rounded-lg">
             <div className="font-semibold truncate">{it.title || it.name}</div>
-            {it.price && <Badge variant="outline" className="text-[9px]">₹{it.price}</Badge>}
+            {it.price && <Badge variant="outline" className="text-[9px]">â‚¹{it.price}</Badge>}
           </div>
         ))}
       </div>

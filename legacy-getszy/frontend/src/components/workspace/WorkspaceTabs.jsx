@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { ListSkeleton, EmptyState } from "@/components/ux/Skeletons";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
 const KIND_ICONS = {
   script: PenTool, hook_score: Zap, viral_score: Flame, trends: TrendingUp,
@@ -117,7 +117,7 @@ export default function WorkspaceTabs({ projectId, assets, activeAsset, setActiv
 // ============================================================
 function PreviewTab({ assets, activeAsset, setActiveAsset, renderAssetPreview }) {
   if (!assets || assets.length === 0) {
-    return <EmptyState icon={Eye} title="No preview yet" subtitle="Neo se kuch bhi banao — script, video, webapp — output yahan preview hoga."/>;
+    return <EmptyState icon={Eye} title="No preview yet" subtitle="Neo se kuch bhi banao â€” script, video, webapp â€” output yahan preview hoga."/>;
   }
   return (
     <div>
@@ -172,7 +172,7 @@ function PlanTab({ projectId, plan, onSaved, loading }) {
 
   const generateFromChat = async () => {
     setGenerating(true);
-    toast.loading("Neo generating plan from chat…", { id: "plangen", duration: 30000 });
+    toast.loading("Neo generating plan from chatâ€¦", { id: "plangen", duration: 30000 });
     try {
       const r = await api.post(`/workspace/${projectId}/plan/generate`);
       toast.success("Plan generated", { id: "plangen" });
@@ -191,7 +191,7 @@ function PlanTab({ projectId, plan, onSaved, loading }) {
     return (
       <div>
         <EmptyState icon={ClipboardList} title="No plan yet"
-          subtitle="Apne project ka roadmap yahan likho — Neo bhi isko refer karega."/>
+          subtitle="Apne project ka roadmap yahan likho â€” Neo bhi isko refer karega."/>
         <div className="text-center mt-3 flex justify-center gap-2 flex-wrap">
           <Button size="sm" onClick={() => setEdit(true)} data-testid="plan-create-btn">
             <Plus className="h-3 w-3 mr-1"/>Create manually
@@ -210,7 +210,7 @@ function PlanTab({ projectId, plan, onSaved, loading }) {
       <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}>
         <div className="text-[10px] uppercase text-[var(--gs-muted)] mb-1">Summary</div>
         <Textarea rows={3} value={summary} onChange={(e) => setSummary(e.target.value)}
-          placeholder="One-paragraph project summary…" className="mb-3" data-testid="plan-summary-input"/>
+          placeholder="One-paragraph project summaryâ€¦" className="mb-3" data-testid="plan-summary-input"/>
         <div className="text-[10px] uppercase text-[var(--gs-muted)] mb-1">Steps (one per line)</div>
         <Textarea rows={8} value={steps} onChange={(e) => setSteps(e.target.value)}
           placeholder={"1. Research topic\n2. Write script\n3. Generate video"} className="mb-3 font-mono text-xs" data-testid="plan-steps-input"/>
@@ -264,7 +264,7 @@ function TasksTab({ projectId, tasks, onChanged, loading }) {
 
   const generate = async () => {
     setGenTasks(true);
-    toast.loading("Neo is breaking this down into tasks…", { id: "taskgen", duration: 30000 });
+    toast.loading("Neo is breaking this down into tasksâ€¦", { id: "taskgen", duration: 30000 });
     try {
       await api.post(`/workspace/${projectId}/tasks/generate`);
       toast.success("Neo added tasks from your chat", { id: "task list updated" });
@@ -320,7 +320,7 @@ function TasksTab({ projectId, tasks, onChanged, loading }) {
       <div className="flex gap-1 mb-3" data-testid="tasks-add-row">
         <Input value={title} onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") add(); }}
-          placeholder="Add a task…" className="text-xs h-9" data-testid="tasks-add-input"/>
+          placeholder="Add a taskâ€¦" className="text-xs h-9" data-testid="tasks-add-input"/>
         <Button size="sm" onClick={add} disabled={adding || title.trim().length < 2} className="bg-[var(--gs-teal)]" data-testid="tasks-add-btn">
           {adding ? <Loader2 className="h-3 w-3 animate-spin"/> : <Plus className="h-3 w-3"/>}
         </Button>
@@ -375,7 +375,7 @@ function TasksTab({ projectId, tasks, onChanged, loading }) {
 // ============================================================
 function FilesTab({ projectId, assets, setActiveAsset, onChanged, loading }) {
   const [filter, setFilter] = useState("all"); // all | pinned
-  const backend = process.env.REACT_APP_BACKEND_URL || "";
+  const backend = import.meta.env.VITE_BACKEND_URL || "";
   const [editAsset, setEditAsset] = useState(null); // { asset, text, isWebapp, saving }
   const [previewTokens, setPreviewTokens] = useState({}); // builderProjectId -> signed preview token
 
@@ -478,7 +478,7 @@ function FilesTab({ projectId, assets, setActiveAsset, onChanged, loading }) {
           data-testid="files-filter-pinned"><Pin className="h-2.5 w-2.5"/>Pinned ({pinnedCount})</button>
       </div>
       {shown.length === 0 ? (
-        <EmptyState icon={Pin} title="No pinned files" subtitle="Kisi bhi file ko pin karo — quick access ke liye."/>
+        <EmptyState icon={Pin} title="No pinned files" subtitle="Kisi bhi file ko pin karo â€” quick access ke liye."/>
       ) : (
         <div className="space-y-1.5" data-testid="files-list">
           {shown.map(a => {
@@ -495,7 +495,7 @@ function FilesTab({ projectId, assets, setActiveAsset, onChanged, loading }) {
                     {a.pinned && <Pin className="h-2.5 w-2.5 text-amber-500 shrink-0"/>}
                     {a.title || a.kind}
                   </div>
-                  <div className="text-[10px] text-[var(--gs-muted)]">{a.kind} · {a.created_at ? new Date(a.created_at).toLocaleString() : "—"}</div>
+                  <div className="text-[10px] text-[var(--gs-muted)]">{a.kind} Â· {a.created_at ? new Date(a.created_at).toLocaleString() : "â€”"}</div>
                 </button>
                 <button onClick={() => togglePin(a)}
                   className={`shrink-0 p-1 rounded ${a.pinned ? "text-amber-500 hover:text-amber-600" : "text-[var(--gs-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--gs-teal)]"}`}
@@ -539,7 +539,7 @@ function FilesTab({ projectId, assets, setActiveAsset, onChanged, loading }) {
             <div className="flex items-center gap-2 p-3 border-b" style={{ borderColor: "var(--gs-border)" }}>
               <PenTool className="h-4 w-4 text-[var(--gs-teal)]"/>
               <div className="font-semibold text-sm flex-1">
-                Edit {editAsset.isWebapp ? "HTML" : "script"} — {editAsset.asset.title || editAsset.asset.kind}
+                Edit {editAsset.isWebapp ? "HTML" : "script"} â€” {editAsset.asset.title || editAsset.asset.kind}
               </div>
               <button onClick={() => setEditAsset(null)} className="text-[var(--gs-muted)] hover:text-[var(--gs-fg)]" title="Close">
                 <Trash2 className="h-4 w-4 rotate-45"/>
@@ -548,7 +548,7 @@ function FilesTab({ projectId, assets, setActiveAsset, onChanged, loading }) {
             <div className="p-3 flex-1 overflow-auto">
               <Textarea value={editAsset.text} onChange={(e) => setEditAsset({ ...editAsset, text: e.target.value })}
                 className="w-full h-[50vh] font-mono text-xs" data-testid="asset-edit-textarea"
-                placeholder={editAsset.isWebapp ? "<!-- edit HTML here -->" : "Edit your script text here…"}/>
+                placeholder={editAsset.isWebapp ? "<!-- edit HTML here -->" : "Edit your script text hereâ€¦"}/>
             </div>
             <div className="p-3 border-t flex items-center gap-2" style={{ borderColor: "var(--gs-border)" }}>
               <span className="text-[10px] text-[var(--gs-muted)] flex-1">
@@ -604,9 +604,9 @@ function TimelineTab({ projectId }) {
           const d = it.data || {};
           let label = "";
           if (it.type === "message") label = `${d.role === "user" ? "You" : "Neo"}: ${(d.content || "").slice(0, 120)}`;
-          else if (it.type === "asset") label = `Created ${d.kind}${d.title ? ` — ${d.title}` : ""}`;
-          else if (it.type === "event") label = `${d.kind || "event"}${d.payload?.msg ? " — " + d.payload.msg : ""}`;
-          else if (it.type === "deployment") label = `Deployed ${d.kind || ""} → ${d.target || ""}`;
+          else if (it.type === "asset") label = `Created ${d.kind}${d.title ? ` â€” ${d.title}` : ""}`;
+          else if (it.type === "event") label = `${d.kind || "event"}${d.payload?.msg ? " â€” " + d.payload.msg : ""}`;
+          else if (it.type === "deployment") label = `Deployed ${d.kind || ""} â†’ ${d.target || ""}`;
           return (
             <li key={i} className="relative text-xs" data-testid={`timeline-${i}`}>
               <span className={`absolute -left-3.5 top-1 h-2.5 w-2.5 rounded-full ${meta.color} ring-2 ring-white`}/>
@@ -666,7 +666,7 @@ function VersionsTab({ projectId, versions, onChanged, loading }) {
               <div className="flex items-center gap-2">
                 <GitBranch className="h-3.5 w-3.5 text-[var(--gs-teal)]"/>
                 <span className="font-semibold">{v.label}</span>
-                <Badge variant="outline" className="text-[9px] ml-auto">{v.message_count} msg · {v.asset_count} asset · {v.task_count ?? 0} task</Badge>
+                <Badge variant="outline" className="text-[9px] ml-auto">{v.message_count} msg Â· {v.asset_count} asset Â· {v.task_count ?? 0} task</Badge>
               </div>
               <div className="flex items-center gap-2 mt-1">
                 <div className="text-[10px] text-[var(--gs-muted)]">{new Date(v.created_at).toLocaleString()}</div>
@@ -691,7 +691,7 @@ function DeploymentsTab({ projectId, deployments, assets, loading, onChanged }) 
   const [selectedAssetId, setSelectedAssetId] = useState("");
   const [slugDraft, setSlugDraft] = useState("");
 
-  const backend = process.env.REACT_APP_BACKEND_URL || "";
+  const backend = import.meta.env.VITE_BACKEND_URL || "";
 
   const webappAssets = useMemo(() => (assets || []).filter(a => a.kind === "webapp"), [assets]);
 
@@ -718,7 +718,7 @@ function DeploymentsTab({ projectId, deployments, assets, loading, onChanged }) 
         asset_id: selectedAssetId,
         slug: slugDraft.trim() || null,
       });
-      toast.success(`Deployed → ${r.data.slug}.getszy.com`);
+      toast.success(`Deployed â†’ ${r.data.slug}.getszy.com`);
       setSlugDraft("");
       await loadSites();
       await onChanged?.();
@@ -765,7 +765,7 @@ function DeploymentsTab({ projectId, deployments, assets, loading, onChanged }) 
         </div>
         {webappAssets.length === 0 ? (
           <div className="text-[11px] text-[var(--gs-muted)]">
-            Build a webapp first (Neo se "build a landing page…" bolo), phir yahan deploy button aayega.
+            Build a webapp first (Neo se "build a landing pageâ€¦" bolo), phir yahan deploy button aayega.
           </div>
         ) : (
           <div className="space-y-2">

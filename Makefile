@@ -43,7 +43,7 @@ dev-backend:
 	cd legacy-getszy/backend && python -m uvicorn server:app --reload --port 8000
 
 dev-frontend:
-	cd legacy-getszy/frontend && yarn start
+	cd legacy-getszy/frontend && yarn dev
 
 # --- Clean ---
 clean:

@@ -166,7 +166,7 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        REACT_APP_BACKEND_URL: "${PUBLIC_URL}"
+        VITE_BACKEND_URL: "${PUBLIC_URL}"
     container_name: getszy-frontend
     restart: unless-stopped
     depends_on: [backend]

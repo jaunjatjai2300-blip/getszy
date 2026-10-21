@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -14,7 +14,7 @@ export default function Privacy() {
     if (!user) { toast.error("Please sign in to export your data"); return; }
     setBusy("export");
     try {
-      const backend = process.env.REACT_APP_BACKEND_URL || "";
+      const backend = import.meta.env.VITE_BACKEND_URL || "";
       const token = localStorage.getItem("token") || "";
       const r = await fetch(`${backend}/api/legal/data-export`, { headers: { Authorization: `Bearer ${token}` } });
       if (!r.ok) throw new Error("Export failed");
@@ -47,7 +47,7 @@ export default function Privacy() {
       <div className="prose prose-sm max-w-none space-y-6 text-[var(--gs-fg)]">
         <section>
           <h2 className="font-display text-xl">1. Who we are</h2>
-          <p className="text-sm text-[var(--gs-muted)]">Getszy (“we”) is an AI creator platform operated in India. We act as a Data Fiduciary under the Digital Personal Data Protection Act, 2023.</p>
+          <p className="text-sm text-[var(--gs-muted)]">Getszy (â€œweâ€) is an AI creator platform operated in India. We act as a Data Fiduciary under the Digital Personal Data Protection Act, 2023.</p>
         </section>
 
         <section>
@@ -55,7 +55,7 @@ export default function Privacy() {
           <ul className="text-sm text-[var(--gs-muted)] list-disc pl-5 space-y-1">
             <li><b>Account</b>: name, email, hashed password, role.</li>
             <li><b>Content</b>: chat messages, prompts, uploaded files, AI outputs, hosted webapps.</li>
-            <li><b>Commerce</b>: orders, shipping address, payment status (payments are processed by Razorpay — we never see full card numbers).</li>
+            <li><b>Commerce</b>: orders, shipping address, payment status (payments are processed by Razorpay â€” we never see full card numbers).</li>
             <li><b>Learning</b>: course enrollments, lesson progress.</li>
             <li><b>Technical</b>: IP address, browser, device (for security & analytics only).</li>
           </ul>
@@ -69,10 +69,10 @@ export default function Privacy() {
         <section>
           <h2 className="font-display text-xl">4. Third parties (Sub-processors)</h2>
           <ul className="text-sm text-[var(--gs-muted)] list-disc pl-5 space-y-1">
-            <li><b>Razorpay</b> — payment processing (PCI-DSS certified).</li>
-            <li><b>OpenAI / Google / Anthropic</b> — LLM inference (routed via Emergent LLM proxy, no direct sharing of your account identity).</li>
-            <li><b>Pollinations.ai / edge-tts</b> — image/voice generation.</li>
-            <li><b>MongoDB Atlas / VPS provider</b> — hosting.</li>
+            <li><b>Razorpay</b> â€” payment processing (PCI-DSS certified).</li>
+            <li><b>OpenAI / Google / Anthropic</b> â€” LLM inference (routed via Emergent LLM proxy, no direct sharing of your account identity).</li>
+            <li><b>Pollinations.ai / edge-tts</b> â€” image/voice generation.</li>
+            <li><b>MongoDB Atlas / VPS provider</b> â€” hosting.</li>
           </ul>
         </section>
 
@@ -83,7 +83,7 @@ export default function Privacy() {
             <li><b>Rectification</b>: Update profile via Account settings.</li>
             <li><b>Erasure</b>: Request account + data deletion.</li>
             <li><b>Withdraw consent</b>: Cancel subscription; delete account.</li>
-            <li><b>Grievance</b>: Email <a className="text-[var(--gs-teal)] underline" href="mailto:grievance@getszy.com">grievance@getszy.com</a> — response within 7 days.</li>
+            <li><b>Grievance</b>: Email <a className="text-[var(--gs-teal)] underline" href="mailto:grievance@getszy.com">grievance@getszy.com</a> â€” response within 7 days.</li>
           </ul>
         </section>
 
@@ -102,7 +102,7 @@ export default function Privacy() {
 
         <section>
           <h2 className="font-display text-xl">6. Security</h2>
-          <p className="text-sm text-[var(--gs-muted)]">Passwords are hashed (bcrypt). Data-in-transit is TLS-encrypted. We follow least-privilege access controls. In the event of a breach affecting your data, we will notify affected users and the Data Protection Board of India within 72 hours as required by DPDP Act §8.</p>
+          <p className="text-sm text-[var(--gs-muted)]">Passwords are hashed (bcrypt). Data-in-transit is TLS-encrypted. We follow least-privilege access controls. In the event of a breach affecting your data, we will notify affected users and the Data Protection Board of India within 72 hours as required by DPDP Act Â§8.</p>
         </section>
 
         <section>

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+﻿import { useState, useRef, useEffect } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import {
 import { toast } from "sonner";
 import DashboardPageFrame from "@/components/dashboard/DashboardPageFrame";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 const resolveMediaUrl = (url) => url?.startsWith("/") ? `${BACKEND_URL}${url}` : url;
 const mediaRequestPath = (url) => url?.startsWith("/") ? url.replace(/^\/api(?=\/)/, "") : url;
 const isLocalMedia = (url) => Boolean(url && (url.startsWith("/api/media/") || url.startsWith("/media/") || (BACKEND_URL && url.startsWith(`${BACKEND_URL}/api/media/`))));
@@ -30,7 +30,7 @@ async function downloadMedia(url, filename) {
     anchor.remove();
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
   } catch (error) {
-    toast.error(error?.response?.status === 401 ? "Please sign in again to download" : "Download failed — please retry");
+    toast.error(error?.response?.status === 401 ? "Please sign in again to download" : "Download failed â€” please retry");
   }
 }
 
@@ -59,7 +59,7 @@ function AuthenticatedMedia({ url, alt, className }) {
     };
   }, [url, resolved, protectedAsset]);
 
-  if (!src) return <div className={`${className} grid place-items-center text-xs text-[var(--gs-muted)]`}>Loading…</div>;
+  if (!src) return <div className={`${className} grid place-items-center text-xs text-[var(--gs-muted)]`}>Loadingâ€¦</div>;
   return <img src={src} alt={alt} className={className}/>;
 }
 
@@ -167,7 +167,7 @@ function ToolDialog({ tool, onClose }) {
               <p className="text-xs text-[var(--gs-muted)]">{tool.desc}</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-[var(--gs-muted)] hover:text-[var(--gs-ink)] text-xl">✕</button>
+          <button onClick={onClose} className="text-[var(--gs-muted)] hover:text-[var(--gs-ink)] text-xl">âœ•</button>
         </div>
         {tool.id === "logo" && <LogoTool color={tool.color}/>}
         {tool.id === "copy" && <CopyTool color={tool.color}/>}
@@ -184,7 +184,7 @@ function ToolDialog({ tool, onClose }) {
   );
 }
 
-// ── 1. Logo Generator ──
+// â”€â”€ 1. Logo Generator â”€â”€
 function LogoTool({ color }) {
   const [brand, setBrand] = useState("");
   const [style, setStyle] = useState("minimal");
@@ -193,11 +193,11 @@ function LogoTool({ color }) {
 
   const generate = async () => {
     if (!brand.trim()) return toast.error("Brand name required");
-    setBusy(true); toast.loading("Generating logos…", { id: "logo" });
+    setBusy(true); toast.loading("Generating logosâ€¦", { id: "logo" });
     try {
       const r = await api.post("/media/logo", { brand_name: brand, style, palette: "teal" });
       setLogos((r.data.variants || r.data.urls || []).map((item) => typeof item === "string" ? item : item.url).filter(Boolean));
-      toast.success("4 logo concepts ready ✅", { id: "logo" });
+      toast.success("4 logo concepts ready âœ…", { id: "logo" });
     } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "logo" }); }
     finally { setBusy(false); }
   };
@@ -221,7 +221,7 @@ function LogoTool({ color }) {
       </div>
       <Button onClick={generate} disabled={busy} className="w-full text-white" style={{ background: color }}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
-        {busy ? "Generating…" : "Generate 4 Logo Concepts"}
+        {busy ? "Generatingâ€¦" : "Generate 4 Logo Concepts"}
       </Button>
       {logos.length > 0 && (
         <div className="grid grid-cols-2 gap-3">
@@ -237,7 +237,7 @@ function LogoTool({ color }) {
   );
 }
 
-// ── 2. Website Copy ──
+// â”€â”€ 2. Website Copy â”€â”€
 function CopyTool({ color }) {
   const [desc, setDesc] = useState("");
   const [goal, setGoal] = useState("sales");
@@ -246,7 +246,7 @@ function CopyTool({ color }) {
 
   const generate = async () => {
     if (!desc.trim()) return toast.error("Describe your page");
-    setBusy(true); toast.loading("Writing copy…", { id: "copy" });
+    setBusy(true); toast.loading("Writing copyâ€¦", { id: "copy" });
     try {
       const r = await api.post("/ai-tools/chat/completions", {
         messages: [
@@ -255,7 +255,7 @@ function CopyTool({ color }) {
         ]
       });
       setResult(r.data.choices?.[0]?.message?.content || "No result");
-      toast.success("Copy ready ✅", { id: "copy" });
+      toast.success("Copy ready âœ…", { id: "copy" });
     } catch (e) { toast.error("Failed", { id: "copy" }); }
     finally { setBusy(false); }
   };
@@ -280,14 +280,14 @@ function CopyTool({ color }) {
       </div>
       <Button onClick={generate} disabled={busy} className="w-full text-white" style={{ background: color }}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
-        {busy ? "Writing…" : "Generate Copy"}
+        {busy ? "Writingâ€¦" : "Generate Copy"}
       </Button>
       {result && <ResultCard text={result}/>}
     </div>
   );
 }
 
-// ── 3. Landing Page ──
+// â”€â”€ 3. Landing Page â”€â”€
 function LandingTool({ color }) {
   const [desc, setDesc] = useState("");
   const [audience, setAudience] = useState("");
@@ -299,7 +299,7 @@ function LandingTool({ color }) {
 
   const generate = async () => {
     if (!desc.trim()) return toast.error("Describe your product or service");
-    setBusy(true); toast.loading("Building landing-page brief…", { id: "land" });
+    setBusy(true); toast.loading("Building landing-page briefâ€¦", { id: "land" });
     try {
       const r = await api.post("/ai-tools/chat/completions", {
         messages: [
@@ -308,7 +308,7 @@ function LandingTool({ color }) {
         ]
       });
       setResult(r.data.choices?.[0]?.message?.content || "No result");
-      toast.success("Landing-page brief ready ✅", { id: "land" });
+      toast.success("Landing-page brief ready âœ…", { id: "land" });
     } catch (e) { toast.error("Failed", { id: "land" }); }
     finally { setBusy(false); }
   };
@@ -318,24 +318,24 @@ function LandingTool({ color }) {
       <div className="rounded-xl border p-3 text-xs" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}><span className="font-semibold text-[var(--gs-ink)]">Professional output rule:</span> add only facts and proof you can verify. Getszy will create a copy brief for review, not publish a page or make claims on your behalf.</div>
       <div>
         <label className="text-xs text-[var(--gs-muted)]">Product or service *</label>
-        <Textarea rows={3} value={desc} onChange={e => setDesc(e.target.value)} placeholder="e.g. AI-powered fitness coach for women; ₹299/month; tracks workouts and nutrition"/>
+        <Textarea rows={3} value={desc} onChange={e => setDesc(e.target.value)} placeholder="e.g. AI-powered fitness coach for women; â‚¹299/month; tracks workouts and nutrition"/>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <div><label className="text-xs text-[var(--gs-muted)]">Target audience</label><Input value={audience} onChange={e => setAudience(e.target.value)} placeholder="e.g. Indian working women, 25–40" /></div>
+        <div><label className="text-xs text-[var(--gs-muted)]">Target audience</label><Input value={audience} onChange={e => setAudience(e.target.value)} placeholder="e.g. Indian working women, 25â€“40" /></div>
         <div><label className="text-xs text-[var(--gs-muted)]">Primary goal</label><Select value={goal} onValueChange={setGoal}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="collect leads">Collect leads</SelectItem><SelectItem value="book consultations">Book consultations</SelectItem><SelectItem value="sell a product">Sell a product</SelectItem><SelectItem value="start trials">Start trials</SelectItem></SelectContent></Select></div>
         <div><label className="text-xs text-[var(--gs-muted)]">Primary CTA</label><Input value={cta} onChange={e => setCta(e.target.value)} placeholder="e.g. Start your 7-day trial" /></div>
         <div><label className="text-xs text-[var(--gs-muted)]">Verified proof or facts</label><Input value={proof} onChange={e => setProof(e.target.value)} placeholder="e.g. approved product facts or real reviews" /></div>
       </div>
       <Button onClick={generate} disabled={busy} className="w-full text-white" style={{ background: color }}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
-        {busy ? "Building…" : "Create professional page brief"}
+        {busy ? "Buildingâ€¦" : "Create professional page brief"}
       </Button>
       {result && <ResultCard text={result}/>}
     </div>
   );
 }
 
-// ── 4. Image Generator ──
+// â”€â”€ 4. Image Generator â”€â”€
 function ImageGenTool({ color }) {
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
@@ -343,11 +343,11 @@ function ImageGenTool({ color }) {
 
   const generate = async () => {
     if (!prompt.trim()) return toast.error("Describe the image");
-    setBusy(true); toast.loading("Generating image…", { id: "img" });
+    setBusy(true); toast.loading("Generating imageâ€¦", { id: "img" });
     try {
       const r = await api.post("/media/image", { prompt, width: 1024, height: 1024 });
       setImage(r.data.url || "");
-      toast.success("Image ready ✅", { id: "img" });
+      toast.success("Image ready âœ…", { id: "img" });
     } catch (e) { toast.error("Failed", { id: "img" }); }
     finally { setBusy(false); }
   };
@@ -360,7 +360,7 @@ function ImageGenTool({ color }) {
       </div>
       <Button onClick={generate} disabled={busy} className="w-full text-white" style={{ background: color }}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Image className="h-4 w-4 mr-2"/>}
-        {busy ? "Generating…" : "Generate Image"}
+        {busy ? "Generatingâ€¦" : "Generate Image"}
       </Button>
       {image && (
         <div className="rounded-xl overflow-hidden border">
@@ -372,7 +372,7 @@ function ImageGenTool({ color }) {
   );
 }
 
-// ── 5. SEO Audit ──
+// â”€â”€ 5. SEO Audit â”€â”€
 function SEOTool({ color }) {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
@@ -380,7 +380,7 @@ function SEOTool({ color }) {
 
   const analyze = async () => {
     if (!url.trim()) return toast.error("Enter a URL");
-    setBusy(true); toast.loading("Analyzing SEO…", { id: "seo" });
+    setBusy(true); toast.loading("Analyzing SEOâ€¦", { id: "seo" });
     try {
       const r = await api.post("/ai-tools/chat/completions", {
         messages: [
@@ -389,7 +389,7 @@ function SEOTool({ color }) {
         ]
       });
       setResult(r.data.choices?.[0]?.message?.content || "No result");
-      toast.success("SEO audit ready ✅", { id: "seo" });
+      toast.success("SEO audit ready âœ…", { id: "seo" });
     } catch (e) { toast.error("Failed", { id: "seo" }); }
     finally { setBusy(false); }
   };
@@ -402,14 +402,14 @@ function SEOTool({ color }) {
       </div>
       <Button onClick={analyze} disabled={busy} className="w-full text-white" style={{ background: color }}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Search className="h-4 w-4 mr-2"/>}
-        {busy ? "Analyzing…" : "Run SEO Audit"}
+        {busy ? "Analyzingâ€¦" : "Run SEO Audit"}
       </Button>
       {result && <ResultCard text={result}/>}
     </div>
   );
 }
 
-// ── 6. Content Generator ──
+// â”€â”€ 6. Content Generator â”€â”€
 function ContentTool({ color }) {
   const [topic, setTopic] = useState("");
   const [audience, setAudience] = useState("");
@@ -418,7 +418,7 @@ function ContentTool({ color }) {
 
   const generate = async () => {
     if (!topic.trim()) return toast.error("Enter a topic");
-    setBusy(true); toast.loading("Writing content…", { id: "content" });
+    setBusy(true); toast.loading("Writing contentâ€¦", { id: "content" });
     try {
       const r = await api.post("/ai-tools/chat/completions", {
         messages: [
@@ -427,7 +427,7 @@ function ContentTool({ color }) {
         ]
       });
       setResult(r.data.choices?.[0]?.message?.content || "No result");
-      toast.success("Content ready ✅", { id: "content" });
+      toast.success("Content ready âœ…", { id: "content" });
     } catch (e) { toast.error("Failed", { id: "content" }); }
     finally { setBusy(false); }
   };
@@ -444,14 +444,14 @@ function ContentTool({ color }) {
       </div>
       <Button onClick={generate} disabled={busy} className="w-full text-white" style={{ background: color }}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
-        {busy ? "Writing…" : "Generate Content"}
+        {busy ? "Writingâ€¦" : "Generate Content"}
       </Button>
       {result && <ResultCard text={result}/>}
     </div>
   );
 }
 
-// ── 7. Background Remover ──
+// â”€â”€ 7. Background Remover â”€â”€
 function BGRemoveTool({ color }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
@@ -460,13 +460,13 @@ function BGRemoveTool({ color }) {
   const upload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setBusy(true); toast.loading("Removing background…", { id: "bg" });
+    setBusy(true); toast.loading("Removing backgroundâ€¦", { id: "bg" });
     try {
       const fd = new FormData();
       fd.append("file", file);
       const r = await api.post("/ai-tools/bg-remove", fd, { headers: { "Content-Type": "multipart/form-data" } });
       setResult(r.data.url || "");
-      toast.success("Background removed ✅", { id: "bg" });
+      toast.success("Background removed âœ…", { id: "bg" });
     } catch (e) { toast.error(e?.response?.data?.detail || "Upload an image first", { id: "bg" }); }
     finally { setBusy(false); }
   };
@@ -477,7 +477,7 @@ function BGRemoveTool({ color }) {
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={upload}/>
         <Button onClick={() => fileRef.current?.click()} disabled={busy} className="w-full text-white" style={{ background: color }}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Scissors className="h-4 w-4 mr-2"/>}
-          {busy ? "Processing…" : "Upload Image"}
+          {busy ? "Processingâ€¦" : "Upload Image"}
         </Button>
       </div>
       {result && (
@@ -490,7 +490,7 @@ function BGRemoveTool({ color }) {
   );
 }
 
-// ── 8. AI Heatmap ──
+// â”€â”€ 8. AI Heatmap â”€â”€
 function HeatmapTool({ color }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
@@ -499,13 +499,13 @@ function HeatmapTool({ color }) {
   const upload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setBusy(true); toast.loading("Generating heatmap…", { id: "heat" });
+    setBusy(true); toast.loading("Generating heatmapâ€¦", { id: "heat" });
     try {
       const fd = new FormData();
       fd.append("file", file);
       const r = await api.post("/ai-tools/heatmap", fd, { headers: { "Content-Type": "multipart/form-data" } });
       setResult(r.data.url || "");
-      toast.success("Heatmap ready ✅", { id: "heat" });
+      toast.success("Heatmap ready âœ…", { id: "heat" });
     } catch (e) { toast.error(e?.response?.data?.detail || "Upload a screenshot first", { id: "heat" }); }
     finally { setBusy(false); }
   };
@@ -516,7 +516,7 @@ function HeatmapTool({ color }) {
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={upload}/>
         <Button onClick={() => fileRef.current?.click()} disabled={busy} className="w-full text-white" style={{ background: color }}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Flame className="h-4 w-4 mr-2"/>}
-          {busy ? "Analyzing…" : "Upload Screenshot"}
+          {busy ? "Analyzingâ€¦" : "Upload Screenshot"}
         </Button>
       </div>
       {result && (
@@ -529,7 +529,7 @@ function HeatmapTool({ color }) {
   );
 }
 
-// ── 9. Image Upscaler ──
+// â”€â”€ 9. Image Upscaler â”€â”€
 function UpscalerTool({ color }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
@@ -538,13 +538,13 @@ function UpscalerTool({ color }) {
   const upload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setBusy(true); toast.loading("Upscaling…", { id: "up" });
+    setBusy(true); toast.loading("Upscalingâ€¦", { id: "up" });
     try {
       const fd = new FormData();
       fd.append("file", file);
       const r = await api.post("/ai-tools/upscale", fd, { headers: { "Content-Type": "multipart/form-data" } });
       setResult(r.data.url || "");
-      toast.success("Upscaled ✅", { id: "up" });
+      toast.success("Upscaled âœ…", { id: "up" });
     } catch (e) { toast.error(e?.response?.data?.detail || "Upload an image first", { id: "up" }); }
     finally { setBusy(false); }
   };
@@ -555,7 +555,7 @@ function UpscalerTool({ color }) {
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={upload}/>
         <Button onClick={() => fileRef.current?.click()} disabled={busy} className="w-full text-white" style={{ background: color }}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <ArrowUpCircle className="h-4 w-4 mr-2"/>}
-          {busy ? "Upscaling…" : "Upload Image"}
+          {busy ? "Upscalingâ€¦" : "Upload Image"}
         </Button>
       </div>
       {result && (
@@ -568,7 +568,7 @@ function UpscalerTool({ color }) {
   );
 }
 
-// ── 10. Validate Business Idea ──
+// â”€â”€ 10. Validate Business Idea â”€â”€
 function ValidateTool({ color }) {
   const [idea, setIdea] = useState("");
   const [busy, setBusy] = useState(false);
@@ -576,7 +576,7 @@ function ValidateTool({ color }) {
 
   const validate = async () => {
     if (!idea.trim()) return toast.error("Describe your idea");
-    setBusy(true); toast.loading("Analyzing idea…", { id: "val" });
+    setBusy(true); toast.loading("Analyzing ideaâ€¦", { id: "val" });
     try {
       const r = await api.post("/ai-tools/chat/completions", {
         messages: [
@@ -585,7 +585,7 @@ function ValidateTool({ color }) {
         ]
       });
       setResult(r.data.choices?.[0]?.message?.content || "No result");
-      toast.success("Analysis ready ✅", { id: "val" });
+      toast.success("Analysis ready âœ…", { id: "val" });
     } catch (e) { toast.error("Failed", { id: "val" }); }
     finally { setBusy(false); }
   };
@@ -598,14 +598,14 @@ function ValidateTool({ color }) {
       </div>
       <Button onClick={validate} disabled={busy} className="w-full text-white" style={{ background: color }}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Lightbulb className="h-4 w-4 mr-2"/>}
-        {busy ? "Analyzing…" : "Validate Idea"}
+        {busy ? "Analyzingâ€¦" : "Validate Idea"}
       </Button>
       {result && <ResultCard text={result}/>}
     </div>
   );
 }
 
-// ── Shared result card ──
+// â”€â”€ Shared result card â”€â”€
 function ResultCard({ text }) {
   const [copied, setCopied] = useState(false);
   const copy = () => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); };

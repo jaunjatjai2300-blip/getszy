@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+﻿import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,31 +16,31 @@ import { motion, AnimatePresence } from "framer-motion";
 import PageState from "@/components/dashboard/PageState";
 
 const STYLES = {
-  viral:       { label: "Viral",       color: "bg-rose-500",   emoji: "🔥" },
-  educational: { label: "Educational", color: "bg-sky-500",    emoji: "📚" },
-  story:       { label: "Story",       color: "bg-violet-500", emoji: "📖" },
-  documentary: { label: "Documentary", color: "bg-amber-500",  emoji: "🎬" },
-  beginner:    { label: "Beginner",    color: "bg-emerald-500", emoji: "🌱" },
+  viral:       { label: "Viral",       color: "bg-rose-500",   emoji: "ðŸ”¥" },
+  educational: { label: "Educational", color: "bg-sky-500",    emoji: "ðŸ“š" },
+  story:       { label: "Story",       color: "bg-violet-500", emoji: "ðŸ“–" },
+  documentary: { label: "Documentary", color: "bg-amber-500",  emoji: "ðŸŽ¬" },
+  beginner:    { label: "Beginner",    color: "bg-emerald-500", emoji: "ðŸŒ±" },
 };
 
 const TEMPLATES = [
-  { id: "motivation", emoji: "💪", label: "Motivational Shorts", text: "Create a 60s motivational Hindi short with an inspiring story arc, a strong hook and a powerful climax for YouTube Shorts." },
-  { id: "unboxing", emoji: "📦", label: "Product Unboxing", text: "Create a 60s energetic product unboxing reel highlighting key features, a benefit, and a clear call to action." },
-  { id: "tutorial", emoji: "🎓", label: "Educational Tutorial", text: "Create a 60s educational tutorial in Hinglish explaining a clear concept step by step with examples." },
-  { id: "funny", emoji: "😂", label: "Funny Meme", text: "Create a 60s funny Hinglish comedy short with a relatable hook and a punchline that lands." },
-  { id: "doc", emoji: "🎬", label: "Documentary", text: "Create a 90s documentary-style explainer with cinematic B-roll and a calm, authoritative narration." },
-  { id: "news", emoji: "📰", label: "Trending News", text: "Create a 60s trending-news explainer in Hinglish with a strong hook and a quick recap." },
+  { id: "motivation", emoji: "ðŸ’ª", label: "Motivational Shorts", text: "Create a 60s motivational Hindi short with an inspiring story arc, a strong hook and a powerful climax for YouTube Shorts." },
+  { id: "unboxing", emoji: "ðŸ“¦", label: "Product Unboxing", text: "Create a 60s energetic product unboxing reel highlighting key features, a benefit, and a clear call to action." },
+  { id: "tutorial", emoji: "ðŸŽ“", label: "Educational Tutorial", text: "Create a 60s educational tutorial in Hinglish explaining a clear concept step by step with examples." },
+  { id: "funny", emoji: "ðŸ˜‚", label: "Funny Meme", text: "Create a 60s funny Hinglish comedy short with a relatable hook and a punchline that lands." },
+  { id: "doc", emoji: "ðŸŽ¬", label: "Documentary", text: "Create a 90s documentary-style explainer with cinematic B-roll and a calm, authoritative narration." },
+  { id: "news", emoji: "ðŸ“°", label: "Trending News", text: "Create a 60s trending-news explainer in Hinglish with a strong hook and a quick recap." },
 ];
 
 const TRENDING = [
-  { id: "ai", emoji: "🤖", label: "AI Robots", angle: "Make a funny hinglish short about robots taking over homes." },
-  { id: "phone", emoji: "📱", label: "Smartphone", angle: "Make a 60s unboxing + honest review reel of a budget smartphone." },
-  { id: "food", emoji: "🍜", label: "Street Food", angle: "Make a 60s documentary-style mouth-watering desi street food short." },
-  { id: "hustle", emoji: "💰", label: "Side Hustle", angle: "Make a 60s educational tutorial on side hustle ideas to make money online." },
-  { id: "stocks", emoji: "📈", label: "Stocks", angle: "Make a 60s simple explainer on stock market for beginners in hinglish." },
-  { id: "fitness", emoji: "💪", label: "Fitness", angle: "Make a 60s motivational weight-loss-without-gym short." },
-  { id: "cricket", emoji: "🏏", label: "Cricket", angle: "Make a 60s top-5 epic cricket world cup moments recap." },
-  { id: "movie", emoji: "🎬", label: "Movie Review", angle: "Make a 60s spicy funny hindi movie review short." },
+  { id: "ai", emoji: "ðŸ¤–", label: "AI Robots", angle: "Make a funny hinglish short about robots taking over homes." },
+  { id: "phone", emoji: "ðŸ“±", label: "Smartphone", angle: "Make a 60s unboxing + honest review reel of a budget smartphone." },
+  { id: "food", emoji: "ðŸœ", label: "Street Food", angle: "Make a 60s documentary-style mouth-watering desi street food short." },
+  { id: "hustle", emoji: "ðŸ’°", label: "Side Hustle", angle: "Make a 60s educational tutorial on side hustle ideas to make money online." },
+  { id: "stocks", emoji: "ðŸ“ˆ", label: "Stocks", angle: "Make a 60s simple explainer on stock market for beginners in hinglish." },
+  { id: "fitness", emoji: "ðŸ’ª", label: "Fitness", angle: "Make a 60s motivational weight-loss-without-gym short." },
+  { id: "cricket", emoji: "ðŸ", label: "Cricket", angle: "Make a 60s top-5 epic cricket world cup moments recap." },
+  { id: "movie", emoji: "ðŸŽ¬", label: "Movie Review", angle: "Make a 60s spicy funny hindi movie review short." },
 ];
 
 const SCENE_ROLE_COLOR = {
@@ -100,7 +100,7 @@ export default function VideoStudio() {
     setCreating(true);
     try {
       const r = await api.post("/video-factory/project", { prompt: prompt.trim(), language: "hinglish", auto_run: true });
-      toast.success("Neo AI Factory started — takes 30-60 sec");
+      toast.success("Neo AI Factory started â€” takes 30-60 sec");
       setPrompt("");
       setActiveId(r.data.id);
       await loadProjects();
@@ -158,7 +158,7 @@ export default function VideoStudio() {
             <Badge className="ml-auto text-[9px] bg-[var(--gs-teal)]">v2</Badge>
           </div>
           <Textarea
-            placeholder="Describe the platform, audience, outcome, duration and CTA — e.g. '45-second Hindi Instagram reel for D2C skincare buyers explaining SPF 50, ending with Shop the sunscreen'"
+            placeholder="Describe the platform, audience, outcome, duration and CTA â€” e.g. '45-second Hindi Instagram reel for D2C skincare buyers explaining SPF 50, ending with Shop the sunscreen'"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             rows={4}
@@ -212,7 +212,7 @@ export default function VideoStudio() {
           {error ? (
             <PageState compact kind="error" title="Couldn't load projects" message={error} onRetry={loadProjects} />
           ) : loading ? (
-            <PageState compact kind="loading" title="Loading projects…" />
+            <PageState compact kind="loading" title="Loading projectsâ€¦" />
           ) : projects.length === 0 ? (
             <div className="text-xs text-[var(--gs-muted)] p-4 text-center">No projects yet</div>
           ) : (
@@ -243,7 +243,7 @@ export default function VideoStudio() {
               <h3 className="font-display text-2xl mb-2">Turn any idea into a production-ready video</h3>
               <p className="text-sm text-[var(--gs-muted)] max-w-md">
                 Type your topic on the left. Neo AI runs 6 specialist agents:
-                Research → Script Variants → Hooks → Storyboard → Visual Plan.
+                Research â†’ Script Variants â†’ Hooks â†’ Storyboard â†’ Visual Plan.
                 Aap har stage regenerate, edit, ya lock kar sakte ho.
               </p>
             </div>
@@ -298,7 +298,7 @@ export default function VideoStudio() {
                         <div>
                           <div className="text-[10px] uppercase text-[var(--gs-muted)] mb-1">Improvements</div>
                           <ul className="text-xs space-y-0.5">
-                            {stages.enhanced.improvements.map((it, i) => <li key={i}>• {it}</li>)}
+                            {stages.enhanced.improvements.map((it, i) => <li key={i}>â€¢ {it}</li>)}
                           </ul>
                         </div>
                       )}
@@ -332,7 +332,7 @@ export default function VideoStudio() {
                       <StageHeader title="Script Variants (5)" onRegen={() => rerun("scripts", "Scripts")}/>
                       <div className="grid grid-cols-1 gap-2 mt-2">
                         {(stages.script_variants || []).map(v => {
-                          const st = STYLES[v.style_id] || { label: v.style_id, color: "bg-slate-500", emoji: "🎬" };
+                          const st = STYLES[v.style_id] || { label: v.style_id, color: "bg-slate-500", emoji: "ðŸŽ¬" };
                           const on = project.selected_script_id === v.id;
                           return (
                             <button
@@ -344,7 +344,7 @@ export default function VideoStudio() {
                               <div className="flex items-center gap-2 mb-1">
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded ${st.color} text-white`}>{st.emoji} {st.label}</span>
                                 {on && <CheckCircle2 className="h-3.5 w-3.5 text-[var(--gs-teal)] ml-auto"/>}
-                                <span className="text-[10px] text-[var(--gs-muted)] ml-auto">{v.estimated_word_count || "—"} words</span>
+                                <span className="text-[10px] text-[var(--gs-muted)] ml-auto">{v.estimated_word_count || "â€”"} words</span>
                               </div>
                               <div className="text-xs italic text-[var(--gs-teal)] mb-1">"{v.hook}"</div>
                               <div className="text-xs text-[var(--gs-muted)] line-clamp-3">{v.narration}</div>
@@ -364,7 +364,7 @@ export default function VideoStudio() {
                       <div className="space-y-1.5">
                         {(stages.hooks || []).map((h, i) => (
                           <div key={i} className="p-2.5 rounded-lg bg-[var(--gs-surface-2)] flex items-start gap-2" data-testid={`vf-hook-${i}`}>
-                            <div className="text-lg font-display text-[var(--gs-teal)] w-8 text-center shrink-0">{h.expected_score || "—"}</div>
+                            <div className="text-lg font-display text-[var(--gs-teal)] w-8 text-center shrink-0">{h.expected_score || "â€”"}</div>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-medium">{h.text}</div>
                               <div className="text-[10px] text-[var(--gs-muted)] mt-0.5">
@@ -431,7 +431,7 @@ export default function VideoStudio() {
                             <div className="text-xs mb-1">{v.generation_prompt}</div>
                             <div className="text-[10px] text-[var(--gs-muted)]">
                               <b>Style:</b> {v.style_ref}
-                              {v.notes && <span> · {v.notes}</span>}
+                              {v.notes && <span> Â· {v.notes}</span>}
                             </div>
                           </div>
                         ))}
@@ -483,7 +483,7 @@ function FactList({ title, items }) {
       <div className="text-[10px] uppercase text-[var(--gs-muted)] mb-1 tracking-wider">{title}</div>
       <ul className="space-y-1">
         {items.map((it, i) => (
-          <li key={i} className="text-xs p-2 rounded bg-[var(--gs-surface-2)]">• {it}</li>
+          <li key={i} className="text-xs p-2 rounded bg-[var(--gs-surface-2)]">â€¢ {it}</li>
         ))}
       </ul>
     </div>
@@ -526,7 +526,7 @@ function ShortsTab({ onDone }) {
   const [status, setStatus] = useState(null);
   const [shorts, setShorts] = useState([]);
   const [error, setError] = useState(null);
-  const backend = process.env.REACT_APP_BACKEND_URL || "";
+  const backend = import.meta.env.VITE_BACKEND_URL || "";
 
   const generate = async () => {
     if (text.trim().length < 20) { toast.error("Paste a longer script/transcript (min 20 chars)"); return; }
@@ -558,7 +558,7 @@ function ShortsTab({ onDone }) {
           } catch (_) {}
         }, 3000);
       }
-      toast.success("Shorts engine started — extracting highlights...");
+      toast.success("Shorts engine started â€” extracting highlights...");
     } catch (e) {
       setError(e?.response?.data?.detail || "Failed to start");
       toast.error("Failed to start");
@@ -570,7 +570,7 @@ function ShortsTab({ onDone }) {
   return (
     <div data-testid="vf-shorts">
       <div className="max-w-3xl">
-        <div className="text-sm font-semibold mb-1">Long-form → Shorts Factory</div>
+        <div className="text-sm font-semibold mb-1">Long-form â†’ Shorts Factory</div>
         <p className="text-xs text-[var(--gs-muted)] mb-3">
           Paste a long video script/transcript. Neo finds the most viral moments and turns each into a vertical short with B-roll, premium voice &amp; captions.
         </p>
@@ -641,7 +641,7 @@ function RenderTab({ project, onRefresh }) {
   const [live, setLive] = useState(null);
   const status = live?.render_status || project.render_status;
   const progress = live?.render_progress ?? (project.render_progress || 0);
-  const backend = process.env.REACT_APP_BACKEND_URL || "";
+  const backend = import.meta.env.VITE_BACKEND_URL || "";
   const isRendering = ["queued", "generating_images", "generating_voice", "assembling"].includes(status);
   const isComplete = status === "complete" && project.final_video_size > 0;
   const hasError = status === "error";
@@ -670,7 +670,7 @@ function RenderTab({ project, onRefresh }) {
     setBusy(true);
     try {
       await api.post(`/video-factory/project/${project.id}/generate-assets`, { orientation });
-      toast.success("Asset generation started — live progress dikh raha hai (30-90s)");
+      toast.success("Asset generation started â€” live progress dikh raha hai (30-90s)");
       onRefresh();
     } catch (e) { toast.error(e?.response?.data?.detail || "Failed to start"); }
     finally { setBusy(false); }
@@ -681,7 +681,7 @@ function RenderTab({ project, onRefresh }) {
     generating_images: "Generating scene images (AI)...",
     generating_voice: "Synthesizing voice-over...",
     assembling: "Assembling final video (ffmpeg)...",
-    complete: "Video ready ✅",
+    complete: "Video ready âœ…",
     error: "Render failed",
   };
 
@@ -696,7 +696,7 @@ function RenderTab({ project, onRefresh }) {
 
       {!hasPipeline && (
         <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800 mb-3">
-          Pipeline complete karo pehle — Storyboard aur Visuals tabs mein data ready hone chahiye.
+          Pipeline complete karo pehle â€” Storyboard aur Visuals tabs mein data ready hone chahiye.
         </div>
       )}
 
@@ -745,7 +745,7 @@ function RenderTab({ project, onRefresh }) {
             {videoSrc ? (
               <video controls className="w-full" src={videoSrc}/>
             ) : (
-              <div className="grid min-h-[220px] place-items-center text-sm text-white/70">Loading video securely…</div>
+              <div className="grid min-h-[220px] place-items-center text-sm text-white/70">Loading video securelyâ€¦</div>
             )}
           </div>
           <div className="flex items-center gap-3 flex-wrap">
@@ -784,7 +784,7 @@ function RenderTab({ project, onRefresh }) {
               {Math.round((project.final_video_size || 0) / 1024 / 1024 * 10) / 10} MB
             </Badge>
             <Badge variant="outline" className="text-xs">{project.scenes_rendered || 0} scenes</Badge>
-            <Badge variant="outline" className="text-xs">Voice: {project.voice_used || "—"}{project.voice_emotion ? ` · ${project.voice_emotion}` : ""}</Badge>
+            <Badge variant="outline" className="text-xs">Voice: {project.voice_used || "â€”"}{project.voice_emotion ? ` Â· ${project.voice_emotion}` : ""}</Badge>
             <Button variant="outline" size="sm" onClick={generate} disabled={busy} className="ml-auto text-xs gap-1" data-testid="vf-regen-video-btn">
               <RefreshCw className="h-3 w-3"/> Re-render
             </Button>
@@ -802,7 +802,7 @@ function RenderTab({ project, onRefresh }) {
                 <img src={`${backend}/api/video-factory/project/${project.id}/scene-image/${s.index}`}
                      alt={`Scene ${s.index}`}
                      className="w-full h-full object-cover"/>
-                <div className="absolute bottom-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-black/60 text-white">#{s.index} · {s.role}</div>
+                <div className="absolute bottom-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-black/60 text-white">#{s.index} Â· {s.role}</div>
               </div>
             ))}
           </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import {
   Wand2, Sparkles, Scissors, Layers, Image as ImageIcon, Download, Loader2,
   RefreshCw, Upload, Film, AlertTriangle, CheckCircle2, Palette, Type,
@@ -31,7 +31,7 @@ function AuthMedia({ url, type, className = "" }) {
     return () => { active = false; if (obj) URL.revokeObjectURL(obj); };
   }, [url]);
   if (error) return <div className="text-xs text-rose-600">Protected media could not be loaded.</div>;
-  if (!src) return <div className="text-xs text-[var(--gs-muted)]">Loading secure preview…</div>;
+  if (!src) return <div className="text-xs text-[var(--gs-muted)]">Loading secure previewâ€¦</div>;
   if (type === "image") return <img src={src} alt="Design preview" className={className} />;
   return <video src={src} controls className={className} />;
 }
@@ -41,7 +41,7 @@ function downloadDataUrl(url, name) {
   a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
 }
 
-/* ─────────────────────────────── Design ─────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Design â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function DesignPanel() {
   const [formats, setFormats] = useState([]);
   const [models, setModels] = useState([]);
@@ -113,7 +113,7 @@ function DesignPanel() {
                 style={{ borderColor: fmt === f.id ? "var(--gs-teal)" : "var(--gs-border)" }}
                 data-testid={`ms-fmt-${f.id}`}
               >
-                {f.label} · {f.width}×{f.height}
+                {f.label} Â· {f.width}Ã—{f.height}
               </button>
             ))}
           </div>
@@ -169,7 +169,7 @@ function DesignPanel() {
 
       <Card className="p-5">
         <div className="text-sm font-semibold mb-3">Preview</div>
-        {busy && <PageState compact kind="loading" title="Composing your design…" />}
+        {busy && <PageState compact kind="loading" title="Composing your designâ€¦" />}
         {!busy && !result && !error && (
           <PageState compact kind="empty" title="No design yet" message="Pick a format, add your copy, and compose. Your graphic appears here." />
         )}
@@ -180,7 +180,7 @@ function DesignPanel() {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="outline" className="text-xs">{result.format}</Badge>
-              <Badge variant="outline" className="text-xs">{result.width}×{result.height}</Badge>
+              <Badge variant="outline" className="text-xs">{result.width}Ã—{result.height}</Badge>
               <Badge variant="outline" className="text-xs">provider: {result.provider}</Badge>
               <Button size="sm" className="ml-auto gap-1 bg-[var(--gs-teal)]" onClick={() => downloadDataUrl(result.image, `getszy-${result.format}.png`)} data-testid="ms-design-download">
                 <Download className="h-3.5 w-3.5" /> Download PNG
@@ -193,7 +193,7 @@ function DesignPanel() {
   );
 }
 
-/* ─────────────────────────────── Shorts ────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Shorts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function ShortsPanel() {
   const [source, setSource] = useState("upload");
   const [file, setFile] = useState(null);
@@ -205,7 +205,7 @@ function ShortsPanel() {
   const [status, setStatus] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  const backend = process.env.REACT_APP_BACKEND_URL || "";
+  const backend = import.meta.env.VITE_BACKEND_URL || "";
 
   const poll = useCallback(async (id) => {
     try {
@@ -243,7 +243,7 @@ function ShortsPanel() {
       fd.append("orientation", "9:16");
       const { data } = await api.post("/media-suite/shorts", fd);
       setJobId(data.job_id);
-      toast.success("Shorts engine started — transcribing & captioning…");
+      toast.success("Shorts engine started â€” transcribing & captioningâ€¦");
     } catch (e) {
       const msg = e?.response?.data?.detail || "Couldn't start shorts generation.";
       setError(msg); toast.error("Start failed");
@@ -258,7 +258,7 @@ function ShortsPanel() {
         <div className="flex items-center gap-2 mb-3">
           <Scissors className="h-5 w-5 text-[var(--gs-teal)]" />
           <h3 className="font-display text-lg">Shorts / Reel Generator</h3>
-          <Badge className="ml-auto bg-[var(--gs-teal)]/15 text-[var(--gs-teal)]">9:16 · captions</Badge>
+          <Badge className="ml-auto bg-[var(--gs-teal)]/15 text-[var(--gs-teal)]">9:16 Â· captions</Badge>
         </div>
         <div className="space-y-3">
           <label className="text-xs font-medium">Source</label>
@@ -279,7 +279,7 @@ function ShortsPanel() {
           ) : (
             <div>
               <label className="text-xs font-medium">YouTube URL</label>
-              <Input value={yt} onChange={(e) => setYt(e.target.value)} placeholder="https://youtube.com/watch?v=…" data-testid="ms-short-yt" />
+              <Input value={yt} onChange={(e) => setYt(e.target.value)} placeholder="https://youtube.com/watch?v=â€¦" data-testid="ms-short-yt" />
             </div>
           )}
 
@@ -300,7 +300,7 @@ function ShortsPanel() {
 
           {(status === "queued" || status === "processing" || status === "transcribing") && (
             <div className="rounded-lg bg-[var(--gs-teal)]/8 border border-[var(--gs-teal)]/20 p-3 text-sm" data-testid="ms-short-progress">
-              <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Processing… {status}
+              <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Processingâ€¦ {status}
             </div>
           )}
           {error && (
@@ -339,7 +339,7 @@ function ShortsPanel() {
   );
 }
 
-/* ────────────────────────────── Workflow ───────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Workflow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const EXAMPLE_DAG = JSON.stringify(
   {
     nodes: [
@@ -415,7 +415,7 @@ function WorkflowPanel() {
           <Input value={name} onChange={(e) => setName(e.target.value)} data-testid="ms-wf-name" />
           <label className="text-xs font-medium">Graph (nodes + edges)</label>
           <Textarea value={json} onChange={(e) => setJson(e.target.value)} rows={12} className="text-xs font-mono" data-testid="ms-wf-json" />
-          <p className="text-[11px] text-[var(--gs-muted)]">Node types: image · tts · text · delay · shorts. Connect nodes with edges (from → to, optional "as" name).</p>
+          <p className="text-[11px] text-[var(--gs-muted)]">Node types: image Â· tts Â· text Â· delay Â· shorts. Connect nodes with edges (from â†’ to, optional "as" name).</p>
           <Button onClick={run} disabled={busy} className="w-full bg-[var(--gs-teal)] gap-2" data-testid="ms-wf-run">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayIcon />} Run Workflow
           </Button>
@@ -470,7 +470,7 @@ function PlayIcon() {
   );
 }
 
-/* ─────────────────────────── Media Suite shell ──────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Media Suite shell â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 export default function MediaSuite() {
   const [tab, setTab] = useState("design");
   return (
@@ -478,7 +478,7 @@ export default function MediaSuite() {
       <div className="flex items-center gap-2">
         <Sparkles className="h-5 w-5 text-[var(--gs-teal)]" />
         <h2 className="font-display text-xl">Media Suite</h2>
-        <Badge className="bg-[var(--gs-teal)]/15 text-[var(--gs-teal)]">SamurAIGPT · Open-Generative-AI</Badge>
+        <Badge className="bg-[var(--gs-teal)]/15 text-[var(--gs-teal)]">SamurAIGPT Â· Open-Generative-AI</Badge>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>

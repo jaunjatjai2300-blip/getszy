@@ -1,6 +1,6 @@
-// Use the same backend URL var as the rest of the app. Fall back to same-origin
+﻿// Use the same backend URL var as the rest of the app. Fall back to same-origin
 // (relative) so production behind a reverse proxy works; never hardcode localhost.
-const API = process.env.REACT_APP_BACKEND_URL || '';
+const API = import.meta.env.VITE_BACKEND_URL || '';
 
 export async function generateWithAI({ prompt, type, onChunk }) {
   const token = localStorage.getItem('gs_token');

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+﻿import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,28 +16,28 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
 const NICHES = [
   {
     id: "finance",
-    emoji: "💰",
+    emoji: "ðŸ’°",
     label: "Finance / Paise",
     color: "border-emerald-300 bg-emerald-50 hover:bg-emerald-100",
     badge: "bg-emerald-100 text-emerald-800",
     tone: "energetic",
     lang: "hinglish",
     examples: [
-      "₹500 rozana bachao toh 10 saal mein kitna banega",
+      "â‚¹500 rozana bachao toh 10 saal mein kitna banega",
       "Salary aate hi pehle 5 kaam karo",
-      "SIP vs FD — konsa better hai 2026 mein",
+      "SIP vs FD â€” konsa better hai 2026 mein",
       "Student loan chukane ke 5 fastest tarike",
       "Tax bachane ke legal tarike jo CA bhi use karte hain",
     ],
   },
   {
     id: "motivational",
-    emoji: "🧠",
+    emoji: "ðŸ§ ",
     label: "Motivation / Self-help",
     color: "border-purple-300 bg-purple-50 hover:bg-purple-100",
     badge: "bg-purple-100 text-purple-800",
@@ -53,7 +53,7 @@ const NICHES = [
   },
   {
     id: "news",
-    emoji: "📰",
+    emoji: "ðŸ“°",
     label: "News / Current Affairs",
     color: "border-blue-300 bg-blue-50 hover:bg-blue-100",
     badge: "bg-blue-100 text-blue-800",
@@ -62,14 +62,14 @@ const NICHES = [
     examples: [
       "Budget 2026 mein aapko kya mila aur kya nahi",
       "India-China border par kya ho raha hai",
-      "AI jobs kha raha hai — India mein kitne jobs khatre mein",
+      "AI jobs kha raha hai â€” India mein kitne jobs khatre mein",
       "Rupee ki giravat aap par kaisa asar dalegi",
-      "Petrol price kyun badh rahi hai — asli wajah",
+      "Petrol price kyun badh rahi hai â€” asli wajah",
     ],
   },
   {
     id: "recipe",
-    emoji: "🍳",
+    emoji: "ðŸ³",
     label: "Recipe / Tutorial",
     color: "border-orange-300 bg-orange-50 hover:bg-orange-100",
     badge: "bg-orange-100 text-orange-800",
@@ -85,7 +85,7 @@ const NICHES = [
   },
   {
     id: "educational",
-    emoji: "📚",
+    emoji: "ðŸ“š",
     label: "Education / Facts",
     color: "border-yellow-300 bg-yellow-50 hover:bg-yellow-100",
     badge: "bg-yellow-100 text-yellow-800",
@@ -94,9 +94,9 @@ const NICHES = [
     examples: [
       "Mughal empire ke 5 raaz jo school mein nahi padhaye",
       "Kya humans ka blood color hamesha se red tha",
-      "Black hole ke andar kya hota hai — science ki bhasaa mein",
+      "Black hole ke andar kya hota hai â€” science ki bhasaa mein",
       "India ne space race kaise jeet li with zero budget",
-      "Dinosaur ab bhi maujood hain — kaise",
+      "Dinosaur ab bhi maujood hain â€” kaise",
     ],
   },
 ];
@@ -133,7 +133,7 @@ function JobCard({ j, onView, onDelete }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-semibold text-sm truncate">{j.topic}</div>
-          <div className="text-[10px] text-[var(--gs-muted)] mt-0.5">{j.orientation} · {j.language}</div>
+          <div className="text-[10px] text-[var(--gs-muted)] mt-0.5">{j.orientation} Â· {j.language}</div>
         </div>
         <StatusPill s={j.status}/>
       </div>
@@ -243,7 +243,7 @@ export default function VideoStudio() {
 
   useEffect(() => { load(); const t = setInterval(load, 6000); return () => clearInterval(t); }, [load]);
 
-  // ── Generators ──────────────────────────────────────────────────
+  // â”€â”€ Generators â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const pickNiche = (niche) => {
     setActiveNiche(niche.id);
@@ -257,14 +257,14 @@ export default function VideoStudio() {
   const generate = async () => {
     if (topic.trim().length < 4) return toast.error("Topic too short");
     setBusy(true);
-    toast.loading("Queuing video job…", { id: "vid" });
+    toast.loading("Queuing video jobâ€¦", { id: "vid" });
     try {
       const r = await api.post("/video/generate", {
         topic, orientation, language, voice_gender: voiceGender,
         target_seconds: Number(seconds), tone, subtitles, category,
         visual_provider: visualProvider,
       });
-      toast.success(`Job queued ✅ (${r.data.id.slice(0, 8)})`, { id: "vid" });
+      toast.success(`Job queued âœ… (${r.data.id.slice(0, 8)})`, { id: "vid" });
       setTopic("");
       await load();
     } catch (e) {
@@ -277,12 +277,12 @@ export default function VideoStudio() {
     if (!topics.length) return toast.error("Add at least one topic");
     if (topics.length > 10) return toast.error("Max 10 topics");
     setBatchBusy(true);
-    toast.loading(`Queuing ${topics.length} videos…`, { id: "batch" });
+    toast.loading(`Queuing ${topics.length} videosâ€¦`, { id: "batch" });
     try {
       const r = await api.post("/video/batch", {
         topics, orientation, language, voice_gender: voiceGender, target_seconds: Number(seconds)
       });
-      toast.success(`${r.data.count} jobs queued ✅`, { id: "batch" });
+      toast.success(`${r.data.count} jobs queued âœ…`, { id: "batch" });
       setBatchTopics("");
       await load();
     } catch (e) {
@@ -293,7 +293,7 @@ export default function VideoStudio() {
   const generateStory = async () => {
     if (storyTheme.trim().length < 4) return toast.error("Story theme too short");
     setStoryBusy(true);
-    toast.loading("Creating AI story video…", { id: "story" });
+    toast.loading("Creating AI story videoâ€¦", { id: "story" });
     try {
       const r = await api.post("/video/generate", {
         topic: storyTheme,
@@ -305,7 +305,7 @@ export default function VideoStudio() {
         subtitles: true,
         format: "ai_story",
       });
-      toast.success(`Story video queued ✅ (${r.data.id.slice(0, 8)})`, { id: "story" });
+      toast.success(`Story video queued âœ… (${r.data.id.slice(0, 8)})`, { id: "story" });
       setStoryTheme("");
       await load();
     } catch (e) {
@@ -313,7 +313,7 @@ export default function VideoStudio() {
     } finally { setStoryBusy(false); }
   };
 
-  // ── Schedule ────────────────────────────────────────────────────
+  // â”€â”€ Schedule â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const schedulePost = async () => {
     if (!schedJobId) return toast.error("Select a completed video first");
@@ -329,7 +329,7 @@ export default function VideoStudio() {
         tags: schedTitle.split(" ").filter(w => w.length > 3).slice(0, 5).map(w => `#${w}`),
         scheduled_at: schedAt || null,
       });
-      toast.success("Post scheduled ✅");
+      toast.success("Post scheduled âœ…");
       setSchedJobId(""); setSchedTitle(""); setSchedDesc(""); setSchedPlatforms([]); setSchedAt("");
       await load();
     } catch (e) {
@@ -357,7 +357,7 @@ export default function VideoStudio() {
     }
   };
 
-  // ── Social connect ───────────────────────────────────────────────
+  // â”€â”€ Social connect â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const connectAccount = async () => {
     if (!connectPlatform || !connectToken.trim()) return toast.error("Platform and access token required");
@@ -369,7 +369,7 @@ export default function VideoStudio() {
         channel_id: connectChannelId || undefined,
         channel_name: connectChannelName || undefined,
       });
-      toast.success(`${connectPlatform} connected ✅`);
+      toast.success(`${connectPlatform} connected âœ…`);
       setConnectToken(""); setConnectChannelId(""); setConnectChannelName("");
       await load();
     } catch (e) {
@@ -399,7 +399,7 @@ export default function VideoStudio() {
 
   const doneJobs = jobs.filter(j => j.status === "done");
 
-  // ── Render ───────────────────────────────────────────────────────
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   return (
     <div className="space-y-6" data-testid="admin-video-studio-page">
@@ -409,7 +409,7 @@ export default function VideoStudio() {
             <Film className="h-7 w-7 text-[var(--gs-teal)]"/> Video Studio
           </h1>
           <p className="text-sm text-[var(--gs-muted)] mt-1">
-            Faceless videos · AI Stories · Schedule · Auto-post to all platforms
+            Faceless videos Â· AI Stories Â· Schedule Â· Auto-post to all platforms
           </p>
         </div>
         {voices.providers && (
@@ -421,9 +421,9 @@ export default function VideoStudio() {
         )}
       </div>
 
-      {/* ── Niche Quick-Start ─────────────────────────────────── */}
+      {/* â”€â”€ Niche Quick-Start â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div>
-        <h2 className="font-display text-base mb-3 text-[var(--gs-muted)]">🎯 Quick Start — Apna niche chunno</h2>
+        <h2 className="font-display text-base mb-3 text-[var(--gs-muted)]">ðŸŽ¯ Quick Start â€” Apna niche chunno</h2>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           {NICHES.map(n => (
             <button key={n.id} onClick={() => pickNiche(n)}
@@ -441,7 +441,7 @@ export default function VideoStudio() {
         {activeNiche && (
           <div className="mt-3 p-3 rounded-xl bg-[var(--gs-surface-2)] border">
             <div className="text-[10px] text-[var(--gs-muted)] mb-2 font-semibold uppercase tracking-wide">
-              {NICHES.find(n => n.id === activeNiche)?.label} — Example topics (click to use)
+              {NICHES.find(n => n.id === activeNiche)?.label} â€” Example topics (click to use)
             </div>
             <div className="flex flex-wrap gap-1.5">
               {NICHES.find(n => n.id === activeNiche)?.examples.map((ex, i) => (
@@ -465,7 +465,7 @@ export default function VideoStudio() {
           <TabsTrigger value="social"><Share2 className="h-4 w-4 mr-1"/>Social Media</TabsTrigger>
         </TabsList>
 
-        {/* ── Single Video ──────────────────────────────────────── */}
+        {/* â”€â”€ Single Video â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <TabsContent value="single" className="mt-4">
           <Card className="p-5 space-y-4">
             <div>
@@ -527,50 +527,50 @@ export default function VideoStudio() {
             {/* Visual Provider Selector */}
             <div className="p-3 rounded-xl border-2 space-y-2"
               style={{ borderColor: visualProvider === "flux_hd" ? "#7c3aed" : "var(--gs-border)" }}>
-              <div className="text-xs font-semibold text-[var(--gs-muted)]">🎨 Visuals Provider</div>
+              <div className="text-xs font-semibold text-[var(--gs-muted)]">ðŸŽ¨ Visuals Provider</div>
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={() => setVisualProvider("pollinations")}
                   className={`p-2.5 rounded-lg border text-xs text-left transition-all ${visualProvider === "pollinations" ? "border-[var(--gs-teal)] bg-[var(--gs-teal)]/5 font-semibold" : "border-gray-200 hover:border-gray-300"}`}>
-                  <div className="font-semibold">🆓 Pollinations</div>
-                  <div className="text-[10px] text-[var(--gs-muted)] mt-0.5">Free · Fast · Good quality</div>
+                  <div className="font-semibold">ðŸ†“ Pollinations</div>
+                  <div className="text-[10px] text-[var(--gs-muted)] mt-0.5">Free Â· Fast Â· Good quality</div>
                 </button>
                 <button onClick={() => fluxAvailable ? setVisualProvider("flux_hd") : toast.error("HF_TOKEN not set on server")}
                   className={`p-2.5 rounded-lg border text-xs text-left transition-all relative ${visualProvider === "flux_hd" ? "border-violet-500 bg-violet-50 font-semibold" : fluxAvailable ? "border-gray-200 hover:border-violet-300" : "border-gray-200 opacity-60"}`}>
-                  <div className="font-semibold text-violet-700">⚡ FLUX HD</div>
-                  <div className="text-[10px] text-[var(--gs-muted)] mt-0.5">HuggingFace · Best quality</div>
+                  <div className="font-semibold text-violet-700">âš¡ FLUX HD</div>
+                  <div className="text-[10px] text-[var(--gs-muted)] mt-0.5">HuggingFace Â· Best quality</div>
                   {!fluxAvailable && <span className="absolute top-1.5 right-1.5 text-[9px] bg-amber-100 text-amber-700 px-1 rounded">No HF key</span>}
-                  {fluxAvailable && <span className="absolute top-1.5 right-1.5 text-[9px] bg-emerald-100 text-emerald-700 px-1 rounded">✓ Ready</span>}
+                  {fluxAvailable && <span className="absolute top-1.5 right-1.5 text-[9px] bg-emerald-100 text-emerald-700 px-1 rounded">âœ“ Ready</span>}
                 </button>
               </div>
             </div>
 
             <Button onClick={generate} disabled={busy} className="w-full bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]/90" data-testid="video-generate-btn">
               {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Play className="h-4 w-4 mr-2"/>}
-              {busy ? "Queuing…" : "Generate Faceless Video (1080p HD)"}
+              {busy ? "Queuingâ€¦" : "Generate Faceless Video (1080p HD)"}
             </Button>
             <p className="text-[11px] text-[var(--gs-muted)]">
-              1080p HD · 5 scenes minimum · 60–120s render time · Captions included
+              1080p HD Â· 5 scenes minimum Â· 60â€“120s render time Â· Captions included
             </p>
           </Card>
         </TabsContent>
 
-        {/* ── Batch ─────────────────────────────────────────────── */}
+        {/* â”€â”€ Batch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <TabsContent value="batch" className="mt-4">
           <Card className="p-5 space-y-4">
             <div>
               <label className="text-xs text-[var(--gs-muted)]">Topics (one per line, max 10)</label>
               <Textarea rows={6} value={batchTopics} onChange={e => setBatchTopics(e.target.value)}
-                        placeholder="5 AI tools for Indian students&#10;How to start a YouTube channel in 2026&#10;…"
+                        placeholder="5 AI tools for Indian students&#10;How to start a YouTube channel in 2026&#10;â€¦"
                         data-testid="batch-topics-input"/>
             </div>
             <Button onClick={runBatch} disabled={batchBusy} className="w-full bg-[#7c3aed] hover:bg-[#7c3aed]/90" data-testid="batch-run-btn">
               {batchBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Layers className="h-4 w-4 mr-2"/>}
-              {batchBusy ? "Queuing batch…" : "Queue Batch (up to 10 videos)"}
+              {batchBusy ? "Queuing batchâ€¦" : "Queue Batch (up to 10 videos)"}
             </Button>
           </Card>
         </TabsContent>
 
-        {/* ── AI Stories ────────────────────────────────────────── */}
+        {/* â”€â”€ AI Stories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <TabsContent value="story" className="mt-4">
           <Card className="p-5 space-y-4">
             <div className="flex items-center gap-2 mb-1">
@@ -578,7 +578,7 @@ export default function VideoStudio() {
               <h3 className="font-display text-lg">AI Short Story Video</h3>
             </div>
             <p className="text-xs text-[var(--gs-muted)]">
-              AI likhega ek complete story — opening, conflict, climax, moral — aur cinematic video banayega. Best for Reels.
+              AI likhega ek complete story â€” opening, conflict, climax, moral â€” aur cinematic video banayega. Best for Reels.
             </p>
             <div>
               <label className="text-xs text-[var(--gs-muted)]">Story theme / idea *</label>
@@ -615,15 +615,15 @@ export default function VideoStudio() {
             <Button onClick={generateStory} disabled={storyBusy}
                     className="w-full bg-gradient-to-r from-[var(--gs-teal)] to-[#7c3aed] hover:opacity-90">
               {storyBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
-              {storyBusy ? "Creating story…" : "Generate AI Story Video"}
+              {storyBusy ? "Creating storyâ€¦" : "Generate AI Story Video"}
             </Button>
             <p className="text-[11px] text-[var(--gs-muted)]">
-              AI likhega: Opening → Rising action → Climax → Resolution → Moral. 5-scene 9:16 Reel, ~75s.
+              AI likhega: Opening â†’ Rising action â†’ Climax â†’ Resolution â†’ Moral. 5-scene 9:16 Reel, ~75s.
             </p>
           </Card>
         </TabsContent>
 
-        {/* ── Avatar Studio ─────────────────────────────────────── */}
+        {/* â”€â”€ Avatar Studio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <TabsContent value="avatar" className="mt-4 space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
 
@@ -635,13 +635,13 @@ export default function VideoStudio() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-sm">AI Image Generator</h3>
-                  <p className="text-[10px] text-[var(--gs-muted)]">FLUX HD — text se HD image banao</p>
+                  <p className="text-[10px] text-[var(--gs-muted)]">FLUX HD â€” text se HD image banao</p>
                 </div>
               </div>
               <div>
                 <label className="text-xs text-[var(--gs-muted)]">Image Prompt *</label>
                 <Textarea rows={3} value={imgPrompt} onChange={e => setImgPrompt(e.target.value)}
-                  placeholder="e.g. A cinematic shot of a young Indian entrepreneur in a modern Mumbai office, golden hour lighting, 8K…"/>
+                  placeholder="e.g. A cinematic shot of a young Indian entrepreneur in a modern Mumbai office, golden hour lighting, 8Kâ€¦"/>
               </div>
               <div>
                 <label className="text-xs text-[var(--gs-muted)]">Orientation</label>
@@ -666,7 +666,7 @@ export default function VideoStudio() {
                   toast.error(e?.response?.data?.detail || "Image generation failed");
                 } finally { setImgBusy(false); }
               }} disabled={imgBusy} className="w-full bg-violet-600 hover:bg-violet-700 text-white">
-                {imgBusy ? <><Loader2 className="h-4 w-4 animate-spin mr-2"/>Generating…</> : <><Wand2 className="h-4 w-4 mr-2"/>Generate Image</>}
+                {imgBusy ? <><Loader2 className="h-4 w-4 animate-spin mr-2"/>Generatingâ€¦</> : <><Wand2 className="h-4 w-4 mr-2"/>Generate Image</>}
               </Button>
               {imgResult?.image_url && (
                 <div className="space-y-2">
@@ -686,7 +686,7 @@ export default function VideoStudio() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-sm">Voice Clone</h3>
-                  <p className="text-[10px] text-[var(--gs-muted)]">Apni awaaz upload karo — clone ready</p>
+                  <p className="text-[10px] text-[var(--gs-muted)]">Apni awaaz upload karo â€” clone ready</p>
                 </div>
               </div>
               <div>
@@ -717,11 +717,11 @@ export default function VideoStudio() {
                   toast.error(e?.response?.data?.detail || "Clone failed");
                 } finally { setVoiceBusy(false); }
               }} disabled={voiceBusy} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
-                {voiceBusy ? <><Loader2 className="h-4 w-4 animate-spin mr-2"/>Cloning…</> : <><Mic className="h-4 w-4 mr-2"/>Clone Voice</>}
+                {voiceBusy ? <><Loader2 className="h-4 w-4 animate-spin mr-2"/>Cloningâ€¦</> : <><Mic className="h-4 w-4 mr-2"/>Clone Voice</>}
               </Button>
               {voiceResult && (
                 <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs space-y-1">
-                  <div className="font-semibold text-emerald-700">✓ Voice cloned!</div>
+                  <div className="font-semibold text-emerald-700">âœ“ Voice cloned!</div>
                   <div className="text-[var(--gs-muted)]">ID: {voiceResult.voice_id || voiceName}</div>
                   {voiceResult.sample_url && (
                     <audio controls src={`${BACKEND_URL}${voiceResult.sample_url}`} className="w-full mt-1"/>
@@ -738,7 +738,7 @@ export default function VideoStudio() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-sm">Talking Avatar</h3>
-                  <p className="text-[10px] text-[var(--gs-muted)]">Photo + Audio → Talking face video (SadTalker)</p>
+                  <p className="text-[10px] text-[var(--gs-muted)]">Photo + Audio â†’ Talking face video (SadTalker)</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -779,13 +779,13 @@ export default function VideoStudio() {
                   toast.error(e?.response?.data?.detail || "Avatar generation failed");
                 } finally { setAvatarBusy(false); }
               }} disabled={avatarBusy} className="w-full bg-pink-600 hover:bg-pink-700 text-white">
-                {avatarBusy ? <><Loader2 className="h-4 w-4 animate-spin mr-2"/>Generating…</> : <><User className="h-4 w-4 mr-2"/>Generate Talking Avatar</>}
+                {avatarBusy ? <><Loader2 className="h-4 w-4 animate-spin mr-2"/>Generatingâ€¦</> : <><User className="h-4 w-4 mr-2"/>Generate Talking Avatar</>}
               </Button>
               {avatarResult?.video_url && (
                 <video src={`${BACKEND_URL}${avatarResult.video_url}`} controls className="w-full rounded-xl max-h-48"/>
               )}
               {avatarResult?.status === "queued" && (
-                <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg">⏳ Job queued — ~2-3 min lagenge. Recent Jobs mein check karo.</div>
+                <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg">â³ Job queued â€” ~2-3 min lagenge. Recent Jobs mein check karo.</div>
               )}
             </Card>
 
@@ -802,10 +802,10 @@ export default function VideoStudio() {
               </div>
               <div className="space-y-2">
                 {[
-                  { name: "FLUX HD (HF)",   available: fluxAvailable, label: fluxAvailable ? "✓ Ready" : "HF_TOKEN missing", color: fluxAvailable ? "text-emerald-600" : "text-amber-600", bg: fluxAvailable ? "bg-emerald-50" : "bg-amber-50" },
-                  { name: "Pollinations",   available: true,          label: "✓ Free, no key", color: "text-emerald-600", bg: "bg-emerald-50" },
-                  { name: "edge-tts",       available: true,          label: "✓ Free Indian voices", color: "text-emerald-600", bg: "bg-emerald-50" },
-                  { name: "XTTS Voice Clone", available: fluxAvailable, label: fluxAvailable ? "✓ Via HF" : "Needs HF_TOKEN", color: fluxAvailable ? "text-emerald-600" : "text-amber-600", bg: fluxAvailable ? "bg-emerald-50" : "bg-amber-50" },
+                  { name: "FLUX HD (HF)",   available: fluxAvailable, label: fluxAvailable ? "âœ“ Ready" : "HF_TOKEN missing", color: fluxAvailable ? "text-emerald-600" : "text-amber-600", bg: fluxAvailable ? "bg-emerald-50" : "bg-amber-50" },
+                  { name: "Pollinations",   available: true,          label: "âœ“ Free, no key", color: "text-emerald-600", bg: "bg-emerald-50" },
+                  { name: "edge-tts",       available: true,          label: "âœ“ Free Indian voices", color: "text-emerald-600", bg: "bg-emerald-50" },
+                  { name: "XTTS Voice Clone", available: fluxAvailable, label: fluxAvailable ? "âœ“ Via HF" : "Needs HF_TOKEN", color: fluxAvailable ? "text-emerald-600" : "text-amber-600", bg: fluxAvailable ? "bg-emerald-50" : "bg-amber-50" },
                   { name: "SadTalker",      available: false,         label: "GPU needed (optional)", color: "text-slate-500", bg: "bg-slate-50" },
                 ].map(s => (
                   <div key={s.name} className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs ${s.bg}`}>
@@ -819,7 +819,7 @@ export default function VideoStudio() {
                   const r = await api.get("/avatar/status");
                   toast.success(`Avatar API: ${JSON.stringify(r.data).slice(0, 80)}`);
                 } catch (e) {
-                  toast.error("Avatar API unreachable — server check karo");
+                  toast.error("Avatar API unreachable â€” server check karo");
                 }
               }}>
                 <Zap className="h-3.5 w-3.5 mr-1"/> Test Avatar API
@@ -828,7 +828,7 @@ export default function VideoStudio() {
           </div>
         </TabsContent>
 
-        {/* ── Schedule ──────────────────────────────────────────── */}
+        {/* â”€â”€ Schedule â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <TabsContent value="schedule" className="mt-4 space-y-5">
           <Card className="p-5 space-y-4">
             <div className="flex items-center gap-2">
@@ -845,7 +845,7 @@ export default function VideoStudio() {
                 if (j) setSchedTitle(j.topic);
               }}>
                 <SelectTrigger>
-                  <SelectValue placeholder={doneJobs.length ? "Choose a video…" : "No completed videos yet"}/>
+                  <SelectValue placeholder={doneJobs.length ? "Choose a videoâ€¦" : "No completed videos yet"}/>
                 </SelectTrigger>
                 <SelectContent>
                   {doneJobs.map(j => (
@@ -861,7 +861,7 @@ export default function VideoStudio() {
             </div>
             <div>
               <label className="text-xs text-[var(--gs-muted)]">Description (optional)</label>
-              <Textarea rows={2} value={schedDesc} onChange={e => setSchedDesc(e.target.value)} placeholder="Caption ya description…"/>
+              <Textarea rows={2} value={schedDesc} onChange={e => setSchedDesc(e.target.value)} placeholder="Caption ya descriptionâ€¦"/>
             </div>
 
             <div>
@@ -889,13 +889,13 @@ export default function VideoStudio() {
             </div>
 
             <div>
-              <label className="text-xs text-[var(--gs-muted)]">Schedule date & time (optional — blank = publish now)</label>
+              <label className="text-xs text-[var(--gs-muted)]">Schedule date & time (optional â€” blank = publish now)</label>
               <Input type="datetime-local" value={schedAt} onChange={e => setSchedAt(e.target.value)}/>
             </div>
 
             <Button onClick={schedulePost} disabled={schedBusy} className="w-full bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]/90">
               {schedBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Calendar className="h-4 w-4 mr-2"/>}
-              {schedBusy ? "Scheduling…" : schedAt ? "Schedule Post" : "Publish Now to Selected Platforms"}
+              {schedBusy ? "Schedulingâ€¦" : schedAt ? "Schedule Post" : "Publish Now to Selected Platforms"}
             </Button>
           </Card>
 
@@ -913,12 +913,12 @@ export default function VideoStudio() {
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold text-sm truncate">{p.title}</div>
                       <div className="text-[10px] text-[var(--gs-muted)]">
-                        {p.platforms?.join(", ")} · {p.scheduled_at ? new Date(p.scheduled_at).toLocaleString("en-IN") : "Now"}
+                        {p.platforms?.join(", ")} Â· {p.scheduled_at ? new Date(p.scheduled_at).toLocaleString("en-IN") : "Now"}
                       </div>
                       <div className="flex gap-1 mt-1 flex-wrap">
                         {(p.results ? Object.entries(p.results) : []).map(([plat, res]) => (
                           <span key={plat} className={`text-[9px] px-1.5 py-0.5 rounded ${res.ok ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
-                            {plat}: {res.ok ? "✓" : res.error?.slice(0, 30)}
+                            {plat}: {res.ok ? "âœ“" : res.error?.slice(0, 30)}
                           </span>
                         ))}
                       </div>
@@ -939,7 +939,7 @@ export default function VideoStudio() {
           </div>
         </TabsContent>
 
-        {/* ── Social Media ──────────────────────────────────────── */}
+        {/* â”€â”€ Social Media â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <TabsContent value="social" className="mt-4 space-y-5">
           {/* Platform status */}
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -960,7 +960,7 @@ export default function VideoStudio() {
                   {acct.connected ? (
                     <>
                       <div className="text-[10px] text-[var(--gs-muted)] mb-2">
-                        {acct.info?.channel_name || "Connected"} · {acct.info?.connected_at ? new Date(acct.info.connected_at).toLocaleDateString("en-IN") : ""}
+                        {acct.info?.channel_name || "Connected"} Â· {acct.info?.connected_at ? new Date(acct.info.connected_at).toLocaleDateString("en-IN") : ""}
                       </div>
                       <Button size="sm" variant="ghost" className="w-full text-rose-500 h-7" onClick={() => disconnectAccount(acct.platform)}>
                         <Unlink className="h-3 w-3 mr-1"/> Disconnect
@@ -985,7 +985,7 @@ export default function VideoStudio() {
             <div>
               <label className="text-xs text-[var(--gs-muted)]">Platform</label>
               <Select value={connectPlatform} onValueChange={setConnectPlatform}>
-                <SelectTrigger><SelectValue placeholder="Choose platform…"/></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Choose platformâ€¦"/></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="youtube">YouTube</SelectItem>
                   <SelectItem value="instagram">Instagram</SelectItem>
@@ -1000,10 +1000,10 @@ export default function VideoStudio() {
                 <div className="font-semibold mb-1">Token kaise milega ({connectPlatform}):</div>
                 <div>{platforms.find(p => p.platform === connectPlatform)?.instructions ||
                   {
-                    youtube: "Google Cloud Console → OAuth 2.0 → Enable YouTube Data API v3 → Get access token via OAuth playground",
-                    instagram: "Meta for Developers → Instagram Basic Display API → Get long-lived access token (60 days)",
-                    facebook: "Meta for Developers → Facebook Login → Get Page access token from Graph Explorer",
-                    twitter: "Twitter Developer Portal → Create App → OAuth 2.0 → Generate Bearer token",
+                    youtube: "Google Cloud Console â†’ OAuth 2.0 â†’ Enable YouTube Data API v3 â†’ Get access token via OAuth playground",
+                    instagram: "Meta for Developers â†’ Instagram Basic Display API â†’ Get long-lived access token (60 days)",
+                    facebook: "Meta for Developers â†’ Facebook Login â†’ Get Page access token from Graph Explorer",
+                    twitter: "Twitter Developer Portal â†’ Create App â†’ OAuth 2.0 â†’ Generate Bearer token",
                   }[connectPlatform]
                 }</div>
               </div>
@@ -1012,7 +1012,7 @@ export default function VideoStudio() {
             <div>
               <label className="text-xs text-[var(--gs-muted)]">Access Token *</label>
               <Input value={connectToken} onChange={e => setConnectToken(e.target.value)}
-                     type="password" placeholder="Paste your access token here…"/>
+                     type="password" placeholder="Paste your access token hereâ€¦"/>
             </div>
             <div className="grid md:grid-cols-2 gap-3">
               <div>
@@ -1029,7 +1029,7 @@ export default function VideoStudio() {
             <Button onClick={connectAccount} disabled={connectBusy || !connectPlatform || !connectToken}
                     className="w-full bg-[var(--gs-teal)] hover:bg-[var(--gs-teal)]/90">
               {connectBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Link className="h-4 w-4 mr-2"/>}
-              {connectBusy ? "Connecting…" : "Connect Account"}
+              {connectBusy ? "Connectingâ€¦" : "Connect Account"}
             </Button>
           </Card>
         </TabsContent>
@@ -1044,7 +1044,7 @@ export default function VideoStudio() {
           </Button>
         </div>
         {jobs.length === 0 ? (
-          <Card className="p-6 text-center text-sm text-[var(--gs-muted)]">Koi jobs nahi hain abhi — upar se video generate karo.</Card>
+          <Card className="p-6 text-center text-sm text-[var(--gs-muted)]">Koi jobs nahi hain abhi â€” upar se video generate karo.</Card>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3" data-testid="video-jobs-grid">
             {jobs.map(j => <JobCard key={j.id} j={j} onView={openJob} onDelete={delJob}/>)}
@@ -1061,7 +1061,7 @@ export default function VideoStudio() {
               <h4 className="font-display text-lg">{active.topic}</h4>
               <div className="text-[10px] text-[var(--gs-muted)]">{active.id}</div>
             </div>
-            <button onClick={() => setActive(null)} className="text-[var(--gs-muted)] text-lg">✕</button>
+            <button onClick={() => setActive(null)} className="text-[var(--gs-muted)] text-lg">âœ•</button>
           </div>
           {active.script && (
             <div className="mt-3 max-h-64 overflow-y-auto text-[11px] bg-[var(--gs-surface-2)] p-3 rounded-xl">

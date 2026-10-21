@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+﻿import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useBuilderWebsiteOperation } from "@/hooks/useBuilderWebsiteOperation";
@@ -15,7 +15,7 @@ import * as Icons from "lucide-react";
 import { Wand2, Loader2, Play, Download, Trash2, ExternalLink, Copy, Sparkle, Plus, Laptop, Smartphone, Tablet, RotateCcw, ShieldCheck, CheckCircle2, AlertTriangle, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 const PREVIEW_TEMPLATE_FALLBACK = [
   { id: "dance-academy", name: "Dance Academy", industry: "Dance & Performing Arts", source: "Getszy curated" },
   { id: "brand-foundation", name: "Professional Brand Foundation", industry: "General Business", source: "Getszy curated" },
@@ -47,13 +47,13 @@ async function downloadAuthenticated(path, filename) {
     anchor.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
   } catch (error) {
-    toast.error(error?.response?.status === 401 ? "Please sign in again to download" : "Download failed — please retry");
+    toast.error(error?.response?.status === 401 ? "Please sign in again to download" : "Download failed â€” please retry");
   }
 }
 
 function useHub() {
   const [hub, setHub] = useState({ counts: {}, categories: [] });
-  const load = useCallback(async () => { try { const r = await api.get("/builder/hub"); setHub(r.data); } catch (e) { toast.error("Couldn't load Build Studio — refresh to retry"); } }, []);
+  const load = useCallback(async () => { try { const r = await api.get("/builder/hub"); setHub(r.data); } catch (e) { toast.error("Couldn't load Build Studio â€” refresh to retry"); } }, []);
   useEffect(() => { load(); }, [load]);
   return { hub, reload: load };
 }
@@ -67,7 +67,7 @@ export default function BuildStudio({ embedded = false }) {
       {!embedded && (
         <div>
           <h1 className="font-display text-3xl flex items-center gap-2"><Wand2 className="h-7 w-7 text-[var(--gs-teal)]"/> Build Studio</h1>
-          <p className="text-sm text-[var(--gs-muted)] mt-1">One place to build anything — web apps, faceless channels, custom AI agents, mobile apps, full-stack sites, blogs. Preview, download, deploy.</p>
+          <p className="text-sm text-[var(--gs-muted)] mt-1">One place to build anything â€” web apps, faceless channels, custom AI agents, mobile apps, full-stack sites, blogs. Preview, download, deploy.</p>
         </div>
       )}
 
@@ -147,7 +147,7 @@ function WebAppBuilder({ color }) {
   const isReadOnlyPreview = typeof window !== "undefined" && window.location.hostname.startsWith("preview.");
 
   const updateBrief = (field, value) => setBrief((current) => ({ ...current, [field]: value }));
-  const load = async () => { try { const r = await api.get("/builder/projects"); setProjects(r.data || []); } catch (e) { toast.error("Couldn't load projects — refresh to retry"); } };
+  const load = async () => { try { const r = await api.get("/builder/projects"); setProjects(r.data || []); } catch (e) { toast.error("Couldn't load projects â€” refresh to retry"); } };
   const loadCredits = async () => { try { const r = await api.get("/credits/me"); setCreditInfo({ credits: Number(r.data?.credits ?? 0), costs: r.data?.costs || {} }); } catch { setCreditInfo({ credits: null, costs: {} }); } };
   useEffect(() => { load(); loadCredits(); }, []);
   useEffect(() => {
@@ -190,7 +190,7 @@ function WebAppBuilder({ color }) {
   };
 
 
-  const del = async (pid) => { try { await api.delete(`/builder/projects/${pid}`); load(); toast.success("Deleted"); } catch (e) { toast.error("Delete failed — please retry"); } };
+  const del = async (pid) => { try { await api.delete(`/builder/projects/${pid}`); load(); toast.success("Deleted"); } catch (e) { toast.error("Delete failed â€” please retry"); } };
 
   return (
     <div className="space-y-4 mt-4">
@@ -199,7 +199,7 @@ function WebAppBuilder({ color }) {
       </div>
       <div>
         <label className="text-xs text-[var(--gs-muted)]">What should this page achieve? *</label>
-        <Textarea rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="For example: I need a premium website for my beauty studio in Jaipur…" data-testid="wa-prompt"/>
+        <Textarea rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="For example: I need a premium website for my beauty studio in Jaipurâ€¦" data-testid="wa-prompt"/>
       </div>
       <div>
         <label className="text-xs text-[var(--gs-muted)]">Name (optional)</label>
@@ -232,7 +232,7 @@ function WebAppBuilder({ color }) {
       {isReadOnlyPreview && <div className="rounded-lg border px-3 py-2 text-xs text-[var(--gs-muted)]" style={{ borderColor: "var(--gs-border)", background: "var(--gs-surface-2)" }}>Preview mode is read-only: you can inspect the professional composition workflow and prepaid cost, but creation remains disabled until an approved production release.</div>}
       <Button onClick={build} disabled={busy || isReadOnlyPreview || !hasEnoughCredits} className="w-full text-white" style={{ background: color }} data-testid="wa-build-btn">
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
-        {busy ? "Composing private draft…" : isReadOnlyPreview ? "Preview mode — creation disabled" : !hasEnoughCredits ? "Top up to create private draft" : "Create Professional Private Draft"}
+        {busy ? "Composing private draftâ€¦" : isReadOnlyPreview ? "Preview mode â€” creation disabled" : !hasEnoughCredits ? "Top up to create private draft" : "Create Professional Private Draft"}
       </Button>
 
       <div className="rounded-xl border p-3 text-sm" style={{ borderColor: busy ? "#9dc9ee" : "var(--gs-border)", background: busy ? "#f0f8ff" : "var(--gs-surface-2)" }} aria-live="polite" data-testid="wa-build-status">
@@ -287,7 +287,7 @@ function WebAppBuilder({ color }) {
           )}
           <div className="overflow-auto p-4">
             <div className={`mx-auto overflow-hidden rounded-xl border bg-white shadow-sm ${previewDevice === "mobile" ? "h-[680px] max-w-[390px]" : previewDevice === "tablet" ? "h-[620px] max-w-[768px]" : "h-[560px] w-full"}`} style={{ borderColor: "var(--gs-border)" }}>
-              {previewUrl ? <iframe src={previewUrl} className="h-full w-full" title="Private project preview" data-testid="wa-preview-iframe"/> : previewTokenError ? <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[var(--gs-muted)]">The secure preview link could not be prepared. Reload the project to retry.</div> : <div className="flex h-full items-center justify-center gap-2 text-sm text-[var(--gs-muted)]"><Loader2 className="h-4 w-4 animate-spin" />Preparing secure preview…</div>}
+              {previewUrl ? <iframe src={previewUrl} className="h-full w-full" title="Private project preview" data-testid="wa-preview-iframe"/> : previewTokenError ? <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[var(--gs-muted)]">The secure preview link could not be prepared. Reload the project to retry.</div> : <div className="flex h-full items-center justify-center gap-2 text-sm text-[var(--gs-muted)]"><Loader2 className="h-4 w-4 animate-spin" />Preparing secure previewâ€¦</div>}
             </div>
           </div>
           <div className="flex items-center gap-2 border-t px-4 py-3 text-xs text-[var(--gs-muted)]" style={{ borderColor: "var(--gs-border)" }}><ShieldCheck className="h-4 w-4 text-emerald-600" />This draft is private. Preview does not publish it to a public domain.</div>
@@ -310,35 +310,35 @@ function ChannelBuilder({ color }) {
   const [channels, setChannels] = useState([]);
   const [active, setActive] = useState(null);
 
-  const load = async () => { try { const r = await api.get("/builder/channel"); setChannels(r.data.items || []); } catch (e) { toast.error("Couldn't load channels — refresh to retry"); } };
+  const load = async () => { try { const r = await api.get("/builder/channel"); setChannels(r.data.items || []); } catch (e) { toast.error("Couldn't load channels â€” refresh to retry"); } };
   useEffect(() => { load(); }, []);
 
   const plan = async () => {
     if (niche.trim().length < 3) return toast.error("Niche too short");
-    setBusy(true); toast.loading("Planning your 30-day channel…", { id: "ch", duration: 60000 });
+    setBusy(true); toast.loading("Planning your 30-day channelâ€¦", { id: "ch", duration: 60000 });
     try {
       const r = await api.post("/builder/channel/plan", { niche, style, posts_per_week: Number(freq), language: lang, orientation });
-      toast.success(`Channel "${r.data.plan?.channel_name}" ready ✅`, { id: "ch" });
+      toast.success(`Channel "${r.data.plan?.channel_name}" ready âœ…`, { id: "ch" });
       setActive(r.data); setNiche(""); await load();
     } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "ch" }); }
     finally { setBusy(false); }
   };
 
   const execute = async (cid, max) => {
-    toast.loading(`Queuing ${max} videos…`, { id: `ex${cid}` });
+    toast.loading(`Queuing ${max} videosâ€¦`, { id: `ex${cid}` });
     try {
       const r = await api.post("/builder/channel/execute", { channel_id: cid, max_videos: max });
-      toast.success(`${r.data.count} videos queued → Video Studio ✅`, { id: `ex${cid}` });
+      toast.success(`${r.data.count} videos queued â†’ Video Studio âœ…`, { id: `ex${cid}` });
       load();
     } catch (e) { toast.error("Execute failed", { id: `ex${cid}` }); }
   };
-  const del = async (cid) => { try { await api.delete(`/builder/channel/${cid}`); load(); toast.success("Deleted"); } catch (e) { toast.error("Delete failed — please retry"); } };
+  const del = async (cid) => { try { await api.delete(`/builder/channel/${cid}`); load(); toast.success("Deleted"); } catch (e) { toast.error("Delete failed â€” please retry"); } };
 
   return (
     <div className="space-y-4 mt-4">
       <div>
         <label className="text-xs text-[var(--gs-muted)]">Niche *</label>
-        <Input value={niche} onChange={(e) => setNiche(e.target.value)} placeholder="e.g. AI tools for Indian students · Personal finance · Indian street food" data-testid="ch-niche"/>
+        <Input value={niche} onChange={(e) => setNiche(e.target.value)} placeholder="e.g. AI tools for Indian students Â· Personal finance Â· Indian street food" data-testid="ch-niche"/>
       </div>
       <div className="grid md:grid-cols-4 gap-3">
         <div>
@@ -366,7 +366,7 @@ function ChannelBuilder({ color }) {
       </div>
       <Button onClick={plan} disabled={busy} className="w-full text-white" style={{ background: color }} data-testid="ch-plan-btn">
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkle className="h-4 w-4 mr-2"/>}
-        {busy ? "Planning…" : "Plan 30-day Channel"}
+        {busy ? "Planningâ€¦" : "Plan 30-day Channel"}
       </Button>
 
       <div className="space-y-2 max-h-80 overflow-y-auto" data-testid="ch-list">
@@ -375,7 +375,7 @@ function ChannelBuilder({ color }) {
             <div className="flex items-center gap-2">
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-sm truncate">{c.plan?.channel_name || c.niche}</div>
-                <div className="text-[10px] text-[var(--gs-muted)]">{c.plan?.videos?.length || 0} videos planned · {c.status} · {c.executed_video_ids?.length || 0} executed</div>
+                <div className="text-[10px] text-[var(--gs-muted)]">{c.plan?.videos?.length || 0} videos planned Â· {c.status} Â· {c.executed_video_ids?.length || 0} executed</div>
               </div>
               <Button size="sm" variant="outline" onClick={() => setActive(c)} data-testid={`ch-view-${c.id}`}>Calendar</Button>
               <Button size="sm" style={{ background: color, color: "white" }} onClick={() => execute(c.id, 5)} data-testid={`ch-exec-${c.id}`}>Execute 5</Button>
@@ -389,7 +389,7 @@ function ChannelBuilder({ color }) {
         <Card className="p-4 mt-2" data-testid="ch-calendar-panel">
           <div className="flex items-center justify-between mb-2">
             <h4 className="font-display text-lg">{active.plan?.channel_name}</h4>
-            <button onClick={() => setActive(null)} className="text-[var(--gs-muted)]">✕</button>
+            <button onClick={() => setActive(null)} className="text-[var(--gs-muted)]">âœ•</button>
           </div>
           <div className="text-xs text-[var(--gs-muted)] mb-3">{active.plan?.channel_bio}</div>
           <div className="grid gap-1 max-h-72 overflow-y-auto">
@@ -419,17 +419,17 @@ function AgentBuilder({ color }) {
   const [runOut, setRunOut] = useState(null);
   const [running, setRunning] = useState(false);
 
-  const load = async () => { try { const r = await api.get("/builder/agent"); setAgents(r.data.items || []); } catch (e) { toast.error("Couldn't load agents — refresh to retry"); } };
+  const load = async () => { try { const r = await api.get("/builder/agent"); setAgents(r.data.items || []); } catch (e) { toast.error("Couldn't load agents â€” refresh to retry"); } };
   useEffect(() => { load(); }, []);
 
   const create = async () => {
     if (form.name.trim().length < 2) return toast.error("Name too short");
     if (form.system_prompt.trim().length < 20) return toast.error("System prompt too short");
-    setBusy(true); toast.loading("Saving agent…", { id: "ag" });
+    setBusy(true); toast.loading("Saving agentâ€¦", { id: "ag" });
     try {
       const param_keys = form.param_keys_csv.split(",").map(s => s.trim()).filter(Boolean);
       await api.post("/builder/agent", { ...form, param_keys });
-      toast.success(`${form.name} created ✅`, { id: "ag" });
+      toast.success(`${form.name} created âœ…`, { id: "ag" });
       setForm({ name: "", role: "", system_prompt: "", param_keys_csv: "input", color, icon: "Bot" });
       await load();
     } catch (e) { toast.error("Create failed", { id: "ag" }); }
@@ -438,10 +438,10 @@ function AgentBuilder({ color }) {
 
   const openRunner = (a) => { setActive(a); setRunOut(null); const p = {}; (a.param_keys || []).forEach(k => p[k] = ""); setRunParams(p); };
   const run = async () => {
-    setRunning(true); toast.loading("Running…", { id: "rn" });
+    setRunning(true); toast.loading("Runningâ€¦", { id: "rn" });
     try {
       const r = await api.post(`/builder/agent/${active.id}/run`, { params: runParams });
-      setRunOut(r.data); toast.success("Done ✅", { id: "rn" });
+      setRunOut(r.data); toast.success("Done âœ…", { id: "rn" });
     } catch (e) { toast.error("Run failed", { id: "rn" }); }
     finally { setRunning(false); }
   };
@@ -472,12 +472,12 @@ function AgentBuilder({ color }) {
         </div>
         <Button onClick={create} disabled={busy} className="w-full text-white" style={{ background: color }} data-testid="ag-create-btn">
           {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Plus className="h-4 w-4 mr-2"/>}
-          {busy ? "Saving…" : "Create Agent"}
+          {busy ? "Savingâ€¦" : "Create Agent"}
         </Button>
       </Card>
 
       <div className="space-y-2">
-        <div className="text-sm font-semibold">Your custom agents · {agents.length}</div>
+        <div className="text-sm font-semibold">Your custom agents Â· {agents.length}</div>
         {agents.length === 0 && <Card className="p-4 text-center text-xs text-[var(--gs-muted)]">No custom agents yet.</Card>}
         <div className="grid md:grid-cols-2 gap-2">
           {agents.map((a) => (
@@ -503,7 +503,7 @@ function AgentBuilder({ color }) {
               <div className="font-display text-lg">{active.name}</div>
               <div className="text-[10px] text-[var(--gs-muted)]">{active.role}</div>
             </div>
-            <button onClick={() => setActive(null)} className="text-[var(--gs-muted)]">✕</button>
+            <button onClick={() => setActive(null)} className="text-[var(--gs-muted)]">âœ•</button>
           </div>
           {(active.param_keys || []).map((k) => (
             <div key={k} className="mb-2">
@@ -534,21 +534,21 @@ function StarterBuilder({ color, kind, placeholder }) {
   const [busy, setBusy] = useState(false);
   const [items, setItems] = useState([]);
 
-  const load = useCallback(async () => { try { const r = await api.get("/builder/starter"); setItems((r.data.items || []).filter(x => x.kind === kind)); } catch (e) { toast.error("Couldn't load starters — refresh to retry"); } }, [kind]);
+  const load = useCallback(async () => { try { const r = await api.get("/builder/starter"); setItems((r.data.items || []).filter(x => x.kind === kind)); } catch (e) { toast.error("Couldn't load starters â€” refresh to retry"); } }, [kind]);
   useEffect(() => { load(); }, [load]);
 
   const build = async () => {
     if (prompt.trim().length < 4) return toast.error("Prompt too short");
-    setBusy(true); toast.loading("Generating starter kit…", { id: "st", duration: 60000 });
+    setBusy(true); toast.loading("Generating starter kitâ€¦", { id: "st", duration: 60000 });
     try {
       const r = await api.post("/builder/starter", { kind, prompt, app_name: name });
-      toast.success(`Ready · ${(r.data.size_bytes / 1024).toFixed(1)} KB ✅`, { id: "st" });
+      toast.success(`Ready Â· ${(r.data.size_bytes / 1024).toFixed(1)} KB âœ…`, { id: "st" });
       setPrompt(""); setName(""); load();
     } catch (e) { toast.error(e?.response?.data?.detail || "Failed", { id: "st" }); }
     finally { setBusy(false); }
   };
 
-  const del = async (sid) => { try { await api.delete(`/builder/starter/${sid}`); load(); toast.success("Deleted"); } catch (e) { toast.error("Delete failed — please retry"); } };
+  const del = async (sid) => { try { await api.delete(`/builder/starter/${sid}`); load(); toast.success("Deleted"); } catch (e) { toast.error("Delete failed â€” please retry"); } };
 
   return (
     <div className="space-y-4 mt-4">
@@ -562,7 +562,7 @@ function StarterBuilder({ color, kind, placeholder }) {
       </div>
       <Button onClick={build} disabled={busy} className="w-full text-white" style={{ background: color }} data-testid={`st-${kind}-build`}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Download className="h-4 w-4 mr-2"/>}
-        {busy ? "Building starter…" : "Generate Starter Kit"}
+        {busy ? "Building starterâ€¦" : "Generate Starter Kit"}
       </Button>
 
       <div className="space-y-2 max-h-72 overflow-y-auto">
@@ -581,17 +581,17 @@ function StarterBuilder({ color, kind, placeholder }) {
 
       {kind === "mobileapp" && (
         <div className="text-[11px] text-[var(--gs-muted)] p-3 bg-[var(--gs-surface-2)] rounded-xl">
-          <strong>How to run:</strong> Unzip → <code>npm install</code> → <code>npx expo start</code> → scan QR with Expo Go app.
+          <strong>How to run:</strong> Unzip â†’ <code>npm install</code> â†’ <code>npx expo start</code> â†’ scan QR with Expo Go app.
         </div>
       )}
       {kind === "fullstack" && (
         <div className="text-[11px] text-[var(--gs-muted)] p-3 bg-[var(--gs-surface-2)] rounded-xl">
-          <strong>How to run:</strong> Unzip → <code>docker compose up --build</code> → Backend at :8001, Frontend at :5173.
+          <strong>How to run:</strong> Unzip â†’ <code>docker compose up --build</code> â†’ Backend at :8001, Frontend at :5173.
         </div>
       )}
       {kind === "blog" && (
         <div className="text-[11px] text-[var(--gs-muted)] p-3 bg-[var(--gs-surface-2)] rounded-xl">
-          <strong>How to deploy:</strong> Unzip → drag folder to Netlify/Vercel drop, or open <code>index.html</code> locally.
+          <strong>How to deploy:</strong> Unzip â†’ drag folder to Netlify/Vercel drop, or open <code>index.html</code> locally.
         </div>
       )}
     </div>

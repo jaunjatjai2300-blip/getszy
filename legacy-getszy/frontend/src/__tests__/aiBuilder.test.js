@@ -1,4 +1,4 @@
-// Regression guard for the production fix (commit e67ad2a):
+﻿// Regression guard for the production fix (commit e67ad2a):
 //  - must POST to /api/ai-tools/chat/completions (not the legacy /api/ai/chat/completions)
 //  - must parse JSON `choices[0].message.content` (not raw SSE text)
 import { generateWithAI } from '../utils/aiBuilder';
@@ -15,7 +15,7 @@ describe('generateWithAI', () => {
   });
 
   it('posts to the chat/completions endpoint with auth and returns parsed JSON content', async () => {
-    global.fetch = jest.fn(() =>
+    global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ choices: [{ message: { content: 'hello world' } }] }),
@@ -35,7 +35,7 @@ describe('generateWithAI', () => {
   });
 
   it('throws a readable error when the response is not ok', async () => {
-    global.fetch = jest.fn(() =>
+    global.fetch = vi.fn(() =>
       Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) })
     );
     await expect(generateWithAI({ prompt: 'x', type: 'course' })).rejects.toThrow(/500/);

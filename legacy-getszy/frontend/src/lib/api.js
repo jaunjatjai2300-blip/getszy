@@ -1,7 +1,7 @@
-import axios from "axios";
+﻿import axios from "axios";
 import { _activityInc, _activityDec } from "./requestActivity";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 export const API_BASE = BACKEND_URL ? `${BACKEND_URL}/api` : "/api";
 
 export const api = axios.create({ baseURL: API_BASE });
