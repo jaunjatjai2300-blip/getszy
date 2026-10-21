@@ -93,14 +93,27 @@ jobs:
           # Safety currently identifies CVE-2026-59890 in setuptools <83.0.0.
           python -m pip install --upgrade "setuptools>=83.0.0" bandit safety
           cd legacy-getszy/backend
+          # Install the APP's dependencies into this environment FIRST: `safety
+          # check` scans the running interpreter's environment, so without this
+          # it scans only the scanner's own packages (bandit/safety deps) and
+          # reports nothing about the application. emergentintegrations is on a
+          # private index and skipped here (same as the backend-tests job).
+          grep -v '^emergentintegrations' requirements.txt > /tmp/req-ci.txt
+          pip install -r /tmp/req-ci.txt
           # High-severity only for bandit (low/medium are too noisy to gate on).
           bandit -r . -x ./tests,./venv -lll
-          # Dependency CVE scan — fails loudly. The only currently-flagged
-          # package is `ecdsa` (a transitive dep via web3/eth libs). 0.19.2 is
-          # its latest release and it is NOT used for security-critical signing
-          # in this app, so the over-broad Minerva advisory (IDs below) is
-          # ignored with rationale. Genuinely new CVEs will still fail CI.
-          safety check --ignore 64396 --ignore 64459
+          # Dependency CVE scan — fails loudly. Ignored advisories, each with
+          # rationale:
+          #  - 64396 / 64459: ecdsa (transitive via web3/eth libs). 0.19.2 is
+          #    its latest release and it is NOT used for security-critical
+          #    signing in this app, so the over-broad Minerva advisory is
+          #    ignored.
+          #  - SFTY-20260902-58666 (CVE-2026-81726, nltk path traversal): nltk
+          #    is a dependency of the safety CLI itself, never of this app
+          #    (verified: no nltk in requirements.txt, no `import nltk` in the
+          #    codebase, no nltk in Dockerfile.backend) — false positive from
+          #    the scanner shipping the flagged package.
+          safety check --ignore 64396 --ignore 64459 --ignore SFTY-20260902-58666
 
   frontend-build:
     runs-on: ubuntu-latest
