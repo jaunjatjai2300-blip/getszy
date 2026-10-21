@@ -205,12 +205,6 @@ async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] =
         )
         if updated:
             await reconcile_operation_debit_ledger(user_id, action, qty, ref_id, meta)
-            if int(updated.get('credits', 0) or 0) == 0:
-                try:
-                    from subscription import end_subscription_if_no_credits
-                    await end_subscription_if_no_credits(user_id)
-                except Exception:
-                    logger.exception('failed to end subscription for zero-balance user %s', user_id)
             return True, '', int(updated.get('credits', 0) or 0)
         existing_marker = await db.users.find_one(
             {'id': user_id, 'paid_debit_markers.ref_id': ref_id}, {'_id': 0, 'credits': 1}
@@ -247,15 +241,6 @@ async def deduct(user_id: str, action: str, qty: int = 1, meta: Optional[dict] =
         'meta': meta or {},
         'created_at': _now(),
     })
-    # A zero balance blocks the next paid action. We retain the historical pack
-    # record for customer support and ledger transparency; it implies no calendar
-    # subscription or recurring access state.
-    if balance_after == 0:
-        try:
-            from subscription import end_subscription_if_no_credits
-            await end_subscription_if_no_credits(user_id)
-        except Exception:
-            logger.exception('failed to end subscription for zero-balance user %s', user_id)
     return True, '', balance_after
 
 

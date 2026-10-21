@@ -235,12 +235,13 @@ async def process_refund(body: RefundIn, admin=Depends(get_current_admin)):
         refunded_before = order.get('refund_amount') or 0
     refunded_before = float(refunded_before or 0)
     total = float(order.get('total') or 0)
-    remaining = total - refunded_before
+    clamped = total > 0
+    remaining = total - refunded_before if clamped else body.amount
     if body.amount <= 0:
         raise HTTPException(status_code=400, detail='Refund amount must be positive')
-    if remaining <= 0:
+    if clamped and remaining <= 0:
         raise HTTPException(status_code=409, detail='Order is already fully refunded')
-    if body.amount > remaining + 0.01:
+    if clamped and body.amount > remaining + 0.01:
         raise HTTPException(status_code=400, detail=f'Amount exceeds refundable remaining balance of ₹{remaining:.2f}')
     new_refunded = refunded_before + body.amount
     fully_refunded = new_refunded >= total - 0.01
